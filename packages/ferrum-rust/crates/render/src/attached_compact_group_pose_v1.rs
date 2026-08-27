@@ -9,7 +9,7 @@ use crate::atom_bond::bond::{
 };
 use crate::compact_group::{GROUP_LABEL_SIZE_PT_V1, compact_group_marker_back_distance};
 use crate::{
-    AtomLabelFacts, AtomLabelFontProfile, GlyphMetrics, Paint, PositiveFinite, RenderPoint,
+    AtomLabelFacts, AtomLabelFontProfile, GlyphMetrics, PositiveFinite, RenderPaintV3, RenderPoint,
     VerifiedTelexGlyphMetrics,
 };
 
@@ -19,7 +19,7 @@ pub struct AttachedCompactGroupAnchorRenderFactsV1 {
     anchor: RenderPoint,
     atom_label: AtomLabelFacts,
     atom_label_font: AtomLabelFontProfile,
-    compact_group_paint: Paint,
+    compact_group_paint: RenderPaintV3,
 }
 
 impl AttachedCompactGroupAnchorRenderFactsV1 {
@@ -29,7 +29,7 @@ impl AttachedCompactGroupAnchorRenderFactsV1 {
         anchor: RenderPoint,
         atom_label: AtomLabelFacts,
         atom_label_font: AtomLabelFontProfile,
-        compact_group_paint: Paint,
+        compact_group_paint: RenderPaintV3,
     ) -> Self {
         Self {
             anchor,
@@ -208,7 +208,7 @@ fn minimum_distinct_scene_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FerrumFontEnvironmentV1, FontFace, Rgb24};
+    use crate::{FerrumFontEnvironmentV1, FontFace};
 
     fn metrics() -> VerifiedTelexGlyphMetrics {
         let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
@@ -222,9 +222,9 @@ mod tests {
             AtomLabelFontProfile::new(
                 FontFace::telex_regular(),
                 PositiveFinite::new(12.0).expect("positive font size"),
-                Paint::rgb24(Rgb24::new("000000").expect("valid paint")),
+                RenderPaintV3::document_foreground(),
             ),
-            Paint::rgb24(Rgb24::new("000000").expect("valid paint")),
+            RenderPaintV3::document_foreground(),
         )
     }
 

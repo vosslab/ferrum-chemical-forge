@@ -75,7 +75,7 @@ def test_arrow_properties_reject_hostile_shapes_without_mutation() -> None:
 		)
 	assert session.observe(0).snapshot.digest == before.digest
 	unknown = ferrum_chem.DocumentOperationV1.set_arrow_properties(
-		"ferrum-document-object-v1/00000000000000000000000000000000",
+		"ferrum-document-object-v1/00000000000000000000000000000001",
 		(change_type.start_head(True),),
 	)
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError):

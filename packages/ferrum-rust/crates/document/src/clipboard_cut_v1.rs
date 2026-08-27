@@ -127,6 +127,7 @@ fn presentation_deletion(
     for object in selected {
         let record = document
             .resolve_document_object_id(object)
+            .map_err(|_| DocumentClipboardCutErrorV1::IdentityInvariant)?
             .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
         if record.path().components().len() != 1 {
             return Err(DocumentClipboardCutErrorV1::UnsupportedTopLevelSelection);
@@ -175,6 +176,7 @@ fn compose_structure_cut(
 ) -> Result<TypedDocument, DocumentClipboardCutErrorV1> {
     let molecule = current
         .resolve_document_object_id(molecule_id)
+        .map_err(|_| DocumentClipboardCutErrorV1::IdentityInvariant)?
         .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
     if molecule.class() != TypedClass::Molecule || molecule.path().components().len() != 1 {
         return Err(DocumentClipboardCutErrorV1::IdentityInvariant);
@@ -186,6 +188,7 @@ fn compose_structure_cut(
     for object in selected {
         let record = current
             .resolve_document_object_id(object)
+            .map_err(|_| DocumentClipboardCutErrorV1::IdentityInvariant)?
             .ok_or(DocumentClipboardCutErrorV1::IdentityInvariant)?;
         let path = record.path().components();
         if path.len() != 2 || path[0] != molecule_index {

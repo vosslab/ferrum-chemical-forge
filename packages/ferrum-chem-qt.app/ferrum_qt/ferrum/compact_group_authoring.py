@@ -13,6 +13,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.graphics_disposal
+import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.ferrum.direct_bond_overlay
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
 import ferrum_qt.ferrum.engine
@@ -37,6 +38,7 @@ class _AttachCompactGroupIntent:
 	viewport: PySide6.QtWidgets.QWidget
 	revision: int
 	digest: str
+	molecule_object_id: str
 	anchor_object_id: str
 	catalog_key: str
 	label: str
@@ -186,26 +188,30 @@ class FerrumNativeCompactGroupAuthoringTabMixin:
 			raise RuntimeError("Ferrum returned an invalid compact-group choice.")
 		return choices
 
-	def attach_compact_group_availability(self, anchor_object_id: str,
+	def attach_compact_group_availability(self, molecule_object_id: str, anchor_object_id: str,
 			catalog_key: str) -> object:
 		"""Observe one current durable atom's Rust-owned attachment admission."""
 		self._require_mutable()
+		if type(molecule_object_id) is not str or not molecule_object_id:
+			raise ValueError("Select one durable molecule before attaching a compact group.")
 		if type(anchor_object_id) is not str or not anchor_object_id:
 			raise ValueError("Select one durable atom before attaching a compact group.")
 		if type(catalog_key) is not str or not catalog_key:
 			raise ValueError("Choose one compact group before attaching it.")
 		snapshot = self.current_snapshot
 		return self._session._attach_compact_group_availability_v1(
-			snapshot.revision, snapshot.digest, anchor_object_id, catalog_key,
+			snapshot.revision, snapshot.digest, molecule_object_id, anchor_object_id, catalog_key,
 		)
 
 	def begin_attached_compact_group(self, revision: int, digest: str,
-			anchor_object_id: str, catalog_key: str,
+			molecule_object_id: str, anchor_object_id: str, catalog_key: str,
 			release: PySide6.QtCore.QPointF) -> object:
 		"""Start one opaque Rust candidate from frozen chooser and fence facts."""
 		self._require_mutable()
 		if type(revision) is not int or type(digest) is not str or not digest:
 			raise ValueError("The compact-group request no longer has a valid document fence.")
+		if type(molecule_object_id) is not str or not molecule_object_id:
+			raise ValueError("Select one durable molecule before attaching a compact group.")
 		if type(anchor_object_id) is not str or not anchor_object_id:
 			raise ValueError("Select one durable atom before attaching a compact group.")
 		if type(catalog_key) is not str or not catalog_key:
@@ -218,7 +224,7 @@ class FerrumNativeCompactGroupAuthoringTabMixin:
 				"The document changed; choose Attach Compact Group again.",
 			)
 		return self._session._begin_attach_compact_group_v1(
-			revision, digest, anchor_object_id, catalog_key,
+			revision, digest, molecule_object_id, anchor_object_id, catalog_key,
 			float(release.x()), float(release.y()),
 		)
 
@@ -304,15 +310,15 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			tab = self._active_native_tab()
 			try:
 				if tab is not None:
-					anchor_object_id = tab._selected_atom_identifier()
+					address = tab.selected_molecule_atom_address()
 					snapshot = tab.current_snapshot
 					choices = tab.attached_compact_group_choices()
 					current = any(
 						_attached_compact_group_choice_has_current_known_anchor(
 							tab.attach_compact_group_availability(
-								anchor_object_id, choice.catalog_key,
+								address.molecule_id, address.atom_id, choice.catalog_key,
 							),
-							snapshot.revision, snapshot.digest, anchor_object_id,
+							snapshot.revision, snapshot.digest, address.atom_id,
 							choice.catalog_key,
 						)
 						for choice in choices
@@ -330,7 +336,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		if self._compact_group_authoring_chooser is not None:
 			return
 		try:
-			tab, revision, digest, anchor_object_id, choices = (
+			tab, revision, digest, molecule_object_id, anchor_object_id, choices = (
 				self._current_attach_compact_group_target()
 			)
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
@@ -340,14 +346,15 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		dialog = FerrumAttachCompactGroupDialog(self, choices)
 		dialog.finished.connect(functools.partial(
 			self._finish_compact_group_choice, dialog, tab, revision, digest,
-			anchor_object_id,
+			molecule_object_id, anchor_object_id,
 		))
 		self._compact_group_authoring_chooser = dialog
 		dialog.open()
 		dialog.attach_button.setFocus()
 
 	def _finish_compact_group_choice(self, dialog: FerrumAttachCompactGroupDialog,
-			tab: object, revision: int, digest: str, anchor_object_id: str,
+			tab: object, revision: int, digest: str, molecule_object_id: str,
+			anchor_object_id: str,
 			result: int) -> None:
 		"""Arm one release only after the chooser accepts one current choice."""
 		if self._compact_group_authoring_chooser is dialog:
@@ -357,7 +364,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		try:
 			choice = dialog.selected_choice()
 			self._require_current_attach_compact_group_target(
-				tab, revision, digest, anchor_object_id, choice,
+				tab, revision, digest, molecule_object_id, anchor_object_id, choice,
 			)
 		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
 			self._show_edit_refusal(self._attach_compact_group_refusal(exc))
@@ -365,7 +372,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			return
 		self._cancel_compact_group_authoring()
 		intent = _AttachCompactGroupIntent(
-			tab, tab.view.viewport(), revision, digest, anchor_object_id,
+			tab, tab.view.viewport(), revision, digest, molecule_object_id, anchor_object_id,
 			choice.catalog_key, choice.label,
 		)
 		capture = _AttachCompactGroupCapture(self, intent)
@@ -380,9 +387,9 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		self._refresh_actions()
 
 	def _current_attach_compact_group_target(
-			self) -> tuple[object, int, str, str, tuple[_AttachedCompactGroupChoice, ...]]:
+			self) -> tuple[object, int, str, str, str, tuple[_AttachedCompactGroupChoice, ...]]:
 		"""Return one current atom, its fence, and Rust-reviewed choices."""
-		tab, revision, digest, anchor_object_id = (
+		tab, revision, digest, molecule_object_id, anchor_object_id = (
 			self._current_attach_compact_group_fence()
 		)
 		choices = tab.attached_compact_group_choices()
@@ -390,7 +397,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		available_choices = []
 		for choice in choices:
 			facts = tab.attach_compact_group_availability(
-				anchor_object_id, choice.catalog_key,
+				molecule_object_id, anchor_object_id, choice.catalog_key,
 			)
 			if not _attached_compact_group_choice_has_current_known_anchor(
 				facts, revision, digest, anchor_object_id, choice.catalog_key,
@@ -405,18 +412,18 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			)
 		if not available_choices:
 			raise _AttachCompactGroupUnavailableError(choices[0].label)
-		return tab, revision, digest, anchor_object_id, tuple(available_choices)
+		return tab, revision, digest, molecule_object_id, anchor_object_id, tuple(available_choices)
 
-	def _current_attach_compact_group_fence(self) -> tuple[object, int, str, str]:
+	def _current_attach_compact_group_fence(self) -> tuple[object, int, str, str, str]:
 		"""Return the live tab fence before interpreting a choice-specific fact."""
 		tab = self._active_native_tab()
 		if tab is None or self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed:
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
 				"Open a ready Ferrum drawing and select one atom first.",
 			)
-		anchor_object_id = tab._selected_atom_identifier()
+		address = tab.selected_molecule_atom_address()
 		snapshot = tab.current_snapshot
-		return tab, snapshot.revision, snapshot.digest, anchor_object_id
+		return tab, snapshot.revision, snapshot.digest, address.molecule_id, address.atom_id
 
 	def _attach_compact_group_refusal(self, exc: Exception) -> object:
 		"""Use selected Rust-derived learner text for a current unavailable choice."""
@@ -429,16 +436,17 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		return self._unavailable_edit_refusal(str(exc), primary_message)
 
 	def _require_current_attach_compact_group_target(self, tab: object, revision: int,
-			digest: str, anchor_object_id: str,
+			digest: str, molecule_object_id: str, anchor_object_id: str,
 			choice: _AttachedCompactGroupChoice) -> None:
 		"""Reject changed intent before consulting selected-choice chemistry facts."""
-		current, current_revision, current_digest, current_anchor = (
+		current, current_revision, current_digest, current_molecule, current_anchor = (
 			self._current_attach_compact_group_fence()
 		)
 		if (
 			current is not tab
 			or current_revision != revision
 			or current_digest != digest
+			or current_molecule != molecule_object_id
 			or current_anchor != anchor_object_id
 		):
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
@@ -449,7 +457,9 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 			raise native_document_tab_errors.FerrumNativeDocumentTabError(
 				"The compact-group choices changed; choose Attach Compact Group again.",
 			)
-		facts = current.attach_compact_group_availability(current_anchor, choice.catalog_key)
+		facts = current.attach_compact_group_availability(
+			current_molecule, current_anchor, choice.catalog_key,
+		)
 		if not _attached_compact_group_choice_has_current_known_anchor(
 			facts, current_revision, current_digest, current_anchor, choice.catalog_key,
 		):
@@ -464,7 +474,8 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		"""Return whether the one release still belongs to its live Rust fence."""
 		try:
 			self._require_current_attach_compact_group_target(
-				intent.tab, intent.revision, intent.digest, intent.anchor_object_id,
+				intent.tab, intent.revision, intent.digest, intent.molecule_object_id,
+				intent.anchor_object_id,
 				_AttachedCompactGroupChoice(intent.catalog_key, intent.label),
 			)
 		except (
@@ -495,7 +506,7 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 		try:
 			release = intent.tab.view.mapToScene(event.position().toPoint())
 			pending = intent.tab.begin_attached_compact_group(
-				intent.revision, intent.digest, intent.anchor_object_id,
+				intent.revision, intent.digest, intent.molecule_object_id, intent.anchor_object_id,
 				intent.catalog_key, release,
 			)
 			overlay = intent.tab.preview_attached_compact_group(pending)
@@ -521,6 +532,9 @@ class FerrumNativeCompactGroupAuthoringWindowMixin:
 					if not native_failure and sys.exception() is None:
 						raise
 			if preview is not None:
+				ferrum_qt.ferrum.document_display_refresh.unregister_attached_document_display_refreshable(
+					preview,
+				)
 				scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 				if scene is not None:
 					coordinator = (

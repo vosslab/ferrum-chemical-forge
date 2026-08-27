@@ -13,6 +13,7 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.dialogs.bond_dialog
 import ferrum_qt.ferrum.bond_properties
 
@@ -258,7 +259,7 @@ def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
 		'<atom id="atom-o" name="O"><point x="30" y="0"/></atom>'
 		'</molecule></cdml>'
 	)
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(cdml, "bond")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(cdml, "bond", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		atom_ids = tuple(
 			atom.document_object_id

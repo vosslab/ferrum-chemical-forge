@@ -34,8 +34,7 @@ fn molecule_selector(session: &DocumentSession, index: usize) -> TopLevelRootSel
         .expect("fixture observation")
         .projection()
         .molecules()[index]
-        .id()
-        .expect("fixture molecule is durable")
+        .document_object_id()
         .clone();
     selector(document_object_id, TopLevelRootKindV1::Molecule)
 }

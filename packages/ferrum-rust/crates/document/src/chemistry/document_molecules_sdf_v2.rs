@@ -333,10 +333,7 @@ pub fn prepare_document_molecules_sdf_from_source_ids_v2(
         if roots.next().is_some() {
             return Err(DocumentMoleculesSdfErrorV2::AmbiguousSourceId);
         }
-        let object_id = root
-            .id()
-            .ok_or(DocumentMoleculeInspectionErrorV1::ProjectionRootMismatch)?;
-        molecule_ids.push(copied_object_id(object_id)?);
+        molecule_ids.push(copied_object_id(root.document_object_id())?);
     }
     let request = DocumentMoleculesSdfRequestV2::new(
         expected_revision,

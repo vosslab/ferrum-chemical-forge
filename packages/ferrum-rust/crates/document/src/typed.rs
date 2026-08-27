@@ -345,6 +345,25 @@ impl TypedDocument {
         &mut self.indexed
     }
 
+    #[cfg(test)]
+    pub(crate) fn corrupt_direct_document_object_id_for_test(&mut self, source_id: &str) {
+        let tree = &mut self.indexed.xml.tree;
+        let document = self.indexed.xml.document;
+        let root = tree
+            .document_element(document)
+            .expect("typed document has a root");
+        let source_id_name = tree.add_name("id");
+        let node = tree
+            .children(root)
+            .find(|node| tree.get_attribute(*node, source_id_name) == Some(source_id))
+            .expect("test fixture has the named direct root");
+        let object_id_name =
+            super::document_object_identity_v1::document_object_attribute_name(tree, document);
+        tree.set_attribute(node, object_id_name, "not-a-document-object-id");
+        self.root = project_record(tree, root, TypedClass::Cdml, Vec::new())
+            .expect("corruption preserves typed CDML structure");
+    }
+
     /// Return a detached document with one typed atom's element spelling replaced.
     ///
     /// This deliberately narrow primitive is owned by the typed CDML layer rather

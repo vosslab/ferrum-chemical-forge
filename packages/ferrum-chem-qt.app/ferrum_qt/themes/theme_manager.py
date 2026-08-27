@@ -1,12 +1,25 @@
 """Theme manager for switching between dark and light themes."""
 
+# Standard Library
+import dataclasses
+
 # PySide6 modules
 import PySide6.QtCore
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.themes.document_display_palette
 import ferrum_qt.themes.palettes
 import ferrum_qt.themes.theme_loader
+
+
+#============================================
+@dataclasses.dataclass(frozen=True)
+class ThemeChangeV1:
+	"""One atomically applied theme name and its frozen display palette."""
+
+	name: str
+	palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1
 
 
 #============================================
@@ -21,8 +34,8 @@ class ThemeManager(PySide6.QtCore.QObject):
 		app: The QApplication instance to theme.
 	"""
 
-	# signal emitted with the new theme name after a switch
-	theme_changed = PySide6.QtCore.Signal(str)
+	# signal emitted with the atomically applied theme facts after a switch
+	theme_changed = PySide6.QtCore.Signal(object)
 
 	def __init__(self, app: PySide6.QtWidgets.QApplication) -> None:
 		"""Initialize the theme manager.
@@ -51,7 +64,7 @@ class ThemeManager(PySide6.QtCore.QObject):
 		"""Apply the named theme to the application.
 
 		Sets both the QPalette and QSS stylesheet on the stored
-		QApplication reference, then emits theme_changed.
+		QApplication reference, then emits one typed ThemeChangeV1.
 
 		Args:
 			name: Theme name, must be 'dark' or 'light'.
@@ -66,8 +79,12 @@ class ThemeManager(PySide6.QtCore.QObject):
 			).format(name, ", ".join(valid_names))
 			raise ValueError(msg)
 
-		# clear theme cache so YAML changes take effect
+		# Build every artifact before touching QApplication state. In particular,
+		# an invalid display palette leaves the active Qt theme unchanged.
 		ferrum_qt.themes.theme_loader.clear_cache()
+		document_display_palette = (
+			ferrum_qt.themes.theme_loader.get_document_display_palette(name)
+		)
 		palette = ferrum_qt.themes.palettes.build_palette(name)
 		stylesheet = ferrum_qt.themes.palettes.build_qss(name)
 
@@ -79,8 +96,8 @@ class ThemeManager(PySide6.QtCore.QObject):
 		# persist preference if Preferences is available
 		self._save_preference(name)
 
-		# notify listeners
-		self.theme_changed.emit(name)
+		# notify listeners after the full application state has changed
+		self.theme_changed.emit(ThemeChangeV1(name, document_display_palette))
 
 	#============================================
 	def toggle_theme(self) -> None:

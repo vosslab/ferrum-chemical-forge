@@ -3,9 +3,10 @@
 use std::{io::Read, path::Path};
 
 use ferrum_chemistry::{
-    BondOrder, ChemEngine, CmlDecodedRecordV1, CmlRefusalReasonV1, Coordinates,
-    InterchangeRecordV1, MolAtom, MolBond, MolGraph, Point2 as ChemistryPoint2,
-    decode_cml_bytes_v1, interchange_record_from_sdf_v1, validate_sdf_input,
+    CdxmlDecodedDocumentV1, CdxmlLossCategoryV1, CdxmlRefusalReasonV1, ChemEngine,
+    CmlDecodedRecordV1, CmlRefusalReasonV1, Coordinates, InterchangeRecordV1, MolAtom, MolGraph,
+    Point2 as ChemistryPoint2, decode_cdxml_bytes_v1, decode_cml_bytes_v1,
+    interchange_record_from_sdf_v1, validate_sdf_input,
 };
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
@@ -203,6 +204,21 @@ pub(crate) fn prepare_interchange_new_document_v1<R: ChemistryRuntimeV1>(
                 vec![DocumentInterchangeLossCategoryV1::LexicalSyntax],
             )
         }
+        InterchangeDecoderKeyV1::CdxmlSimpleMolecule => {
+            let decoded = decode_cdxml_simple_molecule_document_v1(source.bytes())?;
+            let records = decoded
+                .records()
+                .iter()
+                .map(|record| record.record().clone())
+                .collect();
+            prepare_records(
+                descriptor,
+                records,
+                &ferrum_chemistry::UnavailableChemEngine,
+                provenance,
+                map_cdxml_losses(decoded.declared_losses()),
+            )
+        }
         InterchangeDecoderKeyV1::Sdf => runtime
             .with_engine(|engine| {
                 Ok(
@@ -276,7 +292,8 @@ pub(crate) fn prepare_local_interchange_new_document_v1<R: LocalInterchangeRunti
         source_kind: source.source_kind(),
     };
     let prepared = match descriptor.decoder() {
-        InterchangeDecoderKeyV1::CmlSimpleMolecule => prepare_interchange_new_document_v1(
+        InterchangeDecoderKeyV1::CmlSimpleMolecule
+        | InterchangeDecoderKeyV1::CdxmlSimpleMolecule => prepare_interchange_new_document_v1(
             descriptor,
             &source,
             &crate::protocol::runtime::NoChemistryRuntimeV1,
@@ -309,6 +326,31 @@ pub(crate) fn decode_cml_simple_molecule_records_v1(
         .records()
         .iter()
         .map(convert_cml_record)
+        .collect()
+}
+
+/// Decode the registry-owned CDXML simple-molecule profile into owned records.
+///
+/// The chemistry decoder owns the closed XML profile. This adapter retains
+/// only its typed records and loss categories, then shares the one document
+/// preparation transaction used by the other interchange profiles.
+pub(crate) fn decode_cdxml_simple_molecule_document_v1(
+    source: &[u8],
+) -> Result<CdxmlDecodedDocumentV1, InterchangeImportRefusalV1> {
+    decode_cdxml_bytes_v1(source).map_err(|error| {
+        InterchangeImportRefusalV1::for_reason(map_cdxml_decoder_reason(error.reason()))
+    })
+}
+
+fn map_cdxml_losses(losses: &[CdxmlLossCategoryV1]) -> Vec<DocumentInterchangeLossCategoryV1> {
+    losses
+        .iter()
+        .map(|loss| match loss {
+            CdxmlLossCategoryV1::LexicalSyntax => DocumentInterchangeLossCategoryV1::LexicalSyntax,
+            CdxmlLossCategoryV1::DocumentViewMetadata => {
+                DocumentInterchangeLossCategoryV1::DocumentViewMetadata
+            }
+        })
         .collect()
 }
 
@@ -440,13 +482,9 @@ fn convert_cml_record(
     let bonds = record
         .bonds()
         .iter()
-        .map(|bond| match bond.order() {
-            BondOrder::Single | BondOrder::Double | BondOrder::Triple => {
-                Ok(MolBond::new(bond.start(), bond.end(), bond.order(), false))
-            }
-            _ => Err(generic_source_refusal()),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|bond| bond.to_mol_bond())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| generic_source_refusal())?;
     let coordinates = record
         .atoms()
         .iter()
@@ -572,11 +610,89 @@ fn map_cml_decoder_reason(reason: CmlRefusalReasonV1) -> InterchangeImportRefusa
     }
 }
 
+fn map_cdxml_decoder_reason(reason: CdxmlRefusalReasonV1) -> InterchangeImportRefusalReasonV1 {
+    match reason {
+        CdxmlRefusalReasonV1::InvalidUtf8 => InterchangeImportRefusalReasonV1::InvalidUtf8,
+        CdxmlRefusalReasonV1::InvalidXml => InterchangeImportRefusalReasonV1::InvalidXml,
+        CdxmlRefusalReasonV1::InvalidXmlDeclaration => {
+            InterchangeImportRefusalReasonV1::InvalidXmlDeclaration
+        }
+        CdxmlRefusalReasonV1::UnexpectedXmlText => {
+            InterchangeImportRefusalReasonV1::UnexpectedXmlText
+        }
+        CdxmlRefusalReasonV1::UnexpectedXmlNode => {
+            InterchangeImportRefusalReasonV1::UnexpectedXmlNode
+        }
+        CdxmlRefusalReasonV1::InvalidScalar => InterchangeImportRefusalReasonV1::InvalidScalar,
+        CdxmlRefusalReasonV1::InvalidCoordinate => {
+            InterchangeImportRefusalReasonV1::InvalidCoordinate
+        }
+        CdxmlRefusalReasonV1::CoordinateNotFinite => {
+            InterchangeImportRefusalReasonV1::CoordinateNotFinite
+        }
+        CdxmlRefusalReasonV1::CoordinateOutOfRange => {
+            InterchangeImportRefusalReasonV1::CoordinateOutOfRange
+        }
+        CdxmlRefusalReasonV1::DuplicateSourceId => {
+            InterchangeImportRefusalReasonV1::DuplicateSourceId
+        }
+        CdxmlRefusalReasonV1::DuplicateAtomId => InterchangeImportRefusalReasonV1::DuplicateAtomId,
+        CdxmlRefusalReasonV1::DanglingBond => InterchangeImportRefusalReasonV1::DanglingBond,
+        CdxmlRefusalReasonV1::SelfBond => InterchangeImportRefusalReasonV1::SelfBond,
+        CdxmlRefusalReasonV1::DuplicateBond => InterchangeImportRefusalReasonV1::DuplicateBond,
+        CdxmlRefusalReasonV1::InvalidGraph => InterchangeImportRefusalReasonV1::InvalidGraph,
+        CdxmlRefusalReasonV1::EmptyDocument => InterchangeImportRefusalReasonV1::EmptyDocument,
+        CdxmlRefusalReasonV1::NamespaceUnsupported => {
+            InterchangeImportRefusalReasonV1::NamespaceUnsupported
+        }
+        CdxmlRefusalReasonV1::RootUnsupported => InterchangeImportRefusalReasonV1::RootUnsupported,
+        CdxmlRefusalReasonV1::AttributeUnsupported => {
+            InterchangeImportRefusalReasonV1::AttributeUnsupported
+        }
+        CdxmlRefusalReasonV1::UnrepresentedSemanticFact => {
+            InterchangeImportRefusalReasonV1::UnrepresentedSemanticFact
+        }
+        CdxmlRefusalReasonV1::DtdForbidden => InterchangeImportRefusalReasonV1::DtdForbidden,
+        CdxmlRefusalReasonV1::EntityForbidden => InterchangeImportRefusalReasonV1::EntityForbidden,
+        CdxmlRefusalReasonV1::InputBytesLimit => InterchangeImportRefusalReasonV1::InputBytesLimit,
+        CdxmlRefusalReasonV1::XmlElementLimit => InterchangeImportRefusalReasonV1::XmlElementLimit,
+        CdxmlRefusalReasonV1::AttributeValueLimit => {
+            InterchangeImportRefusalReasonV1::AttributeValueLimit
+        }
+        CdxmlRefusalReasonV1::RecordLimit => InterchangeImportRefusalReasonV1::RecordLimit,
+        CdxmlRefusalReasonV1::AtomsPerRecordLimit => {
+            InterchangeImportRefusalReasonV1::AtomsPerRecordLimit
+        }
+        CdxmlRefusalReasonV1::BondsPerRecordLimit => {
+            InterchangeImportRefusalReasonV1::BondsPerRecordLimit
+        }
+        CdxmlRefusalReasonV1::IdentifierBytesLimit => {
+            InterchangeImportRefusalReasonV1::IdentifierBytesLimit
+        }
+        CdxmlRefusalReasonV1::InternalFailure => InterchangeImportRefusalReasonV1::InternalFailure,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{fs, io::Cursor};
 
     use super::*;
+
+    const TWO_FRAGMENT_CDXML: &str = r#"<CDXML Name="import"><page HeightPages="1"><fragment id="source-first"><n id="carbon" p="0 0"/></fragment><fragment id="source-second"><n id="oxygen" p="30 0" Element="8"/></fragment></page></CDXML>"#;
+    const CDXML_WITH_LEXICAL_AND_VIEW_LOSSES: &str = r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd"><CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1"><fragment id="source-fragment"><n id="source-atom" p="0 0"/></fragment></page></CDXML>"#;
+
+    fn cdxml_descriptor() -> &'static InterchangeFormatDescriptorV1 {
+        crate::InterchangeFormatRegistryV1::lookup_input_alias("cdxml").expect("CDXML descriptor")
+    }
+
+    fn cdxml_provenance() -> DocumentInterchangeProvenanceV1 {
+        DocumentInterchangeProvenanceV1 {
+            format_id: cdxml_descriptor().format_id().to_owned(),
+            profile_id: cdxml_descriptor().profile_id().to_owned(),
+            source_kind: crate::protocol::DocumentInterchangeSourceKindV1::RequestText,
+        }
+    }
 
     fn temporary_path(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
@@ -710,5 +826,97 @@ mod tests {
         }
         fs::remove_file(link).expect("remove symlink");
         fs::remove_file(target).expect("remove target");
+    }
+
+    #[test]
+    fn cdxml_commit_retains_fragment_order_in_public_document_observation() {
+        let source = admit_interchange_source_v1(
+            cdxml_descriptor(),
+            InterchangeSourceInputV1::RequestText(TWO_FRAGMENT_CDXML.as_bytes()),
+        )
+        .expect("admitted CDXML source");
+        let prepared = prepare_interchange_new_document_v1(
+            cdxml_descriptor(),
+            &source,
+            &crate::protocol::runtime::NoChemistryRuntimeV1,
+            cdxml_provenance(),
+        )
+        .expect("atomic preparation");
+        let (session, receipt) = prepared.commit_and_take_session().expect("one commit");
+
+        assert_eq!(receipt.imported_record_count, 2);
+        assert_eq!(
+            receipt.loss_report,
+            DocumentInterchangeImportLossReportV1 {
+                source_identifiers_reallocated: true,
+                dropped_categories: vec![DocumentInterchangeLossCategoryV1::DocumentViewMetadata],
+            }
+        );
+        let observation = session.observe(1).expect("committed document observation");
+        assert_eq!(
+            observation
+                .projection()
+                .molecules()
+                .iter()
+                .map(|molecule| molecule.atoms()[0].element())
+                .collect::<Vec<_>>(),
+            [Some("C"), Some("O")]
+        );
+    }
+
+    #[test]
+    fn cdxml_receipt_reports_declared_lexical_and_view_losses_in_order() {
+        let source = admit_interchange_source_v1(
+            cdxml_descriptor(),
+            InterchangeSourceInputV1::RequestText(CDXML_WITH_LEXICAL_AND_VIEW_LOSSES.as_bytes()),
+        )
+        .expect("admitted CDXML source");
+        let prepared = prepare_interchange_new_document_v1(
+            cdxml_descriptor(),
+            &source,
+            &crate::protocol::runtime::NoChemistryRuntimeV1,
+            cdxml_provenance(),
+        )
+        .expect("atomic preparation");
+        let (_, receipt) = prepared.commit_and_take_session().expect("one commit");
+
+        assert_eq!(
+            receipt.loss_report.dropped_categories,
+            vec![
+                DocumentInterchangeLossCategoryV1::LexicalSyntax,
+                DocumentInterchangeLossCategoryV1::DocumentViewMetadata,
+            ]
+        );
+    }
+
+    #[test]
+    fn cdxml_refusal_is_mapped_and_redacted_before_preparation() {
+        let source = b"<CDXML><page><fragment id=\"source-fragment\"><n id=\"source-atom\" p=\"0 0\" Radical=\"1\"/></fragment></page></CDXML>";
+        let admitted = admit_interchange_source_v1(
+            cdxml_descriptor(),
+            InterchangeSourceInputV1::RequestText(source),
+        )
+        .expect("bounded source admission");
+        let result = prepare_interchange_new_document_v1(
+            cdxml_descriptor(),
+            &admitted,
+            &crate::protocol::runtime::NoChemistryRuntimeV1,
+            cdxml_provenance(),
+        );
+        let Err(refusal) = result else {
+            panic!("unsupported CDXML attribute must refuse before a commit");
+        };
+
+        assert_eq!(
+            refusal,
+            InterchangeImportRefusalV1::for_reason(
+                InterchangeImportRefusalReasonV1::AttributeUnsupported
+            )
+        );
+        assert!(
+            !serde_json::to_string(&refusal)
+                .expect("redacted refusal JSON")
+                .contains("source-fragment")
+        );
     }
 }

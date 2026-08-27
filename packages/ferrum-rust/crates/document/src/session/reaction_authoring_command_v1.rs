@@ -145,7 +145,7 @@ pub enum DocumentReactionAuthoringCommandKindV1 {
 }
 
 /// Closed refusal surface for durable reaction authoring commands.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum ReactionAuthoringCommandRefusalV1 {
     /// The complete role-separated target set violates the direct reaction contract.
     #[error(transparent)]
@@ -433,6 +433,7 @@ impl DocumentSession {
         let document = self.current_document_v1();
         let record = document
             .resolve_document_object_id(object_id)
+            .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
             .ok_or(ReactionOperationRefusalV1::MissingMember)?;
         if record.path().components().len() != 1
             || !reaction_role_matches_class(role, record.class())
@@ -441,6 +442,7 @@ impl DocumentSession {
         }
         let source_id = document
             .source_id_for_document_object_id_v1(object_id)
+            .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
             .ok_or(ReactionOperationRefusalV1::MissingMember)?;
         Ok((role, source_id.as_str().to_owned()))
     }
@@ -452,12 +454,14 @@ impl DocumentSession {
         let document = self.current_document_v1();
         let record = document
             .resolve_document_object_id(selection.reaction_object_id_v1())
+            .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
             .ok_or(ReactionMemberSelectionRefusalV1::UnknownReaction)?;
         if record.path().components().len() != 1 || record.class() != TypedClass::Reaction {
             return Err(ReactionMemberSelectionRefusalV1::WrongReactionKind.into());
         }
         let source_id = document
             .source_id_for_document_object_id_v1(selection.reaction_object_id_v1())
+            .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
             .ok_or(ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
         Ok(source_id.as_str().to_owned())
     }
@@ -486,6 +490,7 @@ mod tests {
         session
             .current_document_v1()
             .document_object_id_for_source_id_v1(&PersistentId::new(source).expect("source ID"))
+            .expect("durable identity projection must succeed")
             .expect("durable object ID")
     }
 

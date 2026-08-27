@@ -524,6 +524,7 @@ impl DocumentSession {
     ) -> Result<(), DirectBondAdmissionRefusalV1> {
         let object = candidate
             .document_object_id_for_source_id_v1(molecule)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?
             .ok_or(DirectBondAdmissionRefusalV1::UnsupportedChemistryAdmission)?;
         let molecule = candidate
             .core_molecule(&object)
@@ -578,6 +579,7 @@ impl BuiltDirectBondCandidateV1 {
                 context
                     .document
                     .document_object_id_for_source_id_v1(atom)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?
                     .map(ferrum_render::AcceptedRenderOverlayTargetV1::atom)
                     .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)
             })
@@ -585,10 +587,12 @@ impl BuiltDirectBondCandidateV1 {
         let bond_object_id = context
             .document
             .document_object_id_for_source_id_v1(&facts.bond)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?
             .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
         let end_atom_document_object_id = context
             .document
             .document_object_id_for_source_id_v1(&facts.end_atom)
+            .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?
             .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)?;
         let second_created_atom_document_object_id = facts
             .second_created_atom
@@ -597,6 +601,7 @@ impl BuiltDirectBondCandidateV1 {
                 context
                     .document
                     .document_object_id_for_source_id_v1(atom)
+                    .map_err(|_| DirectBondAdmissionRefusalV1::UnrenderableCandidate)?
                     .ok_or(DirectBondAdmissionRefusalV1::UnrenderableCandidate)
             })
             .transpose()?;

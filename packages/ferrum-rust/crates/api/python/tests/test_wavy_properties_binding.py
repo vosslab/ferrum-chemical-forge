@@ -72,7 +72,7 @@ def test_wavy_properties_reject_hostile_or_wrong_targets_atomically() -> None:
 			wavy_id, TupleSubclass((change_type.line_width(1.0),)),
 		)
 	ordinary_id = session.observe(0).projection.presentation_stack.entries[1].polyline.target.document_object_id
-	missing_id = "ferrum-document-object-v1/00000000000000000000000000000000"
+	missing_id = "ferrum-document-object-v1/00000000000000000000000000000001"
 	for identifier in (ordinary_id, missing_id):
 		operation = ferrum_chem.DocumentOperationV1.set_wavy_properties(
 			identifier, (change_type.line_width(2.0),),

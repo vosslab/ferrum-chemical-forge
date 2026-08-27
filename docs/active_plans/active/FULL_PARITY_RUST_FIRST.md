@@ -64,36 +64,63 @@ history, save, and reopen fence each mutation.  P1/P2 then complete
 presentation, chemistry, interchange, catalogs, and ecosystem parity.
 
 The reported automated Rust, binding, and installed-Qt receipts establish the
-delivered nine-recipe attached Qt/Rust slice. They do not establish the missing
-generic attached CLI/protocol route, full Rust/OASA/BKChem parity, or the
-remaining manual 16:10 screenshot and keyboard/accessibility walkthrough.
+delivered nine-recipe attached Qt/Rust slice. `PARITY-M4.A` additionally
+delivers the one generic attached CLI/protocol route. These results do not
+establish full Rust/OASA/BKChem parity or the remaining manual 16:10 screenshot
+and keyboard/accessibility walkthrough.
 
-## Next bounded parity slice
+The delivered CML directed-depiction extension admits exactly one direct CML1
+`builtin="stereo"` W/H or CML2 `<stereo>` W/H child on a single bond. W/H are
+authored solid/hashed depictions, not inferred tetrahedral, parity, or E/Z
+semantics. `ferrum-chemistry` owns the closed grammar and source order;
+`ferrum-document` owns generic direction-only depiction admission without atom
+chirality. Unsupported, duplicate, nested, non-single, and other stereo forms
+remain typed refusals. The focused chemistry, document, and API-library
+receipts are recorded in the active CML contract; they do not close M2, full
+parity, or the manual 16:10 keyboard/accessibility walkthrough.
 
-### PARITY-M4.A: Generic attached compact-group CLI/protocol
+The bounded CDXML simple-molecule import profile is delivered through the
+Rust decoder, descriptor registry, generic CLI/PyO3 ingress, and existing Qt
+interchange worker. It is an input-only `.cdxml` capability with typed loss,
+typed provenance, and no CDXML save baseline or encoder. The exact grammar,
+security boundary, resource limits, evidence, and exclusions are frozen in
+[m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
+Its chemistry/API/binding/workspace/build/CLI/Qt receipts support this bounded
+claim only. Post-audit `./build.sh` exited 0; the registered
+`tests/e2e/run_all.sh` exited 0, including CDXML; staged Python bindings passed
+281 tests; Qt passed 238 tests with one intentional skip; focused chemistry and
+API libraries passed 124 and 117 tests; and `cargo check --workspace` passed.
+`./all_test.sh` is not aggregate-green: it recorded 7,759 passes before five
+Markdown-link failures stopped later aggregate phases. All five canonical links
+target the present CDXML decision artifact, which is absent only from the
+tracked-file catalog. The skipped later phases were run directly and passed as
+listed above. Real 16:10 accessibility evidence, M2, and full parity remain
+open.
+
+## Delivered bounded parity slice
+
+### PARITY-M4.A: Generic attached compact-group CLI/protocol [delivered]
 
 **Depends on:** the delivered Rust catalog and `AttachCompactGroupV1` Qt/Rust
-slice. **Parallel-plan ready:** no; one API/document contract must be frozen
-before independent client work can begin.
+slice. **Implementation status:** delivered; validation is recorded below.
 
-Deliver one stateless, generic attached compact-group request/response contract
-through the existing Ferrum protocol and named CLI transport. It accepts a
-fenced CDML snapshot, durable selected molecule and anchor selectors, one
-Rust-projected catalog key, and a typed attachment-direction fact. Rust owns
-catalog admission, choice-specific availability, chemistry and geometry
-admission, renderer admission, durable IDs, history, and typed no-mutation
-refusals. The CLI owns only request loading and envelope presentation.
+One stateless operation, `document.compact-group.attach.v1`, now runs through
+both `ferrum protocol run` and `ferrum document command
+document.compact-group.attach.v1`. It accepts a fenced CDML snapshot, a durable
+molecule/anchor pair, one closed catalog key, and finite release coordinates.
+Rust owns catalog and pair-local target admission, chemistry, geometry, renderer
+admission, durable IDs, history, and typed no-mutation refusals. API and CLI
+adapters load the request and present its envelope only.
 
-The route is not delivered. Do not add per-recipe commands, a Python/OASA
-compatibility path, Qt-local chemistry, or a second attachment authority.
-
-Done when one generic request covers each delivered key (`Me`, `NO2`, `Et`,
-`OMe`, `CH2OH`, `Carboxyl`, `Cyano`, `AcylChloride`, and `Phenyl`), refuses
-stale, foreign, unavailable, malformed, and unrenderable inputs without
-mutation, and has Rust contract plus public CLI evidence. Keep the existing
-Rust-vs-Qt proof boundary: Rust proves topology and admission; Qt evidence
-proves only the visible Qt workflow. The screenshot/manual accessibility gate
-remains separate evidence and cannot be closed by this slice.
+The request-scoped session prepares and immediately commits an admitted
+attachment. Its versioned receipt returns source facts, target/catalog echoes,
+the allocated compact-group ID, committed CDML, and a reusable stateless fence.
+It exposes no release, pose, overlay, or pending/session capability. Focused
+Rust contract coverage is passed, including the nine-recipe semantic matrix;
+the registered public E2E covers one representative success through each
+transport and typed stale-fence refusals. The fresh local build and
+`./all_test.sh` receipt are delivered. This does not advance M4 or full parity
+to complete; the screenshot/manual accessibility gate remains separate.
 
 ## Architecture boundaries and ownership
 
@@ -444,6 +471,18 @@ visible Qt action are complete. The action consumes only Rust-issued durable
 target IDs and a current document fence; it does not recover targets from raw
 CDML or source IDs.
 
+`PARITY-M4.A` is also delivered: `document.compact-group.attach.v1` is the one
+public stateless attached-group operation, available through generic protocol
+execution and the named document command. Its request carries an admitted CDML
+fence, a document-owned molecule/anchor pair, a closed catalog key, and finite
+release coordinates. Rust owns target authority, chemistry, geometry, render
+admission, durable IDs, and history. Both transports print one typed envelope
+and exit `0` for either an accepted outcome or a typed refusal; nonzero status
+means usage, input, transport, or output/publication failure. The automated
+M4.A gates are closed by the focused Rust evidence, local build, public CLI
+E2E, and repository suite. The manual 16:10 and keyboard/accessibility
+walkthrough remains open, as do M4 and full parity.
+
 Known-group expansion has delivered the reviewed attached `Me`, `NO2`, `Et`,
 `OMe`, `CH2OH`, and `Carboxyl` choices. `Hydroxymethyl` is the fifth attached M4 recipe:
 neutral `R-CH2-OH`, carbon focus, attached-only scope, and generic PyO3/Qt
@@ -501,14 +540,25 @@ foundational follow-on, not an implicit diagnostics compatibility path.
 
 Immediately after diagnostics, deliver the approved
 [source-only record identity V1 decision](../decisions/source_only_record_identity_v1.md).
-It requires canonical, nonblank, document-unique source IDs for persisted
-structural and recognized direct-root presentation records and replaces the
-mixed identity representation with internal `{ kind, source_id }`. Typed
-ingress rejects invalid IDs before projection and allocates or preserves an
+It is delivered. The source boundary requires exact, nonblank,
+document-unique source IDs for persisted structural and recognized direct-root
+presentation records and replaces the mixed identity representation with
+internal `{ kind, source_id }`. CDML does not currently define a lexical
+source-ID grammar, so typed ingress must not impose a guessed `NCName` or other
+lexical gate. A future grammar requires an explicit CDML specification that
+states its scope and migration policy. Typed ingress allocates or preserves an
 independent high-entropy document-scoped `DocumentObjectIdV1` before
 `RevisionState` serialization. Ferrum-owned namespaced metadata persists that
 opaque selector through save, snapshot, history, undo, redo, and reload;
-grammar and collision validation protect the durable-ID boundary.
+durable-ID grammar and collision validation protect that separate boundary.
+
+WP-ID-2 is also delivered. Reaction observation and listing consume the closed
+durable direct-reaction relation built from one shared retained-tree semantic
+builder and a private fallible durable binder. They do not serialize XML,
+redecode source, or reverse-map a durable ID to a source ID. The completed
+implementation evidence covers retained relation history/reload stability and
+post-admission reaction/member identity corruption, while retaining existing
+session fences, renderer admission, paint order, and display-only diagnostics.
 
 Persisted `PresentationTargetV1` and render `RenderTarget` consume only the
 durable selector. Identifier-free preview values remain a distinct transient
@@ -520,10 +570,16 @@ target separation, then render/API/Qt convergence and legacy removal. It
 carries no reader, alias, occurrence fallback, fingerprint fallback, hash or
 source derivation, decoder path, or legacy serde form.
 
-This migration can start after diagnostics source-contract acceptance. Installed
-bindings, registered E2E, fresh build, and `./all_test.sh` remain delivery proof
-that waits for repository inventory of new authored artifacts; they do not
-create a sequencing dependency that postpones the migration.
+The delivered projection convergence makes `DocumentObjectIdV1` mandatory on
+every persisted atom, bond, and molecule projection. The authoritative
+`document_object_index` resolves those durable IDs to current document records;
+an unknown ID is an ordinary absent target, while absent or malformed persisted
+identity metadata is a distinct typed projection error. Preview-only local
+projection keys remain separate and never cross the persisted target boundary.
+
+The identity migration is delivered. The current documentation does not claim
+an `./all_test.sh` result for this reconciliation; broader delivery evidence
+remains owned by the applicable parity gates.
 
 Ferrum preserves authored molecule display names. A future generated naming
 product requires separate corpus, provenance, interaction, and refusal scope;
@@ -569,6 +625,15 @@ keyboard authoring; accessible names/roles/descriptions/focus/high-contrast
 behavior; help generated from action metadata; logging controls; rich clipboard
 interoperability; 3D/transform/stereo policy; and PostScript implementation or
 explicit evidence-based deprecation.
+
+M6 has a delivered bounded context-action foundation. `edit.delete_selection`
+is the canonical registered QAction for Delete, Backspace, and the
+selection-sensitive YAML context menu. The context builder reuses registered
+actions and their current enablement instead of creating parallel actions; its
+input client owns context placement, invocation, focus recovery, and keyboard
+equivalence, but no chemistry, hit testing, selection mutation, or document
+mutation. The remaining M6 keyboard, accessibility, help, clipboard, and
+application-usability work stays open.
 
 Done when a keyboard-only user creates, edits, inspects, exports, and reopens a
 reaction scheme, with useful accessible state and a clear result/refusal for
@@ -734,12 +799,36 @@ materialization by the selected
 the generic protocol, named CLI route, live-session PyO3 registration, and Qt
 action are delivered. This does not advance M5 catalog or reaction work.
 
+The delivered M4.A attachment route is maintained as the sole generic
+stateless attached-group route. New compact-group command surfaces require a
+separate design decision. The remaining compact-group capability in this plan
+is broader free compact-group placement, rather than another attachment alias
+or a parallel request contract.
+
 The subsequent confirmed queue remains M2 interchange/graph completion, M5
 catalogs and reactions, and M6 usable-application work. The completed catalog
 protocol prerequisite does not advance M5 beyond its remaining parity work.
 These milestones stay open until their declared parity claims have contract,
 client, corpus, and workflow evidence; this document does not claim complete
 OASA/BKChem parity.
+
+For the delivered CML W/H extension, the two former regression-coverage items
+are closed. The public protocol regression proves duplicate direct W/H
+declarations return `InvalidScalar` without a conversion outcome. The public
+`MolBond::directed` contract and `MolGraph::new` make modeled direction/order
+compatibility graph-owned; a mutated FCM1 `Double` plus `BEGINWEDGE` or
+`BEGINDASH` is rejected as `MalformedNativeResponse`. Focused receipts record
+110 chemistry-library tests, 503 document-library tests, and `cargo check
+--workspace` passing. This closes neither M2 interchange/graph completion,
+full Rust/OASA/BKChem parity, nor the manual 16:10 keyboard/accessibility
+walkthrough.
+
+CDXML simple-molecule V1 is no longer a decoder or client-routing queue item.
+Its remaining evidence queue is a fresh `./all_test.sh`, independent audit,
+and real 16:10 File/Open plus keyboard/accessibility walkthrough. CDX binary,
+reaction/presentation/layout import, namespace variants, end-directed wedges,
+and wider chemistry forms remain separate corpus-backed M2 decisions rather
+than implied CDXML V1 compatibility.
 
 Implementation reports state: `Milestone`, `Work package`, `Contracts`, `User
 workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency`.
@@ -751,3 +840,35 @@ workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency
 - Decide PostScript support versus explicit deprecation after user-value evidence.
 - Decide reaction SMARTS/SMIRKS adapter scope before reaction import/export.
 - Decide plugin isolation technology only after permission/lifecycle approval.
+### M6 command palette V1: delivered bounded productivity slice
+
+Ferrum now provides a modeless command palette as a registry-derived command
+client. `Ctrl+K` is the portable shortcut policy; Qt renders it as `Cmd+K` on
+native macOS. The same action is also available from **View > Commands >
+Command Palette...**. The palette searches each live registered action's label,
+help text, and stable ID, keeps disabled actions visible with an unavailable
+explanation, and invokes the exact selected live `QAction` only after a final
+enabled-state check.
+
+The keyboard contract is deliberately narrow: the search field retains focus;
+bare Up and Down move result selection; Return activates the selected command;
+Escape closes the palette and restores the invoking focus. Modified arrows
+remain ordinary text-field input. The action registry remains the sole command
+projection and handler owner. `resources/menus.yaml` remains authoritative for
+the menu placement.
+
+The keybinding layer validates the complete prospective live shortcut set before
+startup setup, user reassignment, or default reset changes preferences, managed
+bindings, or an action shortcut. This makes collisions with both managed and
+otherwise registered actions atomic failures rather than partial state changes.
+
+Permanent evidence is intentionally compact: focused Qt tests own live search,
+disabled-command refusal, exact action activation, bare/modifier arrow behavior,
+Escape focus restoration, and atomic live-shortcut collision handling. The
+planned reaction-specific palette E2E was rejected as redundant: registered
+reaction E2E and focused Qt tests already own its durable semantics. Native
+shortcut dispatch and accessibility remain one-time real 16:10 desktop evidence,
+not a pixel, timing, or reaction-fixture gate.
+
+This completes one bounded M6 discoverability slice. It does not prove a full
+M6 usability program, real desktop visual acceptance, or complete Ferrum parity.

@@ -119,6 +119,8 @@ pub enum DocumentExplicitFragmentApiErrorV1 {
     Session(#[from] DocumentSessionError),
     #[error("explicit fragment observation could not reauthenticate retained CDML: {0}")]
     Document(#[from] crate::TypedDocumentError),
+    #[error(transparent)]
+    ExplicitFragment(#[from] crate::explicit_fragment_v1::DocumentExplicitFragmentErrorV1),
 }
 
 /// Create exactly one explicit fragment through the authoritative one-use session flow.
@@ -158,6 +160,6 @@ pub fn inspect_document_explicit_fragments_v1(
         schema: DOCUMENT_EXPLICIT_FRAGMENT_SCHEMA_V1,
         source_revision: expected_revision,
         source_digest: expected_digest,
-        facts: observe_explicit_fragments_v1(&document),
+        facts: observe_explicit_fragments_v1(&document)?,
     })
 }

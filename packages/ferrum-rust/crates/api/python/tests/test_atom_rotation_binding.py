@@ -14,6 +14,16 @@ SOURCE = (
 	'<atom id="b" name="O"><point x="10" y="0" z="3"/></atom>'
 	'<bond id="ab" start="a" end="b" type="n1"/></molecule></cdml>'
 )
+FOREIGN_SOURCE = (
+	'<cdml xmlns="urn:ferrum:cdml" xmlns:object="urn:ferrum:document-object:v1">'
+	'<molecule id="other" object:id="ferrum-document-object-v1/00000000000000000000000000000011">'
+	'<atom id="a" name="C" object:id="ferrum-document-object-v1/00000000000000000000000000000012">'
+	'<point x="0" y="0"/></atom><atom id="b" name="O" '
+	'object:id="ferrum-document-object-v1/00000000000000000000000000000013">'
+	'<point x="10" y="0" z="3"/></atom><bond id="ab" start="a" end="b" type="n1" '
+	'object:id="ferrum-document-object-v1/00000000000000000000000000000014"/>'
+	'</molecule></cdml>'
+)
 HALF_AUTHORED_UNIT_POINTS = (0.001 * 72.0 / 2.54) / 2.0
 
 
@@ -51,7 +61,7 @@ def test_atom_rotation_factory_and_resolution_fail_without_mutation() -> None:
 	before = session.snapshot()
 	projection = session.observe(before.revision).projection
 	molecule = projection.molecules[0]
-	foreign_session = ferrum_chem.DocumentSession.load(SOURCE.replace('molecule id="m"', 'molecule id="other"'))
+	foreign_session = ferrum_chem.DocumentSession.load(FOREIGN_SOURCE)
 	foreign_molecule = foreign_session.observe(0).projection.molecules[0]
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
 		session.rotate_live_document_atoms_v1(

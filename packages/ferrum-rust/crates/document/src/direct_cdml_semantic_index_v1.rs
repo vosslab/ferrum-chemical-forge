@@ -8,9 +8,12 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 use xot::Xot;
 
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
+
 use super::{
-    CDML_NAMESPACE, TypedDocument, TypedDocumentError, XmlSerializationError, element_name,
-    ferrum_cdml_element_name, is_ferrum_cdml_name,
+    CDML_NAMESPACE, DocumentObjectIdV1, PersistentId, TypedClass, TypedDocument,
+    TypedDocumentError, TypedRecord, XmlSerializationError, element_name, ferrum_cdml_element_name,
+    is_ferrum_cdml_name,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -51,6 +54,7 @@ impl DirectCdmlRootV1 {
 pub struct DirectCdmlSemanticIndexV1 {
     roots: Vec<DirectCdmlRootV1>,
     reserved_ids: HashSet<String>,
+    reactions: Vec<DirectReactionSemanticsEntryV1>,
 }
 
 impl DirectCdmlSemanticIndexV1 {
@@ -61,13 +65,11 @@ impl DirectCdmlSemanticIndexV1 {
     }
 
     pub(crate) fn from_document(document: &TypedDocument) -> Self {
-        let tree = &document.indexed().xml.tree;
-        let root = tree
-            .document_element(document.indexed().xml.document)
-            .expect("a parsed CDML document has a root");
-        let roots = tree
-            .children(root)
-            .filter_map(|node| direct_root(tree, node))
+        let semantics = DirectReactionSemanticsV1::from_typed_document_v1(document);
+        let roots = semantics
+            .direct_roots
+            .iter()
+            .map(DirectCdmlRootV1::from_semantics)
             .collect();
         let reserved_ids = document
             .indexed()
@@ -77,6 +79,7 @@ impl DirectCdmlSemanticIndexV1 {
         Self {
             roots,
             reserved_ids,
+            reactions: semantics.reactions,
         }
     }
 
@@ -88,6 +91,13 @@ impl DirectCdmlSemanticIndexV1 {
     #[must_use]
     pub fn reserves_identifier(&self, identifier: &str) -> bool {
         self.reserved_ids.contains(identifier)
+    }
+
+    pub(crate) fn bind_durable_reactions_v1(
+        &self,
+        document: &TypedDocument,
+    ) -> Result<DirectReactionDurableIndexV1, crate::ProjectionError> {
+        bind_durable_reactions_v1(&self.reactions, document)
     }
 }
 
@@ -170,6 +180,107 @@ pub struct ReactionDefinitionV1 {
     diagnostics: Vec<ReactionDefinitionDiagnosticV1>,
 }
 
+/// Shared retained-tree interpretation for direct reaction inspection and durable binding.
+struct DirectReactionSemanticsV1 {
+    direct_roots: Vec<DirectRootSemanticsV1>,
+    reactions: Vec<DirectReactionSemanticsEntryV1>,
+}
+
+struct DirectRootSemanticsV1 {
+    kind: DirectCdmlRootKindV1,
+    identifier: Option<String>,
+    root_source_order: u32,
+    reaction: Option<ReactionDefinitionV1>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DirectReactionSemanticsEntryV1 {
+    reaction_source_id: PersistentId,
+    members: Vec<DirectReactionMemberV1>,
+    diagnostics: Vec<ReactionDefinitionDiagnosticV1>,
+}
+
+/// Crate-private durable identity binding for one source-semantic reaction index.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DirectReactionDurableIndexV1 {
+    durable_reactions: Vec<DirectReactionDurableV1>,
+    durable_reaction_by_object_id: HashMap<DocumentObjectIdV1, usize>,
+}
+
+impl DirectReactionDurableIndexV1 {
+    pub(crate) fn durable_reaction_v1(
+        &self,
+        reaction_object_id: &DocumentObjectIdV1,
+    ) -> Option<&DirectReactionDurableV1> {
+        self.durable_reaction_by_object_id
+            .get(reaction_object_id)
+            .map(|index| &self.durable_reactions[*index])
+    }
+
+    pub(crate) fn durable_reactions_v1(&self) -> &[DirectReactionDurableV1] {
+        &self.durable_reactions
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DirectReactionDurableV1 {
+    reaction_object_id: DocumentObjectIdV1,
+    members: Vec<DirectReactionDurableMemberV1>,
+    diagnostics: Vec<ReactionDefinitionDiagnosticV1>,
+}
+
+impl DirectReactionDurableV1 {
+    #[must_use]
+    pub(crate) fn reaction_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.reaction_object_id
+    }
+
+    #[must_use]
+    pub(crate) fn members(&self) -> &[DirectReactionDurableMemberV1] {
+        &self.members
+    }
+
+    #[must_use]
+    pub(crate) fn diagnostics(&self) -> &[ReactionDefinitionDiagnosticV1] {
+        &self.diagnostics
+    }
+
+    #[must_use]
+    pub(crate) const fn is_strict(&self) -> bool {
+        self.diagnostics.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DirectReactionDurableMemberV1 {
+    role: DirectReactionRoleV1,
+    role_ordinal: u32,
+    source_order: u32,
+    member_object_id: DocumentObjectIdV1,
+}
+
+impl DirectReactionDurableMemberV1 {
+    #[must_use]
+    pub(crate) const fn role(&self) -> DirectReactionRoleV1 {
+        self.role
+    }
+
+    #[must_use]
+    pub(crate) const fn role_ordinal(&self) -> u32 {
+        self.role_ordinal
+    }
+
+    #[must_use]
+    pub(crate) const fn source_order(&self) -> u32 {
+        self.source_order
+    }
+
+    #[must_use]
+    pub(crate) fn member_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.member_object_id
+    }
+}
+
 impl ReactionDefinitionV1 {
     #[must_use]
     pub fn identifier(&self) -> Option<&str> {
@@ -200,78 +311,189 @@ pub fn inspect_direct_reactions_v1(
     source: &str,
 ) -> Result<Vec<ReactionDefinitionV1>, DirectCdmlSemanticErrorV1> {
     let document = TypedDocument::parse(source)?;
-    let tree = &document.indexed().xml.tree;
-    let root = tree
-        .document_element(document.indexed().xml.document)
-        .expect("a parsed CDML document has a root");
-    let direct = tree
-        .children(root)
-        .enumerate()
-        .filter_map(|(source_order, node)| direct_root_node(tree, node, source_order as u32))
-        .collect::<Vec<_>>();
-    let mut target_kinds = HashMap::<String, Vec<DirectCdmlRootKindV1>>::new();
-    for item in &direct {
-        if let Some(identifier) = item.identifier.as_ref() {
-            target_kinds
-                .entry(identifier.clone())
-                .or_default()
-                .push(item.kind);
+    Ok(DirectReactionSemanticsV1::from_typed_document_v1(&document).definitions())
+}
+
+impl DirectReactionSemanticsV1 {
+    fn from_typed_document_v1(document: &TypedDocument) -> Self {
+        let tree = &document.indexed().xml.tree;
+        let root = tree
+            .document_element(document.indexed().xml.document)
+            .expect("a parsed CDML document has a root");
+        let mut direct_roots = tree
+            .children(root)
+            .enumerate()
+            .filter_map(|(source_order, node)| {
+                DirectRootSemanticsV1::from_node(tree, node, source_order as u32)
+            })
+            .collect::<Vec<_>>();
+        let mut target_kinds = HashMap::<String, Vec<DirectCdmlRootKindV1>>::new();
+        for item in &direct_roots {
+            if let Some(identifier) = item.identifier.as_ref() {
+                target_kinds
+                    .entry(identifier.clone())
+                    .or_default()
+                    .push(item.kind);
+            }
         }
-    }
-    let mut definitions = direct
-        .into_iter()
-        .filter_map(|item| item.reaction)
-        .collect::<Vec<_>>();
-    let mut uses = HashMap::<String, usize>::new();
-    for definition in &definitions {
-        for member in definition.members() {
-            *uses.entry(member.identifier().to_owned()).or_default() += 1;
+        let mut definitions = direct_roots
+            .iter()
+            .filter_map(|item| item.reaction.clone())
+            .collect::<Vec<_>>();
+        let mut uses = HashMap::<String, usize>::new();
+        for definition in &definitions {
+            for member in definition.members() {
+                *uses.entry(member.identifier().to_owned()).or_default() += 1;
+            }
         }
-    }
-    for definition in &mut definitions {
-        let mut diagnostics = definition.diagnostics.clone();
-        let mut seen = HashSet::new();
-        let mut reactants = 0usize;
-        let mut products = 0usize;
-        let mut arrows = 0usize;
-        for member in &definition.members {
-            match member.role {
-                DirectReactionRoleV1::Reactant => reactants += 1,
-                DirectReactionRoleV1::Product => products += 1,
-                DirectReactionRoleV1::Arrow => arrows += 1,
-                DirectReactionRoleV1::Condition | DirectReactionRoleV1::Plus => {}
-            }
-            if !seen.insert(member.identifier.clone()) {
-                diagnostics.push(ReactionDefinitionDiagnosticV1::DuplicateTarget);
-            }
-            if uses[member.identifier()] > 1 {
-                diagnostics.push(ReactionDefinitionDiagnosticV1::CrossReactionReuse);
-            }
-            match target_kinds.get(member.identifier()) {
-                None => diagnostics.push(ReactionDefinitionDiagnosticV1::MissingTarget),
-                Some(kinds) if kinds.len() != 1 || !role_accepts_kind(member.role, kinds[0]) => {
-                    diagnostics.push(ReactionDefinitionDiagnosticV1::WrongTargetKind)
+        for definition in &mut definitions {
+            let mut diagnostics = definition.diagnostics.clone();
+            let mut seen = HashSet::new();
+            let mut reactants = 0usize;
+            let mut products = 0usize;
+            let mut arrows = 0usize;
+            for member in &definition.members {
+                match member.role {
+                    DirectReactionRoleV1::Reactant => reactants += 1,
+                    DirectReactionRoleV1::Product => products += 1,
+                    DirectReactionRoleV1::Arrow => arrows += 1,
+                    DirectReactionRoleV1::Condition | DirectReactionRoleV1::Plus => {}
                 }
-                Some(_) => {}
+                if !seen.insert(member.identifier.clone()) {
+                    diagnostics.push(ReactionDefinitionDiagnosticV1::DuplicateTarget);
+                }
+                if uses[member.identifier()] > 1 {
+                    diagnostics.push(ReactionDefinitionDiagnosticV1::CrossReactionReuse);
+                }
+                match target_kinds.get(member.identifier()) {
+                    None => diagnostics.push(ReactionDefinitionDiagnosticV1::MissingTarget),
+                    Some(kinds)
+                        if kinds.len() != 1 || !role_accepts_kind(member.role, kinds[0]) =>
+                    {
+                        diagnostics.push(ReactionDefinitionDiagnosticV1::WrongTargetKind)
+                    }
+                    Some(_) => {}
+                }
+            }
+            if reactants == 0 {
+                diagnostics.push(ReactionDefinitionDiagnosticV1::MissingReactants);
+            }
+            if products == 0 {
+                diagnostics.push(ReactionDefinitionDiagnosticV1::MissingProducts);
+            }
+            if arrows == 0 {
+                diagnostics.push(ReactionDefinitionDiagnosticV1::MissingArrow);
+            }
+            if arrows > 1 {
+                diagnostics.push(ReactionDefinitionDiagnosticV1::MultipleArrows);
+            }
+            diagnostics.sort();
+            diagnostics.dedup();
+            definition.diagnostics = diagnostics;
+        }
+        let mut definition_by_source_order = definitions
+            .into_iter()
+            .map(|definition| (definition.source_order, definition))
+            .collect::<HashMap<_, _>>();
+        for root in &mut direct_roots {
+            if root.reaction.is_some() {
+                root.reaction = definition_by_source_order.remove(&root.root_source_order);
             }
         }
-        if reactants == 0 {
-            diagnostics.push(ReactionDefinitionDiagnosticV1::MissingReactants);
+        let reactions = direct_roots
+            .iter()
+            .filter_map(|root| {
+                let definition = root.reaction.as_ref()?;
+                let source_id = PersistentId::new(definition.identifier.clone()?).ok()?;
+                Some(DirectReactionSemanticsEntryV1 {
+                    reaction_source_id: source_id,
+                    members: definition.members.clone(),
+                    diagnostics: definition.diagnostics.clone(),
+                })
+            })
+            .collect();
+        Self {
+            direct_roots,
+            reactions,
         }
-        if products == 0 {
-            diagnostics.push(ReactionDefinitionDiagnosticV1::MissingProducts);
-        }
-        if arrows == 0 {
-            diagnostics.push(ReactionDefinitionDiagnosticV1::MissingArrow);
-        }
-        if arrows > 1 {
-            diagnostics.push(ReactionDefinitionDiagnosticV1::MultipleArrows);
-        }
-        diagnostics.sort();
-        diagnostics.dedup();
-        definition.diagnostics = diagnostics;
     }
-    Ok(definitions)
+
+    fn definitions(&self) -> Vec<ReactionDefinitionV1> {
+        self.direct_roots
+            .iter()
+            .filter_map(|root| root.reaction.clone())
+            .collect()
+    }
+}
+
+fn bind_durable_reactions_v1(
+    reactions: &[DirectReactionSemanticsEntryV1],
+    document: &TypedDocument,
+) -> Result<DirectReactionDurableIndexV1, crate::ProjectionError> {
+    let mut direct_records = HashMap::<&str, Option<&TypedRecord>>::new();
+    for child in document.root().typed_children() {
+        let record = child.record();
+        if record.path().components().len() == 1 {
+            if let Some(identifier) = record.attribute("id") {
+                direct_records
+                    .entry(identifier)
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(Some(record));
+            }
+        }
+    }
+    let durable_reactions = reactions
+        .iter()
+        .filter_map(|reaction| {
+            let reaction_record = direct_records
+                .get(reaction.reaction_source_id.as_str())
+                .and_then(|record| *record)
+                .filter(|record| record.class() == TypedClass::Reaction)?;
+            Some((|| {
+                let reaction_object_id =
+                    projection_document_object_id_from_record_v1(reaction_record)?;
+                let members = reaction
+                    .members
+                    .iter()
+                    .filter_map(|member| {
+                        reaction_record.typed_children().iter().find(|child| {
+                            child.position() == member.source_order
+                                && reaction_role_matches_class(member.role, child.record().class())
+                                && child.record().attribute("idref") == Some(member.identifier())
+                        })?;
+                        let target = direct_records
+                            .get(member.identifier())
+                            .and_then(|record| *record)
+                            .filter(|record| {
+                                role_accepts_typed_class(member.role, record.class())
+                            })?;
+                        Some(projection_document_object_id_from_record_v1(target).map(
+                            |member_object_id| DirectReactionDurableMemberV1 {
+                                role: member.role,
+                                role_ordinal: member.role_ordinal,
+                                source_order: member.source_order,
+                                member_object_id,
+                            },
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(DirectReactionDurableV1 {
+                    reaction_object_id,
+                    members,
+                    diagnostics: reaction.diagnostics.clone(),
+                })
+            })())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let durable_reaction_by_object_id = durable_reactions
+        .iter()
+        .enumerate()
+        .map(|(index, reaction)| (reaction.reaction_object_id.clone(), index))
+        .collect();
+    Ok(DirectReactionDurableIndexV1 {
+        durable_reactions,
+        durable_reaction_by_object_id,
+    })
 }
 
 impl Ord for ReactionDefinitionDiagnosticV1 {
@@ -285,35 +507,52 @@ impl PartialOrd for ReactionDefinitionDiagnosticV1 {
     }
 }
 
-struct DirectRootParseV1 {
-    kind: DirectCdmlRootKindV1,
-    identifier: Option<String>,
-    reaction: Option<ReactionDefinitionV1>,
+impl DirectCdmlRootV1 {
+    fn from_semantics(root: &DirectRootSemanticsV1) -> Self {
+        Self {
+            kind: root.kind,
+            identifier: root.identifier.clone(),
+            reaction_members: root
+                .reaction
+                .as_ref()
+                .map(|reaction| {
+                    reaction
+                        .members
+                        .iter()
+                        .map(|member| member.identifier.clone())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
 }
 
-fn direct_root_node(tree: &Xot, node: xot::Node, source_order: u32) -> Option<DirectRootParseV1> {
-    let (local, namespace) = element_name(tree, node)?;
-    let core = namespace == CDML_NAMESPACE;
-    let kind = if core {
-        match local.as_str() {
-            "molecule" => DirectCdmlRootKindV1::Molecule,
-            "arrow" => DirectCdmlRootKindV1::Arrow,
-            "text" => DirectCdmlRootKindV1::Text,
-            "plus" => DirectCdmlRootKindV1::Plus,
-            "reaction" => DirectCdmlRootKindV1::Reaction,
-            _ => DirectCdmlRootKindV1::Other,
-        }
-    } else {
-        DirectCdmlRootKindV1::Other
-    };
-    let identifier = attribute(tree, node, "id").map(str::to_owned);
-    let reaction = (kind == DirectCdmlRootKindV1::Reaction)
-        .then(|| parse_reaction(tree, node, identifier.clone(), source_order));
-    Some(DirectRootParseV1 {
-        kind,
-        identifier,
-        reaction,
-    })
+impl DirectRootSemanticsV1 {
+    fn from_node(tree: &Xot, node: xot::Node, source_order: u32) -> Option<Self> {
+        let (local, namespace) = element_name(tree, node)?;
+        let core = namespace == CDML_NAMESPACE;
+        let kind = if core {
+            match local.as_str() {
+                "molecule" => DirectCdmlRootKindV1::Molecule,
+                "arrow" => DirectCdmlRootKindV1::Arrow,
+                "text" => DirectCdmlRootKindV1::Text,
+                "plus" => DirectCdmlRootKindV1::Plus,
+                "reaction" => DirectCdmlRootKindV1::Reaction,
+                _ => DirectCdmlRootKindV1::Other,
+            }
+        } else {
+            DirectCdmlRootKindV1::Other
+        };
+        let identifier = attribute(tree, node, "id").map(str::to_owned);
+        let reaction = (kind == DirectCdmlRootKindV1::Reaction)
+            .then(|| parse_reaction(tree, node, identifier.clone(), source_order));
+        Some(Self {
+            kind,
+            identifier,
+            root_source_order: source_order,
+            reaction,
+        })
+    }
 }
 
 fn parse_reaction(
@@ -384,6 +623,32 @@ fn role_accepts_kind(role: DirectReactionRoleV1, kind: DirectCdmlRootKindV1) -> 
         ) | (DirectReactionRoleV1::Arrow, DirectCdmlRootKindV1::Arrow)
             | (DirectReactionRoleV1::Condition, DirectCdmlRootKindV1::Text)
             | (DirectReactionRoleV1::Plus, DirectCdmlRootKindV1::Plus)
+    )
+}
+
+fn reaction_role_matches_class(role: DirectReactionRoleV1, class: TypedClass) -> bool {
+    matches!(
+        (role, class),
+        (DirectReactionRoleV1::Reactant, TypedClass::ReactionReactant)
+            | (DirectReactionRoleV1::Product, TypedClass::ReactionProduct)
+            | (DirectReactionRoleV1::Arrow, TypedClass::ReactionArrow)
+            | (
+                DirectReactionRoleV1::Condition,
+                TypedClass::ReactionCondition
+            )
+            | (DirectReactionRoleV1::Plus, TypedClass::ReactionPlus)
+    )
+}
+
+fn role_accepts_typed_class(role: DirectReactionRoleV1, class: TypedClass) -> bool {
+    matches!(
+        (role, class),
+        (
+            DirectReactionRoleV1::Reactant | DirectReactionRoleV1::Product,
+            TypedClass::Molecule
+        ) | (DirectReactionRoleV1::Arrow, TypedClass::CanvasArrow)
+            | (DirectReactionRoleV1::Condition, TypedClass::CanvasText)
+            | (DirectReactionRoleV1::Plus, TypedClass::CanvasPlus)
     )
 }
 
@@ -514,36 +779,6 @@ pub(crate) fn delete_direct_cdml_reaction_definition_v1(
     Ok(TypedDocument::parse(&candidate.to_xml()?)?.to_xml()?)
 }
 
-fn direct_root(tree: &Xot, node: xot::Node) -> Option<DirectCdmlRootV1> {
-    let (local, namespace) = element_name(tree, node)?;
-    let kind = if namespace == CDML_NAMESPACE {
-        match local.as_str() {
-            "molecule" => DirectCdmlRootKindV1::Molecule,
-            "arrow" => DirectCdmlRootKindV1::Arrow,
-            "text" => DirectCdmlRootKindV1::Text,
-            "plus" => DirectCdmlRootKindV1::Plus,
-            "reaction" => DirectCdmlRootKindV1::Reaction,
-            _ => DirectCdmlRootKindV1::Other,
-        }
-    } else {
-        DirectCdmlRootKindV1::Other
-    };
-    let identifier = attribute(tree, node, "id").map(str::to_owned);
-    let reaction_members = if kind == DirectCdmlRootKindV1::Reaction {
-        tree.children(node)
-            .filter(|child| is_reaction_role(tree, *child))
-            .filter_map(|child| attribute(tree, child, "idref").map(str::to_owned))
-            .collect()
-    } else {
-        Vec::new()
-    };
-    Some(DirectCdmlRootV1 {
-        kind,
-        identifier,
-        reaction_members,
-    })
-}
-
 fn is_reaction_role(tree: &Xot, node: xot::Node) -> bool {
     element_name(tree, node).is_some_and(|(local, namespace)| {
         matches!(
@@ -640,5 +875,125 @@ mod tests {
                 .diagnostics()
                 .contains(&ReactionDefinitionDiagnosticV1::MultipleArrows)
         );
+    }
+
+    #[test]
+    fn durable_reaction_binds_direct_typed_member_identities_in_role_order() {
+        let document = TypedDocument::parse(concat!(
+            "<cdml xmlns=\"urn:ferrum:cdml\">",
+            "<molecule id=\"left\"><atom id=\"left-atom\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule>",
+            "<molecule id=\"right\"><atom id=\"right-atom\" name=\"O\"><point x=\"1\" y=\"0\"/></atom></molecule>",
+            "<molecule id=\"product\"><atom id=\"product-atom\" name=\"N\"><point x=\"2\" y=\"0\"/></atom></molecule>",
+            "<arrow id=\"arrow\"/><text id=\"condition\"/><plus id=\"plus\"/>",
+            "<reaction id=\"reaction\"><reactant idref=\"left\"/><reactant idref=\"right\"/><product idref=\"product\"/><arrow idref=\"arrow\"/><condition idref=\"condition\"/><plus idref=\"plus\"/></reaction>",
+            "</cdml>"
+        ))
+        .expect("fixture parses");
+        let index = DirectCdmlSemanticIndexV1::from_document(&document);
+        let durable = index
+            .bind_durable_reactions_v1(&document)
+            .expect("durable identities bind");
+        let reaction = durable
+            .durable_reactions_v1()
+            .first()
+            .expect("one direct reaction has durable semantics");
+
+        assert!(reaction.is_strict());
+        assert_eq!(
+            reaction
+                .members()
+                .iter()
+                .map(|member| (member.role(), member.role_ordinal(), member.source_order()))
+                .collect::<Vec<_>>(),
+            [
+                (DirectReactionRoleV1::Reactant, 0, 0),
+                (DirectReactionRoleV1::Reactant, 1, 1),
+                (DirectReactionRoleV1::Product, 0, 2),
+                (DirectReactionRoleV1::Arrow, 0, 3),
+                (DirectReactionRoleV1::Condition, 0, 4),
+                (DirectReactionRoleV1::Plus, 0, 5),
+            ]
+        );
+        assert_eq!(
+            document
+                .resolve_document_object_id(reaction.reaction_object_id())
+                .expect("durable reaction lookup succeeds")
+                .expect("durable reaction resolves")
+                .class(),
+            TypedClass::Reaction
+        );
+        for member in reaction.members() {
+            assert!(
+                document
+                    .resolve_document_object_id(member.member_object_id())
+                    .expect("durable member lookup succeeds")
+                    .is_some()
+            );
+        }
+        assert_eq!(
+            durable.durable_reaction_v1(reaction.reaction_object_id()),
+            Some(reaction)
+        );
+    }
+
+    #[test]
+    fn durable_reactions_retain_diagnostics_but_exclude_invalid_members() {
+        let document = TypedDocument::parse(concat!(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><arrow id=\"a\"/>",
+            "<reaction id=\"r\"><reactant idref=\"missing\"/><arrow idref=\"a\"/><arrow idref=\"a\"/></reaction></cdml>"
+        ))
+        .expect("fixture parses");
+        let index = DirectCdmlSemanticIndexV1::from_document(&document);
+        let durable = index
+            .bind_durable_reactions_v1(&document)
+            .expect("durable identities bind");
+        let reaction = durable
+            .durable_reactions_v1()
+            .first()
+            .expect("display-only reaction retains its durable root");
+
+        assert!(!reaction.is_strict());
+        assert!(
+            reaction
+                .diagnostics()
+                .contains(&ReactionDefinitionDiagnosticV1::MissingProducts)
+        );
+        assert!(
+            reaction
+                .diagnostics()
+                .contains(&ReactionDefinitionDiagnosticV1::MultipleArrows)
+        );
+        assert_eq!(reaction.members().len(), 2);
+        assert!(
+            reaction
+                .members()
+                .iter()
+                .all(|member| member.role() == DirectReactionRoleV1::Arrow)
+        );
+    }
+
+    #[test]
+    fn durable_reactions_exclude_foreign_and_nested_lookalikes() {
+        let document = TypedDocument::parse(concat!(
+            "<c:cdml xmlns:c=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\">",
+            "<c:molecule id=\"m\"><c:atom id=\"atom\" name=\"C\"><c:point x=\"0\" y=\"0\"/></c:atom><c:reaction id=\"nested\"/></c:molecule>",
+            "<c:arrow id=\"a\"/><c:reaction id=\"direct\"><c:reactant idref=\"m\"/><c:product idref=\"m\"/><c:arrow idref=\"a\"/></c:reaction>",
+            "<v:reaction id=\"foreign\"><v:reactant idref=\"m\"/></v:reaction></c:cdml>"
+        ))
+        .expect("fixture parses");
+        let index = DirectCdmlSemanticIndexV1::from_document(&document);
+        let durable = index
+            .bind_durable_reactions_v1(&document)
+            .expect("durable identities bind");
+        let definitions = inspect_direct_reactions_v1(
+            &document
+                .to_xml()
+                .expect("fixture serializes for inspection"),
+        )
+        .expect("serialized fixture parses");
+
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].identifier(), Some("direct"));
+        assert_eq!(durable.durable_reactions_v1().len(), 1);
     }
 }

@@ -10,6 +10,7 @@ from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_glycosidic_haworth
+import ferrum_qt.ferrum.document_display_refresh
 from ferrum_qt.ferrum.document_tab_errors import (
 	FerrumNativeDocumentTabMutationPresentationError,
 )
@@ -267,6 +268,9 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 	def _dispose_direct_glycosidic_haworth_preview(
 			self, preview: PySide6.QtWidgets.QGraphicsItem) -> None:
 		"""Release a disposable preview before authoritative scene replacement."""
+		ferrum_qt.ferrum.document_display_refresh.unregister_attached_document_display_refreshable(
+			preview,
+		)
 		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is not None:
 			coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()

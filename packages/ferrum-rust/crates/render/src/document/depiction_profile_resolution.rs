@@ -5,8 +5,8 @@ use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts, AtomMarkRenderKind,
     AtomNumberLabelFacts, AtomRenderTarget, AttachedCompactGroupAnchorRenderFactsV1,
-    BondRenderTarget, BondStyle, FontFace, Paint, PositiveFinite, RenderPoint, RenderTarget, Rgb24,
-    TargetVisibility,
+    BondRenderTarget, BondStyle, FontFace, PositiveFinite, RenderPaintV3, RenderPoint,
+    RenderTarget, Rgb24, TargetVisibility,
 };
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{
@@ -20,7 +20,6 @@ const BUILTIN_BOND_LANE_SPACING: f64 = 6.0;
 const BUILTIN_ATOM_NUMBER_FONT_SIZE: f64 = 9.0;
 const BUILTIN_ATOM_NUMBER_OFFSET_X: f64 = 8.0;
 const BUILTIN_ATOM_NUMBER_OFFSET_Y: f64 = -12.0;
-const BUILTIN_ATOM_NUMBER_RGB: &str = "0000c8";
 const BUILTIN_BOND_WEDGE_WIDTH: f64 = 5.0;
 
 pub(super) fn apply_double_bond_carrier_marks(
@@ -30,7 +29,7 @@ pub(super) fn apply_double_bond_carrier_marks(
     for mark in marks {
         let central_double_bond = bonds
             .iter()
-            .find(|(bond, _)| bond.id() == Some(mark.central_double_bond()))
+            .find(|(bond, _)| bond.document_object_id() == mark.central_double_bond())
             .map(|(bond, _)| bond_record_id(bond).expect("resolved bond has a source record ID"))
             .ok_or_else(|| {
                 issue(
@@ -41,7 +40,7 @@ pub(super) fn apply_double_bond_carrier_marks(
             })?;
         let carrier_index = bonds
             .iter()
-            .position(|(bond, _)| bond.id() == Some(mark.carrier_bond()))
+            .position(|(bond, _)| bond.document_object_id() == mark.carrier_bond())
             .ok_or_else(|| {
                 issue(
                     DepictionIssueCodeV1::UnsupportedFeature,
@@ -115,10 +114,7 @@ pub(super) fn resolve_atom(
                     font.face().clone(),
                     PositiveFinite::new(BUILTIN_ATOM_NUMBER_FONT_SIZE)
                         .expect("built-in atom number size is positive"),
-                    Paint::rgb24(
-                        Rgb24::new(BUILTIN_ATOM_NUMBER_RGB)
-                            .expect("built-in atom number paint is valid RGB"),
-                    ),
+                    RenderPaintV3::atom_number(),
                 ),
             )
             .map_err(|error| {
@@ -367,7 +363,7 @@ fn atom_context(
     owner_molecule_object_id: &DocumentObjectIdV1,
 ) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
     record_context(
-        atom.id(),
+        atom.document_object_id(),
         owner_molecule_object_id,
         atom.source_id(),
         atom.source_order(),
@@ -381,7 +377,7 @@ fn bond_context(
     owner_molecule_object_id: &DocumentObjectIdV1,
 ) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
     record_context(
-        bond.id(),
+        bond.document_object_id(),
         owner_molecule_object_id,
         bond.source_id(),
         bond.source_order(),
@@ -391,20 +387,13 @@ fn bond_context(
 }
 
 fn record_context(
-    durable: Option<&ferrum_document_projection::DocumentObjectIdV1>,
+    durable: &ferrum_document_projection::DocumentObjectIdV1,
     owner_molecule_object_id: &DocumentObjectIdV1,
     source_id: Option<&str>,
     source_order: u32,
     kind: RecordKind,
     local: &str,
 ) -> Result<RenderPlanEntryContextV1, DepictionIssueV1> {
-    let Some(durable) = durable else {
-        return Err(issue(
-            DepictionIssueCodeV1::NonDurableTarget,
-            local,
-            "rendering requires an authored durable source ID",
-        ));
-    };
     let source_id = source_id.ok_or_else(|| {
         issue(
             DepictionIssueCodeV1::NonDurableTarget,
@@ -474,8 +463,7 @@ fn bond_record_id(bond: &BondProjectionV1) -> Result<RecordId, DepictionIssueV1>
     record_id(
         bond.source_id(),
         RecordKind::Bond,
-        bond.id()
-            .map_or("missing-durable-bond-id", |id| id.as_str()),
+        bond.document_object_id().as_str(),
     )
 }
 
@@ -542,7 +530,7 @@ pub(super) fn resolved_font(
                 .and_then(|standard| standard.line_color())
         })
         .map(rgb_paint)
-        .unwrap_or_else(|| paint("000000"));
+        .unwrap_or_else(RenderPaintV3::document_foreground);
     let mut font = AtomLabelFontProfile::new(FontFace::telex_regular(), positive(size)?, paint);
     if let Some(TransparentOrRgb24V1::Rgb24(mask)) = label_mask {
         font = font.with_label_mask(rgb_paint(mask));
@@ -565,12 +553,12 @@ pub(super) fn resolved_line_width(
 pub(super) fn resolved_line_paint(
     projection: &DocumentProjectionV1,
     _profile: &DepictionProfileV1,
-) -> Result<Paint, DepictionIssueV1> {
+) -> Result<RenderPaintV3, DepictionIssueV1> {
     Ok(projection
         .drawing_standard()
         .and_then(|standard| standard.line_color())
         .map(rgb_paint)
-        .unwrap_or_else(|| paint("000000")))
+        .unwrap_or_else(RenderPaintV3::document_foreground))
 }
 fn resolved_bond_width(
     bond: &BondProjectionV1,
@@ -622,7 +610,7 @@ fn resolved_bond_paint(
     bond: &BondProjectionV1,
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
-) -> Result<Paint, DepictionIssueV1> {
+) -> Result<RenderPaintV3, DepictionIssueV1> {
     Ok(bond
         .color()
         .map(rgb_paint)
@@ -637,11 +625,11 @@ pub(super) fn positive(value: f64) -> Result<PositiveFinite, DepictionIssueV1> {
         )
     })
 }
-fn rgb_paint(value: &DocumentRgb24V1) -> Paint {
+fn rgb_paint(value: &DocumentRgb24V1) -> RenderPaintV3 {
     paint(&value.as_str()[1..])
 }
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("validated profile RGB"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("validated profile RGB"))
 }
 pub(super) fn issue(
     code: DepictionIssueCodeV1,

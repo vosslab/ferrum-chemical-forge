@@ -30,8 +30,7 @@ fn durable_atom(
     index: usize,
 ) -> DocumentObjectIdV1 {
     observation.projection().molecules()[0].atoms()[index]
-        .id()
-        .expect("fixture atom must have durable identity")
+        .document_object_id()
         .clone()
 }
 
@@ -40,8 +39,7 @@ fn durable_bond(
     index: usize,
 ) -> DocumentObjectIdV1 {
     observation.projection().molecules()[0].bonds()[index]
-        .id()
-        .expect("fixture bond must have durable identity")
+        .document_object_id()
         .clone()
 }
 
@@ -109,8 +107,7 @@ fn mixed_selection_copies_complete_roots_in_document_order() {
         .clone();
     let atom = durable_atom(&observation, 0);
     let molecule = observation.projection().molecules()[0]
-        .id()
-        .expect("fixture molecule must have durable identity")
+        .document_object_id()
         .clone();
     let result = extract_document_clipboard_fragment_v1(
         &observation,

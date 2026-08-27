@@ -1,11 +1,11 @@
 use crate::{
-    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, GlyphMetrics, Paint,
-    PositiveFinite, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
+    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, GlyphMetrics,
+    PositiveFinite, RenderPaintV3, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
 };
 use ferrum_render_contract::{TELEX_REGULAR_RESOURCE_ID_V1, TELEX_REGULAR_SHA256_V1};
 
-fn paint() -> Paint {
-    Paint::rgb24(Rgb24::new("000000").expect("test rgb"))
+fn paint() -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("test rgb"))
 }
 use std::sync::atomic::{AtomicU64, Ordering};
 

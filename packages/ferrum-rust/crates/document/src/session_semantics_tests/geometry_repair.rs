@@ -20,8 +20,7 @@ fn direct_molecule_id(
         .expect("fixture observation")
         .projection()
         .molecules()[index]
-        .id()
-        .expect("fixture direct molecule has a durable ID")
+        .document_object_id()
         .clone()
 }
 

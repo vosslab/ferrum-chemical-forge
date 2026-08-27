@@ -21,9 +21,22 @@ fn anchor(session: &DocumentSession) -> DocumentObjectIdV1 {
         .flat_map(|molecule| molecule.atoms().iter())
         .find(|atom| atom.source_id() == Some("a") && atom.element() == Some("C"))
         .expect("source anchor atom")
-        .id()
-        .expect("direct atom selector")
+        .document_object_id()
         .clone()
+}
+
+fn target(session: &DocumentSession) -> AttachedCompactGroupTargetV1 {
+    let molecule_id = session
+        .document_observation()
+        .expect("observation")
+        .projection()
+        .molecules()
+        .iter()
+        .find(|molecule| molecule.source_id() == Some("m"))
+        .expect("source molecule")
+        .document_object_id()
+        .clone();
+    AttachedCompactGroupTargetV1::new(molecule_id, anchor(session))
 }
 
 #[test]
@@ -32,7 +45,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
     let mut attachment = session
         .prepare_attach_compact_group_v1(
             fence(&session),
-            anchor(&session),
+            target(&session),
             AttachCompactGroupV1::new(
                 CompactGroupCatalogKeyV1::AcylChloride,
                 AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
@@ -59,7 +72,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
     let original_anchor_source_id = molecule
         .atoms()
         .iter()
-        .find(|atom| atom.id() == Some(attached.focus_object_id()))
+        .find(|atom| atom.document_object_id() == attached.focus_object_id())
         .expect("attached focus retains the original source anchor")
         .source_id()
         .expect("original source anchor has a durable source ID")
@@ -78,10 +91,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
         .expect(
             "attached AcylChloride exterior bond connects the anchor and compact group normally",
         );
-    let exterior_bond_id = exterior
-        .id()
-        .cloned()
-        .expect("attached exterior bond has a durable identity");
+    let exterior_bond_id = exterior.document_object_id().clone();
     let exterior_start_source_id = exterior
         .start()
         .source_id()
@@ -109,7 +119,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
     let request = DocumentCompactGroupMaterializationRequestV1::new(
         attached_snapshot.revision(),
         *attached_snapshot.digest(),
-        molecule.id().cloned().expect("durable molecule"),
+        molecule.document_object_id().clone(),
         attached_compact_group_id.clone(),
     );
     let mut pending = session
@@ -136,7 +146,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
             molecule
                 .bonds()
                 .iter()
-                .any(|bond| bond.id() == Some(&exterior_bond_id))
+                .any(|bond| bond.document_object_id() == &exterior_bond_id)
         })
         .expect("materialized molecule retains the exterior bond");
     assert!(
@@ -149,7 +159,7 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
     let attachment_carbon = molecule
         .atoms()
         .iter()
-        .find(|atom| atom.id() == Some(outcome.focus_atom_id()))
+        .find(|atom| atom.document_object_id() == outcome.focus_atom_id())
         .expect("materialization focus is the acyl chloride attachment carbon");
     let attachment_carbon_source_id = attachment_carbon
         .source_id()
@@ -165,9 +175,9 @@ fn attached_acyl_chloride_materialization_retains_carbon_focus_and_exterior_iden
     let exterior = molecule
         .bonds()
         .iter()
-        .find(|bond| bond.id() == Some(&exterior_bond_id))
+        .find(|bond| bond.document_object_id() == &exterior_bond_id)
         .expect("exterior bond retains its durable identity");
-    assert_eq!(exterior.id(), Some(&exterior_bond_id));
+    assert_eq!(exterior.document_object_id(), &exterior_bond_id);
     assert_eq!(
         (exterior.order(), exterior.style()),
         (exterior_order, exterior_style.as_ref())

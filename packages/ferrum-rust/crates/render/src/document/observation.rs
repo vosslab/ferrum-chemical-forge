@@ -44,7 +44,7 @@ impl MoleculeRenderRootV1 {
 /// One document-root molecule and its existing complete render plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DocumentMoleculeRenderPlanV2 {
+pub struct DocumentMoleculeRenderPlanV3 {
     molecule: MoleculeRenderRootV1,
     plan: MoleculeRenderPlan,
     member_ids: Vec<DocumentObjectIdV1>,
@@ -53,7 +53,7 @@ pub struct DocumentMoleculeRenderPlanV2 {
     compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
 }
 
-impl DocumentMoleculeRenderPlanV2 {
+impl DocumentMoleculeRenderPlanV3 {
     pub(crate) fn from_document_object_id(
         document_object_id: DocumentObjectIdV1,
         plan: MoleculeRenderPlan,
@@ -152,7 +152,7 @@ impl DocumentMoleculeRenderPlanV2 {
 pub struct ResolvedDocumentRenderV1 {
     projection: DocumentProjectionV1,
     profile: DepictionProfileV1,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -211,7 +211,7 @@ impl ResolvedDocumentRenderV1 {
 
     /// Return complete molecule plans in document root order.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
         &self.molecule_plans
     }
 
@@ -312,7 +312,7 @@ pub struct ResolvedDocumentRenderWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -324,7 +324,7 @@ struct UncheckedResolvedDocumentRenderWireV1 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV2>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -377,7 +377,7 @@ impl ResolvedDocumentRenderWireV1 {
 
     /// Return plans that are complete batches or exact target exclusions.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
         &self.molecule_plans
     }
 
@@ -456,20 +456,20 @@ fn validate_projection_text_roots(
 
 fn validate_projection_plan_roots(
     molecules: &[MoleculeProjectionV1],
-    plans: &[DocumentMoleculeRenderPlanV2],
+    plans: &[DocumentMoleculeRenderPlanV3],
 ) -> Result<(), ResolvedDocumentRenderErrorV1> {
     if molecules.len() != plans.len() {
         return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
     }
     for (molecule, entry) in molecules.iter().zip(plans) {
-        if molecule.id() != Some(entry.molecule().document_object_id()) {
+        if molecule.document_object_id() != entry.molecule().document_object_id() {
             return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
         }
     }
     Ok(())
 }
 
-fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV2]) -> Result<(), String> {
+fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV3]) -> Result<(), String> {
     let mut durable_ids = HashSet::new();
     for entry in plans {
         let root = entry.molecule();
@@ -525,7 +525,7 @@ mod tests {
         let owner = object_id(1);
         let member = object_id(2);
         let foreign = object_id(3);
-        let result = DocumentMoleculeRenderPlanV2::from_document_object_id(
+        let result = DocumentMoleculeRenderPlanV3::from_document_object_id(
             owner,
             plan(),
             Vec::new(),
@@ -543,7 +543,7 @@ mod tests {
     fn molecule_member_issue_is_retained_by_its_molecule_plan() {
         let owner = object_id(4);
         let atom = object_id(5);
-        let entry = DocumentMoleculeRenderPlanV2::from_document_object_id(
+        let entry = DocumentMoleculeRenderPlanV3::from_document_object_id(
             owner,
             plan(),
             Vec::new(),

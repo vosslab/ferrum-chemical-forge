@@ -13,7 +13,7 @@ impl TypedDocument {
     ) -> Result<Option<Self>, TypedDocumentError> {
         let mut candidate = self.detached_candidate()?;
         let element_index = {
-            let Some(record) = candidate.resolve_document_object_id(molecule_id) else {
+            let Some(record) = candidate.resolve_document_object_id(molecule_id)? else {
                 return Ok(None);
             };
             let components = record.path().components();

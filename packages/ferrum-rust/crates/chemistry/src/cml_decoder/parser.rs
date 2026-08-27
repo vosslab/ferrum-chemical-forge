@@ -39,6 +39,7 @@ enum Frame {
     Atom,
     Bond,
     Builtin(&'static str),
+    Stereo,
 }
 
 struct Builtin {
@@ -176,7 +177,23 @@ impl RecordBuilder {
             "3" | "T" => BondOrder::Triple,
             _ => return refused(CmlRefusalReasonV1::InvalidScalar),
         };
-        self.bonds.push(CmlSourceBondV1 { start, end, order });
+        let direction = fields
+            .get("stereo")
+            .map(|value| match value.as_str() {
+                "W" => Ok(BondDirection::BeginWedge),
+                "H" => Ok(BondDirection::BeginDash),
+                _ => refused(CmlRefusalReasonV1::InvalidScalar),
+            })
+            .transpose()?;
+        if direction.is_some() && order != BondOrder::Single {
+            return refused(CmlRefusalReasonV1::InvalidScalar);
+        }
+        self.bonds.push(CmlSourceBondV1 {
+            start,
+            end,
+            order,
+            direction,
+        });
         Ok(())
     }
     pub(super) fn finish(self) -> Result<CmlDecodedRecordV1> {
@@ -437,12 +454,17 @@ impl Parser {
                     })?,
                 )?
             }
+            Some(Frame::Bond) if profile == Some(Profile::Cml2) && pending.name == "stereo" => {
+                self.open_stereo(pending)?
+            }
             Some(Frame::Atom | Frame::Bond) if profile == Some(Profile::Cml2) => {
                 return refused(CmlRefusalReasonV1::UnrepresentedSemanticFact);
             }
             Some(Frame::Atom) => self.open_builtin(pending, "atom")?,
             Some(Frame::Bond) => self.open_builtin(pending, "bond")?,
-            Some(Frame::Builtin(_)) => return refused(CmlRefusalReasonV1::UnexpectedXmlNode),
+            Some(Frame::Builtin(_) | Frame::Stereo) => {
+                return refused(CmlRefusalReasonV1::UnexpectedXmlNode);
+            }
         };
         self.stack.push(frame);
         Ok(())
@@ -536,10 +558,26 @@ impl Parser {
             }
             Profile::Cml2 => {
                 let fields = fields(&pending, &["atomRefs2", "order"])?;
-                record.add_bond(fields, &mut self.total_bonds)?;
+                record.current_bond = fields;
                 Ok(Frame::Bond)
             }
         }
+    }
+    fn open_stereo(&mut self, pending: Pending) -> Result<Frame> {
+        self.require_name(&pending, "stereo")?;
+        require_no_attributes(&pending)?;
+        let record = self.record.as_ref().ok_or(CmlDecoderErrorV1 {
+            reason: CmlRefusalReasonV1::InternalFailure,
+        })?;
+        if record.current_bond.contains_key("stereo") {
+            return refused(CmlRefusalReasonV1::InvalidScalar);
+        }
+        self.builtin = Some(Builtin {
+            name: "stereo",
+            value: String::new(),
+            has_text: false,
+        });
+        Ok(Frame::Stereo)
     }
     fn open_builtin(&mut self, pending: Pending, target: &str) -> Result<Frame> {
         self.require_name(&pending, "builtin")?;
@@ -558,7 +596,7 @@ impl Parser {
                 "isotopeNumber",
             ]
             .as_slice(),
-            _ => ["atomRef", "order"].as_slice(),
+            _ => ["atomRef", "order", "stereo"].as_slice(),
         };
         if !allowed.contains(&name.as_str()) {
             return refused(CmlRefusalReasonV1::UnrepresentedSemanticFact);
@@ -572,6 +610,7 @@ impl Parser {
             "isotopeNumber" => "isotopeNumber",
             "atomRef" => "atomRef",
             "order" => "order",
+            "stereo" => "stereo",
             _ => return refused(CmlRefusalReasonV1::UnrepresentedSemanticFact),
         };
         let present = match target {
@@ -594,6 +633,9 @@ impl Parser {
                     .current_bond
             }
         };
+        if target == "bond" && static_name == "stereo" && present.contains_key("stereo") {
+            return refused(CmlRefusalReasonV1::InvalidScalar);
+        }
         let ordered = if target == "atom" {
             !present.contains_key(static_name)
                 && matches!(
@@ -608,7 +650,7 @@ impl Parser {
         } else {
             matches!(
                 (static_name, present.len()),
-                ("atomRef", 0 | 1) | ("order", 2)
+                ("atomRef", 0 | 1) | ("order", 2) | ("stereo", 3)
             )
         };
         if !ordered {
@@ -633,11 +675,16 @@ impl Parser {
             reason: CmlRefusalReasonV1::InvalidXml,
         })?;
         match frame {
-            Frame::Builtin(name) => {
+            Frame::Builtin(_) | Frame::Stereo => {
+                let expected_name = match frame {
+                    Frame::Builtin(name) => name,
+                    Frame::Stereo => "stereo",
+                    _ => unreachable!("the match arm restricts the frame"),
+                };
                 let builtin = self.builtin.take().ok_or(CmlDecoderErrorV1 {
                     reason: CmlRefusalReasonV1::InternalFailure,
                 })?;
-                if !builtin.has_text || builtin.value.is_empty() || builtin.name != name {
+                if !builtin.has_text || builtin.value.is_empty() || builtin.name != expected_name {
                     return refused(CmlRefusalReasonV1::InvalidScalar);
                 }
                 let record = self.record.as_mut().ok_or(CmlDecoderErrorV1 {
@@ -648,17 +695,17 @@ impl Parser {
                 })?;
                 match target {
                     Frame::Atom => {
-                        record.current_atom.insert(name, builtin.value);
+                        record.current_atom.insert(expected_name, builtin.value);
                     }
                     Frame::Bond => {
-                        if name == "atomRef" {
+                        if expected_name == "atomRef" {
                             let count = record.current_bond.len();
                             record.current_bond.insert(
                                 if count == 0 { "atomRef1" } else { "atomRef2" },
                                 builtin.value,
                             );
                         } else {
-                            record.current_bond.insert(name, builtin.value);
+                            record.current_bond.insert(expected_name, builtin.value);
                         }
                     }
                     _ => return refused(CmlRefusalReasonV1::InvalidXml),
@@ -674,19 +721,21 @@ impl Parser {
                 }
                 record.add_atom(fields, &mut self.total_atoms, &mut self.source_ids)?;
             }
-            Frame::Bond if self.profile == Some(Profile::Cml1) => {
+            Frame::Bond => {
                 let record = self.record.as_mut().ok_or(CmlDecoderErrorV1 {
                     reason: CmlRefusalReasonV1::InternalFailure,
                 })?;
                 let mut fields = std::mem::take(&mut record.current_bond);
-                let first = fields.remove("atomRef1");
-                let second = fields.remove("atomRef2");
-                match (first, second) {
-                    (Some(first), Some(second)) => {
-                        fields.insert("atomRefs2", format!("{first} {second}"));
-                    }
-                    _ => return refused(CmlRefusalReasonV1::InvalidScalar),
-                };
+                if self.profile == Some(Profile::Cml1) {
+                    let first = fields.remove("atomRef1");
+                    let second = fields.remove("atomRef2");
+                    match (first, second) {
+                        (Some(first), Some(second)) => {
+                            fields.insert("atomRefs2", format!("{first} {second}"));
+                        }
+                        _ => return refused(CmlRefusalReasonV1::InvalidScalar),
+                    };
+                }
                 record.add_bond(fields, &mut self.total_bonds)?;
             }
             Frame::Molecule => {
@@ -700,7 +749,7 @@ impl Parser {
                 self.records.push(record);
             }
             Frame::Root(_) => self.root_closed = true,
-            Frame::AtomArray | Frame::BondArray | Frame::Atom | Frame::Bond => {}
+            Frame::AtomArray | Frame::BondArray | Frame::Atom => {}
         }
         Ok(())
     }
@@ -726,5 +775,6 @@ fn frame_name(frame: Frame) -> &'static str {
         Frame::Atom => "atom",
         Frame::Bond => "bond",
         Frame::Builtin(_) => "builtin",
+        Frame::Stereo => "stereo",
     }
 }

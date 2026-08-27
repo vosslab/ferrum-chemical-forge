@@ -631,4 +631,17 @@ fn fcm1_rejects_reserved_and_invalid_graph_semantics() {
         fcm1::decode(&duplicate),
         Err(ChemistryError::MalformedNativeResponse { .. })
     ));
+
+    for direction in [
+        FERRUM_CHEM_BOND_DIRECTION_BEGINWEDGE,
+        FERRUM_CHEM_BOND_DIRECTION_BEGINDASH,
+    ] {
+        let mut directed_double = fcm1_molecule_response();
+        directed_double[bond_offset + 8] = 2;
+        directed_double[bond_offset + 11] = direction as u8;
+        assert!(matches!(
+            fcm1::decode(&directed_double),
+            Err(ChemistryError::MalformedNativeResponse { .. })
+        ));
+    }
 }

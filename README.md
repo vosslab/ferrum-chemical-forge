@@ -65,6 +65,6 @@ Ferrum is pre-production and currently runs from this checkout. See
 
 ## License
 
-Ferrum is [AGPL-3.0-only](LICENSE.AGPL-3.0.md). Ferrum-Chem is
-[LGPL-3.0-only](LICENSE.LGPL-3.0.md). See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the
+Ferrum is [AGPL-3.0-only](LICENSE.AGPL-3.0). Ferrum-Chem is
+[LGPL-3.0-only](LICENSE.LGPL-3.0). See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the
 license boundary and required notices.

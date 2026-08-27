@@ -88,6 +88,7 @@ fn execute_named_document_request(
                     catalog_placement_refusal: None,
                     reaction_refusal: None,
                     compact_group_materialization_refusal: None,
+                    compact_group_attachment_refusal: None,
                 },
             },
         ));

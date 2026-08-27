@@ -4,13 +4,14 @@
 //! CDML nor derives replacement geometry from a toolkit-specific representation.
 
 use crate::{
-    DocumentVectorOpV1, DocumentVectorRootV1, Paint, PathCommandV1, PositiveFinite, RenderError,
-    RenderPoint, Rgb24, StrokeV1,
+    DocumentVectorOpV1, DocumentVectorRootV1, PathCommandV1, PositiveFinite, RenderError,
+    RenderPaintV3, RenderPoint, Rgb24, StrokeV1,
 };
 use ferrum_document_projection::{
     ArrowHeadShapeV1, ArrowPathV1, ArrowProjectionKindV1, ArrowProjectionV1, BoxShapeProjectionV1,
     CurvedTerminalArrowKindV1, Point3V1, PolygonProjectionV1, PolylineProjectionV1,
-    PresentationFillV1, PresentationRootProjectionV1, PresentationStrokeV1,
+    PresentationFactProvenanceV1, PresentationFillV1, PresentationRootProjectionV1,
+    PresentationStrokeV1,
 };
 
 /// Lower one semantic non-text presentation root into renderer-issued geometry.
@@ -550,25 +551,31 @@ fn closed_points(
 
 fn stroke(source: &PresentationStrokeV1) -> Result<StrokeV1, RenderError> {
     Ok(StrokeV1::new(
-        paint(source.color().as_str())?,
+        paint(source.color().as_str(), source.color_provenance())?,
         PositiveFinite::new(source.width().value())?,
     ))
 }
 
-fn fill(source: &PresentationFillV1) -> Result<Option<Paint>, RenderError> {
+fn fill(source: &PresentationFillV1) -> Result<Option<RenderPaintV3>, RenderError> {
     source
         .color()
-        .map(|color| paint(color.as_str()))
+        .map(|color| paint(color.as_str(), source.color_provenance()))
         .transpose()
 }
 
-fn paint(source: &str) -> Result<Paint, RenderError> {
+fn paint(
+    source: &str,
+    provenance: PresentationFactProvenanceV1,
+) -> Result<RenderPaintV3, RenderError> {
+    if provenance == PresentationFactProvenanceV1::Builtin {
+        return Ok(RenderPaintV3::document_foreground());
+    }
     let Some(rgb) = source.strip_prefix('#') else {
         return Err(RenderError::InvalidRequest(
             "presentation RGB colour must use the canonical #rrggbb spelling".to_owned(),
         ));
     };
-    Ok(Paint::rgb24(Rgb24::new(rgb.to_owned())?))
+    Ok(RenderPaintV3::authored_rgb24(Rgb24::new(rgb.to_owned())?))
 }
 
 fn point(source: Point3V1) -> Result<RenderPoint, RenderError> {

@@ -91,7 +91,7 @@ fn request_with(scale: f64) -> DirectGlycosidicHaworthRenderRequestV1 {
     DirectGlycosidicHaworthRenderRequestV1::new(
         RenderProvenance::new(RenderRevision::new(0).expect("revision"), [8; 32]),
         spec(scale),
-        Paint::rgb24(Rgb24::new("102030").expect("paint")),
+        RenderPaintV3::authored_rgb24(Rgb24::new("102030").expect("paint")),
         PositiveFinite::new(scale / 8.0).expect("line"),
         PositiveFinite::new(scale / 2.0).expect("wedge"),
     )

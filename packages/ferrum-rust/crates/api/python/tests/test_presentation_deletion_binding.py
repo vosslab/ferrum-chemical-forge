@@ -73,6 +73,19 @@ def test_complete_bracket_pair_deletes_atomically_through_frozen_selectors() -> 
 	)
 
 
+def test_bracket_pair_members_match_projected_root_durable_ids_in_left_right_order() -> None:
+	"""The binding preserves Rust-issued bracket member IDs and their order."""
+	session = ferrum_chem.DocumentSession.load(BRACKET_SOURCE)
+	stack = session.observe(session.snapshot().revision).projection.presentation_stack
+	left_root = stack.entries[0]
+	right_root = stack.entries[1]
+
+	assert tuple(stack.bracket_pairs[0].members) == (
+		getattr(left_root, left_root.kind).target.document_object_id,
+		getattr(right_root, right_root.kind).target.document_object_id,
+	)
+
+
 def test_presentation_deletion_set_rejects_empty_target_tuple() -> None:
 	"""An atomic deletion must name at least one durable root."""
 	with pytest.raises(ferrum_chem.OperationValidationError):

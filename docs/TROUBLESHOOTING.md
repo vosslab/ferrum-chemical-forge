@@ -78,11 +78,11 @@ CDML through its Rust-native document flow.
 ### A chosen drawing is unsupported
 
 Ferrum's File > Open accepts uncompressed `.cdml` drawings, decoded `.svg` files
-that contain embedded CDML, and the bounded simple-molecule CML/CML2 profile.
-CML opens as a clean new document and its first Save writes CDML. Use a source
-application or converter for ChemDraw XML (`.cdxml`), compressed CDML, `.cdsvg`,
-or CML outside that supported profile. A rejected file leaves the current
-document unchanged.
+that contain embedded CDML, bounded CML/CML2, and bounded input-only ChemDraw XML
+(`.cdxml`) simple-molecule input. CML and CDXML open as clean new documents and their
+first Save writes CDML. CDX, unsupported CDXML chemistry or presentation, namespaces,
+compressed CDML, `.cdsvg`, and CML outside the supported profile refuse without changing
+the current document. See [FILE_FORMATS.md](FILE_FORMATS.md) for the exact boundary.
 
 ### Make a recovery copy
 

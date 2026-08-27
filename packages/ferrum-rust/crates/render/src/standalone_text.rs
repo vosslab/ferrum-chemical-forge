@@ -3,8 +3,8 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    FontFace, GlyphBounds, GlyphPlacement, Paint, PositiveFinite, RenderError, RenderPoint, TextOp,
-    TextScript,
+    FontFace, GlyphBounds, GlyphPlacement, PositiveFinite, RenderError, RenderPaintV3, RenderPoint,
+    TextOp, TextScript,
 };
 
 /// One exact text operation and its anchor-local ink bounds.
@@ -183,7 +183,7 @@ pub struct PresentationTextOp {
     runs: Vec<PresentationGlyphRun>,
     face: FontFace,
     size: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 }
 
@@ -191,7 +191,7 @@ impl PresentationTextOp {
     pub(crate) fn new(
         runs: Vec<PresentationGlyphRun>,
         size: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
         z: i32,
     ) -> Result<Self, RenderError> {
         if runs.is_empty() {
@@ -228,7 +228,7 @@ impl PresentationTextOp {
 
     /// Return the explicit foreground paint.
     #[must_use]
-    pub fn paint(&self) -> &Paint {
+    pub fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
 
@@ -250,7 +250,7 @@ impl<'de> Deserialize<'de> for PresentationTextOp {
             runs: Vec<PresentationGlyphRun>,
             face: FontFace,
             size: PositiveFinite,
-            paint: Paint,
+            paint: RenderPaintV3,
             z: i32,
         }
         let wire = Wire::deserialize(deserializer)?;

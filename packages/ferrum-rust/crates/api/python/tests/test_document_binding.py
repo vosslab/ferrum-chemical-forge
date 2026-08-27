@@ -95,7 +95,9 @@ def test_text_placement_binding_uses_renderer_overlay_and_one_commit() -> None:
     )
     defaults = session.text_placement_defaults_v1(gesture)
     assert defaults.font_size == 18.0
-    assert defaults.color == "#123456"
+    assert (defaults.paint.kind, defaults.paint.role, defaults.paint.element, defaults.paint.export_rgb) == (
+        "authored_rgb24", None, None, "123456",
+    )
     assert defaults.bold_supported is False
     run = ferrum_chem.DocumentTextEditRunV1.create
     style = ferrum_chem.DocumentTextEditStyleV1
@@ -550,8 +552,12 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
         plan.provenance.digest,
     )
     assert isinstance(observation.molecule_plans, tuple)
-    assert (plan.schema, type(plan), type(batch), type(operation)) == ("ferrum-render-plan-v2",
-        ferrum_chem.RenderPlanV2, ferrum_chem.RenderBatchV2, ferrum_chem.RenderOperationV2)
+    assert (plan.schema, type(plan), type(batch), type(operation)) == ("ferrum-render-plan-v3",
+        ferrum_chem.RenderPlanV3, ferrum_chem.RenderBatchV3, ferrum_chem.RenderOperationV3)
+    paint = operation.operation.paint
+    assert (type(paint), paint.kind, paint.export_rgb, paint.role, paint.element) == (
+        ferrum_chem.RenderPaintV3, "theme_role", "000000", "document_foreground", None,
+    )
     assert entry.molecule.document_object_id == (
         observation.document.projection.molecules[0].document_object_id
     )
@@ -629,7 +635,7 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
         20.0,
     )
     with pytest.raises(AttributeError):
-        render.operation.paint = "000000"
+        render.operation.paint.export_rgb = "000000"
 
 
 def test_presentation_polyline_is_frozen_revision_bound_and_durable() -> None:

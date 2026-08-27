@@ -139,7 +139,7 @@ fn selectable_object_count(observation: &SessionDocumentObservationV1) -> Option
         .iter()
         .try_fold(0_usize, |count, molecule| {
             count
-                .checked_add(usize::from(molecule.id().is_some()))?
+                .checked_add(1)?
                 .checked_add(molecule.atoms().len())?
                 .checked_add(molecule.bonds().len())
         })?;

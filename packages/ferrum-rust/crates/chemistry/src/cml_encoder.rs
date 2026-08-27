@@ -122,7 +122,12 @@ fn append_source_bonds(output: &mut String, record: &CmlDecodedRecordV1) {
         output.push_str("<bond");
         attribute(output, "atomRefs2", &format!("{start} {end}"));
         attribute(output, "order", bond_order_text(bond.order()));
-        output.push_str("/>");
+        match bond.direction() {
+            None => output.push_str("/>"),
+            Some(BondDirection::BeginWedge) => output.push_str("><stereo>W</stereo></bond>"),
+            Some(BondDirection::BeginDash) => output.push_str("><stereo>H</stereo></bond>"),
+            Some(_) => unreachable!("CML source bonds retain only wedge or hash directions"),
+        }
     }
     output.push_str("</bondArray>");
 }

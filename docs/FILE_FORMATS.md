@@ -50,16 +50,30 @@ round trips, and CD-SVG export are outside this V1 desktop boundary. The native 
 refuses `.cdsvg`, `.svgz`, and compressed names; it does not offer a second editor or
 converter fallback.
 
-## Dropped desktop formats
+## Native CDXML simple-molecule import
 
-The pre-production desktop product has one Rust-native document window. It supports
-decoded `.cdml`, the bounded decoded `.svg` CD-SVG route described above, and the closed
-Rust-owned CML/CML2 simple-molecule profile through File/Open. CML always converts into a
-clean new document; its source path is provenance only, and Save writes authoritative CDML.
-It refuses `.cdxml`, `.cdsvg`, `.svgz`, and compressed CDML names before reading them,
-preserving the active document. Ferrum does not provide a second editor or converter
-fallback for these dropped desktop formats. This is an explicit format disposition, not a
-claim that historical source or oracle references disappeared.
+File/Open and `ferrum open` accept bounded, input-only `.cdxml` simple-molecule input.
+The source produces a clean new document and never replaces the current tab. The command
+requires a CDML destination, for example:
+
+```bash
+ferrum open molecule.cdxml --format cdxml --output result.cdml
+```
+
+CDXML is not a document save format or conversion input. The first desktop Save or Save As
+publishes CDML, and a successful CLI open publishes only the requested `.cdml` output. The
+Rust decoder records declared losses in canonical category order: `lexical_syntax`, then
+`document_view_metadata`. See the accepted profile and resource limits in
+[m2_cdxml_simple_molecule_import_v1.md](active_plans/decisions/m2_cdxml_simple_molecule_import_v1.md).
+
+## Refused desktop formats
+
+The pre-production desktop product has one Rust-native document window. It supports decoded
+`.cdml`, the bounded decoded `.svg` CD-SVG route, closed CML/CML2 simple-molecule input, and
+the bounded CDXML profile above. CDX binary files, CDXML chemistry or presentation outside
+that profile, namespaces, `.cdsvg`, `.svgz`, and compressed input are refused without
+changing the current document. `ferrum convert` also refuses document-import-only CDXML before
+reading its source and directs the user to `ferrum open`.
 
 ## Native document artifact export
 
@@ -92,7 +106,7 @@ a cross-platform release claim.
 
 ## Unsupported formats
 
-Ferrum is not a general image, SVG, or compressed-SVG converter. `ferrum convert` accepts only
-its closed interchange vocabulary and uses the native runtime created by `build.sh`; it is not a
-desktop import fallback. The current scope and remaining migration work are tracked in
-[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+Ferrum is not a general image, SVG, or compressed-SVG converter. `ferrum convert` accepts
+only descriptor-declared chemistry-conversion inputs and uses the native runtime created by
+`build.sh`; it is not a desktop import fallback. The current scope and remaining migration
+work are tracked in [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).

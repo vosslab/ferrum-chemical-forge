@@ -24,8 +24,7 @@ fn request(session: &DocumentSession, revision: u64) -> (DocumentObjectIdV1, Vec
         .expect("fixture must project")
         .projection()
         .molecules()[0]
-        .id()
-        .expect("fixture molecule is durable")
+        .document_object_id()
         .clone();
     (
         molecule,
@@ -185,8 +184,7 @@ fn repair_keeps_its_existing_id_without_installing_a_fragment_sequence() {
         .expect("repair commits");
     let observation = repaired.observe(1).expect("repair projects");
     let molecule = observation.projection().molecules()[1]
-        .id()
-        .expect("second molecule is durable")
+        .document_object_id()
         .clone();
     let atoms = vec![
         PersistentId::new("c").unwrap(),

@@ -25,6 +25,36 @@ use ferrum_render::{
     resolve_attached_compact_group_anchor_render_facts_v1, resolve_attached_compact_group_pose_v1,
 };
 
+/// Durable pair selected for one attached compact-group operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttachedCompactGroupTargetV1 {
+    molecule_id: DocumentObjectIdV1,
+    anchor_atom_id: DocumentObjectIdV1,
+}
+
+impl AttachedCompactGroupTargetV1 {
+    /// Construct one opaque molecule-plus-direct-anchor target.
+    #[must_use]
+    pub fn new(molecule_id: DocumentObjectIdV1, anchor_atom_id: DocumentObjectIdV1) -> Self {
+        Self {
+            molecule_id,
+            anchor_atom_id,
+        }
+    }
+
+    /// Return the selected direct-root molecule identifier.
+    #[must_use]
+    pub const fn molecule_id(&self) -> &DocumentObjectIdV1 {
+        &self.molecule_id
+    }
+
+    /// Return the selected direct anchor atom identifier.
+    #[must_use]
+    pub const fn anchor_atom_id(&self) -> &DocumentObjectIdV1 {
+        &self.anchor_atom_id
+    }
+}
+
 /// Opaque session-affine, one-use pending compact-group attachment.
 pub struct PendingAttachedCompactGroupV1 {
     session_issuer: AuthoringCapabilityIssuerV1,
@@ -103,12 +133,14 @@ pub enum AttachedCompactGroupSessionErrorV1 {
     ForeignSession,
     #[error("compact-group attachment was already consumed")]
     Consumed,
+    #[error("compact-group attachment molecule is unknown or not a direct root")]
+    UnknownMolecule,
     #[error("compact-group attachment anchor is unknown or not a direct atom")]
     UnknownAnchor,
+    #[error("compact-group attachment anchor belongs to another molecule")]
+    ForeignTarget,
     #[error("compact-group attachment pose is invalid")]
     InvalidPose,
-    #[error("compact-group attachment catalog key is not reviewed for attachment")]
-    UnsupportedAttachmentCatalogKey,
     #[error("compact-group attachment candidate could not be admitted")]
     CandidateAdmission,
     #[error("compact-group attachment candidate could not be rendered completely")]
@@ -126,8 +158,12 @@ pub enum AttachedCompactGroupAvailabilityCategoryV1 {
     StaleRevision,
     /// The caller's digest does not match the current session state.
     StaleDigest,
+    /// The durable selection does not identify a current direct-root molecule.
+    UnknownMolecule,
     /// The durable selection does not identify a current direct atom.
     UnknownAnchor,
+    /// The durable anchor belongs to another current direct-root molecule.
+    ForeignTarget,
     /// The bounded immutable candidate proof could not be admitted.
     CandidateAdmission,
     /// The immutable session observation could not be constructed.
@@ -173,7 +209,7 @@ impl AttachedCompactGroupAvailabilityV1 {
         &self.digest
     }
 
-    /// Return the selected durable atom address supplied to the observation.
+    /// Return the selected molecule-scoped anchor address supplied to the observation.
     #[must_use]
     pub const fn anchor_object_id(&self) -> &DocumentObjectIdV1 {
         &self.anchor_object_id
@@ -202,7 +238,7 @@ impl AttachedCompactGroupAvailabilityV1 {
 }
 
 impl DocumentSession {
-    /// Observe whether one fenced direct atom can currently accept a reviewed compact group.
+    /// Observe whether one fenced molecule-plus-direct-atom target can accept a reviewed group.
     ///
     /// This advisory check allocates no durable identifiers and creates neither a
     /// pending capability nor a renderer candidate. Begin and commit repeat the
@@ -211,7 +247,7 @@ impl DocumentSession {
     pub fn observe_attach_compact_group_availability_v1(
         &self,
         fence: DocumentFenceV1,
-        anchor: DocumentObjectIdV1,
+        target: AttachedCompactGroupTargetV1,
         catalog_key: CompactGroupCatalogKeyV1,
     ) -> AttachedCompactGroupAvailabilityV1 {
         let revision = self.current_revision_v1();
@@ -221,28 +257,40 @@ impl DocumentSession {
         } else if digest != fence.digest() {
             AttachedCompactGroupAvailabilityCategoryV1::StaleDigest
         } else if let Ok(observation) = self.document_observation() {
-            match resolve_anchor(&observation, &anchor) {
+            match resolve_anchor(&observation, &target) {
                 Ok(resolved) => availability_category(resolved, catalog_key),
+                Err(AttachedCompactGroupSessionErrorV1::UnknownMolecule) => {
+                    AttachedCompactGroupAvailabilityCategoryV1::UnknownMolecule
+                }
+                Err(AttachedCompactGroupSessionErrorV1::ForeignTarget) => {
+                    AttachedCompactGroupAvailabilityCategoryV1::ForeignTarget
+                }
                 Err(_) => AttachedCompactGroupAvailabilityCategoryV1::UnknownAnchor,
             }
         } else {
             AttachedCompactGroupAvailabilityCategoryV1::SessionConflict
         };
-        AttachedCompactGroupAvailabilityV1::new(revision, digest, anchor, catalog_key, category)
+        AttachedCompactGroupAvailabilityV1::new(
+            revision,
+            digest,
+            target.anchor_atom_id().clone(),
+            catalog_key,
+            category,
+        )
     }
 
-    /// Prepare exactly one reviewed compact group from a direct atom and finite release point.
+    /// Prepare exactly one reviewed compact group from a selected target and finite release point.
     pub fn prepare_attach_compact_group_v1(
         &mut self,
         fence: DocumentFenceV1,
-        anchor: DocumentObjectIdV1,
+        target: AttachedCompactGroupTargetV1,
         request: AttachCompactGroupV1,
     ) -> Result<PendingAttachedCompactGroupV1, AttachedCompactGroupSessionErrorV1> {
         require_fence(self, fence)?;
         let observation = self
             .document_observation()
             .map_err(|_| AttachedCompactGroupSessionErrorV1::SessionConflict)?;
-        let resolved = resolve_anchor(&observation, &anchor)?;
+        let resolved = resolve_anchor(&observation, &target)?;
         let renderer_pose = resolve_renderer_admitted_pose(&observation, &resolved, request)?;
         let pose = attached_compact_group_candidate_from_resolved_pose_v1(
             request.catalog_key(),
@@ -294,9 +342,11 @@ impl DocumentSession {
             .map_err(|_| AttachedCompactGroupSessionErrorV1::CandidateAdmission)?;
         let compact_group_object_id = document
             .document_object_id_for_source_id_v1(&group_id)
+            .map_err(|_| AttachedCompactGroupSessionErrorV1::CandidateAdmission)?
             .ok_or(AttachedCompactGroupSessionErrorV1::CandidateAdmission)?;
         let bond_object_id = document
             .document_object_id_for_source_id_v1(&bond_id)
+            .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?
             .ok_or(AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
         let revision = self
             .next_revision_v1()
@@ -320,7 +370,7 @@ impl DocumentSession {
         Ok(PendingAttachedCompactGroupV1 {
             session_issuer: self.authoring_capability_issuer.clone(),
             fence,
-            focus_object_id: anchor,
+            focus_object_id: target.anchor_atom_id().clone(),
             compact_group_object_id,
             transition,
             precommit_overlay: overlay,
@@ -374,7 +424,7 @@ fn availability_category(
     resolved: ResolvedAnchorV1,
     catalog_key: CompactGroupCatalogKeyV1,
 ) -> AttachedCompactGroupAvailabilityCategoryV1 {
-    if attached_compact_group_chemistry_fact_v1(catalog_key).is_err() {
+    if require_attached_compact_group_chemistry_support_v1(catalog_key).is_err() {
         return AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission;
     }
     match require_direct_anchor_attachment_capacity(&resolved) {
@@ -383,10 +433,10 @@ fn availability_category(
     }
 }
 
-/// Return the geometry-free chemistry fact required by attached-group availability.
+/// Admit the closed-catalog chemistry prerequisites for attached-group authoring.
 ///
 /// A release point is intentionally absent: renderer admission owns durable compact-group pose.
-fn attached_compact_group_chemistry_fact_v1(
+fn require_attached_compact_group_chemistry_support_v1(
     catalog_key: CompactGroupCatalogKeyV1,
 ) -> Result<(), AttachedCompactGroupSessionErrorV1> {
     ferrum_document_model::supports_attached_compact_group_authoring_v1(catalog_key)
@@ -412,7 +462,7 @@ fn map_core_error(error: AttachedCompactGroupErrorV1) -> AttachedCompactGroupSes
     match error {
         AttachedCompactGroupErrorV1::InvalidPose => AttachedCompactGroupSessionErrorV1::InvalidPose,
         AttachedCompactGroupErrorV1::UnsupportedCatalogKey => {
-            AttachedCompactGroupSessionErrorV1::UnsupportedAttachmentCatalogKey
+            AttachedCompactGroupSessionErrorV1::SessionConflict
         }
     }
 }
@@ -568,24 +618,41 @@ fn resolve_renderer_admitted_pose(
 
 fn resolve_anchor(
     observation: &SessionDocumentObservationV1,
-    anchor: &DocumentObjectIdV1,
+    target: &AttachedCompactGroupTargetV1,
 ) -> Result<ResolvedAnchorV1, AttachedCompactGroupSessionErrorV1> {
+    let molecule_id = target.molecule_id();
+    let anchor = target.anchor_atom_id();
     let molecule = observation
         .projection()
         .molecules()
         .iter()
-        .find(|molecule| {
-            molecule
-                .atoms()
-                .iter()
-                .any(|atom| atom.id() == Some(anchor))
-        })
-        .ok_or(AttachedCompactGroupSessionErrorV1::UnknownAnchor)?;
-    let atom = molecule
+        .find(|molecule| molecule.document_object_id() == molecule_id)
+        .ok_or(AttachedCompactGroupSessionErrorV1::UnknownMolecule)?;
+    let atom = match molecule
         .atoms()
         .iter()
-        .find(|atom| atom.id() == Some(anchor))
-        .ok_or(AttachedCompactGroupSessionErrorV1::UnknownAnchor)?;
+        .find(|atom| atom.document_object_id() == anchor)
+    {
+        Some(atom) => atom,
+        None => {
+            let exists_elsewhere = observation
+                .projection()
+                .molecules()
+                .iter()
+                .any(|candidate| {
+                    candidate.document_object_id() != molecule_id
+                        && candidate
+                            .atoms()
+                            .iter()
+                            .any(|atom| atom.document_object_id() == anchor)
+                });
+            return Err(if exists_elsewhere {
+                AttachedCompactGroupSessionErrorV1::ForeignTarget
+            } else {
+                AttachedCompactGroupSessionErrorV1::UnknownAnchor
+            });
+        }
+    };
     let molecule_id = molecule
         .source_id()
         .and_then(|id| PersistentId::new(id.to_owned()).ok())
@@ -628,7 +695,11 @@ fn resolve_anchor(
 
 #[cfg(test)]
 #[path = "attached_compact_group_tests.rs"]
-mod tests;
+pub(super) mod tests;
+
+#[cfg(test)]
+#[path = "attached_compact_group_recipe_semantics_tests.rs"]
+mod recipe_semantics_tests;
 
 #[cfg(test)]
 #[path = "attached_acyl_chloride_tests.rs"]

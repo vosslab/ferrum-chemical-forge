@@ -265,18 +265,19 @@ fn direct_bond_requires_generic_authorization_and_consumes_it_on_generic_commit(
         panic!("generic direct-bond transition returns its direct-bond receipt");
     };
     let document = session.current_document_v1();
-    assert!(
-        document
-            .resolve_document_object_id(outcome.bond_document_object_id())
-            .is_some()
-    );
-    assert!(
-        document
-            .resolve_document_object_id(outcome.end_atom_document_object_id())
-            .is_some()
-    );
+    assert!(matches!(
+        document.resolve_document_object_id(outcome.bond_document_object_id()),
+        Ok(Some(_))
+    ));
+    assert!(matches!(
+        document.resolve_document_object_id(outcome.end_atom_document_object_id()),
+        Ok(Some(_))
+    ));
     if let Some(atom) = outcome.second_created_atom_document_object_id() {
-        assert!(document.resolve_document_object_id(atom).is_some());
+        assert!(matches!(
+            document.resolve_document_object_id(atom),
+            Ok(Some(_))
+        ));
     }
     assert_eq!(
         prepared.presentation_v1(),

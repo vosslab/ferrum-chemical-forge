@@ -139,7 +139,7 @@ fn recorder_rejects_unbalanced_scope_and_keeps_rotated_ellipse_style() {
         Err(CompositeRecordingErrorV1::InvalidStream)
     );
     open_target(&mut recorder);
-    let paint = Paint::rgb24(Rgb24::new("112233").expect("paint"));
+    let paint = RenderPaintV3::authored_rgb24(Rgb24::new("112233").expect("paint"));
     recorder
         .draw_ellipse(
             DrawEllipseV1 {

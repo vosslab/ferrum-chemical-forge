@@ -16,17 +16,25 @@ impl DocumentSession {
         let mut lowered = Vec::with_capacity(targets.len());
         for (molecule_object_id, atom_object_id) in targets {
             let molecule = self.live_root(molecule_object_id, TypedClass::Molecule)?;
-            let atom = molecule
-                .typed_children()
-                .iter()
-                .find(|child| {
-                    crate::document_object_id_from_record_v1(child.record()).as_ref()
-                        == Some(atom_object_id)
-                })
-                .map(|child| child.record())
-                .ok_or_else(|| {
-                    SessionOperationError::UnknownDocumentObject(atom_object_id.as_str().to_owned())
-                })?;
+            let mut atom = None;
+            for child in molecule.typed_children() {
+                let child_object_id =
+                    crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+                        child.record(),
+                    )
+                    .map_err(|_| {
+                        SessionOperationError::UnknownDocumentObject(
+                            atom_object_id.as_str().to_owned(),
+                        )
+                    })?;
+                if child_object_id == *atom_object_id {
+                    atom = Some(child.record());
+                    break;
+                }
+            }
+            let atom = atom.ok_or_else(|| {
+                SessionOperationError::UnknownDocumentObject(atom_object_id.as_str().to_owned())
+            })?;
             if atom.class() != TypedClass::Atom {
                 return Err(SessionOperationError::InvalidCreateBondTarget(
                     atom_object_id.as_str().to_owned(),
@@ -61,8 +69,8 @@ impl DocumentSession {
                 .filter(|child| child.record().class() == TypedClass::Molecule)
                 .map(|child| {
                     let record = child.record();
-                    let object_id =
-                        crate::document_object_id_from_record_v1(record).ok_or_else(|| {
+                    let object_id = crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)
+                        .map_err(|_| {
                             SessionOperationError::UnknownDocumentObject("molecule".to_owned())
                         })?;
                     source_id(record, &object_id)
@@ -100,6 +108,9 @@ impl DocumentSession {
         let record = self
             .current_document_v1()
             .resolve_document_object_id(object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidCreateAtomTarget(object_id.as_str().to_owned())
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(object_id.as_str().to_owned())
             })?;
@@ -152,6 +163,7 @@ mod tests {
                 &PersistentId::new(source).expect("test source identifier"),
             )
             .expect("typed ingress persists the test record identity")
+            .expect("typed ingress resolves the persisted document object identity")
     }
 
     #[test]

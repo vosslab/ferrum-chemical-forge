@@ -3,11 +3,11 @@
 use crate::compact_group_materialization_v1::{
     CompactGroupMaterializationRefusalV1, TypedCompactGroupMaterializationRequestV1,
 };
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
 use crate::{
     DocumentCompactGroupMaterializationRefusalV1, DocumentCompactGroupMaterializationRequestV1,
     DocumentCompactGroupMaterializationResultV1, DocumentCompactGroupMaterializationTargetErrorV1,
     DocumentObjectIdV1, PersistentId, SessionOperationError, TypedClass,
-    document_object_id_from_record_v1,
 };
 
 use super::{
@@ -26,6 +26,7 @@ impl DocumentSession {
         let document = self.current_document_v1();
         let molecule = document
             .resolve_document_object_id(molecule_object_id)
+            .map_err(|_| DocumentCompactGroupMaterializationTargetErrorV1::InvalidMolecule)?
             .ok_or(DocumentCompactGroupMaterializationTargetErrorV1::UnknownMolecule)?;
         if molecule.class() != TypedClass::Molecule {
             return Err(DocumentCompactGroupMaterializationTargetErrorV1::InvalidMolecule);
@@ -34,15 +35,20 @@ impl DocumentSession {
             molecule,
             DocumentCompactGroupMaterializationTargetErrorV1::InvalidMolecule,
         )?;
-        let compact_group = molecule
-            .typed_children()
-            .iter()
-            .find(|child| {
-                document_object_id_from_record_v1(child.record()).as_ref()
-                    == Some(compact_group_object_id)
-            })
-            .ok_or(DocumentCompactGroupMaterializationTargetErrorV1::UnknownOrForeignCompactGroup)?
-            .record();
+        let mut compact_group = None;
+        for child in molecule.typed_children() {
+            let child_object_id = projection_document_object_id_from_record_v1(child.record())
+                .map_err(|_| {
+                    DocumentCompactGroupMaterializationTargetErrorV1::InvalidCompactGroup
+                })?;
+            if &child_object_id == compact_group_object_id {
+                compact_group = Some(child.record());
+                break;
+            }
+        }
+        let compact_group = compact_group.ok_or(
+            DocumentCompactGroupMaterializationTargetErrorV1::UnknownOrForeignCompactGroup,
+        )?;
         if compact_group.class() != TypedClass::CompactGroup {
             return Err(DocumentCompactGroupMaterializationTargetErrorV1::InvalidCompactGroup);
         }
@@ -141,25 +147,26 @@ impl DocumentSession {
             .map_err(map_compact_refusal)?;
         let focus_source_id = candidate.attachment_focus().clone();
         let candidate = candidate.into_candidate();
-        let molecule_id = candidate
+        let molecule = candidate
             .root()
             .children_of(TypedClass::Molecule)
             .find(|molecule| molecule.attribute("id") == Some(molecule_source_id.as_str()))
-            .and_then(document_object_id_from_record_v1)
             .ok_or(DocumentCompactGroupMaterializationRefusalV1::InvalidCandidate)
             .map_err(SessionOperationError::from)?;
-        let focus_atom_id = candidate
-            .root()
-            .children_of(TypedClass::Molecule)
-            .find(|molecule| molecule.attribute("id") == Some(molecule_source_id.as_str()))
-            .and_then(|molecule| {
-                molecule.typed_children().iter().find(|child| {
-                    child.record().class() == TypedClass::Atom
-                        && child.record().attribute("id") == Some(focus_source_id.as_str())
-                })
+        let molecule_id = projection_document_object_id_from_record_v1(molecule)
+            .map_err(|_| DocumentCompactGroupMaterializationRefusalV1::InvalidCandidate)
+            .map_err(SessionOperationError::from)?;
+        let focus_atom = molecule
+            .typed_children()
+            .iter()
+            .find(|child| {
+                child.record().class() == TypedClass::Atom
+                    && child.record().attribute("id") == Some(focus_source_id.as_str())
             })
-            .and_then(|atom| document_object_id_from_record_v1(atom.record()))
             .ok_or(DocumentCompactGroupMaterializationRefusalV1::InvalidCandidate)
+            .map_err(SessionOperationError::from)?;
+        let focus_atom_id = projection_document_object_id_from_record_v1(focus_atom.record())
+            .map_err(|_| DocumentCompactGroupMaterializationRefusalV1::InvalidCandidate)
             .map_err(SessionOperationError::from)?;
         let revision = self
             .next_revision_v1()
@@ -271,6 +278,7 @@ mod tests {
                 &PersistentId::new(source_id).expect("test source identifier"),
             )
             .expect("typed ingress persists the test record identity")
+            .expect("typed ingress assigns a document-owned object ID")
     }
 
     fn session() -> DocumentSession {
@@ -398,13 +406,13 @@ mod tests {
             .projection()
             .molecules()
             .iter()
-            .find(|molecule| molecule.id() == Some(outcome.molecule_id()))
+            .find(|molecule| molecule.document_object_id() == outcome.molecule_id())
             .expect("materialized molecule remains projected");
         assert!(
             focused_molecule
                 .atoms()
                 .iter()
-                .any(|atom| { atom.id() == Some(outcome.focus_atom_id()) })
+                .any(|atom| atom.document_object_id() == outcome.focus_atom_id())
         );
         assert!(!after.cdml().contains("<compact-group"));
         assert_eq!(
@@ -562,7 +570,7 @@ mod tests {
         let attachment_source_id = result.observation().projection().molecules()[0]
             .atoms()
             .iter()
-            .find(|atom| atom.id() == Some(outcome.focus_atom_id()))
+            .find(|atom| atom.document_object_id() == outcome.focus_atom_id())
             .and_then(|atom| atom.source_id())
             .expect("accepted focus has a durable source ID")
             .to_owned();
@@ -646,7 +654,7 @@ mod tests {
             .projection()
             .molecules()
             .iter()
-            .find(|molecule| molecule.id() == Some(outcome.molecule_id()))
+            .find(|molecule| molecule.document_object_id() == outcome.molecule_id())
             .expect("materialized molecule remains projected");
         assert_eq!(molecule.atoms().len(), 1);
         assert!(molecule.bonds().is_empty());

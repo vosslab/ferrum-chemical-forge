@@ -4,8 +4,8 @@ use ferrum_core::RecordKind;
 
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BatchSpace, EllipseOp, FontFace, GlyphBounds, GlyphMetrics, LineOp, MaskOp, Paint,
-    PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPoint, RenderTarget,
+    BatchSpace, EllipseOp, FontFace, GlyphBounds, GlyphMetrics, LineOp, MaskOp, PositiveFinite,
+    RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPaintV3, RenderPoint, RenderTarget,
     TextOp, TextScript,
 };
 use ferrum_document_model::is_admitted_atom_symbol_v1;
@@ -16,14 +16,14 @@ use super::TargetVisibility;
 pub struct AtomLabelFontProfile {
     face: FontFace,
     size: PositiveFinite,
-    pub(super) paint: Paint,
-    label_mask: Option<Paint>,
+    pub(super) paint: RenderPaintV3,
+    label_mask: Option<RenderPaintV3>,
 }
 
 impl AtomLabelFontProfile {
     /// Construct an exact label presentation profile without renderer defaults.
     #[must_use]
-    pub const fn new(face: FontFace, size: PositiveFinite, paint: Paint) -> Self {
+    pub const fn new(face: FontFace, size: PositiveFinite, paint: RenderPaintV3) -> Self {
         Self {
             face,
             size,
@@ -46,13 +46,13 @@ impl AtomLabelFontProfile {
 
     /// Return the exact requested label paint.
     #[must_use]
-    pub const fn paint(&self) -> &Paint {
+    pub const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
 
     /// Attach an exact opaque mask; absence means transparent with no mask operation.
     #[must_use]
-    pub fn with_label_mask(mut self, paint: Paint) -> Self {
+    pub fn with_label_mask(mut self, paint: RenderPaintV3) -> Self {
         self.label_mask = Some(paint);
         self
     }
@@ -91,7 +91,7 @@ pub struct AtomMarkRenderFacts {
     size: PositiveFinite,
     draw_circle: bool,
     line_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 }
 
 impl AtomMarkRenderFacts {
@@ -104,7 +104,7 @@ impl AtomMarkRenderFacts {
         size: PositiveFinite,
         draw_circle: bool,
         line_width: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Result<Self, RenderError> {
         if !angle_degrees.is_finite() {
             return Err(RenderError::InvalidRequest(
@@ -439,7 +439,7 @@ fn push_filled_dot(
     operations: &mut Vec<RenderOp>,
     center: RenderPoint,
     radius: f64,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 ) -> Result<(), RenderError> {
     operations.push(RenderOp::Ellipse(EllipseOp::new(
@@ -460,7 +460,7 @@ fn push_line(
     start: RenderPoint,
     end: RenderPoint,
     width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 ) -> Result<(), RenderError> {
     operations.push(RenderOp::Line(LineOp::new(start, end, width, paint, z)?));

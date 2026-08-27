@@ -12,9 +12,9 @@ use ttf_parser::{Face, GlyphId};
 use crate::glyph_metrics::LaidOutAtomLabel;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, CenteredTextLayout, FerrumFontEnvironmentV1,
-    FerrumFontId, FontFace, GlyphBounds, GlyphMetrics, GlyphPlacement, Paint, PositiveFinite,
+    FerrumFontId, FontFace, GlyphBounds, GlyphMetrics, GlyphPlacement, PositiveFinite,
     PresentationGlyphRun, PresentationTextLayout, PresentationTextOp, PresentationTextSourceRun,
-    RenderError, RenderPoint, TextOp, TextRun, TextScript,
+    RenderError, RenderPaintV3, RenderPoint, TextOp, TextRun, TextScript,
 };
 
 /// Exact unhinted Telex extents for one fully specified text run.
@@ -197,7 +197,7 @@ impl VerifiedTelexGlyphMetrics {
     pub fn layout_centered_plus(
         &self,
         size: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Result<CenteredTextLayout, RenderError> {
         validate_telex_text_segments_v1(["+"]).map_err(telex_admission_error)?;
         let scale = PositiveFinite::new(1.0)?;
@@ -237,7 +237,7 @@ impl VerifiedTelexGlyphMetrics {
         &self,
         catalog_key: CompactGroupCatalogKeyV1,
         size: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Result<CenteredTextLayout, RenderError> {
         let label = catalog_key.label();
         let scale = PositiveFinite::new(1.0)?;
@@ -279,7 +279,7 @@ impl VerifiedTelexGlyphMetrics {
         &self,
         source_runs: &[PresentationTextSourceRun],
         size: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Result<PresentationTextLayout, RenderError> {
         validate_telex_text_segments_v1(source_runs.iter().map(PresentationTextSourceRun::text))
             .map_err(telex_admission_error)?;

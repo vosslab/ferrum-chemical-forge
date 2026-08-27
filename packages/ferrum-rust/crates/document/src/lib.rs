@@ -44,6 +44,8 @@ mod core_projection;
 mod direct_bond_mutation;
 mod direct_bond_primitives_v1;
 mod direct_cdml_semantic_index_v1;
+#[cfg(test)]
+mod direct_cdml_semantic_index_v1_tests;
 mod direct_haworth_insertion_v1;
 mod direct_haworth_reobservation_v1;
 mod directed_bond_endpoint_reverse_v1;
@@ -383,9 +385,7 @@ pub use presentation_root_deletion_v1::{
 pub use presentation_stack_reorder_v1::{
     PresentationStackOrderV1, PresentationStackReorderV1, PresentationStackReorderV1Error,
 };
-pub(crate) use projection_identity_v1::{
-    document_object_id_from_record_v1, projection_local_object_key_from_record_v1,
-};
+pub(crate) use projection_identity_v1::projection_local_object_key_from_record_v1;
 pub use publication::{
     DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
     DocumentMoleculeSdfPublicationErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
@@ -422,8 +422,9 @@ pub use session::{
 pub use session::{
     AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
     AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1,
-    FreeCompactGroupPlacementCommitResultV1, FreeCompactGroupPlacementSessionErrorV1,
-    PendingAttachedCompactGroupV1, PendingPlaceFreeCompactGroupV1,
+    AttachedCompactGroupTargetV1, FreeCompactGroupPlacementCommitResultV1,
+    FreeCompactGroupPlacementSessionErrorV1, PendingAttachedCompactGroupV1,
+    PendingPlaceFreeCompactGroupV1,
 };
 pub use session::{
     AttachedCyclohexaneSessionErrorV1, DocumentClipboardPasteResultV1,

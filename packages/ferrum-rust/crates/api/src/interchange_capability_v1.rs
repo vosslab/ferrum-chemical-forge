@@ -11,9 +11,10 @@ use crate::protocol::InspectGraphNormalizationV1;
 use crate::protocol::{InspectGraphFactCoverageStatusV1, InspectGraphFactCoverageV1};
 use crate::{
     ConversionExecutionProfileV1, ConversionInputProfileV1, ConversionOutputDescriptorV1,
-    ConversionOutputRegistryV1, InterchangeCompressionPolicyV1, InterchangeDirectionV1,
-    InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1, InterchangeImportRefusalReasonV1,
-    InterchangeImportRefusalV1, InterchangeRuntimeRequirementV1, InterchangeSemanticLossPolicyV1,
+    ConversionOutputRegistryV1, InterchangeCompressionPolicyV1, InterchangeFormatDescriptorV1,
+    InterchangeFormatRegistryV1, InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1,
+    InterchangeOperationRefusalV1, InterchangeOperationV1, InterchangeRuntimeRequirementV1,
+    InterchangeSemanticLossPolicyV1,
 };
 
 const NATIVE_RECORD_CONVERSION_PROFILE_V1: ConversionInputProfileV1 = ConversionInputProfileV1::new(
@@ -21,8 +22,8 @@ const NATIVE_RECORD_CONVERSION_PROFILE_V1: ConversionInputProfileV1 = Conversion
     InterchangeRuntimeRequirementV1::RuntimeRequired,
 );
 const NATIVE_RECORD_CONVERSION_PROFILE_ID_V1: &str = "native_record_conversion_v1";
-const CONVERSION_INPUT_DIRECTIONS_V1: [InterchangeDirectionV1; 1] =
-    [InterchangeDirectionV1::DocumentImportNew];
+const CHEMISTRY_CONVERT_OPERATIONS_V1: [InterchangeOperationV1; 1] =
+    [InterchangeOperationV1::ChemistryConvert];
 const NATIVE_RECORD_COMPRESSION_POLICY_V1: InterchangeCompressionPolicyV1 =
     InterchangeCompressionPolicyV1::Forbidden;
 const NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1: InterchangeSemanticLossPolicyV1 =
@@ -39,7 +40,7 @@ pub struct NativeConversionInputDescriptorV1 {
     suffixes: &'static [&'static str],
     protocol_format: InterchangeFormatV1,
     conversion_profile: ConversionInputProfileV1,
-    directions: &'static [InterchangeDirectionV1],
+    operations: &'static [InterchangeOperationV1],
     compression_policy: InterchangeCompressionPolicyV1,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1,
 }
@@ -86,8 +87,8 @@ impl NativeConversionInputDescriptorV1 {
     }
 
     #[must_use]
-    pub const fn directions(self) -> &'static [InterchangeDirectionV1] {
-        self.directions
+    pub const fn operations(self) -> &'static [InterchangeOperationV1] {
+        self.operations
     }
 
     #[must_use]
@@ -128,7 +129,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &SMILES_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::Smiles,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -141,7 +142,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &INCHI_STANDARD_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::InchiStandard,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -154,7 +155,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &EMPTY_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::InchiFixedHydrogen,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -167,7 +168,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &MOLBLOCK_V2000_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::MolblockV2000,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -180,7 +181,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &EMPTY_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::MolblockV3000,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -193,7 +194,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &EMPTY_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::SdfV3000,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -206,7 +207,7 @@ const NATIVE_INPUT_DESCRIPTORS_V1: [NativeConversionInputDescriptorV1; 7] = [
         suffixes: &CDML_SUFFIXES_V1,
         protocol_format: InterchangeFormatV1::Cdml,
         conversion_profile: NATIVE_RECORD_CONVERSION_PROFILE_V1,
-        directions: &CONVERSION_INPUT_DIRECTIONS_V1,
+        operations: &CHEMISTRY_CONVERT_OPERATIONS_V1,
         compression_policy: NATIVE_RECORD_COMPRESSION_POLICY_V1,
         semantic_loss_policy: NATIVE_RECORD_SEMANTIC_LOSS_POLICY_V1,
     },
@@ -375,6 +376,9 @@ impl ConversionInputCapabilityV1 {
                 crate::InterchangeDecoderKeyV1::CmlSimpleMolecule => {
                     InterchangeFormatV1::CmlSimpleMolecule
                 }
+                crate::InterchangeDecoderKeyV1::CdxmlSimpleMolecule => {
+                    InterchangeFormatV1::CdxmlSimpleMolecule
+                }
                 crate::InterchangeDecoderKeyV1::Sdf => InterchangeFormatV1::SdfV2000,
             },
             Self::Native(descriptor) => descriptor.protocol_format(),
@@ -416,19 +420,19 @@ impl ConversionInputCapabilityV1 {
     }
 
     #[must_use]
-    pub const fn conversion_profile(self) -> ConversionInputProfileV1 {
+    pub const fn conversion_profile(self) -> Option<ConversionInputProfileV1> {
         match self {
             Self::Interchange(descriptor) => descriptor.conversion_profile(),
-            Self::Native(descriptor) => descriptor.conversion_profile(),
+            Self::Native(descriptor) => Some(descriptor.conversion_profile()),
         }
     }
 
-    /// Return every declared direction for this conversion input.
+    /// Return every operation admitted for this input.
     #[must_use]
-    pub const fn directions(self) -> &'static [InterchangeDirectionV1] {
+    pub const fn operations(self) -> &'static [InterchangeOperationV1] {
         match self {
-            Self::Interchange(descriptor) => descriptor.directions(),
-            Self::Native(descriptor) => descriptor.directions(),
+            Self::Interchange(descriptor) => descriptor.operations(),
+            Self::Native(descriptor) => descriptor.operations(),
         }
     }
 
@@ -453,7 +457,10 @@ impl ConversionInputCapabilityV1 {
     /// Return the actual source bound used by conversion transport.
     #[must_use]
     pub const fn max_source_bytes(self) -> usize {
-        self.conversion_profile().max_source_bytes()
+        match self {
+            Self::Interchange(descriptor) => descriptor.limits().max_source_bytes(),
+            Self::Native(descriptor) => descriptor.conversion_profile().max_source_bytes(),
+        }
     }
 
     /// Return the input-owned response-envelope bound when one exists.
@@ -471,8 +478,11 @@ impl ConversionInputCapabilityV1 {
 
     /// Return the runtime requirement selected by the input profile.
     #[must_use]
-    pub const fn runtime_requirement(self) -> InterchangeRuntimeRequirementV1 {
-        self.conversion_profile().runtime_requirement()
+    pub const fn runtime_requirement(self) -> Option<InterchangeRuntimeRequirementV1> {
+        match self.conversion_profile() {
+            Some(profile) => Some(profile.runtime_requirement()),
+            None => None,
+        }
     }
 
     #[must_use]
@@ -502,7 +512,8 @@ const fn interchange_capability_aliases(
     descriptor: &'static InterchangeFormatDescriptorV1,
 ) -> &'static [&'static str] {
     match descriptor.decoder() {
-        crate::InterchangeDecoderKeyV1::CmlSimpleMolecule => descriptor.input_aliases(),
+        crate::InterchangeDecoderKeyV1::CmlSimpleMolecule
+        | crate::InterchangeDecoderKeyV1::CdxmlSimpleMolecule => descriptor.input_aliases(),
         crate::InterchangeDecoderKeyV1::Sdf => &SDF_V2000_CAPABILITY_ALIASES_V1,
     }
 }
@@ -571,6 +582,23 @@ impl InterchangeCapabilityResolverV1 {
         Self::input_capabilities().find(|descriptor| descriptor.protocol_format() == format)
     }
 
+    /// Resolve a known input only when it explicitly admits the requested operation.
+    pub fn lookup_input_for_operation(
+        format: InterchangeFormatV1,
+        operation: InterchangeOperationV1,
+    ) -> Result<ConversionInputCapabilityV1, InterchangeOperationRefusalV1> {
+        let input =
+            Self::lookup_input_format(format).expect("closed CLI input format is registered");
+        if input.operations().contains(&operation) {
+            Ok(input)
+        } else {
+            Err(InterchangeOperationRefusalV1::new(
+                operation,
+                input.operations(),
+            ))
+        }
+    }
+
     /// Resolve one exact lower-case public conversion output alias.
     #[must_use]
     pub fn lookup_output_alias(alias: &str) -> Option<&'static ConversionOutputDescriptorV1> {
@@ -594,7 +622,12 @@ impl InterchangeCapabilityResolverV1 {
         input: ConversionInputCapabilityV1,
         output: &'static ConversionOutputDescriptorV1,
     ) -> ConversionExecutionProfileV1 {
-        ConversionExecutionProfileV1::join(input.conversion_profile(), output.runtime_requirement())
+        ConversionExecutionProfileV1::join(
+            input
+                .conversion_profile()
+                .expect("conversion eligibility selects a conversion profile"),
+            output.runtime_requirement(),
+        )
     }
 
     /// Validate that every public conversion spelling reaches one descriptor and policy.
@@ -611,11 +644,11 @@ impl InterchangeCapabilityResolverV1 {
                 .filter(|candidate| candidate.protocol_format() == format)
                 .count()
                 == 1;
-            let has_exact_output = Self::output_descriptors()
+            let output_count = Self::output_descriptors()
                 .iter()
                 .filter(|candidate| candidate.target().protocol_format() == format)
-                .count()
-                == 1;
+                .count();
+            let output_contract_is_valid = output_count <= 1;
             let aliases_are_unique = !input.aliases().is_empty()
                 && input.aliases().iter().all(|alias| {
                     Self::input_capabilities()
@@ -641,7 +674,7 @@ impl InterchangeCapabilityResolverV1 {
                     .count()
                     == 1;
             if !(has_exact_input
-                && has_exact_output
+                && output_contract_is_valid
                 && aliases_are_unique
                 && suffixes_are_unique
                 && has_unique_identity_profile)
@@ -658,7 +691,10 @@ impl InterchangeCapabilityResolverV1 {
                 .filter(|candidate| candidate.target().protocol_format() == format)
                 .count()
                 == 1;
-            if !(has_exact_output && Self::lookup_input_format(format).is_some()) {
+            let input_count = Self::input_capabilities()
+                .filter(|candidate| candidate.protocol_format() == format)
+                .count();
+            if !(has_exact_output && input_count == 1) {
                 return Err(InterchangeImportRefusalV1::for_reason(
                     InterchangeImportRefusalReasonV1::InternalFailure,
                 ));
@@ -673,6 +709,7 @@ mod tests {
     use ferrum_chemistry::InterchangeFormatV1;
 
     use super::{ConversionInputCapabilityV1, InterchangeCapabilityResolverV1};
+    use crate::InterchangeOperationV1;
 
     #[test]
     fn every_current_public_input_and_output_route_has_one_descriptor_and_policy() {
@@ -729,6 +766,35 @@ mod tests {
     }
 
     #[test]
+    fn operation_eligibility_keeps_cdxml_out_of_conversion_without_narrowing_cml_or_sdf() {
+        for format in [
+            InterchangeFormatV1::CmlSimpleMolecule,
+            InterchangeFormatV1::SdfV2000,
+        ] {
+            assert!(
+                InterchangeCapabilityResolverV1::lookup_input_for_operation(
+                    format,
+                    InterchangeOperationV1::ChemistryConvert,
+                )
+                .is_ok()
+            );
+        }
+        let refusal = InterchangeCapabilityResolverV1::lookup_input_for_operation(
+            InterchangeFormatV1::CdxmlSimpleMolecule,
+            InterchangeOperationV1::ChemistryConvert,
+        )
+        .expect_err("CDXML is document-import-only");
+        assert_eq!(
+            refusal.requested_operation(),
+            InterchangeOperationV1::ChemistryConvert
+        );
+        assert_eq!(
+            refusal.supported_operations(),
+            &[InterchangeOperationV1::DocumentImportNew]
+        );
+    }
+
+    #[test]
     fn native_and_cml_suffixes_share_the_resolver() {
         assert_eq!(
             InterchangeCapabilityResolverV1::lookup_input_suffix(".smi")
@@ -741,6 +807,24 @@ mod tests {
                 .expect("CML suffix")
                 .protocol_format(),
             InterchangeFormatV1::CmlSimpleMolecule
+        );
+    }
+
+    #[test]
+    fn cdxml_is_a_document_import_only_capability() {
+        let from_alias = InterchangeCapabilityResolverV1::lookup_input_alias("cdxml")
+            .expect("CDXML alias resolves through the shared resolver");
+        let cdxml = InterchangeCapabilityResolverV1::lookup_input_suffix(".cdxml")
+            .expect("CDXML suffix resolves through the shared resolver");
+        assert_eq!(
+            cdxml.protocol_format(),
+            InterchangeFormatV1::CdxmlSimpleMolecule
+        );
+        assert_eq!(from_alias.protocol_format(), cdxml.protocol_format());
+        assert_eq!(cdxml.conversion_profile(), None);
+        assert!(
+            InterchangeCapabilityResolverV1::lookup_output_format(cdxml.protocol_format())
+                .is_none()
         );
     }
 
@@ -776,8 +860,8 @@ mod tests {
                 capability.canonical_name()
             );
             assert!(
-                !capability.directions().is_empty(),
-                "{} declares an admitted direction",
+                !capability.operations().is_empty(),
+                "{} declares an admitted operation",
                 capability.canonical_name()
             );
             assert!(

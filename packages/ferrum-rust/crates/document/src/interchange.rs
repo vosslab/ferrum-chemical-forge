@@ -221,6 +221,8 @@ pub enum InterchangeCodecErrorV1 {
     },
     #[error("interchange input contains no molecular records")]
     NoMolecularRecords,
+    #[error("interchange source is available only for opening a new document")]
+    DocumentImportOnly,
     #[error(
         "CDML interchange accepts only direct molecular roots with no opaque or presentation content"
     )]
@@ -285,6 +287,7 @@ impl From<ChemistryInterchangeCodecErrorV1> for InterchangeCodecErrorV1 {
             ChemistryInterchangeCodecErrorV1::CdmlRequiresDocumentComposition => {
                 unreachable!("CDML dispatch stays in document")
             }
+            ChemistryInterchangeCodecErrorV1::DocumentImportOnly => Self::DocumentImportOnly,
             ChemistryInterchangeCodecErrorV1::CmlEncoding(error) => Self::CmlEncoding(error),
             ChemistryInterchangeCodecErrorV1::Chemistry(error) => Self::Chemistry(error),
             ChemistryInterchangeCodecErrorV1::SdfRecord(error) => Self::SdfRecord(error),

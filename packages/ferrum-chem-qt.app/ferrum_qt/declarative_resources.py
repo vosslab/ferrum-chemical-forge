@@ -12,6 +12,7 @@ import ferrum_qt.declarative_resource_loader
 
 
 _MENU_RESOURCE = "menus.yaml"
+_CONTEXT_MENU_ID = "selected_structure"
 
 
 #============================================
@@ -130,7 +131,7 @@ def _validate_menu_declarations(
 		dynamic_menu_ids: frozenset[str] = frozenset(),
 		) -> None:
 	"""Require one complete, resolvable, recursively declared menu tree."""
-	_require_keys(data, {"menus"}, "menus.yaml")
+	_require_keys(data, {"menus", "contexts"}, "menus.yaml")
 	menus = data["menus"]
 	if type(menus) is not list or not menus:
 		raise DeclarativeResourceError("menus.yaml 'menus' must be a nonempty list.")
@@ -151,6 +152,53 @@ def _validate_menu_declarations(
 			menu["items"], f"{location}.items", action_ids, dynamic_menu_ids,
 			node_ids, declared_action_ids, declared_dynamic_menu_ids,
 		)
+	_validate_context_declarations(data, action_ids)
+
+
+#============================================
+def _validate_context_declarations(data: dict, action_ids: frozenset[str]) -> None:
+	"""Require each context placement to use registered, unique action IDs."""
+	contexts = data["contexts"]
+	if type(contexts) is not list or not contexts:
+		raise DeclarativeResourceError("menus.yaml 'contexts' must be a nonempty list.")
+	context_ids: set[str] = set()
+	for index, context in enumerate(contexts):
+		location = f"contexts[{index}]"
+		context = _require_mapping(context, location)
+		_require_keys(context, {"id", "accessible_name", "groups"}, location)
+		context_id = _require_string(context["id"], f"{location}.id")
+		if context_id in context_ids:
+			raise DeclarativeResourceError(f"Duplicate context menu ID: '{context_id}'.")
+		context_ids.add(context_id)
+		_require_string(context["accessible_name"], f"{location}.accessible_name")
+		groups = context["groups"]
+		if type(groups) is not list or not groups:
+			raise DeclarativeResourceError(f"{location}.groups must be a nonempty list.")
+		group_ids: set[str] = set()
+		declared_action_ids: set[str] = set()
+		for group_index, group in enumerate(groups):
+			group_location = f"{location}.groups[{group_index}]"
+			group = _require_mapping(group, group_location)
+			_require_keys(group, {"id", "actions"}, group_location)
+			group_id = _require_string(group["id"], f"{group_location}.id")
+			if group_id in group_ids:
+				raise DeclarativeResourceError(f"Duplicate context group ID: '{group_id}'.")
+			group_ids.add(group_id)
+			actions = group["actions"]
+			if type(actions) is not list or not actions:
+				raise DeclarativeResourceError(f"{group_location}.actions must be a nonempty list.")
+			for action_index, action_id in enumerate(actions):
+				action_location = f"{group_location}.actions[{action_index}]"
+				action_id = _require_string(action_id, action_location)
+				if action_id in declared_action_ids:
+					raise DeclarativeResourceError(
+						f"Duplicate declared context action ID: '{action_id}'.",
+					)
+				if action_id not in action_ids:
+					raise DeclarativeResourceError(
+						f"{action_location} references unresolved action '{action_id}'.",
+					)
+				declared_action_ids.add(action_id)
 
 
 #============================================
@@ -217,6 +265,28 @@ def _validate_live_menu_clients(data: dict, registry: object) -> None:
 
 	for index, menu in enumerate(data["menus"]):
 		validate_items(menu["items"], f"menus[{index}].items")
+
+
+#============================================
+def load_context_menu_placement(registry: object,
+		context_id: str = _CONTEXT_MENU_ID) -> tuple[str, tuple[tuple[str, ...], ...]]:
+	"""Return one validated context-menu name and ordered action groups."""
+	action_ids = _registry_action_ids(registry)
+	data = load_menu_declarations()
+	_validate_context_declarations(data, action_ids)
+	get_qt_action = _require_registry_method(registry, "get_qt_action")
+	for context in data["contexts"]:
+		if context["id"] != context_id:
+			continue
+		groups = tuple(tuple(group["actions"]) for group in context["groups"])
+		for action_ids in groups:
+			for action_id in action_ids:
+				if not isinstance(get_qt_action(action_id), PySide6.QtGui.QAction):
+					raise DeclarativeResourceError(
+						f"Context action '{action_id}' has no bound QAction.",
+					)
+		return context["accessible_name"], groups
+	raise DeclarativeResourceError(f"Unknown Ferrum context menu ID: '{context_id}'.")
 
 
 #============================================

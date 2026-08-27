@@ -86,8 +86,7 @@ fn molecule_object_id(session: &DocumentSession, revision: u64) -> DocumentObjec
         .expect("fixture observation must project")
         .projection()
         .molecules()[0]
-        .id()
-        .expect("fixture molecule has a durable ID")
+        .document_object_id()
         .clone()
 }
 
@@ -98,18 +97,9 @@ fn atom_object_ids(
     let observation = session.observe(revision).expect("fixture must project");
     let molecules = observation.projection().molecules();
     (
-        molecules[0].atoms()[0]
-            .id()
-            .expect("first atom is durable")
-            .clone(),
-        molecules[0].atoms()[1]
-            .id()
-            .expect("second atom is durable")
-            .clone(),
-        molecules[1].atoms()[0]
-            .id()
-            .expect("other molecule atom is durable")
-            .clone(),
+        molecules[0].atoms()[0].document_object_id().clone(),
+        molecules[0].atoms()[1].document_object_id().clone(),
+        molecules[1].atoms()[0].document_object_id().clone(),
     )
 }
 

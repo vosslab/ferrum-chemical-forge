@@ -68,7 +68,7 @@ fn projection_with_stereo_depictions(
     let molecule_ids = projection
         .molecules()
         .iter()
-        .filter_map(|molecule| molecule.id().cloned())
+        .map(|molecule| molecule.document_object_id().clone())
         .collect::<Vec<_>>();
     for molecule_id in molecule_ids {
         let Some(depictions) = document.molecule_stereo_depictions_v1(&molecule_id)? else {
@@ -77,8 +77,8 @@ fn projection_with_stereo_depictions(
         let molecule = projection
             .molecules()
             .iter()
-            .find(|molecule| molecule.id() == Some(&molecule_id))
-            .expect("projection molecule identity remains stable while attaching its depictions");
+            .find(|molecule| molecule.document_object_id() == &molecule_id)
+            .ok_or(DocumentRenderObservationErrorV1::ProjectionMismatch)?;
         let marks = depictions
             .double_bond_carrier_marks()
             .iter()
@@ -146,6 +146,9 @@ pub enum DocumentRenderObservationErrorV1 {
     /// The exact projection had no molecule to receive a typed stereo depiction.
     #[error(transparent)]
     Projection(#[from] DocumentProjectionV1Error),
+    /// The authenticated projection changed while its stereo depictions were attached.
+    #[error("document render observation projection identity did not match")]
+    ProjectionMismatch,
     /// Snapshot, projection, and resolved result did not share exact provenance.
     #[error("document render observation provenance did not match")]
     ProvenanceMismatch,

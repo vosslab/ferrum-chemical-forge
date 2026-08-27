@@ -131,12 +131,14 @@ impl DocumentSession {
             .map(|atom| {
                 document
                     .document_object_id_for_source_id_v1(atom)
+                    .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?
                     .map(AcceptedRenderOverlayTargetV1::atom)
                     .ok_or(AttachedCyclohexaneSessionErrorV1::RendererAdmission)
             })
             .chain(bond_ids.iter().map(|bond| {
                 document
                     .document_object_id_for_source_id_v1(bond)
+                    .map_err(|_| AttachedCyclohexaneSessionErrorV1::RendererAdmission)?
                     .map(AcceptedRenderOverlayTargetV1::bond)
                     .ok_or(AttachedCyclohexaneSessionErrorV1::RendererAdmission)
             }))
@@ -265,13 +267,13 @@ fn resolve_anchor(
             molecule
                 .atoms()
                 .iter()
-                .any(|atom| atom.id() == Some(anchor))
+                .any(|atom| atom.document_object_id() == anchor)
         })
         .ok_or(AttachedCyclohexaneSessionErrorV1::UnknownAnchor)?;
     let atom = molecule
         .atoms()
         .iter()
-        .find(|atom| atom.id() == Some(anchor))
+        .find(|atom| atom.document_object_id() == anchor)
         .ok_or(AttachedCyclohexaneSessionErrorV1::UnknownAnchor)?;
     let molecule_id = molecule
         .source_id()
@@ -336,8 +338,7 @@ mod tests {
             .projection()
             .molecules()[0]
             .atoms()[0]
-            .id()
-            .expect("direct atom selector")
+            .document_object_id()
             .clone()
     }
 

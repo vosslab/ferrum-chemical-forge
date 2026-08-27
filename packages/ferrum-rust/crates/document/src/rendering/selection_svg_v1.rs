@@ -276,12 +276,9 @@ fn collect_molecule_facts(
     match_counts: &mut HashMap<&DocumentObjectIdV1, u8>,
     facts: &mut Vec<SelectedFact>,
 ) -> Result<(), DocumentSelectionSvgErrorV1> {
-    let Some(root_target) = molecule.id() else {
-        return Ok(());
-    };
-    if let Some(object) = molecule.id()
-        && let Some(count) = match_counts.get_mut(object)
-    {
+    let root_target = molecule.document_object_id();
+    let object = molecule.document_object_id();
+    if let Some(count) = match_counts.get_mut(object) {
         *count = count.saturating_add(1);
         facts.push(SelectedFact {
             object: object.clone(),
@@ -289,9 +286,7 @@ fn collect_molecule_facts(
         });
     }
     for atom in molecule.atoms() {
-        let Some(object) = atom.id() else {
-            continue;
-        };
+        let object = atom.document_object_id();
         if let Some(count) = match_counts.get_mut(object) {
             *count = count.saturating_add(1);
             facts.push(SelectedFact {
@@ -301,9 +296,7 @@ fn collect_molecule_facts(
         }
     }
     for bond in molecule.bonds() {
-        let Some(object) = bond.id() else {
-            continue;
-        };
+        let object = bond.document_object_id();
         if let Some(count) = match_counts.get_mut(object) {
             *count = count.saturating_add(1);
             facts.push(SelectedFact {

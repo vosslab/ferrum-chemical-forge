@@ -24,18 +24,18 @@ pub(crate) struct PresentationProjectionContextV1<'a> {
 }
 
 impl<'a> PresentationProjectionContextV1<'a> {
-    pub(crate) fn new(document: &'a TypedDocument) -> Self {
-        let bracket_pairs = crate::bracket_pair_projection_v1::bracket_pairs(document);
+    pub(crate) fn new(document: &'a TypedDocument) -> Result<Self, crate::ProjectionError> {
+        let bracket_pairs = crate::bracket_pair_projection_v1::bracket_pairs(document)?;
         let round_members = bracket_pairs
             .iter()
             .filter(|pair| pair.style() == PresentationBracketStyleV1::Round)
             .flat_map(|pair| pair.members().iter().cloned())
             .collect();
-        Self {
+        Ok(Self {
             defaults: RootStrokeDefaultsV1::from_document(document),
             bracket_pairs,
             round_members,
-        }
+        })
     }
 
     pub(crate) fn project_root(
@@ -60,8 +60,8 @@ impl<'a> PresentationProjectionContextV1<'a> {
                 let round_bracket_member =
                     crate::projection_identity_v1::projection_document_object_id_from_record_v1(
                         child.record(),
-                    )?
-                    .is_some_and(|identifier| self.round_members.contains(&identifier));
+                    )
+                    .map(|identifier| self.round_members.contains(&identifier))?;
                 let Some((kind, polyline)) =
                     polyline(child, self.defaults, round_bracket_member, issues)?
                 else {
@@ -168,12 +168,7 @@ pub(crate) fn presentation_target_from_child_v1(
         }
     })?;
     Ok(PresentationTargetV1::new(
-        crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?
-            .ok_or_else(|| crate::ProjectionError::InvalidValue {
-                context: record.path().to_string(),
-                field: "document object identity",
-                value: "missing persisted identity".to_owned(),
-            })?,
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?,
         record_kind,
     ))
 }

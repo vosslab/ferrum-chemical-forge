@@ -4,8 +4,10 @@
 //! portable wire contract remains easy to audit independently of adapter use.
 
 mod document_atom_oxidation_v1;
+mod document_compact_group_attachment_v1;
 mod document_compact_group_materialization_v1;
 mod document_hydrogen_materialization_v1;
+mod document_request_parse_v1;
 pub(crate) mod document_smarts_snapshot_v1;
 mod dto;
 pub use dto::InspectGraphNormalizationV1;
@@ -23,16 +25,18 @@ pub(crate) mod smarts_query_core_v1;
 pub use dto::{
     CatalogCategorySummaryV1, CatalogEntrySummaryV1, CatalogInsertRequestV1, CatalogListRequestV1,
     CatalogPlacementRefusalV1, CatalogProvenanceSummaryV1, ChemistryConvertInputV1,
-    ChemistryConvertRequestV1, CompactGroupMaterializationRefusalV1,
-    DocumentAtomOxidationObservationOutcomeV1, DocumentAtomOxidationObservationV1,
-    DocumentAtomOxidationObserveRequestV1, DocumentAtomOxidationUnavailableReasonV1,
-    DocumentCompactGroupMaterializationRequestV1, DocumentCompactGroupMaterializationResultV1,
-    DocumentGenerateCoordinatesRequestV1, DocumentInspectRequestV1,
-    DocumentInterchangeImportLossReportV1, DocumentInterchangeImportSummaryV1,
-    DocumentInterchangeLossCategoryV1, DocumentInterchangeProvenanceV1,
-    DocumentInterchangeSourceKindV1, DocumentMoleculeDiagnosticRecordSummaryV1,
-    DocumentMoleculeDiagnosticsRequestV1, DocumentMoleculeDiagnosticsSnapshotV1,
-    DocumentMoleculeDiagnosticsSummaryV1, DocumentMoleculeHydrogenMaterializationOutcomeV1,
+    ChemistryConvertRequestV1, CompactGroupAttachmentRefusalV1,
+    CompactGroupMaterializationRefusalV1, DocumentAtomOxidationObservationOutcomeV1,
+    DocumentAtomOxidationObservationV1, DocumentAtomOxidationObserveRequestV1,
+    DocumentAtomOxidationUnavailableReasonV1, DocumentCompactGroupAttachmentRequestV1,
+    DocumentCompactGroupAttachmentResultV1, DocumentCompactGroupMaterializationRequestV1,
+    DocumentCompactGroupMaterializationResultV1, DocumentGenerateCoordinatesRequestV1,
+    DocumentInspectRequestV1, DocumentInterchangeImportLossReportV1,
+    DocumentInterchangeImportSummaryV1, DocumentInterchangeLossCategoryV1,
+    DocumentInterchangeProvenanceV1, DocumentInterchangeSourceKindV1,
+    DocumentMoleculeDiagnosticRecordSummaryV1, DocumentMoleculeDiagnosticsRequestV1,
+    DocumentMoleculeDiagnosticsSnapshotV1, DocumentMoleculeDiagnosticsSummaryV1,
+    DocumentMoleculeHydrogenMaterializationOutcomeV1,
     DocumentMoleculeHydrogenMaterializationRequestV1,
     DocumentMoleculeHydrogenMaterializationResultV1,
     DocumentMoleculeHydrogenMaterializationUnavailableReasonV1,
@@ -70,7 +74,8 @@ pub use dto::{
     PresentationAuthorPointV1, PresentationAuthorRefusalV1, PresentationAuthorRequestV1,
     PresentationAuthoringKindV1, PresentationAuthoringRequestV1, ProtocolArtifactFormatV1,
     ProtocolCatalogFamilyV1, ProtocolCatalogPlacementCategoryV1,
-    ProtocolCatalogPlacementRecoveryV1, ProtocolCompactGroupMaterializationCategoryV1,
+    ProtocolCatalogPlacementRecoveryV1, ProtocolCompactGroupAttachmentCategoryV1,
+    ProtocolCompactGroupAttachmentRecoveryV1, ProtocolCompactGroupMaterializationCategoryV1,
     ProtocolCompactGroupMaterializationRecoveryV1, ProtocolCurvedTerminalArrowKindV1,
     ProtocolDirectBondEndpointV1, ProtocolDirectBondOrderV1, ProtocolDirectBondPresentationV1,
     ProtocolDirectBondSnapV1, ProtocolErrorSchemaV1, ProtocolOperationKindV1,

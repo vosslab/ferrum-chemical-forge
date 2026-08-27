@@ -2,9 +2,10 @@
 
 ## Status
 
-Approved architecture decision. This is a pre-production foundational migration
-after `document.molecule.diagnostics.v1` source-contract acceptance. It replaces
-the mixed source/legacy identity design; it is not a compatibility migration.
+Approved architecture decision, completed on 2026-08-26. This was a
+pre-production foundational migration after
+`document.molecule.diagnostics.v1` source-contract acceptance. It replaces the
+mixed source/legacy identity design; it is not a compatibility migration.
 
 ## Stability evidence
 
@@ -28,10 +29,14 @@ ID. `RecordId` is internal only:
 RecordId { kind, source_id }
 ```
 
-Typed ingress validates canonical source-ID grammar and document-local
-uniqueness before projection. It assigns or preserves the record's durable
-identity before `RevisionState` serialization. Raw XML location context exists
-only until it becomes typed admission data.
+Typed ingress requires exact, nonblank source IDs and document-local uniqueness
+before projection. CDML does not currently define a source-ID lexical grammar;
+typed ingress must not infer one from CML, historic schemas, or XML `NCName`.
+A future explicit CDML specification may define a lexical grammar with its
+authored-output or compatibility-input scope and migration policy. Typed ingress
+assigns or preserves the record's durable identity before `RevisionState`
+serialization. Raw XML location context exists only until it becomes typed
+admission data.
 
 `LegacyFingerprint`, `RecordOrigin`, `from_legacy`, `legacy_occurrence`, legacy
 serde forms, occurrence allocation, hash-derived identity, source-derived
@@ -75,10 +80,10 @@ Replace the mixed `RecordId` representation and serde with `{ kind, source_id
 
 ### B. Typed ingress and durable metadata
 
-Require canonical, unique source IDs for structural and recognized direct-root
-presentation records. Allocate or preserve independently generated durable IDs,
-validate their grammar/collisions, and install them before `RevisionState`
-serialization.
+Require exact, nonblank, document-unique source IDs for structural and
+recognized direct-root presentation records. Allocate or preserve independently
+generated durable IDs, validate their grammar/collisions, and install them
+before `RevisionState` serialization.
 
 ### C. Projection and public locations
 
@@ -97,13 +102,17 @@ Remove source-locator public paths and every legacy acceptance path.
 
 ## Evidence and sequencing
 
-- Focused core and typed-ingress evidence proves canonical grammar, nonblank and
-  unique source IDs, source-only serde, durable-ID allocation/preservation, and
-  collision refusal.
+- Focused core and typed-ingress evidence proves nonblank and unique source
+  IDs, source-only serde, durable-ID allocation/preservation, and collision
+  refusal. It does not establish a lexical source-ID grammar.
 - Document persistence evidence proves durable selectors survive save, snapshot,
   history, undo, redo, and reload independently of source records.
 - Projection/render/API evidence proves persisted targets use durable selectors,
   previews carry no identifier, and diagnostics never expose source IDs.
+- WP-ID-2 completes durable reaction observation and listing through one shared
+  retained-tree semantic builder and a private fallible durable binder. It has
+  no XML reserialization, redecode, or source-ID reverse bridge; implementation
+  evidence covers history/reload and post-admission identity corruption.
 - The migration may begin after diagnostics source-contract acceptance. Installed
   binding, registered E2E, fresh build, and `./all_test.sh` proof wait for the
   repository inventory to include the new authored artifacts; this is delivery

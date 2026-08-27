@@ -13,9 +13,12 @@ import ferrum_chem
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molblock_import
+import ferrum_qt.main_window
 
 
 _EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml'/>"
@@ -85,7 +88,7 @@ def test_invalid_utf8_file_fails_without_document_mutation(
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	warnings = []
 	window._show_edit_refusal = (
@@ -112,7 +115,7 @@ def test_public_molfile_action_commits_and_saves_rust_owned_chemistry(
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QFileDialog,

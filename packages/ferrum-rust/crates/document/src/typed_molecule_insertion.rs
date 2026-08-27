@@ -60,7 +60,7 @@ impl TypedDocument {
         &self,
         molecule_id: &DocumentObjectIdV1,
     ) -> Result<Option<MoleculeStereoReports>, TypedDocumentError> {
-        let Some(record) = self.resolve_document_object_id(molecule_id) else {
+        let Some(record) = self.resolve_document_object_id(molecule_id)? else {
             return Ok(None);
         };
         if record.class() != super::TypedClass::Molecule || record.path().components().len() != 1 {

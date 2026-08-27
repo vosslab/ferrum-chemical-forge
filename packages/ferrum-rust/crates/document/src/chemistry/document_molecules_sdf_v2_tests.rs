@@ -24,7 +24,7 @@ fn direct_root_ids(
         .projection()
         .molecules()
         .iter()
-        .map(|molecule| molecule.id().expect("fixture root is durable").clone())
+        .map(|molecule| molecule.document_object_id().clone())
         .collect()
 }
 

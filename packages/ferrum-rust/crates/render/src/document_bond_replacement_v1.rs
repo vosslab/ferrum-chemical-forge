@@ -221,8 +221,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        BatchSpace, DocumentMoleculeRenderContentV1, LineOp, MoleculeRenderPlan, Paint,
-        PositiveFinite, RenderBatch, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
+        BatchSpace, DocumentMoleculeRenderContentV1, LineOp, MoleculeRenderPlan, PositiveFinite,
+        RenderBatch, RenderOp, RenderPaintV3, RenderPoint, RenderProvenance, RenderRevision,
         RenderViewportV1, Rgb24,
     };
 
@@ -235,7 +235,7 @@ mod tests {
     fn direct(bond: DocumentObjectIdV1, order: u32) -> AuthoredDirectGlycosidicHaworthRenderPlanV1 {
         AuthoredDirectGlycosidicHaworthRenderPlanV1::test_plan(
             provenance(),
-            Paint::rgb24(Rgb24::new("000000").expect("test paint")),
+            RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("test paint")),
             vec![
                 crate::authored_direct_glycosidic_haworth::
                     AuthoredDirectGlycosidicHaworthDrawOpV1::OrdinaryLine {
@@ -259,7 +259,7 @@ mod tests {
             RenderPoint::new(0.0, 0.0).expect("point"),
             RenderPoint::new(1.0, 0.0).expect("point"),
             PositiveFinite::new(1.0).expect("width"),
-            Paint::rgb24(Rgb24::new("000000").expect("paint")),
+            RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("paint")),
             0,
         )
         .expect("line");

@@ -6,6 +6,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
 import ferrum_qt.ferrum.graphics_view
+import ferrum_qt.themes.document_display_palette
 
 
 #============================================
@@ -13,10 +14,11 @@ def create_document_tab_from_session(
 		tab_class: type,
 		session: object,
 		title: str,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> object:
 	"""Construct one tab and derive its initial observation on this thread."""
 	_validate_session_and_title(session, title)
-	tab = _construct_tab(tab_class, session, title)
+	tab = _construct_tab(tab_class, session, title, palette)
 	try:
 		tab._refresh_from_current_revision()
 	except Exception:
@@ -32,6 +34,7 @@ def create_admitted_local_document_tab(
 		title: str,
 		observation: object,
 		error_type: type[Exception],
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> object:
 	"""Construct one tab without repeating worker-owned Rust observation."""
 	import ferrum_qt.ferrum.engine as engine
@@ -41,7 +44,7 @@ def create_admitted_local_document_tab(
 			"local CDML Open requires exact Ferrum session and observation values",
 		)
 	_validate_admitted_provenance(session, observation, error_type)
-	tab = _construct_tab(tab_class, session, title)
+	tab = _construct_tab(tab_class, session, title, palette)
 	try:
 		live_observation = tab._publish_live_render_plan_v1(
 			observation.document.snapshot.revision,
@@ -81,19 +84,26 @@ def _validate_session_and_title(session: object, title: str) -> None:
 
 
 #============================================
-def _construct_tab(tab_class: type, session: object, title: str) -> object:
+def _construct_tab(
+		tab_class: type,
+		session: object,
+		title: str,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		) -> object:
 	"""Install the shared Qt ownership graph without deriving document facts."""
 	import ferrum_qt.ferrum.engine as engine
 	tab = tab_class.__new__(tab_class)
 	PySide6.QtWidgets.QWidget.__init__(tab)
 	try:
-		view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(tab)
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum document tab requires a document display palette")
+		view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(palette, tab)
 		resource = engine.verified_telex_regular()
 		controller = (
 			ferrum_qt.canvas.ferrum_render_projection.
-			FerrumRenderProjectionController(view, resource)
+			FerrumRenderProjectionController(view, resource, palette)
 		)
-		tab._initialize(title, session, view, controller)
+		tab._initialize(title, session, view, controller, palette)
 	except Exception:
 		tab._dispose_partial_resources()
 		raise

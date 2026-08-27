@@ -218,7 +218,7 @@ impl DocumentProjectionV1 {
         let Some(molecule) = self
             .molecules
             .iter_mut()
-            .find(|molecule| molecule.id() == Some(molecule_id))
+            .find(|molecule| molecule.document_object_id() == molecule_id)
         else {
             return Err(DocumentProjectionV1Error::StereoDepictionMoleculeMissing {
                 molecule_id: molecule_id.as_str().to_owned(),

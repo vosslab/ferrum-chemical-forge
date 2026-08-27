@@ -19,7 +19,7 @@ fn point(x: f64, y: f64) -> RenderPoint {
 fn plus_text() -> DocumentTextOpV1 {
     let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
     let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens");
-    let paint = Paint::rgb24(Rgb24::new("000000").expect("test color"));
+    let paint = RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("test color"));
     let layout = metrics
         .layout_centered_plus(PositiveFinite::new(12.0).expect("test size"), paint.clone())
         .expect("plus layout");
@@ -27,7 +27,9 @@ fn plus_text() -> DocumentTextOpV1 {
         point(20.0, 30.0),
         layout.operation().clone(),
         layout.bounds(),
-        Some(Paint::rgb24(Rgb24::new("ffffff").expect("test background"))),
+        Some(RenderPaintV3::authored_rgb24(
+            Rgb24::new("ffffff").expect("test background"),
+        )),
     )
     .expect("document text")
 }
@@ -35,7 +37,7 @@ fn plus_text() -> DocumentTextOpV1 {
 fn presentation_text() -> DocumentTextOpV1 {
     let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
     let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens");
-    let paint = Paint::rgb24(Rgb24::new("112233").expect("test color"));
+    let paint = RenderPaintV3::authored_rgb24(Rgb24::new("112233").expect("test color"));
     let source_runs = vec![
         PresentationTextSourceRun::new("SO", TextScript::Baseline).expect("baseline run"),
         PresentationTextSourceRun::new("4", TextScript::Subscript).expect("subscript run"),
@@ -51,7 +53,7 @@ fn presentation_text() -> DocumentTextOpV1 {
         point(45.0, 30.0),
         layout.operation().clone(),
         layout.bounds(),
-        Some(Paint::rgb24(
+        Some(RenderPaintV3::authored_rgb24(
             Rgb24::new("ddeeff").expect("test presentation background"),
         )),
     )

@@ -63,6 +63,9 @@ impl NonZeroFiniteV1 {
 /// Projection construction rejected a required or invalid typed fact.
 #[derive(Debug, Error)]
 pub enum ProjectionError {
+    /// A retained projection record lacks its required persisted durable identity.
+    #[error("{context}: required document object identity is absent")]
+    MissingDocumentObjectId { context: String },
     /// A renderable atom lacked its required point child.
     #[error("{context}: required point is absent")]
     MissingPoint { context: String },

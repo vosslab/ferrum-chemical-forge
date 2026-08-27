@@ -8,6 +8,10 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
+import ferrum_qt.themes.document_display_palette
+
 
 #============================================
 class FerrumPaperItemError(ValueError):
@@ -15,11 +19,13 @@ class FerrumPaperItemError(ValueError):
 
 
 #============================================
-class FerrumPaperItem(PySide6.QtWidgets.QGraphicsRectItem):
+class FerrumPaperItem(
+		PySide6.QtWidgets.QGraphicsRectItem, DisplayPaletteRefreshable):
 	"""One noninteractive UI page surface behind every document root."""
 
 	#============================================
-	def __init__(self, layout: object) -> None:
+	def __init__(self, layout: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Copy one exact frozen Rust page without interpreting CDML attributes."""
 		try:
 			import ferrum_qt.ferrum.engine as engine
@@ -34,18 +40,20 @@ class FerrumPaperItem(PySide6.QtWidgets.QGraphicsRectItem):
 			raise FerrumPaperItemError("paper layout has the wrong page DTO")
 		if page.issue is not None and type(page.issue) is not engine.PaperPageIssueV1:
 			raise FerrumPaperItemError("paper compatibility issue has the wrong DTO")
-		self._initialize(page)
+		self._initialize(page, palette)
 
 	#============================================
 	@classmethod
-	def _from_fixture(cls, layout: object) -> "FerrumPaperItem":
+	def _from_fixture(cls, layout: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> "FerrumPaperItem":
 		"""Build a focused-test page without weakening the public exact-type boundary."""
 		item = cls.__new__(cls)
-		item._initialize(layout.page)
+		item._initialize(layout.page, palette)
 		return item
 
 	#============================================
-	def _initialize(self, page: object) -> None:
+	def _initialize(self, page: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Cache finite page geometry and palette-only decoration."""
 		values = (page.scene_left, page.scene_top, page.scene_right, page.scene_bottom)
 		if any(type(value) is not float or not math.isfinite(value) for value in values):
@@ -56,18 +64,28 @@ class FerrumPaperItem(PySide6.QtWidgets.QGraphicsRectItem):
 		PySide6.QtWidgets.QGraphicsRectItem.__init__(
 			self, left, top, right - left, bottom - top,
 		)
-		palette = PySide6.QtWidgets.QApplication.palette()
-		paper_color = palette.color(PySide6.QtGui.QPalette.ColorRole.Base)
-		outline_color = palette.color(PySide6.QtGui.QPalette.ColorRole.Mid)
-		pen = PySide6.QtGui.QPen(outline_color)
-		pen.setCosmetic(True)
-		pen.setWidthF(1.0)
-		self.setPen(pen)
-		self.setBrush(PySide6.QtGui.QBrush(paper_color))
+		self.refresh_display_palette(palette)
 		self.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 		self.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
 		self.setZValue(-1.0)
 		self._issue = page.issue
+
+	#============================================
+	def refresh_display_palette(self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
+		"""Refresh paper-only display paint without changing Rust page geometry."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise FerrumPaperItemError("paper requires a document display palette")
+		pen = PySide6.QtGui.QPen(palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.PAGE_OUTLINE,
+		))
+		pen.setCosmetic(True)
+		pen.setWidthF(1.0)
+		self.setPen(pen)
+		self.setBrush(PySide6.QtGui.QBrush(palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.PAGE_FILL,
+		)))
+		self.update()
 
 	#============================================
 	@property

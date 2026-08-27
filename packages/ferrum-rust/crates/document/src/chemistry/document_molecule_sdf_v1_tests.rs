@@ -67,8 +67,7 @@ fn request_for(
     version: MolblockVersion,
 ) -> DocumentMoleculeSdfRequestV1 {
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("fixture molecule is durable")
+        .document_object_id()
         .clone();
     DocumentMoleculeSdfRequestV1::new(
         observation.snapshot().revision(),
@@ -177,9 +176,7 @@ fn stale_foreign_and_malformed_metadata_are_rejected_before_native_execution() {
         Err(DocumentMoleculeSdfErrorV1::Observation(_))
     ));
 
-    let foreign =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("foreign selector grammar");
+    let foreign = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     let foreign = DocumentMoleculeSdfRequestV1::new(
         0,
         *request.expected_digest(),

@@ -9,6 +9,7 @@ import PySide6.QtWidgets
 from ferrum_qt.dialogs.accessibility import finalize_dialog_accessibility
 
 import ferrum_qt.canvas.graphics_disposal
+import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.ferrum.haworth
 
 
@@ -213,6 +214,9 @@ class FerrumNativeHaworthToolMixin:
 
 	def _dispose_haworth_preview(self, preview: PySide6.QtWidgets.QGraphicsItem) -> None:
 		"""Dispose a transient preview through the shared scene-ownership boundary."""
+		ferrum_qt.ferrum.document_display_refresh.unregister_attached_document_display_refreshable(
+			preview,
+		)
 		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is not None:
 			coordinator = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator()

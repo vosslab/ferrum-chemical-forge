@@ -74,7 +74,11 @@ pub(crate) fn execute_with_runtime_for_test<R: crate::protocol::runtime::Chemist
 fn operation_requires_chemistry(operation: &OperationProtocolOperationV1) -> bool {
     match operation {
         OperationProtocolOperationV1::ChemistryConvert(request) => {
-            let input = InterchangeCapabilityResolverV1::lookup_input_format(request.input.format);
+            let input = InterchangeCapabilityResolverV1::lookup_input_for_operation(
+                request.input.format,
+                crate::InterchangeOperationV1::ChemistryConvert,
+            )
+            .ok();
             let output =
                 InterchangeCapabilityResolverV1::lookup_output_format(request.output_format);
             input.zip(output).is_none_or(|(input, output)| {

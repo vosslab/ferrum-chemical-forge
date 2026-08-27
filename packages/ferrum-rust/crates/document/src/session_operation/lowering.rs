@@ -400,7 +400,7 @@ impl SessionOperation {
                 }
                 let object_id = update.molecule_id().as_str().to_owned();
                 let record = current
-                    .resolve_document_object_id(update.molecule_id())
+                    .resolve_document_object_id(update.molecule_id())?
                     .ok_or_else(|| {
                         SessionOperationError::UnknownDocumentObject(object_id.clone())
                     })?;
@@ -442,7 +442,7 @@ impl SessionOperation {
                 for entry in update.updates() {
                     let object_id = entry.molecule_id().as_str().to_owned();
                     let record = current
-                        .resolve_document_object_id(entry.molecule_id())
+                        .resolve_document_object_id(entry.molecule_id())?
                         .ok_or_else(|| {
                             SessionOperationError::UnknownDocumentObject(object_id.clone())
                         })?;
@@ -484,7 +484,7 @@ impl SessionOperation {
                 for molecule in update.molecules() {
                     let object_id = molecule.molecule_id().as_str().to_owned();
                     let record = current
-                        .resolve_document_object_id(molecule.molecule_id())
+                        .resolve_document_object_id(molecule.molecule_id())?
                         .ok_or_else(|| {
                             SessionOperationError::UnknownDocumentObject(object_id.clone())
                         })?;
@@ -522,7 +522,7 @@ impl SessionOperation {
                 for molecule in update.molecules() {
                     let object_id = molecule.molecule_id().as_str().to_owned();
                     let record = current
-                        .resolve_document_object_id(molecule.molecule_id())
+                        .resolve_document_object_id(molecule.molecule_id())?
                         .ok_or_else(|| {
                             SessionOperationError::UnknownDocumentObject(object_id.clone())
                         })?;

@@ -1,5 +1,6 @@
 use crate::{
-    DocumentBondOrderV1, DocumentDoubleBondCarrierMarkDepictionV1, DocumentDoubleBondCarrierMarkV1,
+    DocumentBondOrderV1, DocumentBondPresentationV1, DocumentDirectedBondDepictionV1,
+    DocumentDoubleBondCarrierMarkDepictionV1, DocumentDoubleBondCarrierMarkV1,
     DocumentDoubleBondConfigurationV1, DocumentDoubleBondStereoV1,
     DocumentMoleculePreparationErrorV2, DocumentStereoLigandV1, DocumentStereoSemanticReportV1,
     DocumentTetrahedralParityV1, DocumentTetrahedralStereoV1, MoleculeInsertionAtomV1,
@@ -14,10 +15,9 @@ use ferrum_chemistry::{
 use ferrum_geometry::{MoleculePlacementV1, Point2};
 
 use super::{
-    admit_double_bond_carrier_marks_v2, admit_tetrahedral_depiction_v2,
-    document_double_bond_carrier_mark_v2, document_double_bond_configuration_v2,
-    native_ez_direction_is_carrier_v2, require_double_bond_carrier_marks_v2,
-    unsupported_document_atom_fact_v2,
+    admit_double_bond_carrier_marks_v2, document_double_bond_carrier_mark_v2,
+    document_double_bond_configuration_v2, native_ez_direction_is_carrier_v2,
+    require_double_bond_carrier_marks_v2, unsupported_document_atom_fact_v2,
 };
 
 fn atom(symbol: &str, aromatic: bool) -> MolAtom {
@@ -222,26 +222,63 @@ fn v2_admission_maps_parser_trans_double_bond_to_e_semantics() {
 }
 
 #[test]
-fn v2_admission_accepts_native_tetrahedral_facts_without_a_wedge_bond() {
+fn directed_bond_depiction_retains_authored_endpoint_order_and_presentation() {
+    let depiction =
+        DocumentDirectedBondDepictionV1::new(7, 2, 0, DocumentBondPresentationV1::HashedWedge);
+
+    assert_eq!(depiction.bond_index(), 7);
+    assert_eq!(depiction.endpoints(), (2, 0));
     assert_eq!(
-        admit_tetrahedral_depiction_v2(0, &[]).expect("native chirality can be semantic-only"),
-        None
+        depiction.presentation(),
+        DocumentBondPresentationV1::HashedWedge
     );
 }
 
 #[test]
-fn v2_source_preparation_refuses_non_single_tetrahedral_depiction() {
-    assert!(matches!(
-        admit_tetrahedral_depiction_v2(
-            0,
-            &[(0, 0, 1, BondOrder::Double, BondDirection::BeginWedge,)],
+fn public_directed_bonds_admit_ordered_wedge_and_hash_depictions() {
+    for (direction, presentation) in [
+        (
+            BondDirection::BeginWedge,
+            DocumentBondPresentationV1::SolidWedge,
         ),
-        Err(DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { center: 0 })
-    ));
+        (
+            BondDirection::BeginDash,
+            DocumentBondPresentationV1::HashedWedge,
+        ),
+    ] {
+        let graph = MolGraph::new(
+            vec![atom("C", false), atom("O", false)],
+            vec![
+                MolBond::directed(1, 0, BondOrder::Single, false, direction)
+                    .expect("public directional bond is valid"),
+            ],
+            Some(coordinates(&[(0.0, 0.0), (1.0, 0.0)])),
+        )
+        .expect("valid directional graph");
+
+        let prepared =
+            prepare_complete_graph_for_document_v2(&PassThroughKekulizeEngine, &graph, placement())
+                .expect("valid directed graph prepares for a document");
+        let depiction = prepared
+            .stereo_depictions()
+            .expect("directed graph retains a depiction")
+            .directed_bonds()
+            .iter()
+            .find(|depiction| depiction.bond_index() == 0)
+            .expect("directed source bond has one ordered depiction");
+        assert_eq!(depiction.endpoints(), (1, 0));
+        assert_eq!(depiction.presentation(), presentation);
+    }
 }
 
 #[test]
 fn v2_admission_accepts_native_ez_carrier_directions_only() {
+    let up = MolBond::directed(0, 1, BondOrder::Single, false, BondDirection::EndUpRight)
+        .expect("public E/Z up carrier is valid");
+    let down = MolBond::directed(1, 2, BondOrder::Single, false, BondDirection::EndDownRight)
+        .expect("public E/Z down carrier is valid");
+    assert_eq!(up.direction(), BondDirection::EndUpRight);
+    assert_eq!(down.direction(), BondDirection::EndDownRight);
     assert!(native_ez_direction_is_carrier_v2(BondDirection::EndUpRight));
     assert!(native_ez_direction_is_carrier_v2(
         BondDirection::EndDownRight

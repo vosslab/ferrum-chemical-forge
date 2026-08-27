@@ -148,7 +148,7 @@ impl DocumentDoubleBondStereoV1 {
     }
 }
 
-/// Canonical directed presentation selected for an admitted tetrahedral descriptor.
+/// Canonical authored directed wedge/hash presentation with ordered endpoints.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DocumentDirectedBondDepictionV1 {
     bond_index: usize,
@@ -218,23 +218,13 @@ impl DocumentDirectedBondDepictionV1 {
         start: usize,
         end: usize,
         presentation: DocumentBondPresentationV1,
-    ) -> Result<Self, DocumentMoleculePreparationErrorV2> {
-        if start == end
-            || !matches!(
-                presentation,
-                DocumentBondPresentationV1::SolidWedge | DocumentBondPresentationV1::HashedWedge
-            )
-        {
-            return Err(
-                DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { center: start },
-            );
-        }
-        Ok(Self {
+    ) -> Self {
+        Self {
             bond_index,
             start,
             end,
             presentation,
-        })
+        }
     }
 
     /// Return the source-order bond position.
@@ -437,7 +427,7 @@ impl DocumentStereoDepictionReportV1 {
         self.directed_bonds.is_empty() && self.double_bond_carrier_marks.is_empty()
     }
 
-    /// Return canonical tetrahedral wedge/hash depictions.
+    /// Return canonical authored directed wedge/hash depictions.
     #[must_use]
     pub fn directed_bonds(&self) -> &[DocumentDirectedBondDepictionV1] {
         &self.directed_bonds

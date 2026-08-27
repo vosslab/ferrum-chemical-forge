@@ -13,7 +13,7 @@ impl TypedDocument {
         &self,
         patch: &PlusPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let Some(record) = self.resolve_document_object_id(patch.plus_object_id()) else {
+        let Some(record) = self.resolve_document_object_id(patch.plus_object_id())? else {
             return Ok(None);
         };
         if record.class() != TypedClass::CanvasPlus || record.path().components().len() != 1 {

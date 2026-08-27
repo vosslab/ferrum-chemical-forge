@@ -3,7 +3,7 @@ use ferrum_document_projection::DocumentLocationKindV1;
 use super::{
     DocumentObjectIdV1, DocumentSession, PersistentId, Point3V1, SessionOperation,
     SessionOperationV1, TypedClass, TypedDocument, TypedDocumentError,
-    document_object_id_from_record_v1,
+    projection_identity_v1::projection_document_object_id_from_record_v1,
 };
 
 const DOCUMENT_OBJECT_NAMESPACE_V1: &str = "urn:ferrum:document-object:v1";
@@ -19,8 +19,9 @@ fn molecule_and_atom_ids(document: &TypedDocument) -> (DocumentObjectIdV1, Docum
         .next()
         .expect("fixture has one atom");
     (
-        document_object_id_from_record_v1(molecule).expect("ingress assigns molecule identity"),
-        document_object_id_from_record_v1(atom).expect("ingress assigns atom identity"),
+        projection_document_object_id_from_record_v1(molecule)
+            .expect("ingress assigns molecule identity"),
+        projection_document_object_id_from_record_v1(atom).expect("ingress assigns atom identity"),
     )
 }
 
@@ -104,6 +105,7 @@ fn allocated_document_object_metadata_is_opaque_distinct_and_persistent() {
         document
             .resolve_document_object_id(&molecule)
             .expect("persisted molecule identity resolves through the identity index")
+            .expect("persisted molecule identity is present in the identity index")
             .class(),
         TypedClass::Molecule
     );
@@ -111,6 +113,7 @@ fn allocated_document_object_metadata_is_opaque_distinct_and_persistent() {
         document
             .resolve_document_object_id(&atom)
             .expect("persisted atom identity resolves through the identity index")
+            .expect("persisted atom identity is present in the identity index")
             .class(),
         TypedClass::Atom
     );
@@ -119,6 +122,39 @@ fn allocated_document_object_metadata_is_opaque_distinct_and_persistent() {
     assert!(serialized.contains(DOCUMENT_OBJECT_NAMESPACE_V1));
     let reopened = TypedDocument::parse(&serialized).expect("normalized document reopens");
     assert_eq!(molecule_and_atom_ids(&reopened), (molecule, atom));
+}
+
+#[test]
+fn document_object_identity_index_returns_none_for_an_absent_valid_selector() {
+    let document = TypedDocument::parse(concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:f=\"urn:ferrum:document-object:v1\">",
+        "<molecule id=\"molecule-source\" ",
+        "f:id=\"ferrum-document-object-v1/00000000000000000000000000000001\">",
+        "<atom id=\"atom-source\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
+        "</molecule></cdml>",
+    ))
+    .expect("document with identifier-free root and point records is valid");
+    let indexed =
+        DocumentObjectIdV1::parse("ferrum-document-object-v1/00000000000000000000000000000001")
+            .expect("indexed selector is syntactically valid");
+    let absent =
+        DocumentObjectIdV1::parse("ferrum-document-object-v1/00000000000000000000000000000002")
+            .expect("absent selector is syntactically valid");
+
+    assert_eq!(
+        document
+            .resolve_document_object_id(&indexed)
+            .expect("indexed selector resolution succeeds")
+            .expect("indexed selector resolves")
+            .class(),
+        TypedClass::Molecule
+    );
+    assert!(
+        document
+            .resolve_document_object_id(&absent)
+            .expect("absent selector resolution succeeds")
+            .is_none()
+    );
 }
 
 #[test]
@@ -138,6 +174,7 @@ fn authored_records_and_history_retain_persisted_document_object_ids() {
         .document_object_id_for_source_id_v1(
             &PersistentId::new("new-atom").expect("new atom source identifier"),
         )
+        .expect("new authored atom identity lookup succeeds")
         .expect("new authored atom has a persisted identity");
     assert_ne!(authored_atom, initial_atom);
     assert!(!authored_atom.as_str().contains("new-atom"));

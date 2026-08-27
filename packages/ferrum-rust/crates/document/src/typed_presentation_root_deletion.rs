@@ -4,7 +4,7 @@ use xot::Xot;
 
 use super::{
     CDML_NAMESPACE, PresentationRecordKindV1, PresentationRootDeletionSetV1,
-    PresentationRootDeletionV1, TypedDocument, TypedDocumentError, element_name,
+    PresentationRootDeletionV1, TypedClass, TypedDocument, TypedDocumentError, element_name,
     reaction_reference_graph_v1::direct_reaction_reference_graph,
 };
 
@@ -18,7 +18,7 @@ impl TypedDocument {
         deletion: &PresentationRootDeletionV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
         if deletion.kind() == PresentationRecordKindV1::Polyline
-            && super::bracket_pair_projection_v1::bracket_pairs(self)
+            && super::bracket_pair_projection_v1::bracket_pairs(self)?
                 .iter()
                 .flat_map(|pair| pair.members())
                 .any(|identifier| identifier == deletion.document_object_id())
@@ -88,9 +88,14 @@ fn validate_reaction_references(
     let references = direct_reaction_reference_graph(document);
     for child in document.root().typed_children() {
         let record = child.record();
-        let Some(identifier) = crate::document_object_id_from_record_v1(record) else {
+        if presentation_kind(record.class()).is_none() {
             continue;
-        };
+        }
+        let identifier =
+            crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)
+                .map_err(|_| TypedDocumentError::InvalidPersistedDocumentObjectId {
+                    location: super::document_object_identity_v1::location_for_record_v1(record),
+                })?;
         if selected.contains(&identifier)
             && record
                 .attribute("id")
@@ -104,6 +109,21 @@ fn validate_reaction_references(
     Ok(())
 }
 
+const fn presentation_kind(class: TypedClass) -> Option<PresentationRecordKindV1> {
+    match class {
+        TypedClass::CanvasArrow => Some(PresentationRecordKindV1::Arrow),
+        TypedClass::CanvasPlus => Some(PresentationRecordKindV1::Plus),
+        TypedClass::CanvasText => Some(PresentationRecordKindV1::Text),
+        TypedClass::Polyline => Some(PresentationRecordKindV1::Polyline),
+        TypedClass::Rectangle => Some(PresentationRecordKindV1::Rectangle),
+        TypedClass::Square => Some(PresentationRecordKindV1::Square),
+        TypedClass::Oval => Some(PresentationRecordKindV1::Oval),
+        TypedClass::Circle => Some(PresentationRecordKindV1::Circle),
+        TypedClass::Polygon => Some(PresentationRecordKindV1::Polygon),
+        _ => None,
+    }
+}
+
 fn validate_complete_bracket_deletion(
     document: &TypedDocument,
     deletions: &PresentationRootDeletionSetV1,
@@ -113,7 +133,7 @@ fn validate_complete_bracket_deletion(
         .iter()
         .map(|target| target.document_object_id())
         .collect::<std::collections::HashSet<_>>();
-    for pair in super::bracket_pair_projection_v1::bracket_pairs(document) {
+    for pair in super::bracket_pair_projection_v1::bracket_pairs(document)? {
         let selected_members = pair
             .members()
             .iter()
@@ -157,7 +177,12 @@ mod tests {
                 .typed_children()
                 .iter()
                 .find(|child| child.record().attribute("id") == Some(id))
-                .and_then(|child| crate::document_object_id_from_record_v1(child.record()))
+                .map(|child| {
+                    crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+                        child.record(),
+                    )
+                    .expect("typed ingress persists the durable root identity")
+                })
                 .expect("typed ingress persists the durable root identity");
             let deletion = PresentationRootDeletionV1::new(object_id, kind);
             assert!(matches!(

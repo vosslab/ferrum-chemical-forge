@@ -85,14 +85,9 @@ fn selection(document: &str, atom_index: usize) -> (String, String) {
     let observation = session.observe(0).expect("corpus CDML observes");
     let molecule = &observation.projection().molecules()[0];
     (
-        molecule
-            .id()
-            .expect("durable molecule ID")
-            .as_str()
-            .to_owned(),
+        molecule.document_object_id().as_str().to_owned(),
         molecule.atoms()[atom_index]
-            .id()
-            .expect("durable atom ID")
+            .document_object_id()
             .as_str()
             .to_owned(),
     )

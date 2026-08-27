@@ -29,8 +29,8 @@ packages.
 
 ## Discover declared interchange formats
 
-Use `formats` to inspect every format already admitted by `convert`, before
-selecting a source or starting the local chemistry runtime:
+Use `formats` to inspect declared input and output formats, their operation eligibility,
+and their resource limits before selecting a source or starting the local chemistry runtime:
 
 ```bash
 build/bin/ferrum formats
@@ -47,6 +47,31 @@ construct a document, or load the local chemistry runtime.
 
 `inspect-graph` uses this same catalog to select a declared source decoder
 before it reports a bounded read-only decoded-semantic graph.
+
+### Import a simple CDXML molecule
+
+`formats` reports CDXML as the canonical `.cdxml` input capability. Its output
+is `none` in text mode and `null` in `formats --json`: Ferrum imports CDXML but
+does not write or save it.
+
+```bash
+build/bin/ferrum formats
+build/bin/ferrum open molecule.cdxml --format cdxml --output result.cdml
+```
+
+The supported profile imports unprefixed simple molecule fragments through the Rust
+interchange registry. It records declared losses in canonical category order:
+`lexical_syntax`, then `document_view_metadata`. It refuses unsupported chemistry before a
+new document is published. See
+[m2_cdxml_simple_molecule_import_v1.md](active_plans/decisions/m2_cdxml_simple_molecule_import_v1.md)
+for the exact profile, limits, and exclusions.
+
+In Ferrum Qt, use File > Open and select a `.cdxml` file offered by the descriptor-driven
+filter. A successful import opens a conversion-only native tab with ChemDraw XML provenance;
+its first Save or Save As writes CDML, not CDXML. A rejected file leaves the current document
+unchanged. CDX binary files, namespaces, compressed input, and CDXML chemistry or presentation
+outside the profile remain refused. `ferrum convert` refuses CDXML before reading it because
+the descriptor makes it eligible only for `open`.
 
 ## Inspect a decoded graph
 
@@ -224,8 +249,8 @@ and the platform Undo shortcut restores an accepted deletion or movement.
 
 ## Place, attach, delete, and materialize compact groups
 
-The current compact-group authoring routes are Qt-only and intentionally
-narrow. Free placement and attachment are separate operations:
+Interactive compact-group authoring is a deliberately narrow Qt workflow.
+Free placement and attachment are separate operations:
 
 1. Choose Draw > Compact groups > `Place Compact Group...`.
 2. Select `Me` and release once on the canvas.
@@ -256,7 +281,35 @@ materializes as `R-[N+](=O)[O-]`; Rust preserves its atom formal charges through
 history and reopen, while Molecule Report exposes the supported net formal
 charge. `Et` materializes as two neutral carbons joined by one normal single
 bond. `OMe` materializes as neutral `R-O-CH3`; the exterior bond and returned
-focus are oxygen. No CLI or stateless attachment route is part of this slice.
+focus are oxygen.
+
+### Attach a compact group by CLI
+
+The public stateless operation is `document.compact-group.attach.v1`. It is
+available through both existing transports:
+
+```bash
+build/bin/ferrum protocol run request.json
+build/bin/ferrum document command document.compact-group.attach.v1 request.json
+```
+
+The request contains a fenced CDML snapshot, its molecule and anchor durable-ID
+pair, one closed catalog key, and finite release coordinates. Rust creates a
+short-lived document session, prepares the candidate, then commits it
+immediately or drops it without mutation. The request shape is defined in
+[ferrum-operation-v1.schema.json](../packages/ferrum-rust/crates/api/protocol/ferrum-operation-v1.schema.json).
+
+On success, the receipt preserves the source fence, echoes the target and
+catalog key, allocates a compact-group ID, returns committed CDML, and supplies
+a reusable next document fence. It intentionally omits the release intent,
+candidate pose, renderer overlay values, and pending/session capability facts.
+Clients use the returned document and fence for a subsequent stateless request.
+Typed refusals preserve the document and provide stable category and recovery
+facts.
+
+Both attachment transports write exactly one versioned envelope and exit `0`
+after either an accepted outcome or a typed refusal. Nonzero status is reserved
+for command usage, request input, transport, or output/publication failure.
 
 Materialization is a separate delivered operation. For a sole direct-root
 compact group with zero atoms and zero bonds, it replaces that group in the
@@ -304,9 +357,15 @@ while Rust-issued `stereo_depiction` carries editable directed-bond and E/Z
 carrier-mark facts. Qt displays those facts and never derives configuration from
 a mark or coordinates, or invents a mark from configuration.
 
-Automation sends the existing `document.molecule.report.v1` request through
-`build/bin/ferrum protocol run`; it is an operation-protocol route, not a
-separate local CLI verb or named report command. Use
+Automation can send the same `document.molecule.report.v1` request through
+either the generic protocol runner or its named positional adapter:
+
+```bash
+build/bin/ferrum protocol run report-request.json
+build/bin/ferrum document command document.molecule.report.v1 report-request.json
+```
+
+Both forms use one generic request and return the same typed envelope. Use
 `snapshot { cdml, revision, digest_hex }` and one or more selected direct-root
 molecule IDs. See
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) for the exact request,
@@ -369,7 +428,7 @@ another renderer.
 Human diagnostics go to standard error. Exit statuses are:
 
 - `0`: a completed success.
-- `1`: an input, processing, typed refusal, or confirmed publication failure.
+- `1`: an input, processing, or confirmed publication failure.
 - `2`: command-line usage error.
 - `3`: a named output may have been published but Ferrum cannot confirm it.
 
@@ -380,7 +439,10 @@ request and response contract is in
 
 Human-oriented commands emit one standard-error diagnostic for an unsuccessful
 outcome, then exit `1`. A `--json` command emits one protocol envelope and an
-unsuccessful envelope also exits `1`, without a second diagnostic.
+unsuccessful envelope also exits `1`, without a second diagnostic. The
+delivered `document.compact-group.attach.v1` route is the explicit typed-
+envelope exception described above: its accepted and refused outcomes both
+exit `0`.
 
 ## Fenced document commands
 
@@ -561,3 +623,18 @@ and licensing information.
 Choose Draw > Compact groups > **Place Compact Group...**, select **Me**, then release once on the canvas. Ferrum creates a new molecule root containing the methyl compact group at the snapped canvas position. This is a direct-root group, so it has no atoms or bonds until a later supported materialization workflow.
 
 The chooser currently offers only `Me`. Attached compact groups, templates, arbitrary orientation, dragging, batch placement, raw CDML authoring, and command-line placement are separate capabilities and are not implied by this action.
+## Command palette
+
+Use **View > Commands > Command Palette...** to search Ferrum's currently live
+commands. The portable shortcut is `Ctrl+K`; Qt displays it as `Cmd+K` on
+native macOS. Search matches each action's label, help text, and stable ID.
+
+The palette keeps unavailable commands visible and explains why they cannot run.
+It triggers the exact selected action only while that action remains enabled.
+Keep typing in the search field while using bare Up and Down to change the
+selection; Return runs the selected command and Escape closes the palette and
+returns focus to the invoking control. Modified arrows retain ordinary text
+field behavior.
+
+Ferrum derives palette content from the live action registry, and
+`resources/menus.yaml` remains the authority for its View-menu placement.

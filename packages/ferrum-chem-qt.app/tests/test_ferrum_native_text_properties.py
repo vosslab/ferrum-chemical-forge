@@ -12,6 +12,7 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.canvas.items.ferrum_text_item
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.text_properties
@@ -47,7 +48,7 @@ def test_native_text_edit_updates_rust_and_retains_durable_selection(
 		'<cdml xmlns="urn:ferrum:cdml"><text id="t"><point x="10" y="20"/>'
 		'<font size="12" color="#000"/><ftext>old</ftext></text></cdml>',
 		"text.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		_select_text(tab)
 		assert tab.has_one_selected_text()

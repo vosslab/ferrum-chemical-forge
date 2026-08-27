@@ -12,7 +12,7 @@ use crate::draw_stream_v1::{
 };
 use crate::{
     BatchSpace, DirectGlycosidicHaworthRenderPlanV1, DocumentRenderArtifactV1,
-    DocumentRenderPlanV1, MoleculeRenderPlan, Paint, RenderPoint, RenderViewportV1,
+    DocumentRenderPlanV1, MoleculeRenderPlan, RenderPaintV3, RenderPoint, RenderViewportV1,
 };
 
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
@@ -402,13 +402,13 @@ impl DrawSinkV1 for SvgSinkV1 {
         self.document_text_open = false;
         self.output.check()
     }
-    fn begin_text_operation(&mut self, z: i32, paint: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, z: i32, paint: &RenderPaintV3) -> Result<(), Self::Error> {
         self.reserve(80)?;
         self.output.push_str("<g data-ferrum-z=\"");
         write!(self.output, "{z}").map_err(|_| self.output.sink_error())?;
         self.output
             .push_str("\" data-ferrum-operation=\"text\" fill=\"#");
-        self.output.push_str(paint.color().as_str());
+        self.output.push_str(paint.export_rgb().as_str());
         self.output.push_str("\">");
         self.output.check()
     }
@@ -436,7 +436,7 @@ impl DrawSinkV1 for SvgSinkV1 {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        paint: &Paint,
+        paint: &RenderPaintV3,
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         self.reserve(192)?;
@@ -461,7 +461,7 @@ impl DrawSinkV1 for SvgSinkV1 {
         self.output.push_str("\" height=\"");
         write_number(&mut self.output, rect.height.get())?;
         self.output.push_str("\" fill=\"#");
-        self.output.push_str(paint.color().as_str());
+        self.output.push_str(paint.export_rgb().as_str());
         self.output.push_str("\" stroke=\"none\"/>");
         self.output.check()
     }
@@ -493,7 +493,7 @@ impl DrawSinkV1 for SvgSinkV1 {
             self.output.push_str("\" y2=\"");
             write_number(&mut self.output, end.y())?;
             self.output.push_str("\" stroke=\"#");
-            self.output.push_str(stroke.paint.color().as_str());
+            self.output.push_str(stroke.paint.export_rgb().as_str());
             self.output.push_str("\" stroke-width=\"");
             write_number(&mut self.output, stroke.width.get())?;
             self.output.push_str("\" stroke-linecap=\"");
@@ -539,7 +539,7 @@ impl DrawSinkV1 for SvgSinkV1 {
         self.output.push('"');
         if let Some(stroke) = style.stroke {
             self.output.push_str(" stroke=\"#");
-            self.output.push_str(stroke.paint.color().as_str());
+            self.output.push_str(stroke.paint.export_rgb().as_str());
             self.output.push_str("\" stroke-width=\"");
             write_number(&mut self.output, stroke.width.get())?;
             self.output.push_str("\" stroke-linecap=\"");
@@ -600,7 +600,7 @@ impl DrawSinkV1 for SvgSinkV1 {
         self.output.push('"');
         if let Some(stroke) = style.stroke {
             self.output.push_str(" stroke=\"#");
-            self.output.push_str(stroke.paint.color().as_str());
+            self.output.push_str(stroke.paint.export_rgb().as_str());
             self.output.push_str("\" stroke-width=\"");
             write_number(&mut self.output, stroke.width.get())?;
             self.output.push_str("\" stroke-linecap=\"");
@@ -659,11 +659,11 @@ fn write_path(output: &mut SvgOutputV1, path: &DrawPathV1) -> Result<(), SvgSink
     Ok(())
 }
 
-fn write_fill(output: &mut SvgOutputV1, fill: Option<&Paint>) {
+fn write_fill(output: &mut SvgOutputV1, fill: Option<&RenderPaintV3>) {
     match fill {
         Some(paint) => {
             output.push('#');
-            output.push_str(paint.color().as_str());
+            output.push_str(paint.export_rgb().as_str());
         }
         None => output.push_str("none"),
     }

@@ -5,6 +5,7 @@ import dataclasses
 
 # local repo modules
 import ferrum_qt.dialogs.rich_text_dialog
+import ferrum_qt.themes.document_display_palette
 
 
 _STYLE_TO_DIALOG = {
@@ -24,7 +25,7 @@ class FerrumTextPlacementDialogModel:
 
 	runs: tuple[tuple[str, tuple[str, ...]], ...]
 	font_size: int
-	color: str
+	paint: object
 
 
 #============================================
@@ -38,7 +39,7 @@ def dialog_model_from_defaults(defaults: object) -> FerrumTextPlacementDialogMod
 	if type(defaults.font_size) not in (int, float) or not float(defaults.font_size).is_integer():
 		raise ValueError("Ferrum Text placement default size is not an integer")
 	font_size = int(defaults.font_size)
-	if not 4 <= font_size <= 144 or type(defaults.color) is not str:
+	if not 4 <= font_size <= 144:
 		raise ValueError("Ferrum Text placement defaults are not representable")
 	runs = []
 	for run in defaults.runs:
@@ -53,7 +54,7 @@ def dialog_model_from_defaults(defaults: object) -> FerrumTextPlacementDialogMod
 				raise ValueError("Text placement supports baseline, subscript, and superscript")
 			styles.append(_STYLE_TO_DIALOG[name])
 		runs.append((run.text, tuple(styles)))
-	return FerrumTextPlacementDialogModel(tuple(runs), font_size, defaults.color)
+	return FerrumTextPlacementDialogModel(tuple(runs), font_size, defaults.paint)
 
 
 #============================================
@@ -80,10 +81,17 @@ def runs_from_dialog(runs: tuple[tuple[str, tuple[str, ...]], ...]) -> tuple[obj
 
 
 #============================================
-def dialog_for_placement(model: FerrumTextPlacementDialogModel, parent: object) -> object:
+def dialog_for_placement(model: FerrumTextPlacementDialogModel, parent: object,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> object:
 	"""Build the constrained dialog without making it a persistent text authority."""
 	if type(model) is not FerrumTextPlacementDialogModel:
 		raise TypeError("Ferrum Text placement requires the closed dialog model")
+	if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+		raise TypeError("Ferrum Text placement requires a document display palette")
+	try:
+		color = palette.resolve_render_paint(model.paint).name()
+	except ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteError as error:
+		raise ValueError("Ferrum Text placement has an invalid render paint") from error
 	capabilities = ferrum_qt.dialogs.rich_text_dialog.RichTextDialogCapabilities(
 		bold=False,
 		italic=False,
@@ -93,6 +101,6 @@ def dialog_for_placement(model: FerrumTextPlacementDialogModel, parent: object) 
 		),
 	)
 	return ferrum_qt.dialogs.rich_text_dialog.RichTextDialog(
-		model.runs, model.font_size, model.color, parent,
+		model.runs, model.font_size, color, parent,
 		capabilities=capabilities, initial_text_selected=True,
 	)

@@ -7,6 +7,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.command_palette
 import ferrum_qt.actions.menu_builder
 import ferrum_qt.actions.platform_menu
 import ferrum_qt.config.keybindings
@@ -25,6 +26,9 @@ import ferrum_qt.ferrum.reaction_composer
 import ferrum_qt.ferrum.reaction_inspector
 import ferrum_qt.ferrum.smarts_query_dock
 import ferrum_qt.ferrum.window_shared_seams
+import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.theme_manager
+import ferrum_qt.themes.document_display_palette
 
 
 #============================================
@@ -37,13 +41,25 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 
 	#============================================
 	def __init__(
-			self, theme_manager: object,
+			self, theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 			parent: PySide6.QtWidgets.QWidget | None = None, *,
 			user_template_directory: object = None,
 			) -> None:
 		"""Build the ordinary native-only host and its initial empty document."""
+		if type(theme_manager) is not ferrum_qt.themes.theme_manager.ThemeManager:
+			raise TypeError("Ferrum main window requires ThemeManager")
 		super().__init__(parent, user_template_directory=user_template_directory)
 		self._theme_manager = theme_manager
+		self._document_theme_change: ferrum_qt.themes.theme_manager.ThemeChangeV1
+		theme_manager.theme_changed.connect(self._apply_document_theme_change)
+		self._apply_document_theme_change(
+			ferrum_qt.themes.theme_manager.ThemeChangeV1(
+				theme_manager.current_theme,
+				ferrum_qt.themes.theme_loader.get_document_display_palette(
+					theme_manager.current_theme,
+				),
+			),
+		)
 		self._drawing_parameters = (
 			ferrum_qt.ferrum.drawing_parameters.
 			FerrumNativeDrawingParameters.shared_application_model(self._prefs)
@@ -70,6 +86,12 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		self._reaction_inspector = ferrum_qt.ferrum.reaction_inspector.ReactionInspectorController(self)
 		self._reaction_inspector_action = self._reaction_inspector.install_action()
 		self._smarts_query_action = self._smarts_query_controller.install_action()
+		self._command_palette_controller = (
+			ferrum_qt.actions.command_palette.CommandPaletteController(
+				self, self._action_registry,
+			)
+		)
+		self._command_palette_action = self._add_command_palette_action()
 		self._action_registry.register_dynamic_menu(
 			"file.recent", self._recent_files_menu,
 			"Recent-file actions rebuild from user preferences whenever the menu opens.",
@@ -89,11 +111,12 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		self._view_menu = self._declared_menus["view"]
 		self._chemistry_menu = self._declared_menus["chemistry"]
 		ferrum_qt.actions.platform_menu.apply_platform_menu_roles(self._action_registry)
+		self._authoring_ribbon = self._add_authoring_ribbon()
 		self._keybinding_manager = ferrum_qt.config.keybindings.KeybindingManager(
 			self, self._action_registry,
 		)
 		self._keybinding_manager.setup_shortcuts()
-		self._authoring_ribbon = self._add_authoring_ribbon()
+		self._keybinding_manager.validate_live_shortcuts()
 		self._on_new()
 		bootstrap = self._active_native_tab()
 		if bootstrap is not None:
@@ -111,6 +134,17 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		)
 		action.setMenuRole(PySide6.QtGui.QAction.MenuRole.AboutRole)
 		self._register_action("help.about", action)
+		return action
+
+	#============================================
+	def _add_command_palette_action(self) -> PySide6.QtGui.QAction:
+		"""Install the registry-driven keyboard command discovery route."""
+		action = PySide6.QtGui.QAction(self.tr("Command Palette..."), self)
+		action.setToolTip(self.tr(
+			"Search and run available Ferrum commands from the keyboard",
+		))
+		action.triggered.connect(self._command_palette_controller.open)
+		self._register_action("view.command_palette", action)
 		return action
 
 	#============================================
@@ -196,6 +230,19 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		super()._on_native_tab_changed(index)
 
 	#============================================
+	def _apply_document_theme_change(
+			self, change: ferrum_qt.themes.theme_manager.ThemeChangeV1,
+			) -> None:
+		"""Deliver one typed display palette to every live native document tab."""
+		if type(change) is not ferrum_qt.themes.theme_manager.ThemeChangeV1:
+			raise TypeError("Ferrum main window requires ThemeChangeV1")
+		if type(change.palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum main window requires a document display palette")
+		self._document_theme_change = change
+		for tab in self.findChildren(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab):
+			tab.apply_theme_change(change)
+
+	#============================================
 	def _add_next_drawing_action(self) -> PySide6.QtGui.QAction:
 		"""Offer a standard menu and toolbar route to shared drawing preferences."""
 		action = PySide6.QtGui.QAction(self.tr("Next Drawing..."), self)
@@ -231,8 +278,15 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		import ferrum_qt.ferrum.engine as engine
 		session = engine.DocumentSession.create_empty_document_v1()
 		return ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab.from_session(
-			session, self.tr("Untitled"),
+			session, self.tr("Untitled"), self._require_document_display_palette(),
 		)
+
+	#============================================
+	def _require_document_display_palette(
+			self,
+			) -> ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+		"""Return the validated current display palette before a tab is built."""
+		return self._document_theme_change.palette
 
 	#============================================
 	def _on_new(self) -> bool:
@@ -256,6 +310,7 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
 		"""Keep the common host's activation default for Ferrum callers."""
 		registered = super()._register_native_tab(tab, activate=activate)
+		registered.apply_theme_change(self._document_theme_change)
 		registered.view.viewport().installEventFilter(self)
 		return registered
 

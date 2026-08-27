@@ -21,8 +21,7 @@ fn molecule_id(session: &DocumentSession, revision: u64, index: usize) -> Docume
         .expect("fixture observation must project")
         .projection()
         .molecules()[index]
-        .id()
-        .expect("fixture molecule has a durable ID")
+        .document_object_id()
         .clone()
 }
 

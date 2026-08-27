@@ -205,8 +205,12 @@ fn decode_tetrahedral_directed_bond(
             });
         }
     };
-    DocumentDirectedBondDepictionV1::new(bond_index, start, end, presentation)
-        .map_err(|_| TypedDocumentError::InvalidStereoSemantics)
+    Ok(DocumentDirectedBondDepictionV1::new(
+        bond_index,
+        start,
+        end,
+        presentation,
+    ))
 }
 
 fn decode_double_bond_carrier_mark(

@@ -233,6 +233,32 @@ pub struct MolBond {
     stereo_atoms: Option<(usize, usize)>,
 }
 
+/// A directional bond request that cannot be represented by the public model.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum MolBondDirectionError {
+    /// A directional constructor needs a direction other than [`BondDirection::None`].
+    #[error("a directed bond requires a direction")]
+    DirectionRequired,
+    /// The public model does not assign semantics to this direction.
+    #[error("bond direction {direction:?} is unsupported")]
+    UnsupportedDirection {
+        /// Rejected direction.
+        direction: BondDirection,
+    },
+    /// A modeled direction can only annotate a non-aromatic single bond.
+    #[error(
+        "bond direction {direction:?} requires a non-aromatic single bond, received {order:?} aromatic={aromatic}"
+    )]
+    DirectionRequiresNonAromaticSingleBond {
+        /// Requested direction.
+        direction: BondDirection,
+        /// Rejected bond order.
+        order: BondOrder,
+        /// Rejected aromaticity flag.
+        aromatic: bool,
+    },
+}
+
 impl MolBond {
     /// Create a bond. Endpoint and aromaticity validation occurs with its graph.
     #[must_use]
@@ -246,6 +272,44 @@ impl MolBond {
             direction: BondDirection::None,
             stereo_atoms: None,
         }
+    }
+
+    /// Create a public directional non-aromatic single bond.
+    pub fn directed(
+        start: usize,
+        end: usize,
+        order: BondOrder,
+        aromatic: bool,
+        direction: BondDirection,
+    ) -> Result<Self, MolBondDirectionError> {
+        match direction {
+            BondDirection::None => return Err(MolBondDirectionError::DirectionRequired),
+            BondDirection::Other => {
+                return Err(MolBondDirectionError::UnsupportedDirection { direction });
+            }
+            BondDirection::BeginWedge
+            | BondDirection::BeginDash
+            | BondDirection::EndUpRight
+            | BondDirection::EndDownRight => {}
+        }
+        if order != BondOrder::Single || aromatic {
+            return Err(
+                MolBondDirectionError::DirectionRequiresNonAromaticSingleBond {
+                    direction,
+                    order,
+                    aromatic,
+                },
+            );
+        }
+        Ok(Self {
+            start,
+            end,
+            order,
+            aromatic,
+            stereo: BondStereo::None,
+            direction,
+            stereo_atoms: None,
+        })
     }
 
     /// Return the first endpoint index.
@@ -419,7 +483,7 @@ impl MolGraph {
         }
 
         let mut seen_edges = BTreeSet::new();
-        for bond in &bonds {
+        for (bond_index, bond) in bonds.iter().enumerate() {
             if bond.start >= atoms.len() || bond.end >= atoms.len() {
                 return Err(MolGraphError::EndpointOutOfRange {
                     start: bond.start,
@@ -451,6 +515,21 @@ impl MolGraph {
             }
             if bond.aromatic && matches!(bond.order, BondOrder::Triple | BondOrder::Quadruple) {
                 return Err(MolGraphError::InvalidAromaticBondOrder { order: bond.order });
+            }
+            if matches!(
+                bond.direction,
+                BondDirection::BeginWedge
+                    | BondDirection::BeginDash
+                    | BondDirection::EndUpRight
+                    | BondDirection::EndDownRight
+            ) && (bond.order != BondOrder::Single || bond.aromatic)
+            {
+                return Err(MolGraphError::DirectedBondRequiresNonAromaticSingleBond {
+                    bond_index,
+                    direction: bond.direction,
+                    order: bond.order,
+                    aromatic: bond.aromatic,
+                });
             }
             if let Some((first, second)) = bond.stereo_atoms {
                 if first >= atoms.len()
@@ -611,6 +690,20 @@ pub enum MolGraphError {
         /// Rejected Kekule order.
         order: BondOrder,
     },
+    /// A modeled direction can only annotate a non-aromatic single bond.
+    #[error(
+        "bond {bond_index} direction {direction:?} requires a non-aromatic single bond, received {order:?} aromatic={aromatic}"
+    )]
+    DirectedBondRequiresNonAromaticSingleBond {
+        /// Source-order bond position.
+        bond_index: usize,
+        /// Rejected native direction.
+        direction: BondDirection,
+        /// Rejected bond order.
+        order: BondOrder,
+        /// Rejected aromaticity flag.
+        aromatic: bool,
+    },
     /// A stereo-coded bond must name two distinct non-endpoint reference atoms.
     #[error("bond stereo references are invalid")]
     InvalidStereoReferences,
@@ -684,6 +777,117 @@ mod tests {
             ),
             Err(MolGraphError::SelfBond { atom: 0 })
         );
+    }
+
+    #[test]
+    fn public_directed_bonds_preserve_each_supported_direction() {
+        for direction in [
+            BondDirection::BeginWedge,
+            BondDirection::BeginDash,
+            BondDirection::EndUpRight,
+            BondDirection::EndDownRight,
+        ] {
+            let bond = MolBond::directed(2, 0, BondOrder::Single, false, direction)
+                .expect("supported directional single bond");
+            assert_eq!((bond.start(), bond.end()), (2, 0));
+            assert_eq!(bond.order(), BondOrder::Single);
+            assert!(!bond.is_aromatic());
+            assert_eq!(bond.direction(), direction);
+        }
+    }
+
+    #[test]
+    fn public_directed_bonds_refuse_unmodeled_or_invalid_requests() {
+        assert_eq!(
+            MolBond::directed(0, 1, BondOrder::Single, false, BondDirection::None),
+            Err(MolBondDirectionError::DirectionRequired)
+        );
+        assert_eq!(
+            MolBond::directed(0, 1, BondOrder::Single, false, BondDirection::Other),
+            Err(MolBondDirectionError::UnsupportedDirection {
+                direction: BondDirection::Other,
+            })
+        );
+        assert_eq!(
+            MolBond::directed(0, 1, BondOrder::Double, false, BondDirection::BeginWedge),
+            Err(
+                MolBondDirectionError::DirectionRequiresNonAromaticSingleBond {
+                    direction: BondDirection::BeginWedge,
+                    order: BondOrder::Double,
+                    aromatic: false,
+                }
+            )
+        );
+        assert_eq!(
+            MolBond::directed(0, 1, BondOrder::Single, true, BondDirection::BeginDash),
+            Err(
+                MolBondDirectionError::DirectionRequiresNonAromaticSingleBond {
+                    direction: BondDirection::BeginDash,
+                    order: BondOrder::Single,
+                    aromatic: true,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn graph_rejects_invalid_native_modeled_directions_but_accepts_other() {
+        let plain = carbon(false);
+        let aromatic = carbon(true);
+        for (bond, expected) in [
+            (
+                MolBond::from_native(
+                    0,
+                    1,
+                    BondOrder::Double,
+                    false,
+                    BondStereo::None,
+                    BondDirection::BeginWedge,
+                    None,
+                ),
+                MolGraphError::DirectedBondRequiresNonAromaticSingleBond {
+                    bond_index: 0,
+                    direction: BondDirection::BeginWedge,
+                    order: BondOrder::Double,
+                    aromatic: false,
+                },
+            ),
+            (
+                MolBond::from_native(
+                    0,
+                    1,
+                    BondOrder::Single,
+                    true,
+                    BondStereo::None,
+                    BondDirection::EndDownRight,
+                    None,
+                ),
+                MolGraphError::DirectedBondRequiresNonAromaticSingleBond {
+                    bond_index: 0,
+                    direction: BondDirection::EndDownRight,
+                    order: BondOrder::Single,
+                    aromatic: true,
+                },
+            ),
+        ] {
+            let atoms = if bond.is_aromatic() {
+                vec![aromatic.clone(), aromatic.clone()]
+            } else {
+                vec![plain.clone(), plain.clone()]
+            };
+            assert_eq!(MolGraph::new(atoms, vec![bond], None), Err(expected));
+        }
+
+        let other = MolBond::from_native(
+            0,
+            1,
+            BondOrder::Double,
+            false,
+            BondStereo::None,
+            BondDirection::Other,
+            None,
+        );
+        assert!(MolGraph::new(vec![plain.clone(), plain], vec![other], None).is_ok());
     }
 
     #[test]

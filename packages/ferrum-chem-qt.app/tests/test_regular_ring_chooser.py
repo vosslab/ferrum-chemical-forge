@@ -10,6 +10,7 @@ import pytest
 import ferrum_qt.ferrum.engine
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 #============================================
@@ -35,7 +36,9 @@ def _ring_atom(tab: object) -> PySide6.QtCore.QPoint:
 def test_regular_ring_chooser_actions_commit_each_admitted_size(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Every visible C3-C8 action reaches one generic Rust transition at its size."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	try:
 		window.show()
 		qapp.processEvents()
@@ -66,7 +69,9 @@ def test_regular_ring_chooser_actions_commit_each_admitted_size(
 def test_regular_ring_accepted_commit_with_unavailable_display_cancels_authoring(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""An accepted ring stays pending when both disposable display installations fail."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	try:
 		window.show()
 		qapp.processEvents()
@@ -112,7 +117,9 @@ def test_regular_ring_accepted_commit_with_unavailable_display_cancels_authoring
 def test_regular_ring_escape_is_mutation_free_and_disarms(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Escape cancels an armed ring chooser without submitting a Rust operation."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	try:
 		window.show()
 		qapp.processEvents()
@@ -142,7 +149,9 @@ def test_regular_ring_escape_is_mutation_free_and_disarms(
 def test_regular_ring_occupied_click_keeps_authoring_armed_for_empty_retry(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""An occupied click is a non-mutating recovery that retains the selected tool."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	try:
 		window.show()
 		qapp.processEvents()

@@ -11,9 +11,9 @@ files contain unmodified GNU license terms rather than project-specific notices.
 
 The two components have deliberately different licenses:
 
-- Ferrum is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0.md`,
+- Ferrum is AGPL-3.0-only. Its repository notice is `LICENSE.AGPL-3.0`,
   and its distributable package notice is `packages/ferrum-chem-qt.app/LICENSE`.
-- Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0.md`.
+- Ferrum-Chem is LGPL-3.0-only. Its repository notice is `LICENSE.LGPL-3.0`.
 - RDKit is a BSD-3-Clause native dependency used only through Ferrum's private
   local-runtime adapter. Ferrum does not ship a desktop distribution.
 - `petgraph` 0.8.3 is an MIT-or-Apache-2.0 Rust source dependency. Ferrum uses a

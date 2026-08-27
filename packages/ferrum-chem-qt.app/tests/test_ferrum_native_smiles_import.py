@@ -14,6 +14,7 @@ import ferrum_chem
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.smiles_import
@@ -98,7 +99,7 @@ def test_cancel_after_native_completion_still_drops_queued_document_delivery(
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	assert window.start_smiles_import("CCO")
 	intent = window._smiles_import_intent
@@ -134,7 +135,7 @@ def test_public_native_action_imports_renders_and_round_trips_cco(
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText", lambda *_args: ("CCO", True),
@@ -168,12 +169,12 @@ def test_post_commit_render_failure_retains_pending_rust_authority(
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_EMPTY_CDML, "native.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QInputDialog, "getText", lambda *_args: ("CCO", True),
 	)
-	monkeypatch.setattr(tab._controller, "replace", lambda _observation, _latch: False)
+	monkeypatch.setattr(tab._controller, "replace", lambda *_args: False)
 	warnings = []
 	monkeypatch.setattr(
 		window, "_show_edit_refusal",

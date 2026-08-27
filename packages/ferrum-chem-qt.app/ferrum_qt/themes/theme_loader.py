@@ -8,6 +8,7 @@ by the sole shipped Ferrum frontend.
 import yaml
 
 # local repo modules
+import ferrum_qt.themes.document_display_palette
 import ferrum_qt.resource_paths
 
 # Themes are package-owned so installed Qt wheels do not need the source tree.
@@ -54,6 +55,17 @@ def get_paper_color(theme_name: str) -> str:
 	"""
 	data = _load_theme(theme_name)
 	return data.get("paper", {}).get("fill", "#ffffff")
+
+
+#============================================
+def get_document_display_palette(
+		theme_name: str,
+		) -> ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+	"""Return the complete YAML-owned document-display palette for one theme."""
+	data = _load_theme(theme_name)
+	return ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1.from_yaml(
+		data.get("document_display")
+	)
 
 
 #============================================

@@ -6,6 +6,8 @@ use ferrum_document_projection::DocumentProjectionV1;
 use thiserror::Error;
 use xot::Node;
 
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
+
 use super::{
     DocumentObjectIdV1, SessionDocumentObservationV1, TypedClass, TypedDocument,
     TypedDocumentError, TypedRecord, UnrecognizedNode, XmlSerializationError,
@@ -256,14 +258,12 @@ fn selected_facts(
     let projection = observation.projection();
     let mut facts = Vec::new();
     for molecule in projection.molecules() {
-        let root = molecule.id();
+        let root = molecule.document_object_id();
         for atom in molecule.atoms() {
-            let Some(object) = atom.id().filter(|object| requested.contains(object)) else {
+            let object = atom.document_object_id();
+            if !requested.contains(object) {
                 continue;
-            };
-            let Some(root) = root else {
-                return Err(DocumentClipboardFragmentErrorV1::InvalidStructureRoot);
-            };
+            }
             facts.push(SelectedFact::Structure {
                 object: object.clone(),
                 root: root.clone(),
@@ -273,12 +273,10 @@ fn selected_facts(
             });
         }
         for bond in molecule.bonds() {
-            let Some(object) = bond.id().filter(|object| requested.contains(object)) else {
+            let object = bond.document_object_id();
+            if !requested.contains(object) {
                 continue;
-            };
-            let Some(root) = root else {
-                return Err(DocumentClipboardFragmentErrorV1::InvalidStructureRoot);
-            };
+            }
             facts.push(SelectedFact::Structure {
                 object: object.clone(),
                 root: root.clone(),
@@ -347,7 +345,10 @@ fn extract_top_level(
     roots.dedup();
     let mut keep_paths = Vec::new();
     for root in &roots {
-        let Some(record) = document.resolve_document_object_id(root) else {
+        let Some(record) = document
+            .resolve_document_object_id(root)
+            .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?
+        else {
             return Err(DocumentClipboardFragmentErrorV1::IdentityInvariant);
         };
         if record.path().components().len() != 1 || !supported_root(record.class()) {
@@ -396,6 +397,7 @@ fn extract_structure(
 ) -> Result<ExtractedFragment, DocumentClipboardFragmentErrorV1> {
     let root_record = document
         .resolve_document_object_id(root_id)
+        .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?
         .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
     validate_structure_root(root_record)?;
     let root_index = root_record.path().components()[0];
@@ -505,8 +507,8 @@ fn closed_structure(
 ) -> Result<ClosedStructure, DocumentClipboardFragmentErrorV1> {
     let mut copied_atom_source_ids = BTreeSet::new();
     for atom in atoms {
-        let object = crate::document_object_id_from_record_v1(atom)
-            .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+        let object = projection_document_object_id_from_record_v1(atom)
+            .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         if selected_atoms.contains(&object) {
             copied_atom_source_ids.insert(
                 atom.attribute("id")
@@ -515,8 +517,8 @@ fn closed_structure(
         }
     }
     for bond in bonds {
-        let object = crate::document_object_id_from_record_v1(bond)
-            .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+        let object = projection_document_object_id_from_record_v1(bond)
+            .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         if selected_bonds.contains(&object) {
             copied_atom_source_ids.insert(
                 bond.attribute("start")
@@ -532,8 +534,8 @@ fn closed_structure(
     let mut copied_bonds = Vec::new();
     let mut keep_children = Vec::new();
     for record in atoms.iter().chain(bonds.iter()) {
-        let object = crate::document_object_id_from_record_v1(record)
-            .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+        let object = projection_document_object_id_from_record_v1(record)
+            .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         let keep = match record.class() {
             TypedClass::Atom => copied_atom_source_ids.contains(
                 record
@@ -579,16 +581,23 @@ fn ensure_connected(
         if !visited.insert(current) {
             continue;
         }
-        let current_record = atoms
-            .iter()
-            .find(|atom| crate::document_object_id_from_record_v1(atom).as_ref() == Some(current))
-            .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+        let mut current_record = None;
+        for atom in atoms {
+            let object = projection_document_object_id_from_record_v1(atom)
+                .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+            if &object == current {
+                current_record = Some(*atom);
+                break;
+            }
+        }
+        let current_record =
+            current_record.ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         let current_source = current_record
             .attribute("id")
             .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
         for bond in bonds {
-            let bond_object = crate::document_object_id_from_record_v1(bond)
-                .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+            let bond_object = projection_document_object_id_from_record_v1(bond)
+                .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
             if !copied_bonds.contains(&bond_object) {
                 continue;
             }
@@ -608,11 +617,13 @@ fn ensure_connected(
             let Some(neighbour) = neighbour else {
                 continue;
             };
-            let neighbour_object = atoms
+            let neighbour_record = atoms
                 .iter()
                 .find(|atom| atom.attribute("id") == Some(neighbour))
-                .and_then(|atom| crate::document_object_id_from_record_v1(atom))
                 .ok_or(DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
+            let neighbour_object =
+                projection_document_object_id_from_record_v1(neighbour_record)
+                    .map_err(|_| DocumentClipboardFragmentErrorV1::IdentityInvariant)?;
             if let Some(copied) = copied_atoms
                 .iter()
                 .find(|object| **object == neighbour_object)

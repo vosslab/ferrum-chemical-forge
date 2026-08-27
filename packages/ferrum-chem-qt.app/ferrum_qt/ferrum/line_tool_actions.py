@@ -410,7 +410,6 @@ class FerrumNativeLineToolActionsMixin:
 		"""Cancel a pointer tool while preserving Rust state and selection."""
 		self._cancel_atom_insertion()
 		self._cancel_line_gesture()
-		self._refresh_actions()
 		self._synchronize_mode_state()
 		self.statusBar().showMessage(
 			self.tr("Tool cancelled. Selection and document are unchanged."), 3000,

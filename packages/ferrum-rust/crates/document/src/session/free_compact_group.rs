@@ -121,9 +121,11 @@ impl DocumentSession {
             .map_err(|_| FreeCompactGroupPlacementSessionErrorV1::CandidateAdmission)?;
         let molecule_object_id = document
             .document_object_id_for_source_id_v1(&molecule_id)
+            .map_err(|_| FreeCompactGroupPlacementSessionErrorV1::CandidateAdmission)?
             .ok_or(FreeCompactGroupPlacementSessionErrorV1::CandidateAdmission)?;
         let compact_group_object_id = document
             .document_object_id_for_source_id_v1(&group_id)
+            .map_err(|_| FreeCompactGroupPlacementSessionErrorV1::CandidateAdmission)?
             .ok_or(FreeCompactGroupPlacementSessionErrorV1::CandidateAdmission)?;
         let revision = self
             .next_revision_v1()
@@ -274,7 +276,7 @@ mod tests {
             .projection()
             .molecules()
             .iter()
-            .find(|item| item.id() == Some(result.molecule_object_id()))
+            .find(|item| item.document_object_id() == result.molecule_object_id())
             .expect("returned direct molecule is projected");
         assert!(molecule.atoms().is_empty());
         assert!(molecule.bonds().is_empty());

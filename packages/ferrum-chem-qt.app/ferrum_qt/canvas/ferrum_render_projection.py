@@ -23,10 +23,12 @@ import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.canvas.items.ferrum_paper_item
 import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.canvas.items.ferrum_text_item
+import ferrum_qt.themes.document_display_palette
+import ferrum_qt.themes.theme_loader
 
 
 _OBSERVATION_SCHEMA = "ferrum-document-render-observation-v1"
-_PLAN_SCHEMA = "ferrum-render-plan-v2"
+_PLAN_SCHEMA = "ferrum-render-plan-v3"
 _PAPER_SCHEMA = "ferrum-document-paper-layout-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _U32_RANGE = range(2**32)
@@ -38,11 +40,12 @@ _DOCUMENT_OBJECT_KIND = "document_object"
 _DIRECT_ROOT_KINDS = _PRESENTATION_KINDS | frozenset(("molecule", "rejected_presentation"))
 ObservationValidator = collections.abc.Callable[[object], None]
 PlanItemFactory = collections.abc.Callable[
-	[object, int, object, PySide6.QtWidgets.QGraphicsItem],
+	[object, int, object, ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		PySide6.QtWidgets.QGraphicsItem],
 	PySide6.QtWidgets.QGraphicsItem,
 ]
 PresentationSceneFactory = collections.abc.Callable[
-	[object],
+	[object, ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1],
 	ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene,
 ]
 PaperItemFactory = collections.abc.Callable[
@@ -145,14 +148,18 @@ class FerrumRenderProjectionController:
 
 	#============================================
 	def __init__(self, view: PySide6.QtWidgets.QGraphicsView,
-			telex_resource: object) -> None:
+			telex_resource: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Bind to one UI-thread view without taking document/session ownership."""
 		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 		self._initialize(
 			view, telex_resource, telex, _require_pyo3_observation,
 			ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 			ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
-			lambda plan: _build_presentation_scene(plan, telex_resource),
+			lambda plan, display_palette: _build_presentation_scene(
+				plan, telex_resource, display_palette,
+			),
+			palette,
 		)
 
 	#============================================
@@ -160,12 +167,15 @@ class FerrumRenderProjectionController:
 			telex_resource: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 			validator: ObservationValidator, item_factory: PlanItemFactory,
 			paper_factory: PaperItemFactory,
-			presentation_factory: PresentationSceneFactory | None) -> None:
+			presentation_factory: PresentationSceneFactory | None,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Initialize the production controller or the private fixture seam."""
 		if not isinstance(view, PySide6.QtWidgets.QGraphicsView):
 			raise TypeError("Ferrum render projection controller requires a graphics view")
 		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 			raise TypeError("Ferrum render projection controller requires verified Telex")
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum render projection controller requires a document display palette")
 		self._view = view
 		self._telex_resource = telex_resource
 		self._telex = telex
@@ -173,6 +183,7 @@ class FerrumRenderProjectionController:
 		self._item_factory = item_factory
 		self._paper_factory = paper_factory
 		self._presentation_factory = presentation_factory
+		self._palette = palette
 		self._generation = 0
 		self._disposed = False
 		self.projection: FerrumRenderProjection | None = None
@@ -184,6 +195,12 @@ class FerrumRenderProjectionController:
 		return self._generation
 
 	#============================================
+	@property
+	def document_display_palette(self) -> ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+		"""Return the one immutable palette currently used by this controller."""
+		return self._palette
+
+	#============================================
 	def replace(self, observation: object, latch: RenderProjectionLatch,
 			presentation_plan: object | None = None) -> bool:
 		"""Build then install one current observation without disturbing prior state."""
@@ -193,7 +210,7 @@ class FerrumRenderProjectionController:
 			prepared = _build_render_projection(
 				observation, self._telex_resource, self._telex, self._validator,
 				self._item_factory, self._paper_factory, self._presentation_factory,
-				presentation_plan,
+				presentation_plan, self._palette,
 			)
 		except FerrumRenderProjectionError:
 			return False
@@ -214,6 +231,27 @@ class FerrumRenderProjectionController:
 		if previous is not None:
 			previous.dispose()
 		return True
+
+	#============================================
+	def refresh_display_palette(self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
+		"""Refresh retained display materials without requesting a new Rust observation."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum render projection requires a document display palette")
+		self._palette = palette
+		if self.projection is None:
+			return
+		self.projection.paper.refresh_display_palette(palette)
+		presentation_items = frozenset(
+			() if self.projection.presentation is None else self.projection.presentation.items,
+		)
+		for item in self.projection.items:
+			if item in presentation_items:
+				continue
+			item.refresh_display_palette(palette)
+		if self.projection.presentation is not None:
+			self.projection.presentation.refresh_display_palette(palette)
+		self.projection.scene.update()
 
 	#============================================
 	def invalidate_delivery(self) -> int:
@@ -259,20 +297,24 @@ def _build_fixture_controller(view: PySide6.QtWidgets.QGraphicsView,
 		view, telex, telex, validator,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture, None,
+		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)
 	return controller
 
 
 #============================================
 def build_render_projection(observation: object, telex_resource: object,
-		presentation_plan: object) -> FerrumRenderProjection:
+		presentation_plan: object,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		) -> FerrumRenderProjection:
 	"""Validate one whole observation and return a fully populated detached scene."""
 	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
 	return _build_render_projection(
 		observation, telex_resource, telex, _require_pyo3_observation,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
-		lambda plan: _build_presentation_scene(plan, telex_resource), presentation_plan,
+		lambda plan, palette: _build_presentation_scene(plan, telex_resource, palette),
+		presentation_plan, palette,
 	)
 
 
@@ -288,6 +330,7 @@ def _build_fixture_render_projection(observation: object,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture,
 		presentation_factory,
+		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)
 
 
@@ -297,7 +340,8 @@ def _build_render_projection(observation: object, telex_resource: object,
 		validator: ObservationValidator, item_factory: PlanItemFactory,
 		paper_factory: PaperItemFactory,
 		presentation_factory: PresentationSceneFactory | None,
-		presentation_plan: object | None = None) -> FerrumRenderProjection:
+		presentation_plan: object | None = None,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1 | None = None) -> FerrumRenderProjection:
 	"""Build a validated observation after its caller selected the entry contract."""
 	if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 		raise FerrumRenderProjectionError("render projection requires verified Telex")
@@ -330,7 +374,15 @@ def _build_render_projection(observation: object, telex_resource: object,
 		if kind in _PRESENTATION_KINDS
 	}
 	try:
-		paper = paper_factory(paper_layout)
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise FerrumRenderProjectionError(
+				"render projection requires a document display palette",
+			)
+		display_palette = palette
+		paper = paper_factory(paper_layout, display_palette)
+		ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
+			paper, "paper render item",
+		)
 		scene.addItem(paper)
 		scene.setSceneRect(paper.rect())
 		roots.append(paper)
@@ -340,6 +392,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 				raise FerrumRenderProjectionError("duplicate molecule render root")
 			root, _plan_items, plan_issues = _build_plan(
 				scene, plan_entry, molecule, revision, digest, telex_resource, item_factory,
+				display_palette,
 			)
 			root.setZValue(float(_direct_root_order(
 				direct_root_orders, molecule.document_object_id, frozenset(("molecule",)),
@@ -348,6 +401,9 @@ def _build_render_projection(observation: object, telex_resource: object,
 			roots.append(root)
 			molecule_roots[root] = molecule
 			for item, target in _plan_items:
+				ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
+					item, "molecule render item",
+				)
 				if target in local_items:
 					raise FerrumRenderProjectionError("duplicate render target")
 				if target.is_durable:
@@ -367,7 +423,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 		if presentation_factory is not None:
 			if presentation_plan is None:
 				raise FerrumRenderProjectionError("renderer presentation plan is required")
-			presentation = presentation_factory(presentation_plan)
+			presentation = presentation_factory(presentation_plan, display_palette)
 			if presentation.revision != revision or presentation.digest != digest:
 				raise FerrumRenderProjectionError(
 					"presentation scene provenance differs from render observation",
@@ -399,7 +455,10 @@ def _build_render_projection(observation: object, telex_resource: object,
 				items.append(root)
 		for plus in plus_renders:
 			item = ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem._from_observation(
-				plus, telex,
+				plus, telex, display_palette,
+			)
+			ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
+				item, "Plus render item",
 			)
 			target = _presentation_target(item.target)
 			if target.document_object_id in seen_presentation_roots:
@@ -422,7 +481,10 @@ def _build_render_projection(observation: object, telex_resource: object,
 			roots.append(item)
 		for text_render in text_renders:
 			item = ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem._from_observation(
-				text_render, telex,
+				text_render, telex, display_palette,
+			)
+			ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
+				item, "Text render item",
 			)
 			target = _presentation_target(item.target)
 			if target.document_object_id in seen_presentation_roots:
@@ -529,6 +591,7 @@ def _build_plan(
 		scene: PySide6.QtWidgets.QGraphicsScene, plan_entry: object,
 		molecule: MoleculeRootKey,
 		revision: int, digest: str, telex_resource: object, item_factory: PlanItemFactory,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[
 			PySide6.QtWidgets.QGraphicsItemGroup,
 			tuple[tuple[PySide6.QtWidgets.QGraphicsItem, RenderTargetKey], ...],
@@ -557,7 +620,7 @@ def _build_plan(
 		if target in seen_targets:
 			raise FerrumRenderProjectionError("render plan has duplicate target")
 		seen_targets.add(target)
-		item = item_factory(plan, batch_index, telex_resource, root)
+		item = item_factory(plan, batch_index, telex_resource, palette, root)
 		layer = getattr(batch, "display_layer", None)
 		if layer not in {"ordinary", "haworth_front_stroke", "haworth_front_wedge"}:
 			raise FerrumRenderProjectionError("render batch has an unknown display layer")
@@ -729,10 +792,11 @@ def _dispose_failed_projection(
 #============================================
 def _build_presentation_scene(
 		presentation_plan: object, telex_resource: object,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene:
 	"""Build presentation roots solely from the renderer-issued immutable plan."""
 	return ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-		presentation_plan, telex_resource,
+		presentation_plan, telex_resource, palette,
 	)
 
 

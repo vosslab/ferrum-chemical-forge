@@ -1,11 +1,11 @@
-//! Private opaque PyO3 seam for reviewed atom-anchored compact-group attachment.
+//! Private opaque PyO3 seam for reviewed molecule-plus-anchor compact-group attachment.
 
 use ferrum_document::{
     AttachCompactGroupV1, AttachedCompactGroupAvailabilityCategoryV1,
     AttachedCompactGroupAvailabilityV1, AttachedCompactGroupCommitResultV1,
-    AttachedCompactGroupReleaseV1, AttachedCompactGroupSessionErrorV1, CompactGroupCatalogKeyV1,
-    DocumentFenceV1, DocumentObjectIdV1, DocumentSession, PendingAttachedCompactGroupV1,
-    attached_compact_group_choices_v1,
+    AttachedCompactGroupReleaseV1, AttachedCompactGroupSessionErrorV1,
+    AttachedCompactGroupTargetV1, CompactGroupCatalogKeyV1, DocumentFenceV1, DocumentSession,
+    PendingAttachedCompactGroupV1, attached_compact_group_choices_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -40,9 +40,10 @@ enum PyAttachedCompactGroupCategoryV1 {
     StaleDigest,
     ForeignSession,
     Consumed,
+    UnknownMolecule,
     UnknownAnchor,
+    ForeignTarget,
     InvalidPose,
-    UnsupportedAttachmentCatalogKey,
     CandidateAdmission,
     RendererAdmission,
     SessionConflict,
@@ -63,7 +64,9 @@ enum PyAttachedCompactGroupAvailabilityCategoryV1 {
     Available,
     StaleRevision,
     StaleDigest,
+    UnknownMolecule,
     UnknownAnchor,
+    ForeignTarget,
     CandidateAdmission,
     SessionConflict,
 }
@@ -159,22 +162,26 @@ impl PyDocumentSession {
             .collect()
     }
 
-    /// Observe current read-only enablement facts for one fenced direct atom and choice.
+    /// Observe current read-only enablement facts for one fenced molecule-plus-anchor pair and choice.
     fn _attach_compact_group_availability_v1(
         &self,
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
+        molecule_object_id: String,
         anchor_object_id: String,
         catalog_key: String,
     ) -> PyResult<PyAttachedCompactGroupAvailabilityFactsV1> {
         let fence =
             DocumentFenceV1::new(expected_revision, parse_digest(py, &expected_digest_hex)?);
-        let anchor = document_object_id(py, anchor_object_id)?;
+        let target = AttachedCompactGroupTargetV1::new(
+            document_object_id(py, molecule_object_id)?,
+            document_object_id(py, anchor_object_id)?,
+        );
         let key = parse_catalog_key(py, &catalog_key)?;
         Ok(availability_facts(
             self.session
-                .observe_attach_compact_group_availability_v1(fence, anchor, key),
+                .observe_attach_compact_group_availability_v1(fence, target, key),
         ))
     }
 
@@ -185,6 +192,7 @@ impl PyDocumentSession {
         py: Python<'_>,
         expected_revision: u64,
         expected_digest_hex: String,
+        molecule_object_id: String,
         anchor_object_id: String,
         catalog_key: String,
         raw_release_x: f64,
@@ -192,14 +200,17 @@ impl PyDocumentSession {
     ) -> PyResult<PyPendingAttachedCompactGroupV1> {
         let fence =
             DocumentFenceV1::new(expected_revision, parse_digest(py, &expected_digest_hex)?);
-        let anchor = document_object_id(py, anchor_object_id)?;
+        let target = AttachedCompactGroupTargetV1::new(
+            document_object_id(py, molecule_object_id)?,
+            document_object_id(py, anchor_object_id)?,
+        );
         let key = parse_catalog_key(py, &catalog_key)?;
         let release = AttachedCompactGroupReleaseV1::new(raw_release_x, raw_release_y)
             .map_err(|_| attached_error(py, AttachedCompactGroupSessionErrorV1::InvalidPose))?;
         begin(
             &mut self.session,
             fence,
-            anchor,
+            target,
             AttachCompactGroupV1::new(key, release),
         )
         .map_err(|error| attached_error(py, error))
@@ -236,11 +247,11 @@ impl PyDocumentSession {
 fn begin(
     session: &mut DocumentSession,
     fence: DocumentFenceV1,
-    anchor: DocumentObjectIdV1,
+    target: AttachedCompactGroupTargetV1,
     request: AttachCompactGroupV1,
 ) -> Result<PyPendingAttachedCompactGroupV1, AttachedCompactGroupSessionErrorV1> {
     session
-        .prepare_attach_compact_group_v1(fence, anchor, request)
+        .prepare_attach_compact_group_v1(fence, target, request)
         .map(|pending| PyPendingAttachedCompactGroupV1 { pending })
 }
 
@@ -317,8 +328,14 @@ fn availability_category(
         AttachedCompactGroupAvailabilityCategoryV1::StaleDigest => {
             PyAttachedCompactGroupAvailabilityCategoryV1::StaleDigest
         }
+        AttachedCompactGroupAvailabilityCategoryV1::UnknownMolecule => {
+            PyAttachedCompactGroupAvailabilityCategoryV1::UnknownMolecule
+        }
         AttachedCompactGroupAvailabilityCategoryV1::UnknownAnchor => {
             PyAttachedCompactGroupAvailabilityCategoryV1::UnknownAnchor
+        }
+        AttachedCompactGroupAvailabilityCategoryV1::ForeignTarget => {
+            PyAttachedCompactGroupAvailabilityCategoryV1::ForeignTarget
         }
         AttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission => {
             PyAttachedCompactGroupAvailabilityCategoryV1::CandidateAdmission
@@ -341,14 +358,17 @@ fn category(error: AttachedCompactGroupSessionErrorV1) -> PyAttachedCompactGroup
             PyAttachedCompactGroupCategoryV1::ForeignSession
         }
         AttachedCompactGroupSessionErrorV1::Consumed => PyAttachedCompactGroupCategoryV1::Consumed,
+        AttachedCompactGroupSessionErrorV1::UnknownMolecule => {
+            PyAttachedCompactGroupCategoryV1::UnknownMolecule
+        }
         AttachedCompactGroupSessionErrorV1::UnknownAnchor => {
             PyAttachedCompactGroupCategoryV1::UnknownAnchor
         }
+        AttachedCompactGroupSessionErrorV1::ForeignTarget => {
+            PyAttachedCompactGroupCategoryV1::ForeignTarget
+        }
         AttachedCompactGroupSessionErrorV1::InvalidPose => {
             PyAttachedCompactGroupCategoryV1::InvalidPose
-        }
-        AttachedCompactGroupSessionErrorV1::UnsupportedAttachmentCatalogKey => {
-            PyAttachedCompactGroupCategoryV1::UnsupportedAttachmentCatalogKey
         }
         AttachedCompactGroupSessionErrorV1::CandidateAdmission => {
             PyAttachedCompactGroupCategoryV1::CandidateAdmission

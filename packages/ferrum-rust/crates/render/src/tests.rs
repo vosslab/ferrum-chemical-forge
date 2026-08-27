@@ -30,5 +30,7 @@ mod pdf_backend;
 mod presentation_path_v1;
 #[path = "tests/presentation_plan_v1.rs"]
 mod presentation_plan_v1;
+#[path = "tests/semantic_paint_export_v3.rs"]
+mod semantic_paint_export_v3;
 #[path = "tests/svg_backend.rs"]
 mod svg_backend;

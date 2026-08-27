@@ -1,7 +1,7 @@
 use super::super::session::PendingCreateExplicitFragmentV1;
 use super::super::{
-    DocumentObjectIdV1, DocumentSession, DocumentSessionError, PersistentId, TypedDocument,
-    observe_explicit_fragments_v1,
+    DocumentExplicitFragmentErrorV1, DocumentObjectIdV1, DocumentSession, DocumentSessionError,
+    PersistentId, SessionOperationError, TypedDocument, observe_explicit_fragments_v1,
 };
 
 const SOURCE: &str = concat!(
@@ -26,8 +26,7 @@ fn molecule(session: &DocumentSession, revision: u64) -> DocumentObjectIdV1 {
         .expect("fixture projects")
         .projection()
         .molecules()[0]
-        .id()
-        .expect("fixture molecule is durable")
+        .document_object_id()
         .clone()
 }
 
@@ -66,7 +65,8 @@ fn explicit_fragment_closes_bonds_in_source_order_and_avoids_retained_identity()
     let observed = observe_explicit_fragments_v1(
         &TypedDocument::parse(accepted.observation().snapshot().cdml())
             .expect("committed CDML reopens"),
-    );
+    )
+    .expect("committed explicit fragment observation succeeds");
     assert!(observed.records().iter().any(|record| {
         record.fragment_id() == receipt.fragment_id()
             && record.name() == "useful label"
@@ -79,17 +79,20 @@ fn explicit_fragment_closes_bonds_in_source_order_and_avoids_retained_identity()
 fn explicit_fragment_refuses_foreign_members_without_mutation() {
     let mut session = DocumentSession::load(SOURCE).expect("source loads");
     let before = session.snapshot().expect("baseline snapshot");
-    assert!(
-        session
-            .prepare_create_explicit_fragment_v1(
-                0,
-                &molecule(&session, 0),
-                "label",
-                &ids(&["missing"]),
-                &[],
+    assert!(matches!(
+        session.prepare_create_explicit_fragment_v1(
+            0,
+            &molecule(&session, 0),
+            "label",
+            &ids(&["missing"]),
+            &[],
+        ),
+        Err(DocumentSessionError::Operation(
+            SessionOperationError::ExplicitFragment(
+                DocumentExplicitFragmentErrorV1::InvalidMember(_)
             )
-            .is_err()
-    );
+        ))
+    ));
     assert_eq!(session.snapshot().expect("refusal is inert"), before);
 }
 
@@ -118,36 +121,34 @@ fn explicit_fragment_receipt_is_one_use_and_history_reopens_its_semantics() {
     let undone = session.undo(1).expect("creation is undoable");
     let redone = session.redo(2).expect("creation is redoable");
     let reopened = DocumentSession::load(&saved).expect("saved CDML reopens");
-    assert!(
-        observe_explicit_fragments_v1(
-            &TypedDocument::parse(undone.observation().snapshot().cdml())
-                .expect("undo CDML parses"),
+    let undone_observation = observe_explicit_fragments_v1(
+        &TypedDocument::parse(undone.observation().snapshot().cdml()).expect("undo CDML parses"),
+    )
+    .expect("undo explicit fragment observation succeeds");
+    assert!(undone_observation.records().is_empty());
+    let redone_observation = observe_explicit_fragments_v1(
+        &TypedDocument::parse(redone.observation().snapshot().cdml()).expect("redo CDML parses"),
+    )
+    .expect("redo explicit fragment observation succeeds");
+    let reopened_observation = observe_explicit_fragments_v1(
+        &TypedDocument::parse(
+            reopened
+                .observe(0)
+                .expect("reopened observation")
+                .snapshot()
+                .cdml(),
         )
-        .records()
-        .is_empty()
-    );
-    assert_eq!(
-        observe_explicit_fragments_v1(
-            &TypedDocument::parse(redone.observation().snapshot().cdml())
-                .expect("redo CDML parses"),
-        ),
-        observe_explicit_fragments_v1(
-            &TypedDocument::parse(
-                reopened
-                    .observe(0)
-                    .expect("reopened observation")
-                    .snapshot()
-                    .cdml(),
-            )
-            .expect("reopened CDML parses"),
-        ),
-    );
+        .expect("reopened CDML parses"),
+    )
+    .expect("reopened explicit fragment observation succeeds");
+    assert_eq!(redone_observation, reopened_observation,);
 }
 
 #[test]
 fn explicit_fragment_observation_exposes_supported_records_and_retained_notice() {
     let document = TypedDocument::parse(RETAINED_SOURCE).expect("retained source loads");
-    let observation = observe_explicit_fragments_v1(&document);
+    let observation = observe_explicit_fragments_v1(&document)
+        .expect("retained explicit fragment observation succeeds");
     assert!(observation.has_retained_fragment_metadata());
     assert!(observation.records().iter().any(|record| {
         record.name() == "Known" && record.bond_ids().is_empty() && record.atom_ids() == ids(&["a"])

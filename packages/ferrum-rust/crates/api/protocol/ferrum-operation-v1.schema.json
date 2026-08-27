@@ -218,6 +218,23 @@
       ],
       "type": "object"
     },
+    "CompactGroupAttachmentRefusalV1": {
+      "additionalProperties": false,
+      "description": "Closed public recovery facts for compact-group attachment refusals.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolCompactGroupAttachmentCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolCompactGroupAttachmentRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
+    },
     "CompactGroupMaterializationRefusalV1": {
       "additionalProperties": false,
       "description": "Closed public recovery facts for compact-group materialization refusals.",
@@ -350,6 +367,72 @@
         "arithmetic_overflow"
       ],
       "type": "string"
+    },
+    "DocumentCompactGroupAttachmentReleaseV1": {
+      "additionalProperties": false,
+      "description": "Finite pointer-release direction supplied to the document-owned attachment authority.",
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "DocumentCompactGroupAttachmentResultV1": {
+      "additionalProperties": false,
+      "description": "Committed attachment facts. Candidate geometry and release intent remain private.",
+      "properties": {
+        "anchor_atom_id": {
+          "type": "string"
+        },
+        "catalog_key": {
+          "$ref": "#/$defs/ProtocolCompactGroupCatalogKeyV1"
+        },
+        "compact_group_id": {
+          "type": "string"
+        },
+        "document": {
+          "type": "string"
+        },
+        "document_fence": {
+          "$ref": "#/$defs/DocumentRequestFenceV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "source_revision",
+        "source_digest_hex",
+        "molecule_id",
+        "anchor_atom_id",
+        "catalog_key",
+        "compact_group_id",
+        "document",
+        "document_fence"
+      ],
+      "type": "object"
     },
     "DocumentCompactGroupMaterializationRequestV1": {
       "additionalProperties": false,
@@ -491,7 +574,8 @@
     "DocumentInterchangeLossCategoryV1": {
       "description": "A semantic category intentionally not retained by an import profile.",
       "enum": [
-        "lexical_syntax"
+        "lexical_syntax",
+        "document_view_metadata"
       ],
       "type": "string"
     },
@@ -1972,6 +2056,11 @@
           "const": "cml_simple_molecule_import_v1",
           "description": "Closed CML/CML2 simple-molecule profile.",
           "type": "string"
+        },
+        {
+          "const": "cdxml_simple_molecule_import_v1",
+          "description": "Closed CDXML simple-molecule import profile.",
+          "type": "string"
         }
       ]
     },
@@ -2151,6 +2240,17 @@
         "category": {
           "$ref": "#/$defs/OperationProtocolErrorCategoryV1",
           "description": "Stable machine-readable failure category."
+        },
+        "compact_group_attachment_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompactGroupAttachmentRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed compact-attachment recovery facts when this operation refused one."
         },
         "compact_group_materialization_refusal": {
           "anyOf": [
@@ -2882,6 +2982,40 @@
         },
         {
           "additionalProperties": false,
+          "description": "Attach one catalog-selected compact group through the generic session transition.",
+          "properties": {
+            "anchor_atom_id": {
+              "type": "string"
+            },
+            "catalog_key": {
+              "$ref": "#/$defs/ProtocolCompactGroupCatalogKeyV1"
+            },
+            "document": {
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
+            },
+            "kind": {
+              "const": "document.compact-group.attach.v1",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            },
+            "release": {
+              "$ref": "#/$defs/DocumentCompactGroupAttachmentReleaseV1"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "molecule_id",
+            "anchor_atom_id",
+            "catalog_key",
+            "release"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Import one explicitly selected interchange format into a new request-owned document.",
           "properties": {
             "format_alias": {
@@ -3542,6 +3676,24 @@
         },
         {
           "additionalProperties": false,
+          "description": "One committed renderer-admitted compact-group attachment.",
+          "properties": {
+            "attachment": {
+              "$ref": "#/$defs/DocumentCompactGroupAttachmentResultV1"
+            },
+            "kind": {
+              "const": "document.compact-group.attach.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "attachment"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Bounded interchange import summary without a document artifact or identifiers.",
           "properties": {
             "kind": {
@@ -3883,6 +4035,45 @@
       ],
       "type": "string"
     },
+    "ProtocolCompactGroupAttachmentCategoryV1": {
+      "description": "Stable attachment refusal categories. Invalid JSON catalog keys fail decode instead.",
+      "enum": [
+        "stale_document_fence",
+        "unknown_target",
+        "foreign_target",
+        "invalid_release",
+        "candidate_admission",
+        "renderer_admission",
+        "session_conflict"
+      ],
+      "type": "string"
+    },
+    "ProtocolCompactGroupAttachmentRecoveryV1": {
+      "description": "Stable recovery instructions for compact-group attachment refusals.",
+      "enum": [
+        "refresh_and_retry",
+        "correct_target",
+        "change_release",
+        "choose_available_target",
+        "document_unchanged"
+      ],
+      "type": "string"
+    },
+    "ProtocolCompactGroupCatalogKeyV1": {
+      "description": "Closed catalog identity admitted by the attached compact-group protocol route.",
+      "enum": [
+        "methyl",
+        "ethyl",
+        "phenyl",
+        "methoxy",
+        "nitro",
+        "cyano",
+        "carboxyl",
+        "acyl_chloride",
+        "hydroxymethyl"
+      ],
+      "type": "string"
+    },
     "ProtocolCompactGroupMaterializationCategoryV1": {
       "description": "Stable compact-group refusal categories. No candidate or source CDML is exposed.",
       "enum": [
@@ -4131,6 +4322,11 @@
         {
           "const": "document.compact-group.materialize.v1",
           "description": "`document.compact-group.materialize.v1`.",
+          "type": "string"
+        },
+        {
+          "const": "document.compact-group.attach.v1",
+          "description": "`document.compact-group.attach.v1`.",
           "type": "string"
         },
         {

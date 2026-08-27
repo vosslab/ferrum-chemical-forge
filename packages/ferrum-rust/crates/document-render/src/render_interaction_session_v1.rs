@@ -204,7 +204,7 @@ impl RenderInteractionSessionV1 {
         }
         let mut targets = Vec::new();
         for molecule in rendered.document().projection().molecules() {
-            let molecule_object_id = molecule.id().ok_or(RenderInteractionErrorV1::Observation)?;
+            let molecule_object_id = molecule.document_object_id();
             let plan = rendered
                 .resolved()
                 .molecule_plans()
@@ -212,7 +212,7 @@ impl RenderInteractionSessionV1 {
                 .find(|entry| entry.molecule().document_object_id() == molecule_object_id)
                 .ok_or(RenderInteractionErrorV1::Observation)?;
             for atom in molecule.atoms() {
-                let atom_object_id = atom.id().ok_or(RenderInteractionErrorV1::Observation)?;
+                let atom_object_id = atom.document_object_id();
                 let batch = plan
                     .batches()
                     .iter()
@@ -253,7 +253,7 @@ impl RenderInteractionSessionV1 {
                 });
             }
             for bond in molecule.bonds() {
-                let bond_object_id = bond.id().ok_or(RenderInteractionErrorV1::Observation)?;
+                let bond_object_id = bond.document_object_id();
                 let batch = plan
                     .batches()
                     .iter()

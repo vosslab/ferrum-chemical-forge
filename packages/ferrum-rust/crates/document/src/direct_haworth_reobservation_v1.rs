@@ -123,6 +123,7 @@ pub(crate) fn extract(
 ) -> Result<ExtractedDirectHaworthV1, DirectHaworthReobservationErrorV1> {
     let molecule = document
         .resolve_document_object_id(selector)
+        .map_err(|_| DirectHaworthReobservationErrorV1::SelectedProjectionIssue)?
         .filter(|record| record.class() == TypedClass::Molecule)
         .ok_or(DirectHaworthReobservationErrorV1::Selector)?;
     exact_attributes(molecule, &["id"])?;
@@ -206,7 +207,7 @@ pub(crate) fn finish(
         .projection()
         .molecules()
         .iter()
-        .find(|candidate| candidate.id() == Some(&extracted.molecule))
+        .find(|candidate| candidate.document_object_id() == &extracted.molecule)
         .ok_or(DirectHaworthReobservationErrorV1::Selector)?;
     if molecule.source_id() != Some(extracted.molecule_source.as_str())
         || molecule.atoms().len() != extracted.atom_identifiers.len()
@@ -231,7 +232,6 @@ pub(crate) fn finish(
     {
         if projected.source_order() != index as u32
             || projected.source_id() != Some(expected.as_str())
-            || projected.id().is_none()
         {
             return Err(DirectHaworthReobservationErrorV1::SelectedProfile);
         }

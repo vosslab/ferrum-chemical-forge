@@ -13,8 +13,8 @@ use ferrum_geometry::Point2;
 
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    CompactGroupBondEndpointV1, GlyphBounds, GlyphMetrics, MoleculeRenderPlan, Paint,
-    PositiveFinite, RenderBatch, RenderError, RenderIssue, RenderIssueKind, RenderPoint,
+    CompactGroupBondEndpointV1, GlyphBounds, GlyphMetrics, MoleculeRenderPlan, PositiveFinite,
+    RenderBatch, RenderError, RenderIssue, RenderIssueKind, RenderPaintV3, RenderPoint,
     RenderProvenance,
 };
 
@@ -59,7 +59,7 @@ pub struct AtomBondRenderRequest {
     font: AtomLabelFontProfile,
     line_width: PositiveFinite,
     bond_lane_spacing: PositiveFinite,
-    line_paint: Paint,
+    line_paint: RenderPaintV3,
     compact_group_endpoints: Vec<CompactGroupBondEndpointV1>,
 }
 
@@ -72,7 +72,7 @@ impl AtomBondRenderRequest {
         font: AtomLabelFontProfile,
         line_width: PositiveFinite,
         bond_lane_spacing: PositiveFinite,
-        line_paint: Paint,
+        line_paint: RenderPaintV3,
     ) -> Result<Self, RenderError> {
         let mut identifiers = HashSet::new();
         let mut source_orders = HashSet::new();

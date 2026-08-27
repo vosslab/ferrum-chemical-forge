@@ -59,6 +59,20 @@ def test_presentation_vector_roots_expose_render_and_durable_identity() -> None:
 	assert object_ids.isdisjoint({"wave", "box"})
 
 
+def test_presentation_vector_stroke_publishes_tagged_semantic_paint() -> None:
+	"""Builtin vector strokes publish their semantic paint DTO through PyO3."""
+	plan = _plan(ferrum_chem.DocumentSession.load(MUTABLE_VECTOR_SOURCE))
+	paint = plan.roots[0].vector_operations[0].stroke.paint
+
+	assert type(paint) is ferrum_chem.RenderPaintV3
+	assert (paint.kind, paint.export_rgb, paint.role, paint.element) == (
+		"theme_role",
+		"000000",
+		"document_foreground",
+		None,
+	)
+
+
 def test_presentation_plan_publication_fences_live_smarts_after_document_mutation() -> None:
 	"""Raw SMARTS requires a plan published for the current document fence."""
 	session = ferrum_chem.DocumentSession.load(

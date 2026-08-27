@@ -6,7 +6,7 @@
 
 use thiserror::Error;
 
-use crate::{AtomicNumber, BondOrder};
+use crate::{AtomicNumber, BondDirection, BondOrder, MolBond, MolBondDirectionError};
 
 /// One source-space atom retained by the closed CML import profile.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,6 +52,7 @@ pub struct CmlSourceBondV1 {
     start: usize,
     end: usize,
     order: BondOrder,
+    direction: Option<BondDirection>,
 }
 
 impl CmlSourceBondV1 {
@@ -66,6 +67,20 @@ impl CmlSourceBondV1 {
     #[must_use]
     pub const fn order(&self) -> BondOrder {
         self.order
+    }
+    #[must_use]
+    pub const fn direction(&self) -> Option<BondDirection> {
+        self.direction
+    }
+    /// Lower this closed CML source bond into the existing chemistry model.
+    #[must_use]
+    pub fn to_mol_bond(&self) -> std::result::Result<MolBond, MolBondDirectionError> {
+        match self.direction {
+            Some(direction) => {
+                MolBond::directed(self.start, self.end, self.order, false, direction)
+            }
+            None => Ok(MolBond::new(self.start, self.end, self.order, false)),
+        }
     }
 }
 

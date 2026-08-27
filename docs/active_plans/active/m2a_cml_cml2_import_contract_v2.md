@@ -65,8 +65,9 @@ above.
 
 `ferrum-chemistry` owns XML token admission, profile validation, source spans,
 and lowering to bounded owned interchange graphs. `ferrum-document` owns the
-coordinate transform, persistent identity allocation, candidate construction,
-revision/digest fences, and one all-or-nothing commit. `ferrum-api` owns public
+coordinate transform, persistent identity allocation, generic authored
+directed-bond depiction admission, candidate construction, revision/digest
+fences, and one all-or-nothing commit. `ferrum-api` owns public
 DTOs, the format registry contract, CLI presentation, canonical JSON, and
 redacted refusals. Live PyO3 receipts and Qt file actions are distinct later
 slices, not dependencies of the next stateless open workflow.
@@ -126,13 +127,17 @@ molecule := molecule(atomArray, bondArray?)
 atomArray := atomArray(atom+)
 atom := atom[@id, @elementType, @x2, @y2, @formalCharge?, @isotopeNumber?]
 bondArray := bondArray(bond*)
-bond := bond[@atomRefs2, @order]
+bond := bond[@atomRefs2, @order](stereo?)
 ```
 
 `molecule`, `atomArray`, and `bondArray` have no text and no attributes other
-than the optional unqualified molecule `id`. `atom` and `bond` have no children
-or text. Listed attributes are the complete unqualified, single-occurrence
-whitelist. `atomRefs2` has exactly two ASCII XML-NCName IDs separated by XML
+than the optional unqualified molecule `id`. `atom` has no children or text.
+`bond` has either no child or exactly one direct `stereo` child with no
+attributes and scalar text exactly `W` or `H`; it has no other text or child.
+Nested `stereo`, duplicate `stereo`, mixed declarations, unsupported scalars,
+and a `W` or `H` fact on a non-single bond are closed `invalid_scalar` refusals.
+Listed attributes are the complete unqualified, single-occurrence whitelist.
+`atomRefs2` has exactly two ASCII XML-NCName IDs separated by XML
 whitespace. Endpoints are distinct, declared in that record, and form no
 repeated undirected pair. `order` is exactly `1`, `2`, `3`, `S`, `D`, or `T`,
 with aliases normalizing to `1`, `2`, and `3`.
@@ -150,15 +155,19 @@ atomArray := atomArray(atom+)
 atom := atom(builtin-id, builtin-element, builtin-x2, builtin-y2,
             builtin-charge?, builtin-isotope?)
 bondArray := bondArray(bond*)
-bond := bond(builtin-ref, builtin-ref, builtin-order)
+bond := bond(builtin-ref, builtin-ref, builtin-order, builtin-stereo?)
 ```
 
 Each builtin is one direct `builtin` child with exactly unqualified `@builtin`
 and one scalar text value. Allowed values, in the exact displayed order, are
 `atomId`, `elementType`, `x2`, `y2`, `formalCharge`, `isotopeNumber`, `atomRef`,
-and `order`. Containers/atoms/bonds have no other attributes, text, or child
-elements. CML1 attributes duplicating builtin facts, CML2-style attributes, and
-all CML1 array/container attributes are refused, not merged or prioritized.
+`order`, and `stereo`. A bond has exactly two ordered `atomRef` builtins, one
+`order` builtin, and at most one final direct `builtin builtin="stereo"` with
+scalar text exactly `W` or `H`. Duplicate, nonfinal, nested, unsupported, or
+non-single-bond stereo declarations are closed `invalid_scalar` refusals.
+Containers/atoms/bonds have no other attributes, text, or child elements. CML1
+attributes duplicating builtin facts, CML2-style attributes, and all CML1
+array/container attributes are refused, not merged or prioritized.
 
 The optional molecule `id` is source provenance only: it is a unique nonempty
 ASCII NCName. A missing ID is valid and produces no generated public source ID.
@@ -170,10 +179,20 @@ one of Ferrum's 118 IUPAC symbols. `formalCharge` is decimal signed integer
 `[-8, 8]`; `isotopeNumber` is unsigned decimal `[1, 400]`. Coordinates are
 finite decimal literals: no `NaN`, `INF`, hex, unit suffix, list, or whitespace.
 
-Stereochemistry, aromatic/query bonds, hydrogen counts, radicals, labels,
-names, properties, formulas, reactions, crystals, polymers, R-groups, electron
-flow, presentation, and every unknown child/attribute are
-`unrepresented_semantic_fact`.
+The direct CML1/CML2 `W` and `H` exception is an authored single-bond depiction
+only: `W` becomes an ordered solid wedge and `H` an ordered hashed wedge.
+Endpoint order is retained. It neither infers nor represents tetrahedral,
+parity, E/Z, or other chemical stereo semantics. Those stereochemical forms,
+aromatic/query bonds, hydrogen counts, radicals, labels, names, properties,
+formulas, reactions, crystals, polymers, R-groups, electron flow, presentation,
+and every unknown child/attribute remain `unrepresented_semantic_fact`.
+
+The generic document boundary admits an authored depiction without requiring
+atom chirality and composes it with independently admitted semantic stereo
+facts. `MolGraph::new` owns modeled direction/order compatibility: the four
+modeled directions require non-aromatic single bonds, while native `Other`
+remains admissible. The document crate receives no CML type or CML-specific
+branch.
 
 ## Coordinate contract
 
@@ -413,6 +432,18 @@ parser consumer that inline input cannot represent.
 
 Disposable local-runtime provenance belongs in `/private/tmp` and the active
 plan report, not in `devel/`, fixtures, or ordinary tests.
+
+The 2026-08-26 receipts establish the direct CML1/CML2 W/H grammar, endpoint
+order, and generic document ownership. The public `MolBond::directed` contract
+covers modeled directional non-aromatic single bonds; `MolGraph::new` enforces
+that invariant for all graph ingress. The latter is covered by mutated FCM1
+`Double` plus `BEGINWEDGE`/`BEGINDASH` inputs that return
+`MalformedNativeResponse`. The public protocol regression proves a duplicate
+CML W/H declaration maps atomically to `InvalidScalar` with no conversion
+outcome. Focused receipts record 110 chemistry-library tests, 503
+document-library tests, and `cargo check --workspace` passing. This is bounded
+implementation evidence, not a claim that M2, full parity, or the manual 16:10
+keyboard/accessibility walkthrough is complete.
 
 ## Implementation order
 

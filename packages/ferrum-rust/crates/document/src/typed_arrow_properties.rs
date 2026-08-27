@@ -15,7 +15,7 @@ impl TypedDocument {
         &self,
         patch: &ArrowPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let Some(record) = self.resolve_document_object_id(patch.arrow_object_id()) else {
+        let Some(record) = self.resolve_document_object_id(patch.arrow_object_id())? else {
             return Ok(None);
         };
         if record.class() != TypedClass::CanvasArrow || record.path().components().len() != 1 {

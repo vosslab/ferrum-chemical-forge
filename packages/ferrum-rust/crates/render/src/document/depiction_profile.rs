@@ -1,8 +1,8 @@
 //! Closed Ferrum-owned depiction policy applied to immutable document projections.
 
 use crate::{
-    AtomBondRenderRequest, CompactGroupRenderPrimitiveV1, FerrumFontEnvironmentV1, Paint,
-    PositiveFinite, RenderProvenance, RenderRevision, VerifiedTelexGlyphMetrics,
+    AtomBondRenderRequest, CompactGroupRenderPrimitiveV1, FerrumFontEnvironmentV1, PositiveFinite,
+    RenderPaintV3, RenderProvenance, RenderRevision, VerifiedTelexGlyphMetrics,
     build_atom_bond_plan,
 };
 use ferrum_document_projection::{
@@ -16,7 +16,7 @@ use super::depiction_profile_resolution::{
     apply_double_bond_carrier_marks, positive, resolve_atom, resolve_bond,
     resolved_default_bond_lane_spacing, resolved_font, resolved_line_paint, resolved_line_width,
 };
-use crate::{DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1, DocumentTextRenderV1};
+use crate::{DocumentMoleculeRenderPlanV3, DocumentPlusRenderV1, DocumentTextRenderV1};
 
 /// Closed schema identifier for the Ferrum V1 depiction profile.
 pub const DEPICTION_PROFILE_SCHEMA_V1: &str = "ferrum-depiction-profile-v1";
@@ -37,14 +37,14 @@ pub struct DepictionProfileV1 {
 /// Closed direct-Haworth paint facts resolved from one accepted projection.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectGlycosidicHaworthStyleV1 {
-    paint: Paint,
+    paint: RenderPaintV3,
     line_width: PositiveFinite,
     wedge_width: PositiveFinite,
 }
 
 impl DirectGlycosidicHaworthStyleV1 {
     #[must_use]
-    pub fn paint(&self) -> Paint {
+    pub fn paint(&self) -> RenderPaintV3 {
         self.paint.clone()
     }
 
@@ -219,7 +219,7 @@ pub struct DepictionResolutionV1 {
     profile: &'static str,
     projection_revision: u64,
     projection_digest: [u8; 32],
-    plans: Vec<DocumentMoleculeRenderPlanV2>,
+    plans: Vec<DocumentMoleculeRenderPlanV3>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -245,7 +245,7 @@ impl<'de> Deserialize<'de> for DepictionResolutionV1 {
             profile: String,
             projection_revision: u64,
             projection_digest: [u8; 32],
-            plans: Vec<DocumentMoleculeRenderPlanV2>,
+            plans: Vec<DocumentMoleculeRenderPlanV3>,
             plus_renders: Vec<DocumentPlusRenderV1>,
             text_renders: Vec<DocumentTextRenderV1>,
             suppression: Option<DepictionSuppressionV1>,
@@ -309,23 +309,17 @@ fn render_with_verified_telex_metrics(
         return Ok(resolution);
     }
     for molecule in projection.molecules() {
-        let Some(owner_molecule_object_id) = molecule.id() else {
-            return Err(DepictionError::Render(crate::RenderError::InvalidRequest(
-                "rendering structural targets requires a durable owner molecule ID".to_owned(),
-            )));
-        };
+        let owner_molecule_object_id = molecule.document_object_id();
         let mut member_issues = Vec::new();
         let mut atoms = Vec::new();
         let mut endpoint_targets = std::collections::HashMap::new();
         for atom in molecule.atoms() {
             match resolve_atom(atom, owner_molecule_object_id, projection, profile) {
                 Ok((target, record_id)) => {
-                    if let Some(id) = atom.id() {
-                        endpoint_targets.insert(id.clone(), record_id);
-                    }
+                    endpoint_targets.insert(atom.document_object_id().clone(), record_id);
                     atoms.push(target);
                 }
-                Err(issue) => member_issues.push(member_issue(atom.id(), issue)?),
+                Err(issue) => member_issues.push(member_issue(atom.document_object_id(), issue)),
             }
         }
         let font = match resolved_font(projection, profile, None, None) {
@@ -400,7 +394,7 @@ fn render_with_verified_telex_metrics(
                 profile,
             ) {
                 Ok(target) => bonds.push((bond, target)),
-                Err(issue) => member_issues.push(member_issue(bond.id(), issue)?),
+                Err(issue) => member_issues.push(member_issue(bond.document_object_id(), issue)),
             }
         }
         if let Err(issue) =
@@ -452,7 +446,7 @@ fn render_with_verified_telex_metrics(
             batches,
             base_plan.issues().to_vec(),
         )?;
-        plans.push(DocumentMoleculeRenderPlanV2::from_document_object_id(
+        plans.push(DocumentMoleculeRenderPlanV3::from_document_object_id(
             owner_molecule_object_id.clone(),
             plan,
             compact_group_primitives,
@@ -500,31 +494,22 @@ fn render_with_verified_telex_metrics(
 }
 
 fn member_issue(
-    target: Option<&DocumentObjectIdV1>,
+    target: &DocumentObjectIdV1,
     issue: DepictionIssueV1,
-) -> Result<MoleculeMemberDepictionIssueV1, DepictionError> {
-    let target = target.cloned().ok_or_else(|| {
-        DepictionError::Render(crate::RenderError::InvalidRequest(
-            "molecule member diagnostic requires a durable member ID".to_owned(),
-        ))
-    })?;
-    Ok(MoleculeMemberDepictionIssueV1::new(
-        target,
-        issue.code(),
-        issue.detail(),
-    ))
+) -> MoleculeMemberDepictionIssueV1 {
+    MoleculeMemberDepictionIssueV1::new(target.clone(), issue.code(), issue.detail())
 }
 
 fn molecule_member_ids(molecule: &MoleculeProjectionV1) -> Vec<DocumentObjectIdV1> {
     molecule
         .atoms()
         .iter()
-        .filter_map(|atom| atom.id().cloned())
+        .map(|atom| atom.document_object_id().clone())
         .chain(
             molecule
                 .bonds()
                 .iter()
-                .filter_map(|bond| bond.id().cloned()),
+                .map(|bond| bond.document_object_id().clone()),
         )
         .chain(
             molecule
@@ -541,7 +526,7 @@ impl DepictionResolutionV1 {
     pub fn new(
         projection_revision: u64,
         projection_digest: [u8; 32],
-        plans: Vec<DocumentMoleculeRenderPlanV2>,
+        plans: Vec<DocumentMoleculeRenderPlanV3>,
     ) -> Self {
         Self {
             schema: DEPICTION_RESOLUTION_SCHEMA_V1,
@@ -567,7 +552,7 @@ impl DepictionResolutionV1 {
     }
     /// Return complete per-molecule plans.
     #[must_use]
-    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV2] {
+    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
         &self.plans
     }
     /// Return exact verified-Telex layouts for supported direct-root plus signs.

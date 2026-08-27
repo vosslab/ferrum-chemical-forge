@@ -22,8 +22,8 @@ fn size(value: f64) -> PositiveFinite {
     PositiveFinite::new(value).expect("positive test extent")
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("valid test paint"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("valid test paint"))
 }
 
 fn target(id: u8) -> RenderTarget {
@@ -444,7 +444,7 @@ impl DrawSinkV1 for RecordingSink {
     fn end_document_text(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn begin_text_operation(&mut self, _: i32, _: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, _: i32, _: &RenderPaintV3) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_text_operation(&mut self) -> Result<(), Self::Error> {
@@ -469,7 +469,7 @@ impl DrawSinkV1 for RecordingSink {
     fn fill_rect(
         &mut self,
         _: DrawRectV1,
-        _: &Paint,
+        _: &RenderPaintV3,
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         self.events.push(format!("rect:{metadata:?}"));

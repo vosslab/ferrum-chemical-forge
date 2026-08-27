@@ -7,8 +7,10 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _EDITABLE_CDML = """<cdml xmlns='urn:ferrum:cdml'>
@@ -31,8 +33,10 @@ def test_arrow_drag_commits_a_durable_arrow_and_undo_removes_it(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A user can draw an Arrow, then undo the visible document change."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_EDITABLE_CDML, "arrow.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_EDITABLE_CDML, "arrow.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()

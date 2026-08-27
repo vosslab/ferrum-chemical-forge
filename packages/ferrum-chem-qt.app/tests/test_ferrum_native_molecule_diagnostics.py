@@ -5,9 +5,12 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molecule_diagnostics
+import ferrum_qt.main_window
 
 
 _CDML = """\
@@ -17,10 +20,12 @@ _CDML = """\
 
 
 #============================================
-def _window_with_selected_root() -> tuple[object, object, str]:
+def _window_with_selected_root(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> tuple[object, object, str]:
 	"""Return one real window whose current selection belongs to one direct root."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "diagnostics.cdml")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "diagnostics.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	molecule = tab.current_document_observation().projection.molecules[0]
 	tab.select_atom(molecule.atoms[0].document_object_id)
@@ -48,7 +53,7 @@ def _dispose_window_and_tab(window: object, tab: object) -> None:
 def test_check_structure_action_and_no_issues_dialog_use_real_selected_root(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A real selected direct root enables the action and exposes an accessible clean result."""
-	window, tab, molecule_id = _window_with_selected_root()
+	window, tab, molecule_id = _window_with_selected_root(qapp)
 	try:
 		window._show_molecule_diagnostics_dialog(_receipt(tab, molecule_id), tab)
 		dialog = window._molecule_diagnostics_dialog
@@ -66,7 +71,7 @@ def test_check_structure_action_and_no_issues_dialog_use_real_selected_root(
 def test_check_structure_dialog_recovers_when_the_original_selection_returns(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Returning to the same source fence and root clears stale state and enables rerun."""
-	window, tab, molecule_id = _window_with_selected_root()
+	window, tab, molecule_id = _window_with_selected_root(qapp)
 	try:
 		window._show_molecule_diagnostics_dialog(_receipt(tab, molecule_id), tab)
 		dialog = window._molecule_diagnostics_dialog

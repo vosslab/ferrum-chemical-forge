@@ -15,8 +15,8 @@ fn compact_group_address(session: &DocumentSession) -> (DocumentObjectIdV1, Docu
     let observation = session.observe(0).expect("observation is available");
     let molecule = &observation.projection().molecules()[0];
     (
-        molecule.id().expect("renderer-issued molecule ID").clone(),
-        molecule.compact_groups()[0].id().clone(),
+        molecule.document_object_id().clone(),
+        molecule.compact_groups()[0].document_object_id().clone(),
     )
 }
 
@@ -109,11 +109,10 @@ fn compact_group_deletion_refuses_a_foreign_durable_group_without_mutation() {
     let mut session = DocumentSession::load(&source).expect("fixture loads");
     let observation = session.observe(0).expect("observation is available");
     let molecule_object_id = observation.projection().molecules()[0]
-        .id()
-        .expect("renderer-issued molecule ID")
+        .document_object_id()
         .clone();
     let compact_group_object_id = observation.projection().molecules()[1].compact_groups()[0]
-        .id()
+        .document_object_id()
         .clone();
     let before = session.snapshot().expect("snapshot works");
     assert!(matches!(

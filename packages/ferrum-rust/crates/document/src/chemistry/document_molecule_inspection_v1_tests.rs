@@ -25,8 +25,7 @@ fn observation_and_request(
     let session = DocumentSession::load(source).expect("source must load");
     let observation = session.observe(0).expect("source must project");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable root")
+        .document_object_id()
         .clone();
     let request = DocumentMoleculeInspectionRequestV1::new(
         observation.snapshot().revision(),
@@ -126,9 +125,7 @@ fn atom_selectors_are_not_inspectable_molecule_roots() {
         "</molecule></cdml>"
     );
     let (observation, request) = observation_and_request(source);
-    let atom_id =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("opaque atom key");
+    let atom_id = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     let atom_request =
         DocumentMoleculeInspectionRequestV1::new(0, *request.expected_digest(), atom_id);
     assert!(matches!(
@@ -148,9 +145,7 @@ fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
     );
     let (observation, request) = observation_and_request(nested_source);
     let before = observation.clone();
-    let nested_id =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("nested durable molecule key");
+    let nested_id = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     let nested_request =
         DocumentMoleculeInspectionRequestV1::new(0, *request.expected_digest(), nested_id);
     assert!(matches!(
@@ -166,8 +161,7 @@ fn opaque_nested_looking_and_foreign_selectors_are_not_direct_roots() {
     let foreign_session = DocumentSession::load(foreign_source).expect("foreign source loads");
     let foreign_observation = foreign_session.observe(0).expect("foreign source projects");
     let foreign_id = foreign_observation.projection().molecules()[0]
-        .id()
-        .expect("foreign durable root")
+        .document_object_id()
         .clone();
     let foreign_request =
         DocumentMoleculeInspectionRequestV1::new(0, *request.expected_digest(), foreign_id);

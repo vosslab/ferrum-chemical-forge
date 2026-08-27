@@ -355,6 +355,66 @@ mod tests {
     }
 
     #[test]
+    fn compact_group_attachment_response_budget_refuses_without_attachment_receipt() {
+        const ATTACHABLE_CDML: &str = concat!(
+            "<cdml xmlns=\"urn:ferrum:cdml\" ",
+            "xmlns:object=\"urn:ferrum:document-object:v1\">",
+            "<molecule id=\"source-molecule\" ",
+            "object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\">",
+            "<atom id=\"anchor\" ",
+            "object:id=\"ferrum-document-object-v1/00000000000000000000000000000002\" ",
+            "name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>"
+        );
+        let (expected_revision, expected_digest_hex) = document_fence(ATTACHABLE_CDML);
+        let request = serde_json::json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "attachment-response-budget",
+            "operation": {
+                "kind": "document.compact-group.attach.v1",
+                "document": {
+                    "cdml": ATTACHABLE_CDML,
+                    "expected_revision": expected_revision,
+                    "expected_digest_hex": expected_digest_hex,
+                },
+                "molecule_id": "ferrum-document-object-v1/00000000000000000000000000000001",
+                "anchor_atom_id": "ferrum-document-object-v1/00000000000000000000000000000002",
+                "catalog_key": "methyl",
+                "release": {"x": 40.0, "y": 0.0},
+            },
+        });
+        let response = execute_operation_with_runtime_and_smarts_response_limit_for_test(
+            &request.to_string(),
+            &CoordinateOnlyRuntime,
+            1,
+        )
+        .expect("attachment request is protocol JSON");
+        let OperationProtocolEnvelopeV1::Error(response) = response else {
+            panic!("oversized attachment receipt must be refused without success");
+        };
+        assert_eq!(
+            response.error.category,
+            OperationProtocolErrorCategoryV1::ResourceLimit
+        );
+        assert_eq!(
+            response.error.operation,
+            Some(ProtocolOperationKindV1::DocumentCompactGroupAttach)
+        );
+        let resource_limit = response
+            .error
+            .resource_limit
+            .expect("response-budget refusal supplies recovery");
+        assert_eq!(
+            resource_limit.reason,
+            ProtocolResourceLimitReasonV1::ResponseSizeExceeded
+        );
+        assert_eq!(
+            resource_limit.recovery,
+            ProtocolResourceLimitRecoveryV1::ReduceRequestedResult
+        );
+        assert!(response.error.compact_group_attachment_refusal.is_none());
+    }
+
+    #[test]
     fn oversized_request_identifier_is_not_echoed_in_error_response() {
         let request = serde_json::json!({
             "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
@@ -492,6 +552,63 @@ mod tests {
         ferrum_document::TypedDocument::parse(&text)
             .expect("runtime-free conversion must emit a valid native CDML document");
         assert_eq!(record_count, 2);
+    }
+
+    #[test]
+    fn cml_hash_conversion_retains_the_directed_single_bond_depiction() {
+        let source = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="center" elementType="C" x2="0" y2="0"/><atom id="a1" elementType="H" x2="1" y2="0"/><atom id="a2" elementType="H" x2="0" y2="1"/><atom id="a3" elementType="H" x2="-1" y2="0"/><atom id="a4" elementType="H" x2="0" y2="-1"/></atomArray><bondArray><bond atomRefs2="center a1" order="1"><stereo>H</stereo></bond><bond atomRefs2="center a2" order="1"/><bond atomRefs2="center a3" order="1"/><bond atomRefs2="center a4" order="1"/></bondArray></molecule></cml>"#;
+        let request = serde_json::json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "cml-hash-cdml",
+            "operation": {
+                "kind": "chemistry.convert",
+                "input": {"format": "cml_simple_molecule_import_v1", "text": source},
+                "output_format": "cdml",
+            },
+        });
+        let response = execute_operation_v1(&request.to_string()).expect("JSON input");
+        let OperationProtocolEnvelopeV1::Success(response) = response else {
+            panic!("CML hash conversion must not acquire a runtime: {response:?}");
+        };
+        let OperationProtocolOutcomeV1::ChemistryConvert { text, .. } = response.outcome else {
+            panic!("CML to CDML conversion outcome expected");
+        };
+
+        ferrum_document::TypedDocument::parse(&text)
+            .expect("directed depiction remains valid native CDML");
+        assert!(
+            text.contains("type=\"h1\""),
+            "the source-directed hash must remain a directed bond depiction"
+        );
+    }
+
+    #[test]
+    fn cml_duplicate_directed_bond_declaration_refuses_as_invalid_scalar_without_outcome() {
+        let source = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="start" elementType="C" x2="0" y2="0"/><atom id="end" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="start end" order="1"><stereo>W</stereo><stereo>H</stereo></bond></bondArray></molecule></cml>"#;
+        let request = serde_json::json!({
+            "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
+            "request_id": "cml-duplicate-directed-bond",
+            "operation": {
+                "kind": "chemistry.convert",
+                "input": {"format": "cml_simple_molecule_import_v1", "text": source},
+                "output_format": "cdml",
+            },
+        });
+
+        let response = execute_operation_v1(&request.to_string()).expect("JSON input");
+        let OperationProtocolEnvelopeV1::Error(response) = response else {
+            panic!("duplicate CML directed-bond declaration must refuse the whole conversion");
+        };
+        assert_eq!(response.schema, ProtocolErrorSchemaV1::V1);
+        assert_eq!(
+            response.error.category,
+            OperationProtocolErrorCategoryV1::ConversionFailed
+        );
+        assert_eq!(
+            response.error.operation,
+            Some(ProtocolOperationKindV1::ChemistryConvert)
+        );
+        assert!(response.error.message.ends_with("InvalidScalar"));
     }
 
     #[test]

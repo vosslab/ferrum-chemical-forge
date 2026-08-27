@@ -1,12 +1,12 @@
 //! API-owned verified glyph layout for direct-root Text labels.
 
 use crate::{
-    Paint, PositiveFinite, PresentationTextOp, PresentationTextSourceRun, RenderError, RenderPoint,
-    Rgb24, TextScript, VerifiedTelexGlyphMetrics,
+    PositiveFinite, PresentationTextOp, PresentationTextSourceRun, RenderError, RenderPaintV3,
+    RenderPoint, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{
-    PresentationFontFaceV1, PresentationRecordKindV1, PresentationTargetV1,
-    PresentationTextStyleV1, Rgb24V1 as DocumentRgb24V1, TextProjectionV1,
+    PresentationFactProvenanceV1, PresentationFontFaceV1, PresentationRecordKindV1,
+    PresentationTargetV1, PresentationTextStyleV1, Rgb24V1 as DocumentRgb24V1, TextProjectionV1,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -20,7 +20,7 @@ pub struct DocumentTextRenderV1 {
     source_runs: Vec<PresentationTextSourceRun>,
     operation: PresentationTextOp,
     bounds: PresentationTextBoundsV1,
-    background: Option<Paint>,
+    background: Option<RenderPaintV3>,
 }
 
 impl<'de> Deserialize<'de> for DocumentTextRenderV1 {
@@ -50,7 +50,7 @@ impl DocumentTextRenderV1 {
             PresentationFontFaceV1::TelexRegularV1 => {}
         }
         let source_runs = source_runs(text)?;
-        let foreground = paint(text.font().color())?;
+        let foreground = paint(text.font().color(), text.font().color_provenance())?;
         let layout = metrics.layout_presentation_text(
             &source_runs,
             PositiveFinite::new(text.font().size().value())?,
@@ -62,7 +62,11 @@ impl DocumentTextRenderV1 {
             source_runs,
             operation: layout.operation().clone(),
             bounds: PresentationTextBoundsV1::from_glyph_bounds(layout.bounds()),
-            background: text.background().color().map(paint).transpose()?,
+            background: text
+                .background()
+                .color()
+                .map(|color| paint(color, PresentationFactProvenanceV1::Root))
+                .transpose()?,
         })
     }
 
@@ -72,7 +76,7 @@ impl DocumentTextRenderV1 {
         source_runs: Vec<PresentationTextSourceRun>,
         operation: PresentationTextOp,
         bounds: PresentationTextBoundsV1,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     ) -> Result<Self, String> {
         if target.record_kind() != PresentationRecordKindV1::Text {
             return Err("Text render target has the wrong persistent kind".to_owned());
@@ -132,7 +136,7 @@ impl DocumentTextRenderV1 {
 
     /// Return the explicit optional background paint.
     #[must_use]
-    pub fn background(&self) -> Option<&Paint> {
+    pub fn background(&self) -> Option<&RenderPaintV3> {
         self.background.as_ref()
     }
 }
@@ -145,7 +149,7 @@ struct TextRenderWireV1 {
     source_runs: Vec<PresentationTextSourceRun>,
     operation: PresentationTextOp,
     bounds: PresentationTextBoundsV1,
-    background: Option<Paint>,
+    background: Option<RenderPaintV3>,
 }
 
 fn source_runs(text: &TextProjectionV1) -> Result<Vec<PresentationTextSourceRun>, RenderError> {
@@ -164,7 +168,13 @@ fn source_runs(text: &TextProjectionV1) -> Result<Vec<PresentationTextSourceRun>
         .collect()
 }
 
-fn paint(color: &DocumentRgb24V1) -> Result<Paint, RenderError> {
+fn paint(
+    color: &DocumentRgb24V1,
+    provenance: PresentationFactProvenanceV1,
+) -> Result<RenderPaintV3, RenderError> {
+    if provenance == PresentationFactProvenanceV1::Builtin {
+        return Ok(RenderPaintV3::document_foreground());
+    }
     let digits = color.as_str().strip_prefix('#').unwrap_or(color.as_str());
-    Ok(Paint::rgb24(Rgb24::new(digits)?))
+    Ok(RenderPaintV3::authored_rgb24(Rgb24::new(digits)?))
 }

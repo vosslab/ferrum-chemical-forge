@@ -10,7 +10,9 @@ use super::{
     UnrecognizedNode,
 };
 
-pub(crate) fn bracket_pairs(document: &TypedDocument) -> Vec<BracketPairProjectionV1> {
+pub(crate) fn bracket_pairs(
+    document: &TypedDocument,
+) -> Result<Vec<BracketPairProjectionV1>, crate::ProjectionError> {
     let children = document
         .root()
         .typed_children()
@@ -41,54 +43,73 @@ pub(crate) fn bracket_pairs(document: &TypedDocument) -> Vec<BracketPairProjecti
         let Some(candidates) = by_pair.get(pair_id) else {
             continue;
         };
-        let Some(pair) = observed_pair(pair_id, candidates, standard) else {
+        let Some(pair) = observed_pair(pair_id, candidates, standard)? else {
             continue;
         };
         pairs.push(pair);
     }
-    pairs
+    Ok(pairs)
 }
 
 fn observed_pair(
     pair_id: &str,
     candidates: &[&TypedChild],
     standard: Option<&TypedRecord>,
-) -> Option<BracketPairProjectionV1> {
+) -> Result<Option<BracketPairProjectionV1>, crate::ProjectionError> {
     if candidates.len() != 2 {
-        return None;
+        return Ok(None);
     }
-    let left = candidates
+    let Some(left) = candidates
         .iter()
-        .find(|child| child.record().attribute("bracket_side") == Some("left"))?
-        .record();
-    let right = candidates
+        .find(|child| child.record().attribute("bracket_side") == Some("left"))
+        .map(|child| child.record())
+    else {
+        return Ok(None);
+    };
+    let Some(right) = candidates
         .iter()
-        .find(|child| child.record().attribute("bracket_side") == Some("right"))?
-        .record();
-    let left_id = left.attribute("id")?;
-    let right_id = right.attribute("id")?;
+        .find(|child| child.record().attribute("bracket_side") == Some("right"))
+        .map(|child| child.record())
+    else {
+        return Ok(None);
+    };
+    let Some(left_id) = left.attribute("id") else {
+        return Ok(None);
+    };
+    let Some(right_id) = right.attribute("id") else {
+        return Ok(None);
+    };
     if left_id != pair_id || left_id == right_id {
-        return None;
+        return Ok(None);
     }
     if !valid_bracket_member(left) || !valid_bracket_member(right) {
-        return None;
+        return Ok(None);
     }
-    let style = shared_style(left, right)?;
-    let left_stroke = resolved_stroke(left, standard)?;
-    let right_stroke = resolved_stroke(right, standard)?;
+    let Some(style) = shared_style(left, right) else {
+        return Ok(None);
+    };
+    let Some(left_stroke) = resolved_stroke(left, standard) else {
+        return Ok(None);
+    };
+    let Some(right_stroke) = resolved_stroke(right, standard) else {
+        return Ok(None);
+    };
     let left_object_id =
-        crate::projection_identity_v1::projection_document_object_id_from_record_v1(left)
-            .ok()??;
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(left)?;
     let right_object_id =
-        crate::projection_identity_v1::projection_document_object_id_from_record_v1(right)
-            .ok()??;
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(right)?;
     BracketPairProjectionV1::try_new(
         [left_object_id, right_object_id],
         style,
         (left_stroke.0 == right_stroke.0).then_some(left_stroke.0),
         (left_stroke.1 == right_stroke.1).then_some(left_stroke.1),
     )
-    .ok()
+    .map(Some)
+    .map_err(|error| crate::ProjectionError::InvalidValue {
+        context: format!("bracket pair {pair_id}"),
+        field: "bracket pair projection",
+        value: error.to_string(),
+    })
 }
 
 pub(crate) fn valid_bracket_member(record: &TypedRecord) -> bool {

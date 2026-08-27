@@ -1,12 +1,12 @@
 //! API-owned verified glyph layout for direct-root plus signs.
 
 use crate::{
-    GlyphBounds, Paint, PositiveFinite, RenderError, RenderPoint, Rgb24, TextOp,
+    GlyphBounds, PositiveFinite, RenderError, RenderPaintV3, RenderPoint, Rgb24, TextOp,
     VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{
-    PlusProjectionV1, PresentationFontFaceV1, PresentationRecordKindV1, PresentationTargetV1,
-    Rgb24V1 as DocumentRgb24V1,
+    PlusProjectionV1, PresentationFactProvenanceV1, PresentationFontFaceV1,
+    PresentationRecordKindV1, PresentationTargetV1, Rgb24V1 as DocumentRgb24V1,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -83,7 +83,7 @@ pub struct DocumentPlusRenderV1 {
     anchor: RenderPoint,
     operation: TextOp,
     bounds: PresentationTextBoundsV1,
-    background: Option<Paint>,
+    background: Option<RenderPaintV3>,
 }
 
 impl<'de> Deserialize<'de> for DocumentPlusRenderV1 {
@@ -111,7 +111,7 @@ impl DocumentPlusRenderV1 {
         match plus.font().font_face() {
             PresentationFontFaceV1::TelexRegularV1 => {}
         }
-        let foreground = paint(plus.font().color())?;
+        let foreground = paint(plus.font().color(), plus.font().color_provenance())?;
         let layout = metrics
             .layout_centered_plus(PositiveFinite::new(plus.font().size().value())?, foreground)?;
         Ok(Self {
@@ -119,7 +119,11 @@ impl DocumentPlusRenderV1 {
             anchor: RenderPoint::new(plus.anchor().x(), plus.anchor().y())?,
             operation: layout.operation().clone(),
             bounds: PresentationTextBoundsV1::from_glyph_bounds(layout.bounds()),
-            background: plus.background().color().map(paint).transpose()?,
+            background: plus
+                .background()
+                .color()
+                .map(|color| paint(color, PresentationFactProvenanceV1::Root))
+                .transpose()?,
         })
     }
 
@@ -128,7 +132,7 @@ impl DocumentPlusRenderV1 {
         anchor: RenderPoint,
         operation: TextOp,
         bounds: PresentationTextBoundsV1,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     ) -> Result<Self, String> {
         if target.record_kind() != PresentationRecordKindV1::Plus {
             return Err("plus render target has the wrong persistent kind".to_owned());
@@ -175,7 +179,7 @@ impl DocumentPlusRenderV1 {
     }
 
     #[must_use]
-    pub fn background(&self) -> Option<&Paint> {
+    pub fn background(&self) -> Option<&RenderPaintV3> {
         self.background.as_ref()
     }
 }
@@ -186,7 +190,7 @@ pub(crate) fn lower_standard_plus_preview_v1(
 ) -> Result<(TextOp, PresentationTextBoundsV1), RenderError> {
     let layout = metrics.layout_centered_plus(
         PositiveFinite::new(14.0)?,
-        Paint::rgb24(Rgb24::new("000000")?),
+        RenderPaintV3::document_foreground(),
     )?;
     Ok((
         layout.operation().clone(),
@@ -210,10 +214,16 @@ struct PlusRenderWireV1 {
     anchor: RenderPoint,
     operation: TextOp,
     bounds: PresentationTextBoundsV1,
-    background: Option<Paint>,
+    background: Option<RenderPaintV3>,
 }
 
-fn paint(color: &DocumentRgb24V1) -> Result<Paint, RenderError> {
+fn paint(
+    color: &DocumentRgb24V1,
+    provenance: PresentationFactProvenanceV1,
+) -> Result<RenderPaintV3, RenderError> {
+    if provenance == PresentationFactProvenanceV1::Builtin {
+        return Ok(RenderPaintV3::document_foreground());
+    }
     let digits = color.as_str().strip_prefix('#').unwrap_or(color.as_str());
-    Ok(Paint::rgb24(Rgb24::new(digits)?))
+    Ok(RenderPaintV3::authored_rgb24(Rgb24::new(digits)?))
 }

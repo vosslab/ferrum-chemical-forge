@@ -123,7 +123,7 @@ pub(crate) fn is_document_object_attribute_v1(namespace: &str, local_name: &str)
     namespace == DOCUMENT_OBJECT_NAMESPACE_V1 && local_name == DOCUMENT_OBJECT_ATTRIBUTE_V1
 }
 
-fn document_object_attribute_name(tree: &mut Xot, document: Node) -> xot::NameId {
+pub(crate) fn document_object_attribute_name(tree: &mut Xot, document: Node) -> xot::NameId {
     let namespace = tree.add_namespace(DOCUMENT_OBJECT_NAMESPACE_V1);
     let prefix = tree.add_prefix(DOCUMENT_OBJECT_PREFIX_V1);
     let root = tree
@@ -270,18 +270,21 @@ mod tests {
         assert_eq!(
             document
                 .resolve_document_object_id(&first)
+                .expect("identity index lookup succeeds")
                 .map(TypedRecord::class),
             Some(TypedClass::Molecule)
         );
         assert_eq!(
             document
                 .resolve_document_object_id(&second)
+                .expect("identity index lookup succeeds")
                 .map(TypedRecord::class),
             Some(TypedClass::Atom)
         );
         assert_eq!(
             document
                 .resolve_document_object_id(&third)
+                .expect("identity index lookup succeeds")
                 .map(TypedRecord::class),
             Some(TypedClass::CanvasPlus)
         );

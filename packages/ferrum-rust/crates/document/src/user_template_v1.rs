@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use ferrum_geometry::Point2;
 use thiserror::Error;
 
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
+
 use super::{
     CDML_NAMESPACE, DocumentClipboardPasteErrorV1, DocumentClipboardPastePlanV1,
     DocumentObjectIdV1, PersistentId, ProjectionError, TopLevelRootKindV1, TopLevelRootSelectorV1,
@@ -91,6 +93,9 @@ pub enum DocumentUserTemplateErrorV1 {
     /// Eligibility requires exactly one direct molecule.
     #[error("user template requires exactly one direct molecule")]
     MoleculeCardinality,
+    /// The eligible molecule did not retain a valid required durable identity.
+    #[error("user template molecule has an invalid durable document identity: {0}")]
+    MoleculeIdentity(#[source] ProjectionError),
     /// Legacy attachment markers are not reusable molecule content.
     #[error("user template molecule contains a legacy template attachment marker")]
     LegacyTemplateMarker,
@@ -386,8 +391,8 @@ fn validate_complete_geometry(
     molecule: &TypedRecord,
 ) -> Result<(), DocumentUserTemplateErrorV1> {
     let selector = TopLevelRootSelectorV1::new(
-        crate::document_object_id_from_record_v1(molecule)
-            .ok_or(DocumentUserTemplateErrorV1::MoleculeCardinality)?,
+        projection_document_object_id_from_record_v1(molecule)
+            .map_err(DocumentUserTemplateErrorV1::MoleculeIdentity)?,
         TopLevelRootKindV1::Molecule,
     );
     let request = TopLevelTransformV1::new(

@@ -17,8 +17,7 @@ pub(crate) fn compact_group(
     if version != "1" {
         return Err(invalid_field(record, "version", &path));
     }
-    let id = crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?
-        .ok_or_else(|| missing_field(record, "id", &path))?;
+    let id = crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?;
     let raw_catalog_key = required_field(record, "catalog-key", &path)?;
     let catalog_key = CompactGroupCatalogKeyV1::parse(raw_catalog_key).ok_or_else(|| {
         ProjectionError::CompactGroup {

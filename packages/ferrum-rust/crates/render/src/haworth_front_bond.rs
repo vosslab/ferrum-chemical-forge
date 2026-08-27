@@ -4,8 +4,8 @@ use ferrum_geometry::Vector2;
 
 use crate::bond_style::BondStyle;
 use crate::{
-    BatchSpace, Paint, PathOpV2, PositiveFinite, RenderBatch, RenderDisplayLayerV1,
-    RenderIssueKind, RenderOp, RenderPoint, RenderTarget, ScenePathCommandV2, ScenePathStrokeV2,
+    BatchSpace, PathOpV3, PositiveFinite, RenderBatch, RenderDisplayLayerV1, RenderIssueKind,
+    RenderOp, RenderPaintV3, RenderPoint, RenderTarget, ScenePathCommandV3, ScenePathStrokeV3,
     VectorStrokeLineCapV1,
 };
 
@@ -20,18 +20,18 @@ pub(crate) fn haworth_front_operations(
     perpendicular: Vector2,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<Vec<RenderOp>, RenderIssueKind> {
     match style {
         BondStyle::HaworthFrontStroke => {
             let [start, end] = padded_q(tip, base, wedge_width)?;
-            let path = PathOpV2::new(
+            let path = PathOpV3::new(
                 vec![
-                    ScenePathCommandV2::MoveTo(start),
-                    ScenePathCommandV2::LineTo(end),
+                    ScenePathCommandV3::MoveTo(start),
+                    ScenePathCommandV3::LineTo(end),
                 ],
                 Some(
-                    ScenePathStrokeV2::new(paint, wedge_width)
+                    ScenePathStrokeV3::new(paint, wedge_width)
                         .with_line_cap(VectorStrokeLineCapV1::Round),
                 ),
                 None,
@@ -43,7 +43,7 @@ pub(crate) fn haworth_front_operations(
         BondStyle::HaworthFrontWedge => {
             let base = extended_base(tip, base, wedge_width)?;
             let commands = rounded_wedge(tip, base, perpendicular, stroke_width, wedge_width)?;
-            let path = PathOpV2::new(commands, None, Some(paint), 10).map_err(path_issue)?;
+            let path = PathOpV3::new(commands, None, Some(paint), 10).map_err(path_issue)?;
             Ok(vec![RenderOp::Path(path)])
         }
         _ => Err(RenderIssueKind::UnrenderableTarget {
@@ -52,7 +52,7 @@ pub(crate) fn haworth_front_operations(
     }
 }
 
-/// Build exact V2 operations for a detached, source-owned Haworth front preview.
+/// Build exact V3 operations for a detached, source-owned Haworth front preview.
 ///
 /// The normal committed pipeline calls the same geometry after label clipping.
 pub fn build_haworth_front_preview_ops(
@@ -61,7 +61,7 @@ pub fn build_haworth_front_preview_ops(
     base: RenderPoint,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<Vec<RenderOp>, crate::RenderError> {
     let dx = base.x() - tip.x();
     let dy = base.y() - tip.y();
@@ -98,7 +98,7 @@ pub(crate) struct HaworthFrontBondInput {
     pub(crate) perpendicular: Vector2,
     pub(crate) stroke_width: PositiveFinite,
     pub(crate) wedge_width: PositiveFinite,
-    pub(crate) paint: Paint,
+    pub(crate) paint: RenderPaintV3,
 }
 
 /// Build the complete source-tiered batch for one already label-clipped front edge.
@@ -183,7 +183,7 @@ fn rounded_wedge(
     perpendicular: Vector2,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-) -> Result<Vec<ScenePathCommandV2>, RenderIssueKind> {
+) -> Result<Vec<ScenePathCommandV3>, RenderIssueKind> {
     let half = wedge_width.get() / 2.0;
     let radius = (stroke_width.get() / 2.0).min(half);
     if !half.is_finite() || !radius.is_finite() || half <= 0.0 || radius <= 0.0 {
@@ -208,15 +208,15 @@ fn rounded_wedge(
         right.y() + perpendicular.y() * radius,
     )?;
     Ok(vec![
-        ScenePathCommandV2::MoveTo(tip),
-        ScenePathCommandV2::LineTo(left),
-        ScenePathCommandV2::CubicTo {
+        ScenePathCommandV3::MoveTo(tip),
+        ScenePathCommandV3::LineTo(left),
+        ScenePathCommandV3::CubicTo {
             control_1: c1,
             control_2: c2,
             end: right,
         },
-        ScenePathCommandV2::LineTo(tip),
-        ScenePathCommandV2::Close,
+        ScenePathCommandV3::LineTo(tip),
+        ScenePathCommandV3::Close,
     ])
 }
 

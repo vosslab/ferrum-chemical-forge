@@ -11,6 +11,114 @@ import ferrum_qt.ferrum.drawing_parameters_client
 import ferrum_qt.widgets.ribbon_group
 
 
+_PAGE_MARGINS = (4, 2, 4, 2)
+_GROUP_SPACING = 14
+
+
+#============================================
+class _RibbonTabPage(PySide6.QtWidgets.QWidget):
+	"""Allocate one task tab before child expanded minima can own its width."""
+
+	#============================================
+	def __init__(self, layout: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonTabLayout,
+			parent: PySide6.QtWidgets.QWidget) -> None:
+		"""Build YAML-ordered groups without a horizontal group-owning layout."""
+		super().__init__(parent)
+		self.setAccessibleName(self.tr(layout.label_key))
+		self._groups = tuple(ferrum_qt.widgets.ribbon_group.RibbonGroup(item, self)
+			for item in layout.groups)
+		self._allocating = False
+
+	#============================================
+	def minimumSizeHint(self) -> PySide6.QtCore.QSize:
+		"""Expose all-collapsed width so inactive stacked pages remain bounded."""
+		states = tuple(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED
+			for _group in self._groups)
+		return PySide6.QtCore.QSize(self._required_width(states, minimum=True), self._group_height())
+
+	#============================================
+	def sizeHint(self) -> PySide6.QtCore.QSize:
+		"""Report current measured allocation without creating a hard expanded floor."""
+		return PySide6.QtCore.QSize(
+			self._required_width(tuple(group.display_state for group in self._groups)),
+			self._group_height(),
+		)
+
+	#============================================
+	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:
+		"""Reallocate from actual tab content width whenever Qt resizes this page."""
+		super().resizeEvent(event)
+		self.reallocate()
+
+	#============================================
+	def showEvent(self, event: PySide6.QtGui.QShowEvent) -> None:
+		"""Allocate after this page becomes the visible stacked page."""
+		super().showEvent(event)
+		self.reallocate()
+
+	#============================================
+	def event(self, event: PySide6.QtCore.QEvent) -> bool:
+		"""Refresh when state changes request geometry without a resize timer."""
+		accepted = super().event(event)
+		if event.type() is PySide6.QtCore.QEvent.Type.LayoutRequest:
+			self.reallocate()
+		return accepted
+
+	#============================================
+	def reallocate(self) -> None:
+		"""Choose YAML-order states and directly assign group geometries."""
+		if self._allocating:
+			return
+		self._allocating = True
+		try:
+			available = max(0, self.contentsRect().width())
+			states = [ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.EXPANDED
+				for _group in self._groups]
+			self._reduce_to_fit(states, available,
+				ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.EXPANDED,
+				ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COMPACT)
+			self._reduce_to_fit(states, available,
+				ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COMPACT,
+				ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
+			for group, state in zip(self._groups, states, strict=True):
+				group.set_display_state(state)
+			x = self.contentsRect().x() + _PAGE_MARGINS[0]
+			y = self.contentsRect().y() + _PAGE_MARGINS[1]
+			height = max(0, self.contentsRect().height() - _PAGE_MARGINS[1] - _PAGE_MARGINS[3])
+			for group, state in zip(self._groups, states, strict=True):
+				width = group.width_for(state)
+				group.setGeometry(x, y, width, height)
+				x += width + _GROUP_SPACING
+		finally:
+			self._allocating = False
+
+	#============================================
+	def _reduce_to_fit(self, states: list[ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState],
+			available: int, from_state: ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState,
+			to_state: ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState) -> None:
+		"""Use reverse YAML order as the deterministic width-reduction tie-breaker."""
+		for index in reversed(range(len(states))):
+			if self._required_width(tuple(states)) <= available:
+				return
+			if states[index] is from_state:
+				states[index] = to_state
+
+	#============================================
+	def _required_width(self, states: tuple[ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState, ...],
+			minimum: bool = False) -> int:
+		"""Measure selected state controls from their current live size hints."""
+		widths = (group.minimum_width_for(state) if minimum else group.width_for(state)
+			for group, state in zip(self._groups, states, strict=True))
+		return _PAGE_MARGINS[0] + _PAGE_MARGINS[2] + sum(widths) + _GROUP_SPACING * max(0, len(self._groups) - 1)
+
+	#============================================
+	def _group_height(self) -> int:
+		"""Use tallest labelled group plus page margins as the page height hint."""
+		return _PAGE_MARGINS[1] + _PAGE_MARGINS[3] + max(
+			(group.sizeHint().height() for group in self._groups), default=0,
+		)
+
+
 #============================================
 class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 	"""Present labelled task groups without duplicating Ferrum command ownership."""
@@ -23,9 +131,7 @@ class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 		super().__init__(parent.tr("Authoring Ribbon"), parent)
 		self.setObjectName("ferrum-authoring-ribbon")
 		self.setAccessibleName(parent.tr("Ferrum authoring ribbon"))
-		self.setAccessibleDescription(parent.tr(
-			"Frequent chemistry authoring commands organized by task.",
-		))
+		self.setAccessibleDescription(parent.tr("Frequent chemistry authoring commands organized by task."))
 		self.setMovable(False)
 		self.setFloatable(False)
 		self.setAllowedAreas(PySide6.QtCore.Qt.ToolBarArea.TopToolBarArea)
@@ -44,15 +150,14 @@ class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 		self._tabs.setUsesScrollButtons(True)
 		for tab in self._layouts:
 			self._tabs.addTab(self._page_for_tab(tab), self.tr(tab.label_key))
+		self._tabs.currentChanged.connect(self._reallocate_current_page)
 		content_layout.addWidget(self._tabs)
 		self._context_row = PySide6.QtWidgets.QWidget(self._content)
 		context_layout = PySide6.QtWidgets.QHBoxLayout(self._context_row)
 		context_layout.setContentsMargins(8, 0, 8, 0)
 		context_layout.setSpacing(6)
-		self._drawing_parameters_client = (
-			ferrum_qt.ferrum.drawing_parameters_client.FerrumNativeDrawingParametersClient(
-				drawing_parameters, cancel_action, parent=self._context_row,
-			)
+		self._drawing_parameters_client = ferrum_qt.ferrum.drawing_parameters_client.FerrumNativeDrawingParametersClient(
+			drawing_parameters, cancel_action, parent=self._context_row,
 		)
 		self._drawing_parameters_client.setObjectName("authoring-drawing-defaults")
 		context_layout.addWidget(self._drawing_parameters_client)
@@ -71,7 +176,7 @@ class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 
 	#============================================
 	def _set_active_tool_state(self, state: object) -> None:
-		"""Render the controller-owned active-tool capability without interpreting IDs."""
+		"""Render controller-owned active-tool capability without interpreting IDs."""
 		self._active_tool_state = state
 		self._refresh_context()
 
@@ -82,21 +187,18 @@ class AuthoringRibbon(PySide6.QtWidgets.QToolBar):
 
 	#============================================
 	def _page_for_tab(self, tab: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonTabLayout,
-			) -> PySide6.QtWidgets.QWidget:
-		"""Build one task page in YAML order without fixed-width assumptions."""
-		page = PySide6.QtWidgets.QWidget(self._tabs)
-		page.setAccessibleName(self.tr(tab.label_key))
-		layout = PySide6.QtWidgets.QHBoxLayout(page)
-		layout.setContentsMargins(4, 2, 4, 2)
-		layout.setSpacing(14)
-		groups: list[ferrum_qt.widgets.ribbon_group.RibbonGroup] = []
-		for group_layout in tab.groups:
-			group = ferrum_qt.widgets.ribbon_group.RibbonGroup(group_layout, page)
-			layout.addWidget(group)
-			groups.append(group)
-		layout.addStretch(1)
-		self._groups_by_tab[tab.id] = tuple(groups)
+			) -> _RibbonTabPage:
+		"""Build one allocator-owned task page in its declared YAML order."""
+		page = _RibbonTabPage(tab, self._tabs)
+		self._groups_by_tab[tab.id] = page._groups
 		return page
+
+	#============================================
+	def _reallocate_current_page(self, _index: int) -> None:
+		"""Refresh immediately when tab selection reveals another stacked page."""
+		page = self._tabs.currentWidget()
+		if isinstance(page, _RibbonTabPage):
+			page.reallocate()
 
 	#============================================
 	def _context_button(self, action: PySide6.QtGui.QAction) -> PySide6.QtWidgets.QToolButton:

@@ -3,7 +3,7 @@
 use ferrum_core::RecordId;
 use serde::{Deserialize, Serialize};
 
-use crate::{LineOp, Paint, PositiveFinite, RenderError, RenderPoint};
+use crate::{LineOp, PositiveFinite, RenderError, RenderPaintV3, RenderPoint};
 
 /// The stored native directional mark for one E/Z carrier bond.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub struct DoubleBondCarrierMarkOp {
     accent_start: RenderPoint,
     accent_end: RenderPoint,
     width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     direction: DoubleBondCarrierMarkDirectionV1,
     central_double_bond: RecordId,
     z: i32,

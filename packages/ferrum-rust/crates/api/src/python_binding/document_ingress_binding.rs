@@ -23,9 +23,9 @@ use super::document_error_binding::{
     DocumentInputError, DocumentLoadError, PreparedOperationConsumedError,
 };
 use crate::{
-    CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, InterchangeDirectionV1, InterchangeFormatRegistryV1,
-    LocalDocumentIngressDirectionV1, LocalDocumentIngressRegistryV1,
-    interchange_import_v1::InterchangeImportRefusalV1,
+    CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
+    InterchangeFormatRegistryV1, InterchangeOperationV1, LocalDocumentIngressDirectionV1,
+    LocalDocumentIngressRegistryV1, interchange_import_v1::InterchangeImportRefusalV1,
 };
 
 /// One closed local container kind carried by a prepared desktop admission.
@@ -34,6 +34,7 @@ enum LocalDocumentSourceKindV1 {
     Cdml,
     DecodedCdsvg,
     Cml,
+    Cdxml,
     Interchange,
 }
 
@@ -43,6 +44,9 @@ impl LocalDocumentSourceKindV1 {
     ) -> Self {
         match descriptor.decoder() {
             crate::interchange_import_v1::InterchangeDecoderKeyV1::CmlSimpleMolecule => Self::Cml,
+            crate::interchange_import_v1::InterchangeDecoderKeyV1::CdxmlSimpleMolecule => {
+                Self::Cdxml
+            }
             crate::interchange_import_v1::InterchangeDecoderKeyV1::Sdf => Self::Interchange,
         }
     }
@@ -52,6 +56,7 @@ impl LocalDocumentSourceKindV1 {
             Self::Cdml => "cdml",
             Self::DecodedCdsvg => "decoded_cdsvg",
             Self::Cml => "cml",
+            Self::Cdxml => "cdxml",
             Self::Interchange => "interchange",
         }
     }
@@ -259,17 +264,21 @@ impl PyDocumentSession {
         LocalDocumentIngressRegistryV1::descriptors()
             .iter()
             .map(|descriptor| {
-                let route_handle = if descriptor.route()
-                    == crate::LocalDocumentIngressRouteV1::CmlSimpleMolecule
-                {
-                    Some(Py::new(
+                let route_handle = match descriptor.route() {
+                    crate::LocalDocumentIngressRouteV1::CmlSimpleMolecule => Some(Py::new(
                         py,
                         PyLocalInterchangeOpenRouteHandleV1 {
                             format_id: CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
                         },
-                    )?)
-                } else {
-                    None
+                    )?),
+                    crate::LocalDocumentIngressRouteV1::CdxmlSimpleMolecule => Some(Py::new(
+                        py,
+                        PyLocalInterchangeOpenRouteHandleV1 {
+                            format_id: CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
+                        },
+                    )?),
+                    crate::LocalDocumentIngressRouteV1::Cdml
+                    | crate::LocalDocumentIngressRouteV1::DecodedCdsvg => None,
                 };
                 Ok(PyLocalInterchangeOpenDescriptorV1 {
                     display_name: descriptor.display_name().to_owned(),
@@ -296,8 +305,8 @@ impl PyDocumentSession {
             .iter()
             .filter(|descriptor| {
                 descriptor
-                    .directions()
-                    .contains(&InterchangeDirectionV1::DocumentImportNew)
+                    .operations()
+                    .contains(&InterchangeOperationV1::DocumentImportNew)
             })
             .map(|descriptor| {
                 Ok(PyLocalInterchangeOpenDescriptorV1 {
@@ -557,8 +566,8 @@ fn local_interchange_descriptor(
         .find(|descriptor| descriptor.format_id() == route_handle.format_id)
         .filter(|descriptor| {
             descriptor
-                .directions()
-                .contains(&InterchangeDirectionV1::DocumentImportNew)
+                .operations()
+                .contains(&InterchangeOperationV1::DocumentImportNew)
         })
         .ok_or_else(|| PyTypeError::new_err("local interchange route handle is not API-issued"))
 }
@@ -580,7 +589,9 @@ fn prepare_local_document_file_v1(
             LocalDocumentSourceKindV1::DecodedCdsvg => {
                 prepare_local_decoded_cdsvg_file_with_origin_v1(&path)
             }
-            LocalDocumentSourceKindV1::Cml | LocalDocumentSourceKindV1::Interchange => {
+            LocalDocumentSourceKindV1::Cml
+            | LocalDocumentSourceKindV1::Cdxml
+            | LocalDocumentSourceKindV1::Interchange => {
                 unreachable!("interchange admission uses its dedicated Rust-owned bridge")
             }
         };

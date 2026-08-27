@@ -74,8 +74,7 @@ fn observation_and_id(source: &str) -> (crate::SessionDocumentObservationV1, Doc
     let session = DocumentSession::load(source).expect("source must load");
     let observation = session.observe(0).expect("source must project");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("source molecule has durable identity")
+        .document_object_id()
         .clone();
     (observation, molecule_id)
 }
@@ -164,8 +163,7 @@ fn invalid_target_or_styled_bond_never_reaches_the_engine() {
     let (observation, _molecule_id) = observation_and_id(&source("w1"));
     let engine = RecordingEngine::default();
     let styled_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let styled_error =
         export_document_molecule_inchi_v1(&engine, &observation, &styled_id, InchiMode::Standard)
@@ -176,9 +174,7 @@ fn invalid_target_or_styled_bond_never_reaches_the_engine() {
     ));
     assert!(styled_error.to_string().contains("native InChI boundary"));
     assert!(!styled_error.to_string().contains("coordinate generation"));
-    let unknown =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("test selector uses the closed grammar");
+    let unknown = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     assert!(matches!(
         export_document_molecule_inchi_v1(&engine, &observation, &unknown, InchiMode::Standard,),
         Err(DocumentMoleculeInchiError::UnknownMolecule { .. })

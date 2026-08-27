@@ -1,4 +1,4 @@
-"""Strict Qt projection item for one immutable Ferrum RenderBatchV2."""
+"""Strict Qt projection item for one immutable Ferrum RenderBatchV3."""
 
 # Standard Library
 import dataclasses
@@ -10,11 +10,13 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
 import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.themes.document_display_palette
 
 
-_SCHEMA = "ferrum-render-plan-v2"
+_SCHEMA = "ferrum-render-plan-v3"
 _FACE = "ferrum-telex-regular-v1"
 _PADDING = 1.0
 _SELECTION_WIDTH = 1.5
@@ -48,6 +50,7 @@ class _Line:
 	path: PySide6.QtGui.QPainterPath
 	pen: PySide6.QtGui.QPen
 	z: int
+	paint: object
 
 
 @dataclasses.dataclass(frozen=True)
@@ -57,6 +60,7 @@ class _Fill:
 	path: PySide6.QtGui.QPainterPath
 	brush: PySide6.QtGui.QBrush
 	z: int
+	paint: object
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,10 +71,13 @@ class _Shape:
 	pen: PySide6.QtGui.QPen | None
 	brush: PySide6.QtGui.QBrush | None
 	z: int
+	stroke_paint: object | None
+	fill_paint: object | None
 
 
 #============================================
-class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
+class FerrumPlanItem(
+		PySide6.QtWidgets.QGraphicsObject, DisplayPaletteRefreshable):
 	"""A selectable, immovable projection of one complete frozen render batch.
 
 	The caller supplies a frozen value carrying the parent plan's schema and
@@ -81,6 +88,7 @@ class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
 
 	#============================================
 	def __init__(self, plan: object, batch_index: int, telex_resource: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Validate one frozen batch and cache all Qt-local geometry.
 
@@ -90,22 +98,30 @@ class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
 		super().__init__(parent)
 		validated_plan = _runtime_plan(plan)
 		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
-		self._initialize(validated_plan, batch_index, telex)
+		self._initialize(validated_plan, batch_index, telex, palette)
 
 	#============================================
 	@classmethod
 	def _from_fixture(cls, plan: object, batch_index: int,
 			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> "FerrumPlanItem":
 		"""Build an isolated item from test-only frozen fixtures, never app code."""
-		item = _FixtureFerrumPlanItem(plan, batch_index, telex, parent)
+		item = _FixtureFerrumPlanItem(plan, batch_index, telex, palette, parent)
 		return item
 
 	#============================================
 	def _initialize(self, plan: object, batch_index: int,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> None:
+			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Initialize an already-authenticated runtime or fixture input boundary."""
-		self._target, self._commands = _copy_batch(plan, batch_index, telex)
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise FerrumPlanError("Ferrum plan item requires a document display palette")
+		self._plan = plan
+		self._batch_index = batch_index
+		self._telex = telex
+		self._palette = palette
+		self._target, self._commands = _copy_batch(plan, batch_index, telex, palette)
 		self._content_path = _content_path(self._commands)
 		self._shape_path = _shape_for(self._commands, self._content_path)
 		self._bounds = self._shape_path.boundingRect().adjusted(
@@ -115,6 +131,16 @@ class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
 		self.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
 		self.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
 		self.setAcceptHoverEvents(True)
+
+	#============================================
+	def refresh_display_palette(self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
+		"""Refresh retained Qt pens and brushes from frozen V3 operations."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise FerrumPlanError("Ferrum plan item requires a document display palette")
+		self._palette = palette
+		self._commands = _refresh_commands(self._commands, palette)
+		self.update()
 
 	#============================================
 	def target(self) -> object:
@@ -174,12 +200,11 @@ class FerrumPlanItem(PySide6.QtWidgets.QGraphicsObject):
 		"""Paint a UI-palette-only overlay after immutable document depiction."""
 		if not self.isSelected() and not self._hovered:
 			return
-		palette = PySide6.QtWidgets.QApplication.palette()
 		selected = self.isSelected()
 		width = _SELECTION_WIDTH if selected else _HOVER_WIDTH
-		color = palette.color(
-			PySide6.QtGui.QPalette.ColorRole.Highlight if selected
-			else PySide6.QtGui.QPalette.ColorRole.Link,
+		color = self._palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.SELECTION_OUTLINE
+			if selected else ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.HOVER_OUTLINE,
 		)
 		pen = PySide6.QtGui.QPen(color)
 		pen.setWidthF(width)
@@ -198,27 +223,28 @@ class _FixtureFerrumPlanItem(FerrumPlanItem):
 	#============================================
 	def __init__(self, plan: object, batch_index: int,
 			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Initialize the base Qt object without exposing fixture validation publicly."""
 		PySide6.QtWidgets.QGraphicsObject.__init__(self, parent)
 		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 			raise FerrumPlanError("Ferrum fixture item requires verified Telex bytes")
-		self._initialize(plan, batch_index, telex)
+		self._initialize(plan, batch_index, telex, palette)
 
 
 #============================================
 def _runtime_plan(value: object) -> object:
-	"""Accept only the exact compiled frozen ``engine.RenderPlanV2`` type."""
+	"""Accept only the exact compiled frozen ``engine.RenderPlanV3`` type."""
 	try:
 		import ferrum_qt.ferrum.engine as engine
 	except ImportError as error:
 		raise FerrumPlanError("Ferrum render plans require the installed ferrum_chem extension") from error
-	if type(value) is not engine.RenderPlanV2:
-		raise FerrumPlanError("Ferrum plan item requires the frozen ferrum_chem RenderPlanV2")
+	if type(value) is not engine.RenderPlanV3:
+		raise FerrumPlanError("Ferrum plan item requires the frozen ferrum_chem RenderPlanV3")
 	if not isinstance(value.batches, tuple):
 		raise FerrumPlanError("Ferrum render plan batches must be a frozen tuple")
 	for batch in value.batches:
-		if type(batch) is not engine.RenderBatchV2:
+		if type(batch) is not engine.RenderBatchV3:
 			raise FerrumPlanError("Ferrum render plan contains a non-frozen batch")
 	return value
 
@@ -226,6 +252,7 @@ def _runtime_plan(value: object) -> object:
 #============================================
 def _copy_batch(plan: object, batch_index: int,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[_Target, tuple[_Line | _Fill | _Shape, ...]]:
 	"""Copy one indexed plan-owned batch without dict, XML, defaults, or shaping."""
 	if plan.schema != _SCHEMA:
@@ -248,7 +275,7 @@ def _copy_batch(plan: object, batch_index: int,
 	for source in batch.operations:
 		if source.kind not in allowed:
 			raise FerrumPlanError("Ferrum render operation does not match its coordinate space")
-		command, z = _copy_operation(source, anchor, telex)
+		command, z = _copy_operation(source, anchor, telex, palette)
 		if previous_z is not None and z <= previous_z:
 			raise FerrumPlanError("Ferrum render batch z order must be strictly increasing")
 		previous_z = z
@@ -261,6 +288,7 @@ def _copy_batch(plan: object, batch_index: int,
 #============================================
 def _copy_operation(source: object, anchor: _Point,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[_Line | _Fill | _Shape, int]:
 	"""Detach one exact wire enum operation and construct its cached paint command."""
 	payload = source.operation
@@ -269,7 +297,7 @@ def _copy_operation(source: object, anchor: _Point,
 		end = _translated_point(payload.end, anchor, "line end")
 		if start == end:
 			raise FerrumPlanError("Ferrum render line endpoints must differ")
-		pen = PySide6.QtGui.QPen(_rgb24(payload.paint))
+		pen = PySide6.QtGui.QPen(_paint(palette, payload.paint))
 		pen.setWidthF(_positive(payload.width, "line width"))
 		pen.setCosmetic(False)
 		pen.setCapStyle(PySide6.QtCore.Qt.PenCapStyle.FlatCap)
@@ -278,7 +306,7 @@ def _copy_operation(source: object, anchor: _Point,
 		path.moveTo(start.x, start.y)
 		path.lineTo(end.x, end.y)
 		z = _z(payload.z)
-		return _Line(path, pen, z), z
+		return _Line(path, pen, z, payload.paint), z
 	if source.kind == "mask":
 		origin = _translated_point(payload.origin, anchor, "mask origin")
 		width = _positive(payload.width, "mask width")
@@ -286,7 +314,7 @@ def _copy_operation(source: object, anchor: _Point,
 		path = PySide6.QtGui.QPainterPath()
 		path.addRect(origin.x, origin.y, width, height)
 		z = _z(payload.z)
-		return _Fill(path, PySide6.QtGui.QBrush(_rgb24(payload.paint)), z), z
+		return _Fill(path, PySide6.QtGui.QBrush(_paint(palette, payload.paint)), z, payload.paint), z
 	if source.kind == "text":
 		if payload.face != _FACE:
 			raise FerrumPlanError("Ferrum render text requested an unknown font face")
@@ -299,15 +327,15 @@ def _copy_operation(source: object, anchor: _Point,
 		except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
 			raise FerrumPlanError(str(exc)) from exc
 		z = _z(payload.z)
-		return _Fill(path, PySide6.QtGui.QBrush(_rgb24(payload.paint)), z), z
+		return _Fill(path, PySide6.QtGui.QBrush(_paint(palette, payload.paint)), z, payload.paint), z
 	if source.kind == "ellipse":
 		center = _translated_point(payload.center, anchor, "ellipse center")
 		radius_x = _positive(payload.radius_x, "ellipse x radius")
 		radius_y = _positive(payload.radius_y, "ellipse y radius")
 		rotation = _finite(payload.rotation_degrees, "ellipse rotation")
 		stroke_width = _optional_positive(payload.stroke_width, "ellipse stroke width")
-		stroke_paint = _optional_rgb24(payload.stroke_paint, "ellipse stroke paint")
-		fill_paint = _optional_rgb24(payload.fill_paint, "ellipse fill paint")
+		stroke_paint = _optional_paint(palette, payload.stroke_paint, "ellipse stroke paint")
+		fill_paint = _optional_paint(palette, payload.fill_paint, "ellipse fill paint")
 		if (stroke_width is None) != (stroke_paint is None):
 			raise FerrumPlanError("Ferrum render ellipse outline requires width and paint")
 		if stroke_paint is None and fill_paint is None:
@@ -330,12 +358,12 @@ def _copy_operation(source: object, anchor: _Point,
 			pen.setCosmetic(False)
 		brush = PySide6.QtGui.QBrush(fill_paint) if fill_paint is not None else None
 		z = _z(payload.z)
-		return _Shape(path, pen, brush, z), z
+		return _Shape(path, pen, brush, z, payload.stroke_paint, payload.fill_paint), z
 	if source.kind == "path":
 		stroke_width = _optional_positive(payload.stroke_width, "path stroke width")
-		stroke_paint = _optional_rgb24(payload.stroke_paint, "path stroke paint")
+		stroke_paint = _optional_paint(palette, payload.stroke_paint, "path stroke paint")
 		stroke_line_cap = getattr(payload, "stroke_line_cap", None)
-		fill_paint = _optional_rgb24(payload.fill_paint, "path fill paint")
+		fill_paint = _optional_paint(palette, payload.fill_paint, "path fill paint")
 		if (stroke_width is None) != (stroke_paint is None):
 			raise FerrumPlanError("Ferrum render path outline requires width and paint")
 		if stroke_paint is None and fill_paint is None:
@@ -359,7 +387,7 @@ def _copy_operation(source: object, anchor: _Point,
 			pen.setJoinStyle(PySide6.QtCore.Qt.PenJoinStyle.MiterJoin)
 		brush = PySide6.QtGui.QBrush(fill_paint) if fill_paint is not None else None
 		z = _z(payload.z)
-		return _Shape(path, pen, brush, z), z
+		return _Shape(path, pen, brush, z, payload.stroke_paint, payload.fill_paint), z
 	raise FerrumPlanError("Ferrum render batch has an unknown operation")
 
 
@@ -400,6 +428,35 @@ def _content_path(commands: tuple[_Line | _Fill | _Shape, ...]) -> PySide6.QtGui
 	for command in commands:
 		path.addPath(command.path)
 	return path
+
+
+#============================================
+def _refresh_commands(commands: tuple[_Line | _Fill | _Shape, ...],
+		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		) -> tuple[_Line | _Fill | _Shape, ...]:
+	"""Replace cached materials while retaining every frozen Qt geometry path."""
+	refreshed = []
+	for command in commands:
+		if isinstance(command, _Line):
+			pen = PySide6.QtGui.QPen(command.pen)
+			pen.setColor(_paint(palette, command.paint))
+			refreshed.append(dataclasses.replace(command, pen=pen))
+		elif isinstance(command, _Fill):
+			refreshed.append(dataclasses.replace(
+				command, brush=PySide6.QtGui.QBrush(_paint(palette, command.paint)),
+			))
+		else:
+			pen = command.pen
+			if command.stroke_paint is not None:
+				if pen is None:
+					raise FerrumPlanError("Ferrum shape lost its required cached outline")
+				pen = PySide6.QtGui.QPen(pen)
+				pen.setColor(_paint(palette, command.stroke_paint))
+			brush = command.brush
+			if command.fill_paint is not None:
+				brush = PySide6.QtGui.QBrush(_paint(palette, command.fill_paint))
+			refreshed.append(dataclasses.replace(command, pen=pen, brush=brush))
+	return tuple(refreshed)
 
 
 #============================================
@@ -489,13 +546,14 @@ def _optional_positive(value: object, label: str) -> float | None:
 
 
 #============================================
-def _optional_rgb24(value: object, label: str) -> PySide6.QtGui.QColor | None:
-	"""Return optional explicit RGB paint without consulting a Qt palette."""
+def _optional_paint(palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		value: object, label: str) -> PySide6.QtGui.QColor | None:
+	"""Resolve optional V3 paint without inventing a local color authority."""
 	if value is None:
 		return None
 	try:
-		return _rgb24(value)
-	except FerrumPlanError as error:
+		return _paint(palette, value)
+	except ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteError as error:
 		raise FerrumPlanError(f"Ferrum render {label} is invalid") from error
 
 
@@ -524,13 +582,10 @@ def _z(value: object) -> int:
 
 
 #============================================
-def _rgb24(value: object) -> PySide6.QtGui.QColor:
-	"""Convert only the canonical lowercase six-digit Rgb24 wire string."""
-	if not isinstance(value, str) or len(value) != 6:
-		raise FerrumPlanError("Ferrum render paint must be a six-digit Rgb24 value")
-	if value.lower() != value or any(character not in "0123456789abcdef" for character in value):
-		raise FerrumPlanError("Ferrum render paint must be lowercase hexadecimal Rgb24")
-	color = PySide6.QtGui.QColor(f"#{value}")
-	if not color.isValid():
-		raise FerrumPlanError("Ferrum render paint is not a valid Rgb24 value")
-	return color
+def _paint(palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		value: object) -> PySide6.QtGui.QColor:
+	"""Resolve one tagged V3 paint through the only document display palette."""
+	try:
+		return palette.resolve_render_paint(value)
+	except ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteError as error:
+		raise FerrumPlanError("Ferrum render paint is invalid") from error

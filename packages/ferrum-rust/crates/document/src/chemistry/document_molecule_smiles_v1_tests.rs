@@ -74,8 +74,7 @@ fn observation_and_request(
     let session = DocumentSession::load(&source).expect("source loads");
     let observation = session.observe(0).expect("source projects");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let request = DocumentMoleculeSmilesRequestV1::new(
         observation.snapshot().revision(),
@@ -171,9 +170,7 @@ fn stale_foreign_and_drawing_style_requests_never_reach_the_engine() {
         Err(DocumentMoleculeSmilesErrorV1::Observation(_))
     ));
 
-    let foreign =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("foreign selector grammar");
+    let foreign = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     let foreign = DocumentMoleculeSmilesRequestV1::new(0, *request.expected_digest(), foreign);
     assert!(matches!(
         prepare_document_molecule_smiles_v1(&observation, &foreign),

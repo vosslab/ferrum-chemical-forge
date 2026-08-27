@@ -30,12 +30,18 @@ def _anchor_id(session: object) -> str:
 	return session.observe(session.snapshot().revision).projection.molecules[0].atoms[0].document_object_id
 
 
+def _molecule_id(session: object) -> str:
+	"""Return the direct root molecule's Rust-issued durable object ID."""
+	return session.observe(session.snapshot().revision).projection.molecules[0].document_object_id
+
+
 def _begin(session: object, catalog_key: str, release_x: float = 20.0) -> object:
 	"""Begin one generic attachment with the current document fence."""
 	snapshot = session.snapshot()
 	return session._begin_attach_compact_group_v1(
 		snapshot.revision,
 		snapshot.digest,
+		_molecule_id(session),
 		_anchor_id(session),
 		catalog_key,
 		release_x,
@@ -124,7 +130,7 @@ def test_attached_compact_group_availability_echoes_the_selected_choice() -> Non
 	session = _session()
 	before = _snapshot_facts(session)
 	facts = session._attach_compact_group_availability_v1(
-		before[1], before[2], _anchor_id(session), "methyl")
+		before[1], before[2], _molecule_id(session), _anchor_id(session), "methyl")
 
 	assert facts.available is True
 	assert facts.category == ferrum_chem.AttachedCompactGroupAvailabilityCategoryV1.available

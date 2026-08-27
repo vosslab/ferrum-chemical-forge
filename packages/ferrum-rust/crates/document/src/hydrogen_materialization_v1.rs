@@ -166,12 +166,14 @@ pub(crate) fn plan_hydrogen_materialization_v1(
     }
     let root = document
         .resolve_document_object_id(request.molecule_id())
+        .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?
         .filter(|record| {
             record.class() == TypedClass::Molecule && record.path().components().len() == 1
         })
         .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::UnknownDirectMolecule)?;
     let anchor = document
         .resolve_document_object_id(request.anchor_atom_id())
+        .map_err(|_| DocumentMoleculeHydrogenMaterializationRefusalV1::UnsupportedDocument)?
         .filter(|record| record.class() == TypedClass::Atom)
         .ok_or(DocumentMoleculeHydrogenMaterializationRefusalV1::UnknownAnchorAtom)?;
     if anchor.path().components().len() != 2

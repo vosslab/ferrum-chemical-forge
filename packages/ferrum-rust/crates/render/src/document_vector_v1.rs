@@ -3,7 +3,7 @@
 //! These types preserve scene-space geometry and explicit paint without learning
 //! about CDML, document records, Qt items, or a renderer backend.
 
-use crate::{Paint, PositiveFinite, RenderError, RenderPoint};
+use crate::{PositiveFinite, RenderError, RenderPaintV3, RenderPoint};
 
 /// Fixed V1 cap semantics for a vector operation with a stroke.
 ///
@@ -104,20 +104,20 @@ impl VectorFillRuleV1 {
 /// One explicit stroke with its required positive width.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StrokeV1 {
-    paint: Paint,
+    paint: RenderPaintV3,
     width: PositiveFinite,
 }
 
 impl StrokeV1 {
     /// Construct a fully specified stroke without toolkit defaults.
     #[must_use]
-    pub const fn new(paint: Paint, width: PositiveFinite) -> Self {
+    pub const fn new(paint: RenderPaintV3, width: PositiveFinite) -> Self {
         Self { paint, width }
     }
 
     /// Return the explicit stroke paint.
     #[must_use]
-    pub const fn paint(&self) -> &Paint {
+    pub const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
 
@@ -173,7 +173,7 @@ pub enum DocumentVectorOpV1 {
     Path {
         commands: Vec<PathCommandV1>,
         stroke: Option<StrokeV1>,
-        fill: Option<Paint>,
+        fill: Option<RenderPaintV3>,
     },
     /// A validated axis-aligned ellipse with explicit outline and/or fill paint.
     Ellipse {
@@ -181,7 +181,7 @@ pub enum DocumentVectorOpV1 {
         radius_x: PositiveFinite,
         radius_y: PositiveFinite,
         stroke: Option<StrokeV1>,
-        fill: Option<Paint>,
+        fill: Option<RenderPaintV3>,
     },
 }
 
@@ -190,7 +190,7 @@ impl DocumentVectorOpV1 {
     pub fn path(
         commands: Vec<PathCommandV1>,
         stroke: Option<StrokeV1>,
-        fill: Option<Paint>,
+        fill: Option<RenderPaintV3>,
     ) -> Result<Self, RenderError> {
         validate_path(&commands, fill.is_some())?;
         validate_paint(&stroke, &fill)?;
@@ -207,7 +207,7 @@ impl DocumentVectorOpV1 {
         radius_x: PositiveFinite,
         radius_y: PositiveFinite,
         stroke: Option<StrokeV1>,
-        fill: Option<Paint>,
+        fill: Option<RenderPaintV3>,
     ) -> Result<Self, RenderError> {
         validate_paint(&stroke, &fill)?;
         Ok(Self::Ellipse {
@@ -238,7 +238,7 @@ impl DocumentVectorOpV1 {
 
     /// Return the explicit fill when this operation has one.
     #[must_use]
-    pub fn fill(&self) -> Option<&Paint> {
+    pub fn fill(&self) -> Option<&RenderPaintV3> {
         match self {
             Self::Path { fill, .. } | Self::Ellipse { fill, .. } => fill.as_ref(),
         }
@@ -327,7 +327,10 @@ impl DocumentVectorRootV1 {
     }
 }
 
-fn validate_paint(stroke: &Option<StrokeV1>, fill: &Option<Paint>) -> Result<(), RenderError> {
+fn validate_paint(
+    stroke: &Option<StrokeV1>,
+    fill: &Option<RenderPaintV3>,
+) -> Result<(), RenderError> {
     if stroke.is_none() && fill.is_none() {
         return Err(RenderError::InvalidRequest(
             "document vector operation requires an explicit stroke or fill".to_owned(),

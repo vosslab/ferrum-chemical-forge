@@ -10,8 +10,11 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
+import ferrum_qt.main_window
 
 
 _TEMPLATE = """\
@@ -26,7 +29,8 @@ _TEMPLATE = """\
 
 #============================================
 def _window_with_tab(
-		directory: pathlib.Path, cdml: str = "<cdml xmlns='urn:ferrum:cdml' version='26.07'/>",
+		qapp: PySide6.QtWidgets.QApplication, directory: pathlib.Path,
+		cdml: str = "<cdml xmlns='urn:ferrum:cdml' version='26.07'/>",
 		) -> tuple[object, object]:
 	"""Return one configured Ferrum window with a selected Rust-owned tab."""
 	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow(
@@ -34,6 +38,7 @@ def _window_with_tab(
 	)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		cdml, "template-test.cdml",
+		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)
 	window._register_native_tab(tab, activate=True)
 	return window, tab
@@ -94,7 +99,7 @@ def test_catalog_choice_places_only_authored_scale_molecule_at_scene_click(
 	directory = tmp_path / "templates"
 	directory.mkdir()
 	(directory / "pair.cdml").write_text(_TEMPLATE, encoding="utf-8")
-	window, tab = _window_with_tab(directory)
+	window, tab = _window_with_tab(qapp, directory)
 	try:
 		entry = window.user_template_catalog.entries[0]
 		window.start_user_template_placement(entry.catalog_key)
@@ -126,7 +131,7 @@ def test_save_and_refresh_publish_eligible_snapshot_without_saving_document(
 		monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Template publication preserves session state and isolates a malformed neighbor."""
 	directory = tmp_path / "templates"
-	window, tab = _window_with_tab(directory, _TEMPLATE)
+	window, tab = _window_with_tab(qapp, directory, _TEMPLATE)
 	messages = []
 	monkeypatch.setattr(
 		PySide6.QtWidgets.QMessageBox, "information",
@@ -159,7 +164,7 @@ def test_escape_and_stale_provenance_cancel_without_a_template_mutation(
 	directory = tmp_path / "templates"
 	directory.mkdir()
 	(directory / "pair.cdml").write_text(_TEMPLATE, encoding="utf-8")
-	window, tab = _window_with_tab(directory)
+	window, tab = _window_with_tab(qapp, directory)
 	refusals: list[tuple[str, str, str, str]] = []
 	observer = _StalePlacementRefusalObserver(refusals)
 	try:

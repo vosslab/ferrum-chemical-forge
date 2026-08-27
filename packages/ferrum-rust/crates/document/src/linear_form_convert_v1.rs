@@ -140,6 +140,7 @@ fn direct_molecule_id(
 ) -> Result<PersistentId, TypedDocumentError> {
     let record = document
         .resolve_document_object_id(selector)
+        .map_err(|_| TypedDocumentError::InvalidLinearFormMolecule)?
         .filter(|record| {
             record.class() == TypedClass::Molecule && record.path().components().len() == 1
         })
@@ -457,14 +458,13 @@ mod tests {
     use super::*;
 
     fn selector(document: &TypedDocument) -> DocumentObjectIdV1 {
-        crate::document_object_id_from_record_v1(
-            document
-                .root()
-                .children_of(TypedClass::Molecule)
-                .next()
-                .expect("molecule"),
-        )
-        .expect("selector")
+        let molecule = document
+            .root()
+            .children_of(TypedClass::Molecule)
+            .next()
+            .expect("molecule");
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(molecule)
+            .expect("typed ingress persists the durable molecule identity")
     }
 
     fn ids(names: &[&str]) -> Vec<PersistentId> {
@@ -618,17 +618,17 @@ mod tests {
             r#"</molecule></cdml>"#,
         );
         let document = TypedDocument::parse(source).expect("typed document");
-        let atom_selector = crate::document_object_id_from_record_v1(
-            document
-                .root()
-                .children_of(TypedClass::Molecule)
-                .next()
-                .expect("molecule")
-                .children_of(TypedClass::Atom)
-                .next()
-                .expect("atom"),
-        )
-        .expect("atom selector");
+        let atom = document
+            .root()
+            .children_of(TypedClass::Molecule)
+            .next()
+            .expect("molecule")
+            .children_of(TypedClass::Atom)
+            .next()
+            .expect("atom");
+        let atom_selector =
+            crate::projection_identity_v1::projection_document_object_id_from_record_v1(atom)
+                .expect("typed ingress persists the durable atom identity");
         assert!(matches!(
             document.prepare_linear_form_convert_v1(&atom_selector, &ids(&["a"])),
             Err(LinearFormDocumentErrorV1::Document(

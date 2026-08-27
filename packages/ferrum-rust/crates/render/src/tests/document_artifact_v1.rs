@@ -12,8 +12,8 @@ fn point(x: f64, y: f64) -> RenderPoint {
     RenderPoint::new(x, y).expect("finite test point")
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("valid test color"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("valid test color"))
 }
 
 fn width(value: f64) -> PositiveFinite {

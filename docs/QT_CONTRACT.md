@@ -624,12 +624,13 @@ or publication already begun.
 
 ## Native Open lifecycle
 
-The local-CDML and decoded-CD-SVG profiles retain the admitted regular descriptor long enough for
-Rust to mint an opaque equality-only origin token. The private one-use PyO3 receipt transfers the
-authenticated session, render observation, token, and closed source kind together. The token is
-live-tab lifecycle state only; it is not CDML, serialized document/session state, history, a
-preference, or a cross-process identity. A decoded-CD-SVG receipt contains canonical embedded CDML
-only; the SVG wrapper never enters the session or Qt projection.
+The local-CDML, decoded-CD-SVG, CML, and CDXML profiles retain the admitted regular descriptor
+long enough for Rust to mint an opaque equality-only origin token. The private one-use PyO3 receipt
+transfers the authenticated session, render observation, token, and closed source kind together.
+The token is live-tab lifecycle state only; it is not CDML, serialized document/session state,
+history, a preference, or a cross-process identity. Decoded CD-SVG retains canonical embedded CDML
+only; CML and CDXML retain imported molecule semantics only; source wrappers and interchange text
+never enter the session or Qt projection.
 
 Qt owns immutable Open intents and their dispositions. Interactive `File > Open...` chooses
 `ReplacePristineTarget` only for the explicitly marked, clean revision-zero bootstrap `Untitled`
@@ -714,14 +715,16 @@ its viewport. The focused Qt behavior test
 evidence for this ownership invariant; staged-local-runtime walkthroughs remain
 disposable integration evidence.
 
-The product accepts local CDML, the bounded decoded-CD-SVG profile, and the closed
-Rust-owned CML/CML2 simple-molecule profile. CML always converts into a clean new tab and
-never replaces the current tab; it has no CML Save baseline or export route. The product
-explicitly refuses compressed copies, `.svgz`, `.cdsvg`, `.cdxml`, and unsupported or
-incomplete documents without reading, sniffing, or converting them. The recovery copy writes
-CDML only; it does not offer format conversion. Broader historical editing modes, template
-catalogs, import/export families, and clipboard or presentation workflows are preproduction
-drops unless a later slice gives them a complete Rust owner and an explicit user contract.
+The product accepts local CDML, the bounded decoded-CD-SVG profile, closed Rust-owned CML/CML2,
+and bounded input-only CDXML simple-molecule import. CML and CDXML always create clean new tabs
+and never replace the current tab; neither has a source Save baseline or export route. The first
+Save or Save As publishes CDML. The product explicitly refuses CDX, unsupported CDXML chemistry
+or presentation, namespaces, compressed copies, `.svgz`, `.cdsvg`, and unsupported or incomplete
+documents without mutation. The recovery copy writes CDML only; it does not offer format conversion.
+Broader historical editing modes, template catalogs, import/export families, and clipboard or
+presentation workflows are preproduction drops unless a later slice gives them a complete Rust
+owner and an explicit user contract. See [FILE_FORMATS.md](FILE_FORMATS.md) for the concise
+current disposition.
 
 Historical note: the former mixed-host migration bridge and its retained-session shutdown
 path were removed with the second host. They are not current product behavior or test

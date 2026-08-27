@@ -35,6 +35,24 @@ def dispatch_native_mode_input(owner: object, watched: PySide6.QtCore.QObject,
 	tab = owner._active_native_tab()
 	if tab is None or watched is not owner._controller_native_viewport:
 		return False
+	viewport = tab.view.viewport()
+	if isinstance(event, PySide6.QtGui.QKeyEvent) and viewport.hasFocus() and (
+		(event.key() == PySide6.QtCore.Qt.Key.Key_F10
+		and event.modifiers() & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier)
+		or event.key() == PySide6.QtCore.Qt.Key.Key_Menu
+	):
+		return owner._show_structure_selection_context_menu(
+			viewport, viewport.mapToGlobal(viewport.rect().center()),
+		)
+	if isinstance(event, PySide6.QtGui.QMouseEvent) and (
+		event.button() == PySide6.QtCore.Qt.MouseButton.RightButton
+	):
+		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonPress:
+			return owner._show_structure_selection_context_menu(
+				viewport, viewport.mapToGlobal(event.position().toPoint()),
+			)
+		if event.type() == PySide6.QtCore.QEvent.Type.MouseButtonRelease:
+			return True
 	controller = owner._window_mode_sync
 	if controller.active_state.mode_id is None:
 		return False

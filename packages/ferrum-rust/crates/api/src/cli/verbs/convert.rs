@@ -30,8 +30,13 @@ pub(crate) fn run(
         .input_format
         .or_else(|| infer_input_format(&options.input))
         .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
-    let input = InterchangeCapabilityResolverV1::lookup_input_format(input_format.into())
-        .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
+    let input = match InterchangeCapabilityResolverV1::lookup_input_for_operation(
+        input_format.into(),
+        crate::InterchangeOperationV1::ChemistryConvert,
+    ) {
+        Ok(input) => input,
+        Err(refusal) => return write_refusal(refusal.recovery_message(), stderr),
+    };
     let output = output_format(&options.output_format)?;
     let execution_profile =
         InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
@@ -59,8 +64,13 @@ pub(crate) fn run_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRu
         .input_format
         .or_else(|| infer_input_format(&options.input))
         .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
-    let input = InterchangeCapabilityResolverV1::lookup_input_format(input_format.into())
-        .ok_or(VerbCliError::MissingInterchangeInputFormat)?;
+    let input = match InterchangeCapabilityResolverV1::lookup_input_for_operation(
+        input_format.into(),
+        crate::InterchangeOperationV1::ChemistryConvert,
+    ) {
+        Ok(input) => input,
+        Err(refusal) => return write_refusal(refusal.recovery_message(), stderr),
+    };
     let output = output_format(&options.output_format)?;
     let execution_profile =
         InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
@@ -140,12 +150,12 @@ fn infer_input_format(input: &Path) -> Option<InterchangeInputFormat> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use crate::cli::InterchangeInputFormat;
     use crate::cli::commands::InterchangeFormat;
 
-    use super::infer_input_format;
+    use super::{ConvertOptions, infer_input_format, run};
 
     #[test]
     fn common_extensions_map_to_closed_protocol_names() {
@@ -162,5 +172,51 @@ mod tests {
             Some(InterchangeInputFormat::CmlSimpleMolecule)
         );
         assert_eq!(infer_input_format(Path::new("-")), None);
+    }
+
+    fn cdxml_conversion_options(input: PathBuf, explicit: bool) -> ConvertOptions {
+        ConvertOptions {
+            input,
+            output: None,
+            input_format: explicit.then_some(InterchangeInputFormat::CdxmlSimpleMolecule),
+            output_format: "cml".to_owned(),
+            json: false,
+        }
+    }
+
+    #[test]
+    fn explicit_cdxml_conversion_refuses_before_reading_the_source() {
+        let mut stdin = std::io::empty();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let error = run(
+            cdxml_conversion_options(PathBuf::from("missing-explicit.cdxml"), true),
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+        )
+        .expect_err("document-only input cannot reach a file read");
+        assert!(error.was_emitted_to_stream());
+        let diagnostic = String::from_utf8(stderr).expect("ASCII diagnostic");
+        assert!(diagnostic.contains("ferrum open"));
+        assert!(!diagnostic.contains("could not read"));
+    }
+
+    #[test]
+    fn inferred_cdxml_conversion_refuses_before_reading_the_source() {
+        let mut stdin = std::io::empty();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let error = run(
+            cdxml_conversion_options(PathBuf::from("missing-inferred.cdxml"), false),
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+        )
+        .expect_err("document-only inferred input cannot reach a file read");
+        assert!(error.was_emitted_to_stream());
+        let diagnostic = String::from_utf8(stderr).expect("ASCII diagnostic");
+        assert!(diagnostic.contains("ferrum open"));
+        assert!(!diagnostic.contains("could not read"));
     }
 }

@@ -124,8 +124,7 @@ fn request(
         .iter()
         .map(|index| {
             observation.projection().molecules()[*index]
-                .id()
-                .expect("direct id")
+                .document_object_id()
                 .clone()
         })
         .collect();
@@ -236,15 +235,12 @@ fn snapshot_report_retains_generic_inserted_tetrahedral_and_ez_semantics() {
                     molecule,
                     Some(semantics),
                     Some(DocumentStereoDepictionReportV1::new(
-                        vec![
-                            DocumentDirectedBondDepictionV1::new(
-                                0,
-                                0,
-                                1,
-                                DocumentBondPresentationV1::SolidWedge,
-                            )
-                            .expect("valid directed depiction"),
-                        ],
+                        vec![DocumentDirectedBondDepictionV1::new(
+                            0,
+                            0,
+                            1,
+                            DocumentBondPresentationV1::SolidWedge,
+                        )],
                         vec![DocumentDoubleBondCarrierMarkDepictionV1::new(
                             3,
                             4,
@@ -326,7 +322,7 @@ fn report_records_follow_document_paint_order_not_selector_order() {
             .projection()
             .molecules()
             .iter()
-            .map(|root| root.id().expect("direct root id").as_str())
+            .map(|root| root.document_object_id().as_str())
             .collect::<Vec<_>>()
     );
     assert_eq!(
@@ -551,8 +547,7 @@ fn stale_fence_refuses_the_entire_request() {
         *observation.snapshot().digest(),
         vec![
             observation.projection().molecules()[0]
-                .id()
-                .expect("direct id")
+                .document_object_id()
                 .clone(),
         ],
     )
@@ -569,8 +564,7 @@ fn selector_bound_rejects_before_duplicate_analysis() {
         "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
     );
     let id = observation.projection().molecules()[0]
-        .id()
-        .expect("id")
+        .document_object_id()
         .clone();
     assert_eq!(
         ParsedDocumentMoleculeReportRequestV1::new(
@@ -618,7 +612,7 @@ fn protocol_maps_literal_isotope_aware_report_facts_without_runtime_detail() {
         .projection()
         .molecules()
         .iter()
-        .map(|root| root.id().expect("direct root id").as_str().to_owned())
+        .map(|root| root.document_object_id().as_str().to_owned())
         .collect();
     let request = serde_json::json!({
         "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
@@ -813,8 +807,7 @@ fn protocol_missing_runtime_is_a_redacted_chemistry_refusal() {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let id = observation.projection().molecules()[0]
-        .id()
-        .expect("direct root id")
+        .document_object_id()
         .as_str()
         .to_owned();
     let request = serde_json::json!({
@@ -853,7 +846,7 @@ fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_document_p
         .molecules()
         .iter()
         .rev()
-        .map(|root| root.id().expect("direct root id").as_str().to_owned())
+        .map(|root| root.document_object_id().as_str().to_owned())
         .collect();
     let request = serde_json::json!({
         "schema": OPERATION_PROTOCOL_REQUEST_SCHEMA_V1,
@@ -884,7 +877,7 @@ fn detached_protocol_report_preserves_nonzero_snapshot_provenance_and_document_p
             .projection()
             .molecules()
             .iter()
-            .map(|root| root.id().expect("direct root id").as_str())
+            .map(|root| root.document_object_id().as_str())
             .collect::<Vec<_>>()
     );
     assert_eq!(
@@ -904,8 +897,7 @@ fn detached_protocol_report_refuses_a_digest_that_does_not_authenticate_cdml() {
     );
     let observation = observation(&source);
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("direct root id")
+        .document_object_id()
         .as_str()
         .to_owned();
     let request = serde_json::json!({
@@ -945,8 +937,7 @@ fn detached_protocol_report_uses_the_shared_final_envelope_budget() {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("direct root id")
+        .document_object_id()
         .as_str()
         .to_owned();
     let request = serde_json::json!({

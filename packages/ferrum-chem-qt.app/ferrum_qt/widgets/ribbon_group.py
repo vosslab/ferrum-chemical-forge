@@ -1,5 +1,8 @@
 """Reusable labelled command group for Ferrum's task-oriented ribbon."""
 
+# Standard Library
+import enum
+
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtGui
@@ -10,13 +13,22 @@ import ferrum_qt.ferrum.authoring_ribbon_layout
 
 
 #============================================
+class RibbonGroupDisplayState(enum.Enum):
+	"""The bounded presentation choices owned by one task group."""
+
+	EXPANDED = "expanded"
+	COMPACT = "compact"
+	COLLAPSED = "collapsed"
+
+
+#============================================
 class RibbonGroup(PySide6.QtWidgets.QWidget):
-	"""Project live actions as a labelled group with local supporting overflow."""
+	"""Project registry actions as a labelled group in one explicit state."""
 
 	#============================================
 	def __init__(self, layout: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout,
 			parent: PySide6.QtWidgets.QWidget | None = None) -> None:
-		"""Build one group without altering action behavior, state, or shortcuts."""
+		"""Build action clients without taking ownership of QAction behavior."""
 		super().__init__(parent)
 		self.layout_data = layout
 		self.setObjectName(f"ribbon-group-{layout.id}")
@@ -24,74 +36,126 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		self.setAccessibleDescription(self.tr(f"Commands for the {layout.label_key} task."))
 		self.setSizePolicy(PySide6.QtWidgets.QSizePolicy.Policy.Maximum,
 			PySide6.QtWidgets.QSizePolicy.Policy.Preferred)
-		root = PySide6.QtWidgets.QVBoxLayout(self)
-		root.setContentsMargins(8, 3, 8, 3)
-		root.setSpacing(2)
+		self._root_layout = PySide6.QtWidgets.QVBoxLayout(self)
+		self._root_layout.setContentsMargins(8, 3, 8, 3)
+		self._root_layout.setSpacing(2)
 		self._actions = PySide6.QtWidgets.QWidget(self)
 		self._action_layout = PySide6.QtWidgets.QHBoxLayout(self._actions)
 		self._action_layout.setContentsMargins(0, 0, 0, 0)
 		self._action_layout.setSpacing(3)
-		root.addWidget(self._actions)
-		caption = PySide6.QtWidgets.QLabel(self.tr(layout.label_key), self)
-		caption.setObjectName(f"ribbon-group-caption-{layout.id}")
-		caption.setAlignment(PySide6.QtCore.Qt.AlignmentFlag.AlignHCenter)
-		root.addWidget(caption)
-		self._primary_buttons: list[PySide6.QtWidgets.QToolButton] = []
-		self._supporting_entries: list[tuple[
+		self._root_layout.addWidget(self._actions)
+		self._caption = PySide6.QtWidgets.QLabel(self.tr(layout.label_key), self)
+		self._caption.setObjectName(f"ribbon-group-caption-{layout.id}")
+		self._caption.setAlignment(PySide6.QtCore.Qt.AlignmentFlag.AlignHCenter)
+		self._root_layout.addWidget(self._caption)
+		self._direct_buttons: list[tuple[
 			PySide6.QtWidgets.QToolButton,
 			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 		]] = []
-		self._overflow_actions: list[PySide6.QtGui.QAction] = []
 		for entry in layout.entries:
 			button = self._button_for_entry(entry)
+			self._direct_buttons.append((button, entry))
 			self._action_layout.addWidget(button)
-			if entry.role == "primary":
-				self._primary_buttons.append(button)
-			else:
-				self._supporting_entries.append((button, entry))
-				self._overflow_actions.append(entry.action)
-		self._more_button = PySide6.QtWidgets.QToolButton(self._actions)
-		self._more_button.setObjectName(f"ribbon-more-{layout.id}")
-		self._more_button.setText(self.tr("More"))
-		self._more_button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-		self._more_button.setPopupMode(PySide6.QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
-		self._more_button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
-		self._more_button.setAccessibleName(self.tr(layout.overflow_label_key))
-		self._more_button.setToolTip(self.tr(layout.overflow_label_key))
-		menu = PySide6.QtWidgets.QMenu(self._more_button)
-		for action in self._overflow_actions:
-			menu.addAction(action)
-		self._more_button.setMenu(menu)
+		self._more_button = self._popup_button(
+			f"ribbon-more-{layout.id}", self.tr("More"), self.tr(layout.overflow_label_key),
+		)
+		self._more_menu = PySide6.QtWidgets.QMenu(self._more_button)
+		for _button, entry in self._supporting_entries():
+			self._more_menu.addAction(entry.action)
+		self._more_button.setMenu(self._more_menu)
 		self._action_layout.addWidget(self._more_button)
-		self._more_button.setVisible(False)
-		self._overflow_sync_pending = False
-		self._syncing_overflow = False
-		self._overflow_sync_timer = PySide6.QtCore.QTimer(self)
-		self._overflow_sync_timer.setSingleShot(True)
-		self._overflow_sync_timer.timeout.connect(self._sync_overflow)
+		self._group_button = self._popup_button(
+			f"ribbon-group-popup-{layout.id}", self.tr(layout.label_key),
+			self.tr(f"{layout.label_key} commands"),
+		)
+		self._group_menu = PySide6.QtWidgets.QMenu(self._group_button)
+		for entry in layout.entries:
+			self._group_menu.addAction(entry.action)
+		self._group_button.setMenu(self._group_menu)
+		self._action_layout.addWidget(self._group_button)
+		self._display_state = RibbonGroupDisplayState.EXPANDED
+		self.set_display_state(self._display_state)
 
 	#============================================
-	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:
-		"""Keep primaries visible and collapse only this group's supporting clients."""
-		super().resizeEvent(event)
-		self._schedule_overflow_sync()
+	@property
+	def display_state(self) -> RibbonGroupDisplayState:
+		"""Return the tab allocator's currently requested presentation state."""
+		return self._display_state
 
 	#============================================
-	def showEvent(self, event: PySide6.QtGui.QShowEvent) -> None:
-		"""Measure after Qt assigns the active tab's real available width."""
-		super().showEvent(event)
-		self._schedule_overflow_sync()
+	def set_display_state(self, state: RibbonGroupDisplayState) -> None:
+		"""Expose exactly the clients belonging to one measured presentation state."""
+		if state is self._display_state and self._visible_clients_match(state):
+			return
+		focused_action = self._focused_direct_action()
+		self._display_state = state
+		for button, entry in self._direct_buttons:
+			button.setVisible(
+				state is RibbonGroupDisplayState.EXPANDED
+				or state is RibbonGroupDisplayState.COMPACT and entry.role == "primary",
+			)
+		self._more_button.setVisible(
+			state is RibbonGroupDisplayState.COMPACT and bool(self._supporting_entries()),
+		)
+		self._group_button.setVisible(state is RibbonGroupDisplayState.COLLAPSED)
+		self.updateGeometry()
+		if focused_action is not None:
+			target = self.focus_target_for(focused_action)
+			if target is not None and target is not PySide6.QtWidgets.QApplication.focusWidget():
+				target.setFocus(PySide6.QtCore.Qt.FocusReason.OtherFocusReason)
+
+	#============================================
+	def width_for(self, state: RibbonGroupDisplayState) -> int:
+		"""Measure live control hints plus label and group margins for one state."""
+		buttons = self._buttons_for_state(state)
+		row_width = sum(button.sizeHint().width() for button in buttons)
+		if len(buttons) > 1:
+			row_width += self._action_layout.spacing() * (len(buttons) - 1)
+		margins = self._root_layout.contentsMargins()
+		return max(row_width, self._caption.sizeHint().width()) + margins.left() + margins.right()
+
+	#============================================
+	def minimum_width_for(self, state: RibbonGroupDisplayState) -> int:
+		"""Return a state floor derived from current live control minimum hints."""
+		buttons = self._buttons_for_state(state)
+		row_width = sum(button.minimumSizeHint().width() for button in buttons)
+		if len(buttons) > 1:
+			row_width += self._action_layout.spacing() * (len(buttons) - 1)
+		margins = self._root_layout.contentsMargins()
+		return max(row_width, self._caption.minimumSizeHint().width()) + margins.left() + margins.right()
 
 	#============================================
 	def direct_button_for(self, action: PySide6.QtGui.QAction) -> PySide6.QtWidgets.QToolButton | None:
-		"""Return one direct action client for semantic UI tests and diagnostics."""
-		return next((button for button in self.findChildren(PySide6.QtWidgets.QToolButton)
-			if button.defaultAction() is action), None)
+		"""Return the stable direct client for one declared action."""
+		return next((button for button, entry in self._direct_buttons if entry.action is action), None)
+
+	#============================================
+	def focus_target_for(self, action: PySide6.QtGui.QAction) -> PySide6.QtWidgets.QToolButton | None:
+		"""Return the exposed keyboard client for an action in the current state."""
+		button = self.direct_button_for(action)
+		if button is not None and button.isVisible():
+			return button
+		if self._display_state is RibbonGroupDisplayState.COMPACT:
+			return self._more_button
+		if self._display_state is RibbonGroupDisplayState.COLLAPSED:
+			return self._group_button
+		return None
+
+	#============================================
+	def visible_actions(self) -> tuple[PySide6.QtGui.QAction, ...]:
+		"""Return every registry action reachable exactly once in the visible state."""
+		if self._display_state is RibbonGroupDisplayState.COLLAPSED:
+			return tuple(self._group_menu.actions())
+		direct = tuple(entry.action for button, entry in self._direct_buttons if button.isVisible())
+		return direct + (
+			tuple(self._more_menu.actions())
+			if self._display_state is RibbonGroupDisplayState.COMPACT else ()
+		)
 
 	#============================================
 	def _button_for_entry(self, entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 			) -> PySide6.QtWidgets.QToolButton:
-		"""Make a text-labelled client delegating all state to the existing action."""
+		"""Make one labelled client delegating all state to its existing action."""
 		button = PySide6.QtWidgets.QToolButton(self._actions)
 		button.setDefaultAction(entry.action)
 		button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
@@ -109,51 +173,55 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		return button
 
 	#============================================
-	def _schedule_overflow_sync(self) -> None:
-		"""Coalesce layout-triggered resize events into one stable reconciliation."""
-		if self._overflow_sync_pending or self._syncing_overflow:
-			return
-		self._overflow_sync_pending = True
-		self._overflow_sync_timer.start(0)
+	def _popup_button(self, object_name: str, text: str,
+			accessible_name: str) -> PySide6.QtWidgets.QToolButton:
+		"""Create one labelled, keyboard-reachable popup trigger."""
+		button = PySide6.QtWidgets.QToolButton(self._actions)
+		button.setObjectName(object_name)
+		button.setText(text)
+		button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+		button.setPopupMode(PySide6.QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
+		button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
+		button.setAccessibleName(accessible_name)
+		button.setAccessibleDescription(accessible_name)
+		button.setToolTip(accessible_name)
+		return button
 
 	#============================================
-	def _sync_overflow(self) -> None:
-		"""Apply one priority-aware overflow partition without resize recursion."""
-		self._overflow_sync_pending = False
-		if self._syncing_overflow or not self._supporting_entries:
-			return
-		self._syncing_overflow = True
-		try:
-			visible = {button for button, _entry in self._supporting_entries}
-			available = self._actions.contentsRect().width()
-			if available > 0 and self._width_for(visible, False) > available:
-				for priority in ("normal", "required"):
-					for button, entry in reversed(self._supporting_entries):
-						if entry.priority != priority:
-							continue
-						visible.remove(button)
-						if self._width_for(visible, True) <= available:
-							break
-					if self._width_for(visible, True) <= available:
-						break
-			overflow_visible = len(visible) != len(self._supporting_entries)
-			for button, _entry in self._supporting_entries:
-				if button.isVisible() != (button in visible):
-					button.setVisible(button in visible)
-			if self._more_button.isVisible() != overflow_visible:
-				self._more_button.setVisible(overflow_visible)
-		finally:
-			self._syncing_overflow = False
+	def _buttons_for_state(self, state: RibbonGroupDisplayState) -> tuple[PySide6.QtWidgets.QToolButton, ...]:
+		"""List direct control hints participating in one presentation state."""
+		if state is RibbonGroupDisplayState.COLLAPSED:
+			return (self._group_button,)
+		buttons = tuple(button for button, entry in self._direct_buttons
+			if state is RibbonGroupDisplayState.EXPANDED or entry.role == "primary")
+		return buttons + ((self._more_button,) if state is RibbonGroupDisplayState.COMPACT
+			and self._supporting_entries() else ())
 
 	#============================================
-	def _width_for(self, supporting: set[PySide6.QtWidgets.QToolButton],
-			include_more: bool) -> int:
-		"""Measure the direct clients that remain visible in one group."""
-		buttons = self._primary_buttons + [
-			button for button, _entry in self._supporting_entries if button in supporting
-		]
-		if include_more:
-			buttons.append(self._more_button)
-		return sum(button.sizeHint().width() for button in buttons) + self._action_layout.spacing() * (
-			len(buttons) - 1
+	def _supporting_entries(self) -> tuple[tuple[PySide6.QtWidgets.QToolButton,
+			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry], ...]:
+		"""Return declared supporting entries in their YAML order."""
+		return tuple((button, entry) for button, entry in self._direct_buttons
+			if entry.role == "supporting")
+
+	#============================================
+	def _focused_direct_action(self) -> PySide6.QtGui.QAction | None:
+		"""Identify a direct action losing visibility during this state transition."""
+		focus = PySide6.QtWidgets.QApplication.focusWidget()
+		if not isinstance(focus, PySide6.QtWidgets.QToolButton):
+			return None
+		return next((entry.action for button, entry in self._direct_buttons if button is focus), None)
+
+	#============================================
+	def _visible_clients_match(self, state: RibbonGroupDisplayState) -> bool:
+		"""Avoid redundant visibility mutation during repeated page allocation."""
+		return (
+			all(button.isVisible() == (
+				state is RibbonGroupDisplayState.EXPANDED
+				or state is RibbonGroupDisplayState.COMPACT and entry.role == "primary"
+			) for button, entry in self._direct_buttons)
+			and self._more_button.isVisible() == (
+				state is RibbonGroupDisplayState.COMPACT and bool(self._supporting_entries())
+			)
+			and self._group_button.isVisible() == (state is RibbonGroupDisplayState.COLLAPSED)
 		)

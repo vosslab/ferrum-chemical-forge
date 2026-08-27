@@ -17,6 +17,7 @@ use pyo3::{create_exception, prelude::*};
 
 use super::binding::PyDocumentSession;
 use super::presentation_creation_gesture_binding::digest;
+use super::render_binding::{PyRenderPaintV3, paint_from};
 
 create_exception!(
     ferrum_chem,
@@ -125,11 +126,11 @@ pub(crate) struct PyPresentationPathOverlayV1 {
     #[pyo3(get)]
     closed: bool,
     #[pyo3(get)]
-    stroke_color: String,
+    stroke_paint: PyRenderPaintV3,
     #[pyo3(get)]
     stroke_width: f64,
     #[pyo3(get)]
-    fill_color: Option<String>,
+    fill_paint: Option<PyRenderPaintV3>,
 }
 impl PyPresentationPathOverlayV1 {
     fn take_overlay(&self) -> Option<ApiPresentationPathOverlayV1> {
@@ -257,12 +258,12 @@ fn overlay_to_python(
     let hover = issued.hover().map(|point| (point.x(), point.y()));
     let mut points = accepted_points.clone();
     points.extend(hover);
-    let (stroke_color, stroke_width, fill_color) = {
+    let (stroke_paint, stroke_width, fill_paint) = {
         let appearance = issued.appearance();
         (
-            appearance.stroke_color().to_owned(),
+            paint_from(appearance.stroke_paint()),
             appearance.stroke_width(),
-            appearance.fill_color().map(str::to_owned),
+            appearance.fill_paint().map(paint_from),
         )
     };
     PyPresentationPathOverlayV1 {
@@ -272,9 +273,9 @@ fn overlay_to_python(
         hover,
         points,
         closed: kind == PyPresentationPathKindV1::Polygon,
-        stroke_color,
+        stroke_paint,
         stroke_width,
-        fill_color,
+        fill_paint,
     }
 }
 fn path_error(py: Python<'_>, error: PresentationPathRenderErrorV1) -> PyErr {

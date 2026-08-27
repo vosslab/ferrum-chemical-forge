@@ -10,6 +10,21 @@
 # The 'name' field is the human-readable label shown in the UI.
 
 name: "Dark"
+document_display:
+  canvas_surround: "#101318"
+  page_fill: "#171717"
+  page_outline: "#6b7785"
+  document_foreground: "#e8edf2"
+  atom_number: "#8bb7ff"
+  selection_outline: "#70a7ff"
+  hover_outline: "#8cd7ff"
+  preview_outline: "#d0b4ff"
+  preview_fill: "#956fd0"
+  keyboard_cursor: "#f0c36a"
+  grid_line: "#6d7982"
+  grid_dot_outline: "#718c83"
+  grid_dot_fill: "#537c70"
+  elements: {}
 gui:
   background: "#2b2b2b"
   toolbar: "#333333"

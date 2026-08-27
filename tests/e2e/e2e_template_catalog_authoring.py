@@ -1,6 +1,7 @@
 """Offscreen Ferrum workflow: browse, cancel, place, save, and reopen a template."""
 
 # Standard Library
+import collections.abc
 import json
 import pathlib
 
@@ -93,12 +94,48 @@ def _select_enabled_result_for_placement(app: PySide6.QtWidgets.QApplication) ->
 
 
 #============================================
-def _ribbon_exposes(window: PySide6.QtWidgets.QMainWindow, action: PySide6.QtGui.QAction) -> bool:
-	"""Report whether the visible authoring ribbon presents one public action."""
-	return any(
-		button.isVisible() and button.defaultAction() is action
-		for button in window.findChildren(PySide6.QtWidgets.QToolButton)
+def _open_insert_template(window: PySide6.QtWidgets.QMainWindow,
+		app: PySide6.QtWidgets.QApplication, insert_template: PySide6.QtGui.QAction,
+		on_open: collections.abc.Callable[[], None]) -> None:
+	"""Open the palette through Structure's visible primary ribbon control."""
+	tabs = next(
+		widget for widget in window.findChildren(PySide6.QtWidgets.QTabWidget)
+		if widget.isVisible() and widget.accessibleName() == "Authoring tasks"
 	)
+	structure_index = next(
+		index for index in range(tabs.count()) if tabs.tabText(index) == "Structure"
+	)
+	PySide6.QtTest.QTest.mouseClick(
+		tabs.tabBar(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+		PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+		tabs.tabBar().tabRect(structure_index).center(),
+	)
+	app.processEvents()
+	group = next(
+		widget for widget in window.findChildren(PySide6.QtWidgets.QWidget)
+		if widget.isVisible()
+		and widget.objectName() == "ribbon-group-groups_templates"
+		and widget.accessibleName() == "Groups and templates commands"
+	)
+	direct_clients = [
+		widget for widget in group.findChildren(PySide6.QtWidgets.QToolButton)
+		if widget.isVisible() and widget.defaultAction() is insert_template
+	]
+	if len(direct_clients) != 1:
+		raise RuntimeError("Groups and templates did not expose one visible Insert Template control")
+	direct_client = direct_clients[0]
+	if not direct_client.isEnabled():
+		raise RuntimeError("visible Insert Template control was disabled")
+	if direct_client.text() != "Insert Template":
+		raise RuntimeError("visible Insert Template control had an unexpected label")
+	if direct_client.accessibleName() != "Insert Template...":
+		raise RuntimeError("visible Insert Template control had an unexpected accessible name")
+	PySide6.QtCore.QTimer.singleShot(0, on_open)
+	PySide6.QtTest.QTest.mouseClick(
+		direct_client, PySide6.QtCore.Qt.MouseButton.LeftButton,
+		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, direct_client.rect().center(),
+	)
+	app.processEvents()
 
 
 #============================================
@@ -142,24 +179,24 @@ def main() -> int:
 			workspace = pathlib.Path(workspace_text)
 			window.show()
 			app.processEvents()
-			insert_template = _action(window, "Insert Template...")
-			if not _ribbon_exposes(window, insert_template):
-				raise RuntimeError("Ferrum ribbon does not expose Insert Template")
+			insert_template = window._action_registry.get_qt_action("chemistry.template.insert")
 			canvas = _canvas(window)
 			baseline_path = workspace / "template-catalog-baseline.cdml"
 			cancelled_path = workspace / "template-catalog-cancelled.cdml"
 			placed_path = workspace / "template-catalog-placed.cdml"
 			_save_as(window, app, baseline_path)
 			baseline_digest = _load_digest(baseline_path)
-			PySide6.QtCore.QTimer.singleShot(0, lambda: _reject_catalog_modal(app))
-			insert_template.trigger()
+			_open_insert_template(
+				window, app, insert_template, lambda: _reject_catalog_modal(app),
+			)
 			app.processEvents()
 			_save_as(window, app, cancelled_path)
 			cancelled_digest = _load_digest(cancelled_path)
 			if cancelled_digest != baseline_digest:
 				raise RuntimeError("cancelling Insert Template changed the document")
-			PySide6.QtCore.QTimer.singleShot(0, lambda: _select_enabled_result_for_placement(app))
-			insert_template.trigger()
+			_open_insert_template(
+				window, app, insert_template, lambda: _select_enabled_result_for_placement(app),
+			)
 			app.processEvents()
 			anchor = canvas.viewport().rect().center()
 			PySide6.QtTest.QTest.mouseMove(canvas.viewport(), anchor)

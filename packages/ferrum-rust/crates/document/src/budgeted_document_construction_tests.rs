@@ -42,10 +42,13 @@ fn assert_matching_semantics(
     assert_eq!(unbounded_molecule.atoms().len(), 1);
     assert_eq!(admitted_molecule.atoms()[0].source_id(), Some("a"));
     assert_eq!(unbounded_molecule.atoms()[0].source_id(), Some("a"));
-    assert_ne!(admitted_molecule.id(), unbounded_molecule.id());
     assert_ne!(
-        admitted_molecule.atoms()[0].id(),
-        unbounded_molecule.atoms()[0].id()
+        admitted_molecule.document_object_id(),
+        unbounded_molecule.document_object_id()
+    );
+    assert_ne!(
+        admitted_molecule.atoms()[0].document_object_id(),
+        unbounded_molecule.atoms()[0].document_object_id()
     );
     assert!(admitted_observation.projection().issues().is_empty());
     assert!(unbounded_observation.projection().issues().is_empty());

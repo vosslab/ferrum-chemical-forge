@@ -184,6 +184,22 @@ semantics. The E2E remains permanent because it covers the distinct public
 chooser-to-materialization workflow without raw CDML, private IDs, mocks,
 pixel equality, arbitrary waits, or fixture catalogs.
 
+## Compact-group attachment CLI
+
+The registered compact-group attachment CLI E2E obtains a document fence through
+public inspection, then submits one representative attached-group request through
+both `ferrum protocol run` and `ferrum document command
+document.compact-group.attach.v1`. Each success receipt must provide committed
+CDML, source fence facts, target and catalog echoes, a newly allocated group ID,
+and a reusable next fence. A stale-fence request must return one typed refusal
+without mutation.
+
+This is permanent public transport evidence because the two supported CLI forms
+are distinct user contracts. The all-nine recipe topology and admission matrix
+belongs in focused Rust tests, not nine public CLI scenarios or a catalog-count
+assertion. The rebuilt registered E2E and final repository suite are delivery
+validation, not additional permanent test variants.
+
 ## Example: Check Structure compact-group recovery
 
 The public diagnostics E2E authors an attached `Me` group through the visible

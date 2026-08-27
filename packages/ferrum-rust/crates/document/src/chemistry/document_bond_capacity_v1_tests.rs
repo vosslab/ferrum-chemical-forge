@@ -19,8 +19,7 @@ fn request(
         .iter()
         .map(|index| {
             observation.projection().molecules()[*index]
-                .id()
-                .expect("durable root")
+                .document_object_id()
                 .clone()
         })
         .collect();

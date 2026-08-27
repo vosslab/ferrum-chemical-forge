@@ -13,6 +13,7 @@ import ferrum_qt.bridge.display_geometry
 import ferrum_qt.config.geometry_units
 import ferrum_qt.ferrum.hex_grid
 import ferrum_qt.ferrum.keyboard_canvas
+import ferrum_qt.themes.document_display_palette
 
 ZOOM_PERCENT_MINIMUM = 10
 ZOOM_PERCENT_MAXIMUM = 1000
@@ -53,10 +54,16 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 
 	#============================================
 	def __init__(
-			self, parent: PySide6.QtWidgets.QWidget | None = None,
+			self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			parent: PySide6.QtWidgets.QWidget | None = None,
 			) -> None:
 		"""Initialize one view with no retained direct-zoom sequence anchor."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum graphics view requires an exact document display palette")
 		super().__init__(parent)
+		self._display_palette = palette
+		self._apply_canvas_surround(palette)
 		self.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
 		self.viewport().setMouseTracking(True)
 		self.setAccessibleName(self.tr("Ferrum drawing canvas"))
@@ -154,14 +161,22 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 			item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 			item.setZValue(1_000_001.0)
 			self._keyboard_cursor_item = item
-		color = PySide6.QtWidgets.QApplication.palette().color(
-			PySide6.QtGui.QPalette.ColorRole.Highlight,
+		self._apply_keyboard_cursor_pen(item)
+		item.setPos(point)
+		item.setVisible(True)
+
+	#============================================
+	def _apply_keyboard_cursor_pen(
+			self, item: PySide6.QtWidgets.QGraphicsPathItem,
+			) -> None:
+		"""Set cursor material without changing its retained geometry or visibility."""
+		color = self._display_palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.
+			KEYBOARD_CURSOR,
 		)
 		pen = PySide6.QtGui.QPen(color)
 		pen.setWidthF(2.0)
 		item.setPen(pen)
-		item.setPos(point)
-		item.setVisible(True)
 
 	#============================================
 	def _update_keyboard_cursor_accessibility(self) -> None:
@@ -250,7 +265,7 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		try:
 			item = (
 				ferrum_qt.ferrum.hex_grid.FerrumNativeHexGridItem(
-					scene.sceneRect(),
+					scene.sceneRect(), self._display_palette,
 				)
 			)
 			item.setVisible(self._hex_grid_requested_visible)
@@ -260,14 +275,30 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		self._hex_grid_item = item
 
 	#============================================
-	def changeEvent(self, event: PySide6.QtCore.QEvent) -> None:
-		"""Refresh grid colors when the application palette family changes."""
-		super().changeEvent(event)
-		if (
-			event.type() == PySide6.QtCore.QEvent.Type.PaletteChange
-			and self._hex_grid_item is not None
-		):
-			self._hex_grid_item.refresh_application_style()
+	def refresh_document_display_palette(
+			self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
+		"""Refresh retained grid material from the tab-owned display palette."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum graphics view requires an exact document display palette")
+		self._display_palette = palette
+		self._apply_canvas_surround(palette)
+		if self._hex_grid_item is not None:
+			self._hex_grid_item.refresh_display_palette(palette)
+		if self._keyboard_cursor_item is not None:
+			self._apply_keyboard_cursor_pen(self._keyboard_cursor_item)
+
+	#============================================
+	def _apply_canvas_surround(
+			self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
+		"""Apply the document-owned non-page surface color to this view."""
+		self.setBackgroundBrush(PySide6.QtGui.QBrush(palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.
+			CANVAS_SURROUND,
+		)))
 
 	#============================================
 	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:

@@ -11,7 +11,7 @@ use crate::{
 /// Immutable atom facts in source order.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct AtomProjectionV1 {
-    id: Option<DocumentObjectIdV1>,
+    id: DocumentObjectIdV1,
     projection_key: ProjectionLocalObjectKeyV1,
     source_id: Option<String>,
     source_order: u32,
@@ -41,7 +41,7 @@ impl AtomProjectionV1 {
     )]
     #[must_use]
     pub fn new(
-        id: Option<DocumentObjectIdV1>,
+        id: DocumentObjectIdV1,
         projection_key: ProjectionLocalObjectKeyV1,
         source_id: Option<String>,
         source_order: u32,
@@ -85,22 +85,10 @@ impl AtomProjectionV1 {
             background_color,
         }
     }
-    /// Return the stable object key.
-    #[must_use]
-    pub fn id(&self) -> Option<&DocumentObjectIdV1> {
-        self.id.as_ref()
-    }
-
     /// Return the exact durable document object ID for this retained atom.
-    ///
-    /// Typed document ingress assigns every retained structural record a
-    /// durable ID before projection. A projection without one is an invalid
-    /// internal test fixture, not a public observation state.
     #[must_use]
     pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
-        self.id
-            .as_ref()
-            .expect("retained atom projection must have a document object ID")
+        &self.id
     }
     /// Return the non-operation key unique within this projection.
     #[must_use]

@@ -7,8 +7,10 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _CDML = "<cdml xmlns='urn:ferrum:cdml'><standard line_color='#123456' line_width='3' area_color='#abcdef'/></cdml>"
@@ -29,8 +31,10 @@ def test_rectangle_drag_commits_the_document_style_and_undo_removes_it(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A user can draw a styled Rectangle and undo the document change."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "vectors.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "vectors.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()

@@ -47,16 +47,8 @@ fn selection(document: &str) -> (String, String) {
     let observation = session.observe(0).expect("fixture observes");
     let molecule = &observation.projection().molecules()[0];
     (
-        molecule
-            .id()
-            .expect("molecule has durable ID")
-            .as_str()
-            .to_owned(),
-        molecule.atoms()[0]
-            .id()
-            .expect("oxygen has durable ID")
-            .as_str()
-            .to_owned(),
+        molecule.document_object_id().as_str().to_owned(),
+        molecule.atoms()[0].document_object_id().as_str().to_owned(),
     )
 }
 

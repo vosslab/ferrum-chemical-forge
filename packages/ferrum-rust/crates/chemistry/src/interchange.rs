@@ -23,6 +23,11 @@ pub const INTERCHANGE_MAX_TEXT_BYTES_V1: usize = SDF_MAX_INPUT_BYTES;
 /// presentation code cannot invent a second CML profile table.
 pub const CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1: &str =
     "ferrum-cml-simple-molecule-import-profile-v1";
+/// Canonical format identity for bounded Rust-owned CDXML import.
+pub const CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_ID_V1: &str = "cdxml";
+/// Versioned chemistry profile identity for bounded CDXML import.
+pub const CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1: &str =
+    "ferrum-cdxml-simple-molecule-import-profile-v1";
 
 /// Closed syntax vocabulary. `Cdml` is retained as a wire value for callers
 /// that dispatch CDML composition outside this crate.
@@ -47,6 +52,9 @@ pub enum InterchangeFormatV1 {
     /// Closed CML/CML2 simple-molecule profile.
     #[serde(rename = "cml_simple_molecule_import_v1")]
     CmlSimpleMolecule,
+    /// Closed CDXML simple-molecule import profile.
+    #[serde(rename = "cdxml_simple_molecule_import_v1")]
+    CdxmlSimpleMolecule,
 }
 impl InterchangeFormatV1 {
     #[must_use]
@@ -61,6 +69,7 @@ impl InterchangeFormatV1 {
             Self::SdfV3000 => "sdf_v3000",
             Self::Cdml => "cdml",
             Self::CmlSimpleMolecule => "cml_simple_molecule_import_v1",
+            Self::CdxmlSimpleMolecule => "cdxml_simple_molecule_import_v1",
         }
     }
     fn is_single_record(self) -> bool {
@@ -150,6 +159,9 @@ pub fn decode_non_cdml_interchange_v1(
     if format == InterchangeFormatV1::Cdml {
         return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
     }
+    if format == InterchangeFormatV1::CdxmlSimpleMolecule {
+        return Err(InterchangeCodecErrorV1::DocumentImportOnly);
+    }
     if format == InterchangeFormatV1::CmlSimpleMolecule {
         return Err(InterchangeCodecErrorV1::CdmlRequiresDocumentComposition);
     }
@@ -173,7 +185,9 @@ pub fn decode_non_cdml_interchange_v1(
         InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => {
             crate::interchange_sdf::decode_sdf_interchange_v1(engine, text)?
         }
-        InterchangeFormatV1::Cdml | InterchangeFormatV1::CmlSimpleMolecule => {
+        InterchangeFormatV1::Cdml
+        | InterchangeFormatV1::CmlSimpleMolecule
+        | InterchangeFormatV1::CdxmlSimpleMolecule => {
             unreachable!("checked above")
         }
     };
@@ -223,6 +237,9 @@ pub fn encode_non_cdml_interchange_v1(
         }
         InterchangeFormatV1::CmlSimpleMolecule => {
             crate::encode_cml_interchange_records_v1(records)?
+        }
+        InterchangeFormatV1::CdxmlSimpleMolecule => {
+            return Err(InterchangeCodecErrorV1::DocumentImportOnly);
         }
         InterchangeFormatV1::Cdml => {
             unreachable!("checked above")
@@ -299,6 +316,8 @@ pub enum InterchangeCodecErrorV1 {
     NoMolecularRecords,
     #[error("CDML interchange requires document composition")]
     CdmlRequiresDocumentComposition,
+    #[error("interchange source is available only for opening a new document")]
+    DocumentImportOnly,
     #[error(transparent)]
     CmlEncoding(#[from] crate::CmlEncoderErrorV1),
     #[error(transparent)]
@@ -373,6 +392,17 @@ mod tests {
             ])),
         )
         .expect("graph")
+    }
+
+    #[test]
+    fn cdxml_direct_codec_calls_report_document_import_only_not_cdml_composition() {
+        let error = decode_non_cdml_interchange_v1(
+            &SdfEngine,
+            InterchangeFormatV1::CdxmlSimpleMolecule,
+            "<CDXML/>",
+        )
+        .expect_err("CDXML conversion stays outside the generic codec");
+        assert!(matches!(error, InterchangeCodecErrorV1::DocumentImportOnly));
     }
 
     #[test]

@@ -5,6 +5,7 @@ use super::prepared_transition_binding::PySessionOperationTransitionRequestV1;
 use super::presentation_render_plan_binding::{
     PyPresentationRenderBoundsV1, PyPresentationVectorOperationV1,
 };
+use super::render_binding::{PyRenderPaintV3, paint_from};
 use ferrum_document::{
     ArrowGestureStyleV1, DocumentFenceV1, PresentationCreationGestureV1,
     PresentationCreationPreviewV1, PresentationGestureErrorV1, PresentationGestureKindV1,
@@ -146,11 +147,11 @@ pub(crate) struct PyPresentationPreviewPlusV1 {
     #[pyo3(get)]
     size: f64,
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     z: i32,
     #[pyo3(get)]
-    background: Option<String>,
+    background: Option<PyRenderPaintV3>,
 }
 
 /// Identifier-free renderer output for one transient presentation preview root.
@@ -337,11 +338,9 @@ fn preview_root_from(value: &PresentationPreviewRenderRootV1) -> PyPresentationP
                 text: operation.runs().iter().map(|run| run.text()).collect(),
                 face: operation.face().as_str().to_owned(),
                 size: operation.size().get(),
-                paint: operation.paint().color().as_str().to_owned(),
+                paint: paint_from(operation.paint()),
                 z: operation.z(),
-                background: background
-                    .as_ref()
-                    .map(|paint| paint.color().as_str().to_owned()),
+                background: background.as_ref().map(paint_from),
             }),
         },
     }

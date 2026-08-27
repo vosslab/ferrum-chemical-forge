@@ -15,7 +15,7 @@ impl TypedDocument {
         &self,
         patch: &BracketPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let pair = super::bracket_pair_projection_v1::bracket_pairs(self)
+        let pair = super::bracket_pair_projection_v1::bracket_pairs(self)?
             .into_iter()
             .find(|pair| pair.members() == patch.members())
             .ok_or_else(|| TypedDocumentError::InvalidBracketPair(patch.members().clone()))?;
@@ -38,16 +38,26 @@ fn validate_pair_geometry(
     pair: &super::BracketPairProjectionV1,
 ) -> Result<(), TypedDocumentError> {
     for identifier in pair.members() {
-        let record = document
+        let mut member = None;
+        for record in document
             .root()
             .typed_children()
             .iter()
             .map(super::TypedChild::record)
-            .find(|record| {
-                record.class() == TypedClass::Polyline
-                    && crate::document_object_id_from_record_v1(record).as_ref() == Some(identifier)
-            })
-            .ok_or_else(|| TypedDocumentError::InvalidBracketPair(pair.members().clone()))?;
+        {
+            if record.class() != TypedClass::Polyline {
+                continue;
+            }
+            let object_id =
+                crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)
+                    .map_err(|_| TypedDocumentError::InvalidBracketPair(pair.members().clone()))?;
+            if &object_id == identifier {
+                member = Some(record);
+                break;
+            }
+        }
+        let record =
+            member.ok_or_else(|| TypedDocumentError::InvalidBracketPair(pair.members().clone()))?;
         if !super::bracket_pair_projection_v1::valid_bracket_member(record) {
             return Err(TypedDocumentError::InvalidBracketPair(
                 pair.members().clone(),

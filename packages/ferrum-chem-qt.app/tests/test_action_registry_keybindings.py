@@ -9,14 +9,21 @@ import pytest
 import ferrum_qt.actions.action_registry
 import ferrum_qt.actions.menu_builder
 import ferrum_qt.actions.platform_menu
+import ferrum_qt.config.keybindings
+import ferrum_qt.config.preferences
 import ferrum_qt.declarative_resources
 
 
 #============================================
 def _declarations() -> dict:
 	"""Return a minimal hierarchy that exercises all declared menu node forms."""
-	return {"menus": [
-		{
+	return {
+		"contexts": [{
+			"id": "selected_structure",
+			"accessible_name": "Selected structure actions",
+			"groups": [{"id": "actions", "actions": ["draw.bond"]}],
+		}],
+		"menus": [{
 			"id": "file", "label_key": "File", "help_key": "Document commands",
 			"items": [{"section": {
 				"id": "document", "label_key": "Document",
@@ -41,8 +48,9 @@ def _declarations() -> dict:
 					}}],
 				}},
 			],
-		},
-	]}
+			},
+		],
+	}
 
 
 #============================================
@@ -58,6 +66,57 @@ def _registered_action(
 		shortcut_exemption_reason="The command is reachable by its labelled menu.",
 	)
 	return action
+
+
+#============================================
+class _MemoryPreferences:
+	"""Provide the small public preferences seam needed by keybinding tests."""
+
+	#============================================
+	def __init__(self, values: dict[str, object]) -> None:
+		"""Start with the supplied explicit persisted values."""
+		self.values = dict(values)
+
+	#============================================
+	def value(self, key: str, default: object = None) -> object:
+		"""Read one stored value or its caller-supplied fallback."""
+		return self.values.get(key, default)
+
+	#============================================
+	def set_value(self, key: str, value: object) -> None:
+		"""Persist one value through the same public preferences operation."""
+		self.values[key] = value
+
+	#============================================
+	def remove_value(self, key: str) -> None:
+		"""Remove one explicit override."""
+		self.values.pop(key, None)
+
+
+#============================================
+def _keybinding_manager(
+		window: PySide6.QtWidgets.QMainWindow,
+		monkeypatch: pytest.MonkeyPatch, saved: dict[str, object],
+		) -> tuple[
+			ferrum_qt.config.keybindings.KeybindingManager,
+			_MemoryPreferences,
+			dict[str, PySide6.QtGui.QAction],
+			ferrum_qt.actions.action_registry.ActionRegistry,
+		]:
+	"""Build a live complete managed shortcut surface with in-memory preferences."""
+	prefs = _MemoryPreferences(saved)
+	monkeypatch.setattr(
+		ferrum_qt.config.preferences.Preferences, "instance",
+		classmethod(lambda _cls: prefs),
+	)
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	manager = ferrum_qt.config.keybindings.KeybindingManager(window, registry)
+	actions = {
+		action_id: _registered_action(registry, action_id, action_id, window)
+		for action_id in manager.default_bindings()
+	}
+	manager.setup_shortcuts()
+	return manager, prefs, actions, registry
 
 
 #============================================
@@ -183,10 +242,17 @@ def test_menu_builder_preflights_every_live_action_before_menu_bar_mutation(
 		"file.unbound", "Unbound", "Unbound test action", None, None, None,
 		"The failure-atomicity contract intentionally leaves this action unbound.",
 	))
-	declarations = {"menus": [{
-		"id": "file", "label_key": "File", "help_key": "Document commands",
-		"items": [{"action": "file.new"}, {"action": "file.unbound"}],
-	}]}
+	declarations = {
+		"contexts": [{
+			"id": "selected_structure",
+			"accessible_name": "Selected structure actions",
+			"groups": [{"id": "actions", "actions": ["file.new"]}],
+		}],
+		"menus": [{
+			"id": "file", "label_key": "File", "help_key": "Document commands",
+			"items": [{"action": "file.new"}, {"action": "file.unbound"}],
+		}],
+	}
 	monkeypatch.setattr(
 		ferrum_qt.declarative_resources, "load_menu_declarations", lambda: declarations,
 	)
@@ -212,7 +278,13 @@ def test_menu_builder_renders_atomically_after_a_late_client_resolution_failure(
 	registry = ferrum_qt.actions.action_registry.ActionRegistry()
 	_registered_action(registry, "file.new", "New", window)
 	bond_action = _registered_action(registry, "draw.bond", "Draw Bond", window)
-	declarations = {"menus": [
+	declarations = {
+		"contexts": [{
+			"id": "selected_structure",
+			"accessible_name": "Selected structure actions",
+			"groups": [{"id": "actions", "actions": ["file.new"]}],
+		}],
+		"menus": [
 		{
 			"id": "file", "label_key": "File", "help_key": "Document commands",
 			"items": [{"action": "file.new"}],
@@ -220,8 +292,9 @@ def test_menu_builder_renders_atomically_after_a_late_client_resolution_failure(
 		{
 			"id": "draw", "label_key": "Draw", "help_key": "Drawing commands",
 			"items": [{"action": "draw.bond"}],
-		},
-	]}
+			},
+		],
+	}
 	monkeypatch.setattr(
 		ferrum_qt.declarative_resources, "load_menu_declarations", lambda: declarations,
 	)
@@ -294,4 +367,73 @@ def test_platform_roles_are_limited_to_standard_application_actions(
 		PySide6.QtGui.QAction.MenuRole.AboutRole,
 	)
 	assert draw_action.menuRole() is draw_role
+	window.deleteLater()
+
+
+#============================================
+def test_keybinding_manager_rejects_a_collision_between_live_registered_actions(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The post-assignment preflight checks live QAction owners, not a shadow map."""
+	del qapp
+	window = PySide6.QtWidgets.QMainWindow()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	palette = _registered_action(
+		registry, "view.command_palette", "Command Palette...", window,
+	)
+	other = _registered_action(registry, "view.other", "Other View", window)
+	palette.setShortcut("Ctrl+K")
+	other.setShortcut("Ctrl+K")
+	manager = ferrum_qt.config.keybindings.KeybindingManager(window, registry)
+	with pytest.raises(
+			ferrum_qt.config.keybindings.KeybindingConflictError,
+			match=r"Ctrl\+K: view\.command_palette, view\.other",
+		):
+		manager.validate_live_shortcuts()
+	window.deleteLater()
+
+
+#============================================
+def test_keybinding_reassignment_refuses_live_unmanaged_collision_atomically(
+		qapp: PySide6.QtWidgets.QApplication,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A rejected user shortcut leaves its preference and existing action intact."""
+	del qapp
+	window = PySide6.QtWidgets.QMainWindow()
+	manager, prefs, actions, registry = _keybinding_manager(window, monkeypatch, {})
+	other = _registered_action(registry, "chemistry.smarts.query", "SMARTS", window)
+	other.setShortcut("Ctrl+Shift+F")
+	with pytest.raises(ferrum_qt.config.keybindings.KeybindingConflictError):
+		manager.set_binding("view.zoom_in", "Ctrl+Shift+F")
+	portable = PySide6.QtGui.QKeySequence.SequenceFormat.PortableText
+	assert (
+		manager.get_binding("view.zoom_in"),
+		actions["view.zoom_in"].shortcut().toString(portable),
+		prefs.value("keybindings/view.zoom_in"),
+	) == ("Ctrl++", "Ctrl++", None)
+	window.deleteLater()
+
+
+#============================================
+def test_keybinding_reset_refuses_live_unmanaged_collision_atomically(
+		qapp: PySide6.QtWidgets.QApplication,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A rejected reset retains the user override and its live shortcut."""
+	del qapp
+	window = PySide6.QtWidgets.QMainWindow()
+	manager, prefs, actions, registry = _keybinding_manager(
+		window, monkeypatch, {"keybindings/view.command_palette": "Alt+K"},
+	)
+	other = _registered_action(registry, "chemistry.smarts.query", "SMARTS", window)
+	other.setShortcut("Ctrl+K")
+	with pytest.raises(ferrum_qt.config.keybindings.KeybindingConflictError):
+		manager.reset_defaults()
+	portable = PySide6.QtGui.QKeySequence.SequenceFormat.PortableText
+	assert (
+		manager.get_binding("view.command_palette"),
+		actions["view.command_palette"].shortcut().toString(portable),
+		prefs.value("keybindings/view.command_palette"),
+	) == ("Alt+K", "Alt+K", "Alt+K")
 	window.deleteLater()

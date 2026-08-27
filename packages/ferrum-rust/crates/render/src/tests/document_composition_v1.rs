@@ -113,7 +113,7 @@ fn projection(
 
 fn molecule(id: DocumentObjectIdV1) -> MoleculeProjectionV1 {
     MoleculeProjectionV1::try_new(
-        Some(id),
+        id,
         ProjectionLocalObjectKeyV1::from_path_components(&[0])
             .expect("nonempty molecule projection path"),
         None,

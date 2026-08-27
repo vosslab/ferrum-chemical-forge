@@ -86,7 +86,7 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
         .projection()
         .molecules()
         .iter()
-        .map(|molecule| molecule.id().expect("durable molecule").clone())
+        .map(|molecule| molecule.document_object_id().clone())
         .collect::<Vec<_>>();
     let update = build_clean_geometry_update_v1(&engine, &observation, &molecule_ids, 10.0)
         .expect("both layouts prepare");
@@ -143,7 +143,7 @@ fn clean_geometry_validates_every_target_before_native_generation() {
         .projection()
         .molecules()
         .iter()
-        .map(|molecule| molecule.id().expect("durable molecule").clone())
+        .map(|molecule| molecule.document_object_id().clone())
         .collect::<Vec<_>>();
     assert!(matches!(
         build_clean_geometry_update_v1(&engine, &observation, &molecule_ids, 10.0),
@@ -162,8 +162,7 @@ fn clean_geometry_rejects_invalid_envelopes_before_native_generation() {
     let session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     assert!(matches!(
         build_clean_geometry_update_v1(&engine, &observation, &[], 10.0),
@@ -200,8 +199,7 @@ fn clean_geometry_rejects_a_malformed_native_coordinate_count() {
     let session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
 
     assert!(matches!(
@@ -227,8 +225,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let observation = session.observe(0).expect("fixture projects");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let update = build_clean_geometry_update_v1(&engine, &observation, &[molecule_id], 10.0)
         .expect("clean geometry prepares");
@@ -272,7 +269,7 @@ fn clean_geometry_equal_authored_coordinates_do_not_create_history() {
     let observation = session.observe(0).expect("fixture projects");
     let admitted_cdml = observation.snapshot().cdml().to_owned();
     let molecule = &observation.projection().molecules()[0];
-    let molecule_id = molecule.id().expect("durable molecule").clone();
+    let molecule_id = molecule.document_object_id().clone();
     let positions = molecule
         .atoms()
         .iter()
@@ -314,7 +311,7 @@ fn clean_geometry_rejects_a_later_count_mismatch_without_partial_mutation() {
         .projection()
         .molecules()
         .iter()
-        .map(|molecule| molecule.id().expect("durable molecule").clone())
+        .map(|molecule| molecule.document_object_id().clone())
         .collect::<Vec<_>>();
     let update = CleanGeometryUpdateV1::new(
         0,

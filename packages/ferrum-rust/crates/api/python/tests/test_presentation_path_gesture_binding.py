@@ -27,6 +27,10 @@ def test_path_authoring_commits_a_created_root_through_generic_transition() -> N
 	for point in ((0.0, 0.0), (30.0, 20.0)):
 		session.add_presentation_path_gesture_point_v1(gesture, *point)
 	overlay = session.preview_presentation_path_gesture_v1(gesture, None)
+	assert (overlay.stroke_paint.kind, overlay.stroke_paint.role, overlay.stroke_paint.element) == (
+		"theme_role", "document_foreground", None,
+	)
+	assert overlay.fill_paint is None
 	request = session.resolve_presentation_path_gesture_v1(gesture, overlay)
 	result = commit_transition(session, request)
 
@@ -35,6 +39,21 @@ def test_path_authoring_commits_a_created_root_through_generic_transition() -> N
 	assert result.outcome.created_presentation_root.kind == ferrum_chem.CreatedPresentationRootKindV1.path
 	assert result.observation.snapshot.revision == 1
 	assert "<polyline id=\"" in result.observation.snapshot.cdml
+
+
+def test_vector_preview_publishes_a_tagged_semantic_paint() -> None:
+	session = ferrum_chem.DocumentSession.load(SOURCE)
+	snapshot = session.snapshot()
+	gesture = session.begin_presentation_vector_gesture_v1(
+		snapshot.revision, snapshot.digest, ferrum_chem.PresentationVectorKindV1.rectangle, 0.0, 0.0,
+	)
+	preview = session.preview_presentation_vector_gesture_v1(gesture, 30.0, 20.0)
+	overlay = preview.overlay
+
+	assert (overlay.stroke_paint.kind, overlay.stroke_paint.role, overlay.stroke_paint.element) == (
+		"theme_role", "document_foreground", None,
+	)
+	assert overlay.fill_paint is None
 
 
 @pytest.mark.parametrize(

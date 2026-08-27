@@ -3,6 +3,7 @@
 use super::binding::{PyDocumentSession, PySessionOperationResultV1};
 use super::presentation_creation_gesture_binding::digest;
 use super::presentation_text_render_binding::PyDocumentTextRenderV1;
+use super::render_binding::{PyRenderPaintV3, paint_from};
 use super::text_properties_binding::PyDocumentTextEditRunV1;
 use ferrum_document::{
     DocumentFenceV1, PendingTextPlacementV1, PresentationGesturePoint2V1, Rgb24V1,
@@ -74,7 +75,7 @@ pub(crate) struct PyTextPlacementDefaultsV1 {
     #[pyo3(get)]
     font_size: f64,
     #[pyo3(get)]
-    color: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     bold_supported: bool,
     #[pyo3(get)]
@@ -166,7 +167,7 @@ impl PyDocumentSession {
             .map(|value| PyTextPlacementDefaultsV1 {
                 runs: vec![PyDocumentTextEditRunV1 { run }],
                 font_size: value.overlay().operation().size().get(),
-                color: format!("#{}", value.overlay().operation().paint().color().as_str()),
+                paint: paint_from(value.overlay().operation().paint()),
                 bold_supported: false,
                 italic_supported: false,
                 font_family_supported: false,

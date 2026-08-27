@@ -1,12 +1,387 @@
 # Changelog
 
-Earlier history is in `CHANGELOG-2026-08i.md`. Its archive navigation
-continues through [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md) and
-[CHANGELOG-2026-08g.md](CHANGELOG-2026-08g.md).
+Earlier history is in [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md). Its archive navigation
+continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
+[CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
+
+## 2026-08-27
+
+### Additions and New Features
+
+- Added Rust-owned Semantic Render Palette V3. Render operations now carry a
+  frozen tagged `RenderPaintV3` value: exact authored RGB, semantic document
+  roles, or reserved validated element roles. Headless SVG, PDF, and PNG use
+  the Rust export palette only, while PyO3 exposes read-only kind, export RGB,
+  role, and element facts for the Qt display-palette owner.
+
+- Added the bounded M6 command-palette V1: portable `Ctrl+K` (`Cmd+K` on native
+  macOS) and YAML-owned **View > Commands > Command Palette...** provide a
+  registry-derived search over live action labels, help text, and stable IDs.
+
+- Delivered the bounded M2 CDXML simple-molecule input profile through the
+  Rust decoder, interchange registry, generic CLI/PyO3 ingress, and existing
+  Qt File/Open worker. The profile accepts the exact current vendor external
+  DTD marker without resolution, imports unprefixed simple fragments as
+  ordered records, reports lexical/view losses, refuses unsupported chemistry
+  before publication, and remains input-only with CDML as the local save
+  format. The added decision records the exact grammar, security/resource
+  boundary, provenance, exclusions, and permanent versus one-time evidence.
+
+- Added Ferrum-owned CDXML E2E guidance. The permanent CLI and Qt gates cover
+  public semantic import/refusal behavior with inline temporary inputs; a real
+  16:10 outer-window screenshot and keyboard/accessibility walkthrough remain
+  release evidence rather than pixel or timing assertions.
+
+- Extended bounded native CDXML with C2 `Charge` and `Isotope` atom facts: canonical ASCII charge in `-128..=127` and nonnegative isotope mass in `0..=32767`, zero normalization, durable CDML lowering, and typed `InvalidScalar` refusal. It adds no client route, source-provenance store, or CDXML writer.
+
+### Behavior or Interface Changes
+
+- Command palette search preserves focus, uses bare Up/Down for result
+  selection, Return for exact live-action invocation, and Escape for invoking
+  focus restoration; disabled commands stay visible with an unavailable
+  explanation and modified arrows retain normal text-field behavior.
+- Live shortcut ownership now has an atomic prospective-set preflight for
+  startup, user reassignment, and default reset. It refuses collisions before
+  preferences, manager bindings, or QAction shortcuts change.
+
+### Fixes and Maintenance
+
+- Repaired the document-tab scene-selection bridge lifecycle. The tab now owns
+  its exact scene connection, retires it before projection or view disposal,
+  restores the prior bridge on replacement refusal, and forwards selection only
+  through a live QObject slot.
+
+- Repaired direct-root interaction overlays to use one scene-owned
+  `QGraphicsPathItem` with one rectangle subpath per Rust-issued bound, including
+  the line-tool preview contract. The transient root retains its existing preview
+  material, ordering, non-hit-test, refresh-registration, and disposal contracts
+  without parented child graphics items.
+
+- Repaired accepted native Text placement dispatch so the existing Rust preview,
+  intent update, and completion route execute after dialog acceptance; dialog
+  cancellation still disarms without mutating the document.
+- Repaired native Text placement to pass only RichTextDialog-owned changed
+  root-font values to Rust. Unchanged themed defaults retain their Rust-issued
+  paint, without duplicating palette resolution in the Qt pointer.
+
+- Made the Ferrum `MainWindow` constructor require a concrete `ThemeManager`
+  before the application shell exists. Every successfully constructed window now
+  owns an applied typed document-display palette, so local document Open cannot
+  reach a missing-theme display failure after admission.
+
+- Completed the nominal retained-root palette contract for ordinary native
+  projections. Molecule plans, paper, and the persistent hex grid now declare
+  `DisplayPaletteRefreshable`; the production builder admits paper alongside
+  plans, and a live native projection test proves palette material changes in
+  place while issued geometry, IDs, and revision remain stable.
+
+- Replaced structural `typing.Protocol` admission for retained presentation
+  roots with the nominal `DisplayPaletteRefreshable` contract. Vector, Plus,
+  Text, and preview roots now declare the shared refresh ownership directly;
+  structural look-alikes remain outside the closed scene boundary.
+
+- Repaired Semantic Render Palette V3 so semantic paint values store only their
+  role or element identity. Rust now derives export RGB through
+  `DocumentExportPaletteV1`; path/vector/text preview DTOs publish tagged
+  paints; built-in Haworth ink is semantic foreground; and the path grammar is
+  canonically named V3. SVG, PDF, PNG, Rust, and PyO3 boundary proofs cover
+  the repaired contract.
+
+- Closed the Qt retained-root palette contract. Persistent and detached-preview
+  roots now require `refresh_display_palette` at registration, controller and
+  scene refreshes dispatch through that typed contract, and native runtime
+  coverage proves vector, Plus, Text, and preview-root materials update without
+  replacing renderer-issued identity or geometry.
+
+- Closed the Qt transient-overlay palette contract. Selection, line/bracket,
+  rotation, direct-root, path/vector/text, direct-bond, Haworth, and precommit
+  previews now use the tab-owned typed refresh registry and release that
+  registration before graphics disposal; refresh replaces only retained Qt
+  material and preserves Rust/session and gesture facts.
+
+- Repaired direct-glycosidic Haworth preview disposal to release its tab-owned
+  display refresh registration before graphics disposal. The route now has a
+  focused lifecycle regression covering registration, ordered release, and a
+  later theme refresh.
+
+- Rotated the complete 2026-08-25 day block into
+  `CHANGELOG-2026-08j.md`, retaining the two newest day blocks in the active
+  changelog and preserving reverse-chronological archive navigation.
+
+### Decisions and Failures
+
+- Rejected a reaction-specific command-palette E2E as redundant. Focused Qt
+  tests and the registered reaction E2E already own permanent semantics; native
+  shortcut dispatch and accessibility are one-time real 16:10 desktop evidence.
+
+### Developer Tests and Notes
+
+- Command-palette focused Qt/keybinding evidence: `32 passed in 1.56s`.
+  This bounded evidence does not claim aggregate `all_test.sh` success, GUI
+  screenshot proof, full M6 usability, or complete feature parity.
+
+- Registered the existing CDXML CLI E2E in the permanent E2E runner. Corrected current
+  product guidance and the capability ledger to describe bounded input-only CDXML Open,
+  CDML output/save behavior, descriptor operation eligibility, canonical loss ordering, and
+  remaining refusal boundaries. Historical migration reports now identify their dated CDXML
+  refusal state and link to the current decision and capability ledger.
+
+- Recorded final bounded-CDXML receipts: post-audit `./build.sh` exited 0;
+  the registered `tests/e2e/run_all.sh` exited 0, including CDXML; staged
+  Python bindings passed 281 tests; Qt passed 238 tests with one intentional
+  skip; focused chemistry and API libraries passed 124 and 117 tests; and
+  `cargo check --workspace` passed. `./all_test.sh` is not aggregate-green:
+  it reported 7,759 passes, then stopped at five Markdown-link failures. Each
+  canonical link targets the present CDXML decision artifact but is absent
+  from the tracked-file catalog, so later aggregate phases did not run through
+  that script. The later phases were run directly and passed as recorded
+  above. M2, full Rust/OASA/BKChem parity, and real 16:10 GUI/accessibility
+  evidence remain open.
+
+- Recorded C2-focused receipts: formatting succeeded; CDXML-focused chemistry passed 17 tests; the built public CLI E2E succeeded; scalar-contract tests passed 3 tests; and the chemistry library passed 127 tests. These do not make the aggregate suite green or close M2, parity, or GUI evidence.
 
 ## 2026-08-26
 
+### Additions and New Features
+
+- Reconciled the delivered M4.A and bounded M6 foundations across the active
+  plan, usage, API contract, and architecture documentation. Molecule Report
+  now documents `ferrum document command document.molecule.report.v1 <input>`
+  as a thin positional adapter over the generic protocol request and envelope.
+  Persisted atom, bond, and molecule projections require `DocumentObjectIdV1`;
+  the authoritative `document_object_index` now distinguishes unknown targets
+  from invalid persisted identity metadata, while preview-local keys remain
+  separate. Context actions reuse registered QActions through YAML placement,
+  with canonical `edit.delete_selection` shared by keyboard and context input.
+  M4, full parity, and manual 16:10/accessibility evidence remain open. This
+  milestone retains the recorded successful `build.sh` and `all_test.sh` receipt
+  of 7,775 hygiene tests, all registered CLI/Qt E2Es, 280 binding tests, and
+  229 Qt tests with one intentional skip.
+
+- Delivered `PARITY-M4.A`: `document.compact-group.attach.v1` now runs through
+  both `ferrum protocol run` and `ferrum document command`. The request supplies
+  fenced CDML, a document-owned molecule/anchor pair, a closed catalog key, and
+  finite release coordinates. Rust owns pair-local target authority, chemistry,
+  geometry, renderer admission, durable IDs, and history; adapters only load
+  requests and present envelopes. The versioned receipt returns source/target
+  facts, the allocated group ID, committed CDML, and a reusable stateless fence,
+  while intentionally omitting release, pose, overlay, and pending-session
+  facts. Multi-reviewer repair moved shared selector/digest parsing from the
+  materialization-owned module to neutral crate-private
+  `document_request_parse_v1`, used by the feature-gated live-document caller;
+  renamed the misleading `Result<()>` chemistry predicate to
+  `require_attached_compact_group_chemistry_support_v1`; and rewrote attachment
+  tests around durable IDs and chemistry roles instead of ordinal, count, raw
+  `type="n3"`, or repeated availability-inventory assertions. The public E2E
+  uses Methyl through both transports, and the CLI/active-plan documentation
+  now agrees. The source-line gate passed 1,280 checks; focused attachment tests
+  passed 17 tests; the full `ferrum-api` library passed 104 tests; and `build.sh`
+  passed, including the feature-gated PyO3 path. Final
+  `source source_me.sh && ./all_test.sh` validation passed 7,775 repository
+  hygiene tests; all registered CLI and Qt E2E phases, including
+  `ferrum-compact-group-attachment-cli-e2e-v1`; 280 native binding tests; and
+  229 Qt tests with one intentional skip. M4, full parity, and manual
+  16:10/accessibility evidence remain open.
+
+- Delivered the ninth and final attached compact-group recipe, `phenyl` /
+  `Phenyl` / `Ph`. Its generic Rust materialization contract is one neutral
+  six-carbon, alternating normal single/double Kekule cycle with carbon focus;
+  the retained exterior normal-single `n1` bond preserves durable identity and
+  anchor-side direction while its compact endpoint rewires in both directed
+  exterior orientations. Role-addressed native lowering and renderer proof
+  establish the exact contract; no aromatic schema or compatibility branch was
+  introduced, and aromatic-input `kekulize` is not a gate. Final code/test
+  review passed, a fresh build promoted the runtime, and the installed public
+  Attach -> chooser -> materialize workflow returned `succeeded` / `updated`,
+  reported `C8H10`, and left a usable scene. The installed binding contract
+  passed 8/8 and `all_test.sh` exited 0 with 7,633 hygiene, 280 binding, and
+  220 Qt tests passed with one skip. All nine attached compact-group recipes
+  are delivered; this compact-group recipe milestone is complete, while M4 and
+  the Rust/OASA/BKChem parity goal remain incomplete.
+
+- Implemented the eighth attached compact-group recipe, `AcylChloride`:
+  the Rust catalog now issues `acyl_chloride` / `AcylChloride` / `COCl` for
+  neutral attached `R-C(=O)-Cl`. Generic materialization returns the attachment
+  carbon as focus, writes normal double C=O and normal single C-Cl bonds, and
+  retains the exterior normal-single bond identity. Approval review passed;
+  a fresh promoted build and public installed Qt Attach -> chooser -> materialize
+  workflow passed; and `all_test.sh` completed with 7,633 hygiene tests,
+  280 installed binding tests, and 220 Qt tests with one skip. Rust catalog and
+  session semantics remain the exact topology and directed exterior-identity
+  evidence. Qt proves the public receipt and C/O/Cl report composition only.
+
+- Replaced Ferrum's dense icon-only authoring strip with a YAML-authoritative
+  task ribbon. Home, Structure, Reactions, Annotate, and View now project
+  existing registry-owned actions into labelled task groups with text-plus-icon
+  controls and group-local More menus. The menu tree remains independently
+  YAML-authoritative; checked state, disabled state, shortcuts, handlers, and
+  cancellation remain owned by each existing QAction.
+
+- Replaced the transitional runtime-composed menu route with one strict
+  YAML-authoritative menu tree. `menus.yaml` now owns the complete top-level
+  order, static action placement, sections, separators, nested menus, and the
+  declared Recent Files dynamic-menu position; the registry binds the existing
+  feature-owned QAction or QMenu clients and the recursive builder assembles
+  the tree once. Unresolved static or dynamic declarations now fail preflight
+  rather than being skipped. `menu_layout.py`, `menu_construction.py`, and
+  their compatibility bridges were removed.
+
+- Added the attached `CH2OH` / `hydroxymethyl` compact-group slice. Rust owns
+  the neutral attached `R-CH2-OH` recipe with carbon focus, ordinary single C-O
+  topology, durable materialization, history, and reopen. Generic PyO3/Qt
+  transport remains key-neutral; free placement remains Me-only. Existing
+  public authoring/materialization E2Es already cover the generic workflow, so
+  no catalog-specific public E2E was added.
+
+- Added the reviewed attached `OMe` compact-group slice. Rust owns the neutral
+  `R-O-CH3` recipe with oxygen attachment, candidate/render admission, durable
+  materialization, history, and reopen; generic PyO3/Qt choice propagation and
+  renderer-issued too-close-release pose normalization require no catalog-specific
+  frontend path. Free compact-group placement remains Me-only. The permanent
+  public E2E uses visible authoring and Molecule Report semantics rather than
+  raw CDML, pixel, timing, or fixture assertions. `all_test.sh` exercises that
+  public attached-OMe author/materialize/report contract against the built local
+  runtime.
+
+- Added [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) as Ferrum's canonical
+  Rust/Python/PyO3 boundary-naming policy. Qt lifecycle APIs now distinguish
+  close, cancel, clear, and dispose by their actual ownership transition.
+  Reconciled the M4 plan with the
+  then-delivered four-key attached `Me`/`NO2`/`Et`/`OMe` surface; the Ferrum
+  E2E registry records its visible OMe author/materialize/report contract.
+
+- Added the reviewed `Et` attached compact-group choice and its immutable
+  materialization recipe. Existing materialization now expands attached or
+  loaded sole-root ethyl groups into two neutral carbons joined by one normal
+  single bond, while free placement remains Me-only and unreviewed catalog
+  keys retain typed refusal.
+
+- Added decoded-semantic `inspect-graph` support for SDF. The revised V1
+  schema reports resolver-owned profile facts, zero-based record identity,
+  typed source ID/title/property facts, exact counts, coverage, and
+  normalization. SDF decoding uses the established native runtime and bridge;
+  bounded presentation refuses before stdout on response overflow.
+
+- Added runtime-free `ferrum inspect-graph INPUT --from cml [--json]` source-graph inspection for the CML/CML2 simple-molecule profile. It reports ordered exact counts, optional source molecule IDs, and explicit source-fact coverage through the versioned operation protocol; SDF refuses without runtime acquisition.
+
+- Added the runtime-free `ferrum formats [--json]` discovery command. Its
+  API-owned `ferrum-interchange-capabilities-v1` catalog joins each current
+  conversion format once while retaining independent input/output names,
+  format/profile IDs, aliases, suffixes, limits, policy, and runtime facts.
+  The default is a concise human projection and `--json` emits the versioned
+  snapshot; neither path reads a source, starts a conversion, constructs a
+  document, or loads the chemistry runtime.
+
+- Completed the API-owned M2.A1 conversion-input capability contract. Every
+  enumerable input now exposes its direction, bounded source policy,
+  explicitly applicable response bound, compression policy, semantic-loss
+  policy, runtime requirement, aliases, suffixes, canonical name, and protocol
+  format through the resolver. Native record conversion explicitly records that
+  it has no input-owned response envelope, leaving the CML/SDF import bound
+  available without inventing a CLI-local default for later `formats` output.
+
+- Added Edit > `Reverse Selected Wedge Direction` for exactly one selected
+  direct `w1` or `h1` bond. Rust owns the fenced endpoint swap, candidate
+  validation, history, CDML persistence, and atomic refusal; the accepted
+  action preserves bond identity, connectivity, wedge style, and selection.
+  Durable Rust semantic/history/reopen, binding, and compact Qt
+  click/reverse/eligibility/lifecycle coverage protect the recurring contract.
+  The full visible Undo/Redo/save/reopen walkthrough remains one-time
+  production-shaped integration evidence rather than a duplicate permanent
+  E2E.
+
+### Behavior or Interface Changes
+
+- Reorganized the Qt menu bar around drawing tasks: `Edit` begins with History
+  and Clipboard, then selected-object editing; `Draw` follows it with labelled
+  Drawing Setup, Bonds, Rings, Arrows, Annotations, Geometry, Arrange, and
+  Tool groups. The retained `Insert Regular Ring...` and `Transform Complete
+  Roots` cascades provide recognition-oriented access to their command
+  families. Reaction commands remain in Chemistry and authoritative refresh
+  remains in View. The refactor reuses the existing QAction objects, preserving
+  their handlers, shortcuts, checked and disabled state, QObject identity, and
+  ribbon/context-menu reuse.
+
+- Completed the declarative menu and ribbon cleanup. `menus.yaml` is the sole
+  menu-placement authority, while `ribbon_layout.yaml` owns the grouped,
+  labelled Home, Structure, Reactions, Annotate, and View ribbon tabs. Both
+  surfaces reuse the exact registry-owned QActions by stable semantic ID.
+  Attach and Place Compact Group are declarative compact-group clients under
+  `Draw > Compact groups`; Chemistry retains materialization. The ribbon's
+  owned single-shot overflow timer is teardown-safe, and the dormant
+  `modes.yaml`, `ModeToolbar`, and fixed action allowlist are removed.
+
 ### Fixes and Maintenance
+
+- Added a direct `InvalidIdentity` reaction protocol-mapper regression. It locks the stable
+  invalid-document envelope plus `InvalidRequest` / `RefreshAndRestart` recovery contract
+  without constructing an otherwise impossible post-admission corrupt session.
+
+- Split direct CDML reaction semantics from fallible durable identity binding. Reaction list and
+  observation now surface corrupted retained reaction/member identities through the existing
+  `InvalidIdentity` refusal instead of silently omitting durable relations.
+
+- Reconciled the source-only identity ledger after WP-ID-2. Authored CDML source IDs are exact,
+  nonblank, and document-unique; no lexical source-ID grammar or guessed `NCName` gate is
+  currently approved. Durable reaction observation/listing uses the retained-tree relation and
+  private fallible binder without an XML/redecode or source-ID reverse bridge. Full parity,
+  CDXML, and manual 16:10/accessibility work remain open.
+
+- Moved reaction-member observation and list construction onto the retained
+  durable direct-reaction relation. Selection now resolves members by persisted
+  document object ID while preserving existing session fences, renderer admission,
+  paint order, and display-only diagnostics.
+
+- Moved modeled directional-bond compatibility into `MolGraph::new`: native
+  W/H and E/Z carrier directions now require non-aromatic single bonds at the
+  shared graph boundary, with FCM1 ingress regression coverage. Removed the
+  unreachable document-only directed-depiction refusal and its API mapper.
+
+- Added the public fallible `MolBond::directed` contract for the four modeled
+  directional non-aromatic single bonds. CML lowering now enters the owned
+  model through that constructor and preserves the existing redacted import
+  refusal boundary; native ABI decoding retains its crate-private path for
+  unsupported native facts. Focused chemistry and document tests cover direct
+  construction, CML lowering, and producer-neutral ordered wedge/hash admission.
+
+- Reconciled the active CML grammar with the delivered direct W/H slice. CML1
+  accepts one final direct `builtin="stereo"` and CML2 accepts one direct
+  `<stereo>` child only on a single bond; `W` and `H` retain endpoint-ordered
+  authored solid/hashed depiction without fabricating tetrahedral, parity, or
+  E/Z semantics. `MolBond::directed` and `MolGraph::new` own modeled
+  direction/order compatibility; a mutated FCM1 invalid native direction is
+  `MalformedNativeResponse`, and a public duplicate-W/H request is atomically
+  `InvalidScalar` with no conversion outcome. Focused receipts record 110
+  chemistry and 503 document tests plus `cargo check --workspace`; M2, full
+  parity, and manual 16:10/accessibility proof remain open.
+
+- Bound the permanent native selection-context focus test to the deterministic
+  keyboard context routes (`Menu` and `Shift+F10`) that Qt's offscreen backend
+  can model. The right-button route remains covered by the registered-action
+  deletion contract; one-time real macOS Cocoa evidence separately confirmed
+  focus restoration for all three public routes.
+
+- Corrected M4.A documentation drift. Usage and active plans now describe the
+  delivered stateless attached-group contract consistently: one generic
+  operation with generic-protocol and named-document transports, document-owned
+  molecule/anchor authority, typed envelopes that exit `0` for accepted and
+  refused outcomes, and nonzero status reserved for operational failure. The
+  plans keep free compact-group placement, manual 16:10/accessibility evidence,
+  M4, and full parity open.
+
+- Removed the superseded local action refresh from explicit `Cancel Tool`.
+  Completed mode-state publication now drives the single window-owned
+  capability refresh, avoiding a duplicate recomputation while preserving
+  cancellation and synchronization.
+
+- Connected completed active-tool publication to the window's centralized action
+  availability refresh. Escape and other completed tool transitions now
+  immediately recompute local-document capabilities such as `Open in Current
+  Tab...` through their existing owner.
+
+- Corrected the README and provenance links to the existing AGPL and LGPL
+  license texts. Ferrum remains AGPL-3.0-only and Ferrum-Chem remains
+  LGPL-3.0-only.
 
 - Repaired normalized native input modifiers across the controller-owned viewport adapter. Immutable pointer and semantic key/pointer intents now preserve Qt modifiers; native structure selection consumes that intent fact directly, while legacy line, text, shape, atom, and bond endpoints receive the same value through their normalized event adapter. Removed the duplicate window modifier scratch state. Real QTest selection coverage now proves ordinary selection followed by Shift-additive selection retains both Rust-issued targets.
 
@@ -70,111 +445,6 @@ continues through [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md) and
 - Repaired the Atom Oxidation State public Qt E2E's fluoride selection by
   clicking an interior point of the live painted selectable glyph rather than
   assuming the atom anchor is a hit target.
-
-### Additions and New Features
-
-- Delivered the ninth and final attached compact-group recipe, `phenyl` /
-  `Phenyl` / `Ph`. Its generic Rust materialization contract is one neutral
-  six-carbon, alternating normal single/double Kekule cycle with carbon focus;
-  the retained exterior normal-single `n1` bond preserves durable identity and
-  anchor-side direction while its compact endpoint rewires in both directed
-  exterior orientations. Role-addressed native lowering and renderer proof
-  establish the exact contract; no aromatic schema or compatibility branch was
-  introduced, and aromatic-input `kekulize` is not a gate. Final code/test
-  review passed, a fresh build promoted the runtime, and the installed public
-  Attach -> chooser -> materialize workflow returned `succeeded` / `updated`,
-  reported `C8H10`, and left a usable scene. The installed binding contract
-  passed 8/8 and `all_test.sh` exited 0 with 7,633 hygiene, 280 binding, and
-  220 Qt tests passed with one skip. All nine attached compact-group recipes
-  are delivered; this compact-group recipe milestone is complete, while M4 and
-  the Rust/OASA/BKChem parity goal remain incomplete.
-
-- Implemented the eighth attached compact-group recipe, `AcylChloride`:
-  the Rust catalog now issues `acyl_chloride` / `AcylChloride` / `COCl` for
-  neutral attached `R-C(=O)-Cl`. Generic materialization returns the attachment
-  carbon as focus, writes normal double C=O and normal single C-Cl bonds, and
-  retains the exterior normal-single bond identity. Approval review passed;
-  a fresh promoted build and public installed Qt Attach -> chooser -> materialize
-  workflow passed; and `all_test.sh` completed with 7,633 hygiene tests,
-  280 installed binding tests, and 220 Qt tests with one skip. Rust catalog and
-  session semantics remain the exact topology and directed exterior-identity
-  evidence. Qt proves the public receipt and C/O/Cl report composition only.
-
-- Replaced Ferrum's dense icon-only authoring strip with a YAML-authoritative
-  task ribbon. Home, Structure, Reactions, Annotate, and View now project
-  existing registry-owned actions into labelled task groups with text-plus-icon
-  controls and group-local More menus. The menu tree remains independently
-  YAML-authoritative; checked state, disabled state, shortcuts, handlers, and
-  cancellation remain owned by each existing QAction.
-
-- Replaced the transitional runtime-composed menu route with one strict
-  YAML-authoritative menu tree. `menus.yaml` now owns the complete top-level
-  order, static action placement, sections, separators, nested menus, and the
-  declared Recent Files dynamic-menu position; the registry binds the existing
-  feature-owned QAction or QMenu clients and the recursive builder assembles
-  the tree once. Unresolved static or dynamic declarations now fail preflight
-  rather than being skipped. `menu_layout.py`, `menu_construction.py`, and
-  their compatibility bridges were removed.
-
-### Behavior or Interface Changes
-
-- Reorganized the Qt menu bar around drawing tasks: `Edit` begins with History
-  and Clipboard, then selected-object editing; `Draw` follows it with labelled
-  Drawing Setup, Bonds, Rings, Arrows, Annotations, Geometry, Arrange, and
-  Tool groups. The retained `Insert Regular Ring...` and `Transform Complete
-  Roots` cascades provide recognition-oriented access to their command
-  families. Reaction commands remain in Chemistry and authoritative refresh
-  remains in View. The refactor reuses the existing QAction objects, preserving
-  their handlers, shortcuts, checked and disabled state, QObject identity, and
-  ribbon/context-menu reuse.
-
-- Completed the declarative menu and ribbon cleanup. `menus.yaml` is the sole
-  menu-placement authority, while `ribbon_layout.yaml` owns the grouped,
-  labelled Home, Structure, Reactions, Annotate, and View ribbon tabs. Both
-  surfaces reuse the exact registry-owned QActions by stable semantic ID.
-  Attach and Place Compact Group are declarative compact-group clients under
-  `Draw > Compact groups`; Chemistry retains materialization. The ribbon's
-  owned single-shot overflow timer is teardown-safe, and the dormant
-  `modes.yaml`, `ModeToolbar`, and fixed action allowlist are removed.
-
-### Developer Tests and Notes
-
-- Focused declarative-resource, action, ribbon, shared-window, portability,
-  widget, lint, ASCII, indentation, typing, and source-limit validation passed
-  `3,804` checks under Python 3.12.14 and PySide6 6.11.2. Focused ribbon
-  lifecycle, overflow, and hygiene selections also passed. The macOS 16:10
-  screenshot and keyboard/accessibility walkthrough remains manual evidence;
-  this entry does not claim it passed.
-
-- Pre-repair focused Qt validation passed `35` tests across declarative resources,
-  action registration/keybindings, real-window seams, ribbon reuse, property
-  clients, and the direct-glycosidic Haworth regression. Required source
-  hygiene passed `3,272` checks across pyflakes, indentation, import, import
-  requirements, and source-size gates. The approved live 16:10 scanability and
-  keyboard/accessibility cognitive walkthrough remains manual HCI evidence; no
-  screenshot, pixel, timing, or manual-visual claim is recorded as automated
-  proof.
-
-- The post-validation render-time failure-atomicity regression passed `8`
-  focused keybinding/registry tests. Independent re-review then passed the
-  targeted late-resolution failure, successful-retry, and repeat-assembly
-  selection (`3 passed, 5 deselected`). These code-level results do not replace
-  the remaining manual 16:10 scanability and keyboard/accessibility walkthrough.
-
-- Implemented the sixth attached compact-group recipe, `Carboxyl`: the Rust
-  catalog now issues `carboxyl` / `Carboxyl` / `COOH` with the neutral attached
-  `R-C(=O)-OH` recipe. Existing generic materialization retains exterior-bond
-  identity and returns the attachment carbon as focus. Fresh build produced the
-  local CLI, Qt application, and installed Python runtime; attached bindings
-  passed 8/8; and final `all_test.sh` passed 7,637 hygiene checks, all named
-  CLI/Qt E2Es, 280 installed binding tests, and 214 Qt tests with one skip.
-  One-time installed-Qt evidence selected `carboxyl` / `COOH`, publicly
-  hit-selected the rendered group, and materialized it to `succeeded` /
-  `updated`. Exact topology/exterior-bond semantics remain Rust permanent
-  evidence. The probe-only `FAIL` records absent public topology reporting,
-  while acceptance is `PASS`; M4 and full parity remain incomplete.
-
-### Fixes and Maintenance
 
 - Repaired grouped authoring-ribbon overflow so tab visibility changes coalesce into a
   convergent, group-local reconciliation instead of recursively re-entering Qt resize handling.
@@ -288,74 +558,6 @@ continues through [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md) and
   fact-coverage disclosure. The CML inspection profile now explicitly owns its
   decoder and runtime-free route; unsupported profiles refuse before decoding.
 
-### Additions and New Features
-
-- Added the attached `CH2OH` / `hydroxymethyl` compact-group slice. Rust owns
-  the neutral attached `R-CH2-OH` recipe with carbon focus, ordinary single C-O
-  topology, durable materialization, history, and reopen. Generic PyO3/Qt
-  transport remains key-neutral; free placement remains Me-only. Existing
-  public authoring/materialization E2Es already cover the generic workflow, so
-  no catalog-specific public E2E was added.
-
-- Added the reviewed attached `OMe` compact-group slice. Rust owns the neutral
-  `R-O-CH3` recipe with oxygen attachment, candidate/render admission, durable
-  materialization, history, and reopen; generic PyO3/Qt choice propagation and
-  renderer-issued too-close-release pose normalization require no catalog-specific
-  frontend path. Free compact-group placement remains Me-only. The permanent
-  public E2E uses visible authoring and Molecule Report semantics rather than
-  raw CDML, pixel, timing, or fixture assertions. `all_test.sh` exercises that
-  public attached-OMe author/materialize/report contract against the built local
-  runtime.
-
-- Added [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) as Ferrum's canonical
-  Rust/Python/PyO3 boundary-naming policy. Qt lifecycle APIs now distinguish
-  close, cancel, clear, and dispose by their actual ownership transition.
-  Reconciled the M4 plan with the
-  then-delivered four-key attached `Me`/`NO2`/`Et`/`OMe` surface; the Ferrum
-  E2E registry records its visible OMe author/materialize/report contract.
-
-- Added the reviewed `Et` attached compact-group choice and its immutable
-  materialization recipe. Existing materialization now expands attached or
-  loaded sole-root ethyl groups into two neutral carbons joined by one normal
-  single bond, while free placement remains Me-only and unreviewed catalog
-  keys retain typed refusal.
-
-- Added decoded-semantic `inspect-graph` support for SDF. The revised V1
-  schema reports resolver-owned profile facts, zero-based record identity,
-  typed source ID/title/property facts, exact counts, coverage, and
-  normalization. SDF decoding uses the established native runtime and bridge;
-  bounded presentation refuses before stdout on response overflow.
-
-- Added runtime-free `ferrum inspect-graph INPUT --from cml [--json]` source-graph inspection for the CML/CML2 simple-molecule profile. It reports ordered exact counts, optional source molecule IDs, and explicit source-fact coverage through the versioned operation protocol; SDF refuses without runtime acquisition.
-
-- Added the runtime-free `ferrum formats [--json]` discovery command. Its
-  API-owned `ferrum-interchange-capabilities-v1` catalog joins each current
-  conversion format once while retaining independent input/output names,
-  format/profile IDs, aliases, suffixes, limits, policy, and runtime facts.
-  The default is a concise human projection and `--json` emits the versioned
-  snapshot; neither path reads a source, starts a conversion, constructs a
-  document, or loads the chemistry runtime.
-
-- Completed the API-owned M2.A1 conversion-input capability contract. Every
-  enumerable input now exposes its direction, bounded source policy,
-  explicitly applicable response bound, compression policy, semantic-loss
-  policy, runtime requirement, aliases, suffixes, canonical name, and protocol
-  format through the resolver. Native record conversion explicitly records that
-  it has no input-owned response envelope, leaving the CML/SDF import bound
-  available without inventing a CLI-local default for later `formats` output.
-
-- Added Edit > `Reverse Selected Wedge Direction` for exactly one selected
-  direct `w1` or `h1` bond. Rust owns the fenced endpoint swap, candidate
-  validation, history, CDML persistence, and atomic refusal; the accepted
-  action preserves bond identity, connectivity, wedge style, and selection.
-  Durable Rust semantic/history/reopen, binding, and compact Qt
-  click/reverse/eligibility/lifecycle coverage protect the recurring contract.
-  The full visible Undo/Redo/save/reopen walkthrough remains one-time
-  production-shaped integration evidence rather than a duplicate permanent
-  E2E.
-
-### Fixes and Maintenance
-
 - Corrected two design defects that made a visibly selected wedge unreliable:
   the Rust interaction observer now issues one renderer-envelope-derived
   structural Bond target instead of a reachable same-bond `DisplayOnly`
@@ -368,377 +570,39 @@ continues through [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md) and
   unexpected defects remain visible. Removed a private-field-coupled timer
   test that did not exercise the claimed document-tab retirement behavior.
 
-## 2026-08-25
-
-### Additions and New Features
-
-- Added Edit > `Insert Regular Ring...` as the public detached saturated-carbon
-  C3-C8 chooser. The existing `Insert Cyclohexane Ring` command is a C6
-  shortcut to the same parameterized route. Rust retains the closed ring model,
-  `DocumentOperationV1` prepare/commit transition, durable CDML topology and
-  geometry, renderer admission, history, and Undo/Redo; Qt retains only the
-  chooser and click handoff. Permanent coverage proves C3-C8 action handoff
-  and topology, Escape disarm without mutation, occupied nonmutation with an
-  armed retry, and accepted-mutation failed-refresh retirement. Save/reopen and
-  Undo/Redo are one-time real-Qt evidence plus shared persistent/history
-  contract coverage.
-
-- Added the separate API-owned molecular conversion-output registry. It maps
-  public output aliases and preferred suffixes to closed chemistry codec keys,
-  including canonical CML2 through `cml` and `cml2`; its exhaustive chemistry
-  join and collision validation prevent a future codec addition from silently
-  bypassing the public output contract. CML1 remains an input-only profile.
-
-- Added Rust-owned canonical CML2 CLI output. Direct CML/CML2-to-CML retains
-  validated molecule and atom IDs plus record order without a native runtime;
-  other source formats are emitted only when the closed profile can represent
-  every admitted fact losslessly. CML remains a bounded CLI interchange codec:
-  CDML is still the sole Ferrum document/session/history/Qt local format, and
-  Qt CML export is not part of the product route.
-
-- Added the registered public reaction-workflow E2E. It uses visible **Create
-  Reaction** and **Reaction Inspector** actions, accessible reaction details
-  and strict-validation state, durable semantic role replacement, member
-  highlight/nudge, and definition-only deletion that preserves members.
-  Expected nested modals are registered before execution; unexpected modals
-  fail closed. This is public workflow evidence, not a raw-document, private
-  identifier, coordinate, count, timing, pixel, or fixture-catalog test.
-
-- Recorded the Ferrum screenshot geometry contract in
-  [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md): target a 16:10 complete application
-  window including the ribbon/menu and status bar, rather than applying the
-  aspect ratio to the canvas alone.
-
-- Added [FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md) as the repository-owned
-  guide for Ferrum's staged CLI and Qt end-to-end workflows. It defines the
-  registered permanent-suite boundary, public-UI and fixture rules, focused
-  implementation checks, and automated GUI-tour capture without modifying the
-  vendored generic E2E policy or imposing pixel-equivalence tests.
-
-- Implemented the M4 source and static-proof slice for the distinct runtime-free
-  `document.molecule.diagnostics.v1` operation and Qt `Check Structure...`
-  surface. Its request carries fenced CDML/revision/digest plus durable selected
-  direct-root IDs; Rust owns bounded deterministic findings and typed selector
-  resource refusal, the module-level PyO3 executor receives owned snapshot data
-  from a detached worker, and Qt authenticates tab/fence/roots before showing an
-  accessible modeless read-only dialog. The public E2E path is attached `Me` ->
-  unexpanded-group finding and materialization recovery -> `Formula: C3H8`.
-  Missing `formal_charge` remains unknown source state; no
-  `IncompleteAuthoredCharge`, mutation, auto-fix, or canvas navigation is
-  delivered. Fresh build and `all_test.sh` evidence records hygiene (`7518`),
-  bindings (`277`), Qt (`207` passed and `1` skipped), and all registered CLI
-  and GUI E2Es.
-
-- Added the local `Place Compact Group...` Me-only canvas workflow. Rust owns the closed
-  `PlaceFreeCompactGroupV1` transition: Methyl-only key admission, finite snapped anchor and
-  canonical orientation, durable root/group ID allocation, atom-free and bond-free candidate
-  construction, complete renderer admission, and one atomic history/reload-persistent commit.
-  PyO3 exposes only an opaque session-affine begin/commit/cancel capability with durable commit
-  facts. The atom/bond-only precommit-overlay contract intentionally has no free-placement
-  overlay; the complete prepared transition is the admission boundary.
-
-- Removed synthetic validation-ID preflight from free compact-group placement.
-  The live Rust session now accepts only its own typed, fenced pending
-  transition and allocates durable IDs at the committed mutation boundary.
-
-- Added direct-root compact-group materialization. A sole atom-free,
-  bond-free free group is replaced in the same molecule by immutable recipe
-  atoms and bonds; methyl becomes one explicit carbon. Attached compact-group
-  exterior topology remains unchanged. Rust commits the replacement as one
-  transition with Undo, Redo, and reopen semantics.
-
-- Added compact-group deletion through the existing Select Structure/Delete and
-  Backspace controls. Rust accepts exactly one renderer-issued parent/group
-  durable-ID target, proves direct membership, removes only the group and its
-  unique exterior bond in one history transition, and returns the combined
-  count-only `removed_atom_count`, `removed_bond_count`, and
-  `removed_compact_group_count` receipt. The focused public E2E proves visible
-  author/select/Delete, the visible count receipt and `Formula: C2H6`, and public
-  Undo restoring the compact group. Public materialization of that restored group,
-  followed by `Molecule Report...` showing `Formula: C3H8`, proves semantic restoration.
-
-- Added recovery for the existing `Attach Compact Group...` action when a
-  Rust-issued availability fact exactly matches the selected atom and reports
-  `Me` unavailable. The action remains available so its normal typed refusal
-  path can present the accessible `Action Not Available` modal with the learner
-  instruction to select another atom and try again. Dismissing the expected
-  refusal leaves document and pointer ownership unchanged; the E2E fails closed
-  if an unrelated modal appears. Stale, missing, and nonmatching observations
-  remain disabled with generic readiness guidance. The same-document E2E then
-  selects an eligible target, verifies guarded chooser activation, attaches and
-  materializes `Me`, and observes `Formula: C3H8`.
-
-- Added the initial Chemistry `Attach Compact Group...` flow for the Rust-owned attached
-  `Me` candidate. The later generic `Me`/`NO2` transaction supersedes its focused chooser
-  surface; one guarded canvas release begins, previews, and commits the opaque candidate,
-  then installs the authoritative Rust observation and focus selection. Selection, revision,
-  digest, durable identifiers, geometry, chemistry, and refusals remain Rust-owned.
-
-- Added the private PyO3 one-use attached-methyl compact-group bridge. It accepts
-  only a current revision/digest fence, Rust-issued direct atom ID, and finite
-  release point; preview is renderer-owned and identifier-free, while commit returns
-  only authoritative fence facts plus durable focus and compact-group IDs. The shared
-  Python operation-error boundary maps compact-group ID exhaustion as an existing
-  stable operation-validation refusal.
-
-- Added typed live-atom revision and digest fence translation plus direct installed-extension
-  coverage for element, position, and deletion mutations using Rust-issued durable IDs.
-
-- Added compiled public coverage for durable live-atom mutations through typed fenced
-  constructors, preserving typed refusals and no-mutation behavior for invalid requests.
-
-- Added the dedicated Rust compact-group allocator and the fenced attached-`Me`
-  transaction, availability, binding, and Qt authoring flow. Compact selection
-  now propagates through the installed render projection, and Molecule Report
-  matches returned records to captured durable molecule IDs while retaining
-  Rust-issued source ID and source-order facts.
-
-### Behavior or Interface Changes
-
-- Replaced attached-methyl-only authoring with the single Rust-owned
-  `AttachCompactGroupV1` transaction. Rust now projects reviewed key-and-label
-  choices (`Me` and `NO2` initially), evaluates availability after chooser
-  selection, and owns candidate admission through commit or cancel. The private
-  PyO3 bridge exposes generic choices, availability, begin, preview, commit,
-  and cancel; Qt renders those choices and owns only the accessible chooser and
-  one-release capture. Methyl-specific Rust, PyO3, and Qt APIs were removed
-  without compatibility aliases.
-
-- Added charged `NO2` attached-group materialization using the canonical
-  `R-[N+](=O)[O-]` recipe. `CompactGroupRecipeAtomV1` now retains optional
-  formal charge, and Rust preserves the individual nitrogen and oxygen charges
-  through history and reopen. The registered public E2E attaches and
-  materializes `NO2` through visible controls, then verifies editable selection,
-  the five-atom/four-bond authored graph, `C2/N1/O2`, `C2H5NO2`, and net formal
-  charge `+0`; atom-level charges remain Rust-test evidence rather than a
-  public report contract.
-
-- Recorded that the delivered generic attached chooser admits `Me` and `NO2`.
-  The other seven persisted catalog keys remain separately scoped pending their
-  reviewed recipes, attachment profiles, and row-level chooser availability
-  contracts.
-
-- Kept Qt presentation ownership at the canonical render-target, presentation-target, and
-  presentation-render-plan modules after removing the unnecessary projection facade.
-
-- Local builds now publish one immutable program root through `build/current`. Stable CLI and Qt
-  paths use root-local wrapper/payload pairs with explicit runtime leases, preserving active
-  programs across promotion.
-
-### Fixes and Maintenance
-
-- Removed the unreachable `HistoryCapacity` commit refusal and every stale
-  Python reference. History-resource exhaustion remains a typed
-  preparation-time refusal, where capacity is actually reserved.
-
-- Repaired PyO3 registration of the generic prepared-transition classes through
-  the feature-owned binding registry. The clean extension assembly now exposes
-  the compiler-exhaustive typed transition/refusal boundary used by regular-ring
-  and other document operations without duplicate class registration.
-
-- Regenerated the checked-in operation-protocol schema from the authoritative
-  Rust DTOs, restoring the full `ferrum-api` library suite and current
-  tetrahedral/E-Z report schema semantics.
-
-- Closed the M2a CML/CML2 import plan as a completed historical import slice.
-  The plan now records the separate canonical CML2 output and runtime-free
-  CML-to-CML/CDML conversion capability without retroactively expanding M2a's
-  original import-only acceptance.
-
-- Reconciled the CML/CDML documentation boundary after the capability audit:
-  CDML is the sole native document/session/history/Qt-local format, while CML/CML2
-  remains bounded CLI and File > Open interchange that immediately becomes a clean
-  native CDML tab. The stale `open --json` success-status wording now records exit `1`
-  for completed unsuccessful human-oriented CLI verbs after their one diagnostic or
-  envelope; named protocol subcommands retain their separate protocol contract.
-
-- Made completed typed CLI refusals report a nonzero process status without
-  duplicating their documented JSON or human-readable output. The shared verb
-  boundary now classifies every emitted protocol envelope, including the
-  canonical `open --json` CML refusal response, and the native executable exits
-  from that result without adding a second diagnostic.
-
-- Corrected the current CML/CML2 command contract: completed unsuccessful
-  human and JSON outcomes now exit nonzero after their one diagnostic or
-  envelope, replacing the earlier success-status behavior.
-
-- Repaired Reaction Inspector against the current reaction observation
-  contract. Its visible strictness state now comes from `reaction.strict`, not
-  the removed disposition/union-bounds representation; tab state remains
-  owned for the complete nested-modal lifetime, and command handling catches
-  the current `ReactionCommandError` boundary.
-
-- Hardened local Python launchers against bytecode-cache drift. `all_test.sh`,
-  `build.sh`, and `tests/e2e/run_all.sh` now export the no-bytecode runtime
-  behavior, while `source_me.sh` reapplies it after `~/.bashrc` before its
-  first Python probe. The authoritative validation commands remain
-  `source source_me.sh && pytest tests/` and `./all_test.sh`.
-
-- Completed the durable `document_object_id` migration for projection,
-  property, Haworth, render-interaction, molecule report/export, and reaction
-  consumers. Ferrum now has one opaque document-object identity contract with
-  no source-ID compatibility layer.
-
-- Separated transient presentation-preview replay from committed render-plan
-  replay. Arrow authoring now redeems the canonical durable receipt field, and
-  its public E2E reports unexpected modal or refusal failures promptly.
-
-- Added `materialize_compact_group` as the precise molecule-diagnostics
-  recovery for an unexpanded compact group.
-
-- Completed Rust-owned reaction authoring transitions: dedicated
-  create/replace/delete commands redeem through generic transitions, member
-  movement uses generic direct-root translation, and authoring choices nest in
-  `RenderInteractionObservationV1`.
-
-- Split the direct-root PyO3 binding into cohesive query, DTO, session,
-  conversion, and error modules. Tests now parse XML safely, use canonical
-  source-owned CDML and durable observed IDs, and acknowledge the stale
-  user-template refusal through the accessible event loop.
-
-- Stabilized the public CLI verb E2E around Ferrum's durable document contract.
-  Its shared CDML input now persists opaque molecule and atom IDs, so comparing
-  `inspect --json` with the equivalent protocol execution authenticates the
-  same document instead of comparing two independently allocated identities.
-
-- Made CDML structural rewrite verification independent of XML namespace-alias
-  multiplicity. Expanded element and attribute namespaces remain compared,
-  while duplicate in-scope bindings for the same URI no longer create a false
-  preservation failure after canonical serialization.
-
-- Migrated the public compact-group materialization CLI E2E to the durable
-  selector contract. Its inline authored document persists opaque IDs for the
-  molecule, atom, compact group, and exterior bond, and the request selects the
-  molecule and group by those public document-object IDs.
-
-- Aligned the Qt SMARTS-query refusal map with the Rust binding's durable-target
-  vocabulary by consuming `selected_target_not_molecule` directly. Main-window
-  construction no longer fails on the retired source-address enum member.
-
-- Completed the installed canvas migration to Rust-owned durable render
-  identity. Structural and presentation draw targets now share the sole opaque
-  `document_object` target shape; global root Z order comes from validated
-  `DocumentProjectionV1.direct_roots`; molecule member issues remain separately
-  owned and ordered. PyO3 exposes direct roots and member issues as immutable
-  tuples, and Qt no longer reconstructs projection keys, source IDs, structural
-  target kinds, render identifiers, or source order.
-
-- Migrated ferrum-document presentation consumers to the durable
-  `DocumentObjectIdV1` contract. Persisted presentation selection, clipboard,
-  projection, and renderer-admission paths now require their independently
-  persisted opaque identity; transient creation previews carry the separate
-  identity-free `PresentationPreviewRenderPlanV1`.
-
-
-- Completed the public unavailable-anchor recovery slice for attached `Me`.
-  For an exact-current unavailable selection, Qt keeps the existing `Attach
-  Compact Group...` action enabled and presents the standard accessible `Action
-  Not Available` dialog. The typed refusal supplies `Me cannot attach to the
-  selected atom. Select another atom and try again.` as its explicit primary
-  `What happened` message; the standard dialog applies its translated title to
-  both the native window title and accessible name. After dismissal, an eligible
-  atom in the same document reuses that action to open the guarded chooser.
-  Stale, missing, or nonmatching facts remain disabled with generic readiness
-  guidance. The shared pointer-action handoff now unchecks an outgoing checkable
-  action before it cancels capture, preventing checked/no-owner drift; this
-  recovery explicitly rearms Select Structure. Shared
-  `FerrumInteractionActionHandoff` now follows real `QEvent` Hide, Show, and
-  destruction lifecycle events, removing the arbitrary 250 ms watchdog and
-  three-popup limit. Focused real-`QMenu` coverage proves defer-until-hide and
-  exactly-once dispatch/check-state ordering. The registered public E2E authors
-  saturated CH4 and eligible C-C, observes the accessible dialog title and body,
-  dismisses any unexpected modal before reporting, proves queued chooser
-  reentrancy handling, then attaches and materializes `Me` to `Formula: C3H8`.
-  Its report-phase liveness guard detects a deadlock failure only; it is not a
-  product performance threshold.
-
-- Replaced outward structural-deletion receipt identities with atom, bond, and compact-group
-  counts. The compact-topology refusal is now a closed redacted category with document-repair
-  recovery, while durable removal receipts remain internal to the document session.
-
-- Recorded audit corrections: public deletion receipts expose a count only;
-  topology-invalid `repair_document` calls retain their specific refusal;
-  accepted bonds publish durable selection; postcommit presentation failures
-  report truthfully after the mutation; and mixed selections remain immutable.
-
-- Corrected compact-group deletion to accept renderer-issued durable molecule
-  and compact-group object IDs, validate current parent-child containment, and
-  lower once to direct CDML IDs for detached mutation. Raw source IDs no longer
-  select the public deletion API.
-
-- Corrected attached-methyl compact-group admission so catalog, selector, geometry, and
-  chemistry-capacity validation complete before tentative group/bond allocation. Accepted
-  commits now expose typed focus and compact-group IDs while canceled and refused attempts
-  leave durable sequences and history unchanged.
-
-- Corrected Qt SMARTS results to show the accessible learner warning when Rust's canonical
-  `total_match_budget_reached` traversal fact reports unexamined molecules.
-
-- Added the deterministic public Qt SMARTS E2E for both partial and complete result runs, and
-  registered it in the aggregate E2E runner.
-
-- Centralized Qt import provenance in `source_me.sh`: repository `ferrum_qt` source precedes the
-  sealed runtime and retained caller paths. Aggregate and generated GUI launchers preserve that
-  order, while provenance E2Es prevent site-packages substitution.
-
-- Made `source_me.sh`'s canonical Qt/runtime path construction safe for macOS Bash 3.2 and
-  `set -u` callers with unset or empty `PYTHONPATH`, after a real build exposed empty-array
-  expansion; repeated sourcing remains idempotent.
-
-- Repaired local atomic-build promotion with owner-unique pointer staging, a parent-owned
-  close-on-exec lock, per-owner Cargo targets, and locked cleanup of inactive orphan roots.
-
-- Corrected compact durable and stateless documentation/test-policy wording, and aligned the
-  local-build lifecycle runner manifest with its behavior-level E2E coverage.
-
-- Sealed local-runtime Receipt V4 wrapper and payload bytes with an owner-executable predicate.
-  Corrected generated CLI argument forwarding, and reclaimed only stopped or malformed
-  non-current owned `program-*` roots without mutating the published root.
-
-- Pruned allocator- and render-cardinality assertions from bracket tests, retaining only
-  durable public behavior through commit, undo, and redo.
-
-- Removed the dead Molecule Information Qt, Rust, PyO3, and test stack, plus
-  fragile dialog pytest coverage. Audit cleanup corrected stale compact-group
-  prerequisites, receipt wording, and documentation claims.
-
-- Corrected the operation-protocol response-budget name and completed the Rustdoc contract for
-  the prepared Wavy insertion binding without changing the response schema or numeric limit.
-
-- Aligned the active architecture, file-layout, and atomic-promotion plan with the V4
-  current-root topology and distinct CLI-versus-Qt runtime bundles.
-
-### Removals and Deprecations
-
-- Removed the unused Qt presentation-projection re-export facade and fragile lifecycle tests
-  that enforced implementation history rather than durable behavior.
-
-- Removed confirmed dead pre-production configuration and build constants, plus material-tree
-  Python bytecode artifacts and the remaining EOF whitespace.
-
-### Decisions and Failures
-
-- Recorded the delivered public Qt attached `Me`/`NO2` author-to-materialize
-  slice.
-  Rust retains catalog, availability, chemistry, geometry, deferred durable
-  IDs, render admission, and atomic commit; Qt retains the accessible chooser,
-  one-release pointer handoff, and receipt/refusal presentation. The PyO3
-  bridge is private implementation detail. Free placement, the other seven
-  catalog keys, and broader full-plan gates remain incomplete.
-
-- Recovered the restored changelog after a truncation failure, retaining every historical bullet
-  while consolidating the 2026-08-24 categories into the canonical order.
-
 ### Developer Tests and Notes
 
-- Added permanent typed Ethyl materialization coverage: direct-root candidate
-  serialization is reparsed before asserting two neutral carbon atoms and their
-  normal single bond; attached Ethyl now proves commit, Undo, Redo, and reopen
-  semantics without duplicating the generic operation protocol test.
+- Focused declarative-resource, action, ribbon, shared-window, portability,
+  widget, lint, ASCII, indentation, typing, and source-limit validation passed
+  `3,804` checks under Python 3.12.14 and PySide6 6.11.2. Focused ribbon
+  lifecycle, overflow, and hygiene selections also passed. The macOS 16:10
+  screenshot and keyboard/accessibility walkthrough remains manual evidence;
+  this entry does not claim it passed.
 
-- Local evidence includes the installed-extension live-atom boundary review, the atomic-build
-  lifecycle E2E, the focused Qt presentation-target pytest, and the final aggregate suite.
+- Pre-repair focused Qt validation passed `35` tests across declarative resources,
+  action registration/keybindings, real-window seams, ribbon reuse, property
+  clients, and the direct-glycosidic Haworth regression. Required source
+  hygiene passed `3,272` checks across pyflakes, indentation, import, import
+  requirements, and source-size gates. The approved live 16:10 scanability and
+  keyboard/accessibility cognitive walkthrough remains manual HCI evidence; no
+  screenshot, pixel, timing, or manual-visual claim is recorded as automated
+  proof.
 
-- Focused live-atom, bracket-fence, local-runtime receipt, Markdown, ASCII, and indentation
-  checks provide component evidence. The private Qt lifecycle pytest was a one-time implementation
-  check and is removed; it is not permanent evidence.
+- The post-validation render-time failure-atomicity regression passed `8`
+  focused keybinding/registry tests. Independent re-review then passed the
+  targeted late-resolution failure, successful-retry, and repeat-assembly
+  selection (`3 passed, 5 deselected`). These code-level results do not replace
+  the remaining manual 16:10 scanability and keyboard/accessibility walkthrough.
+
+- Implemented the sixth attached compact-group recipe, `Carboxyl`: the Rust
+  catalog now issues `carboxyl` / `Carboxyl` / `COOH` with the neutral attached
+  `R-C(=O)-OH` recipe. Existing generic materialization retains exterior-bond
+  identity and returns the attachment carbon as focus. Fresh build produced the
+  local CLI, Qt application, and installed Python runtime; attached bindings
+  passed 8/8; and final `all_test.sh` passed 7,637 hygiene checks, all named
+  CLI/Qt E2Es, 280 installed binding tests, and 214 Qt tests with one skip.
+  One-time installed-Qt evidence selected `carboxyl` / `COOH`, publicly
+  hit-selected the rendered group, and materialized it to `succeeded` /
+  `updated`. Exact topology/exterior-bond semantics remain Rust permanent
+  evidence. The probe-only `FAIL` records absent public topology reporting,
+  while acceptance is `PASS`; M4 and full parity remain incomplete.

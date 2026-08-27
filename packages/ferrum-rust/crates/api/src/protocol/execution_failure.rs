@@ -11,6 +11,7 @@ pub(crate) struct ExecutionFailureV1 {
     pub(super) catalog_placement_refusal: Option<CatalogPlacementRefusalV1>,
     pub(super) reaction_refusal: Option<ReactionRefusalV1>,
     pub(super) compact_group_materialization_refusal: Option<CompactGroupMaterializationRefusalV1>,
+    pub(super) compact_group_attachment_refusal: Option<CompactGroupAttachmentRefusalV1>,
 }
 
 impl ExecutionFailureV1 {
@@ -38,6 +39,42 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: Some(refusal),
+            compact_group_attachment_refusal: None,
+        }
+    }
+    pub(crate) fn compact_group_attachment_refusal(
+        refusal: CompactGroupAttachmentRefusalV1,
+    ) -> Self {
+        let category = match refusal.category {
+            ProtocolCompactGroupAttachmentCategoryV1::StaleDocumentFence => {
+                OperationProtocolErrorCategoryV1::StaleDocument
+            }
+            ProtocolCompactGroupAttachmentCategoryV1::UnknownTarget => {
+                OperationProtocolErrorCategoryV1::AtomNotFound
+            }
+            ProtocolCompactGroupAttachmentCategoryV1::ForeignTarget => {
+                OperationProtocolErrorCategoryV1::AtomNotInSelectedMolecule
+            }
+            ProtocolCompactGroupAttachmentCategoryV1::InvalidRelease
+            | ProtocolCompactGroupAttachmentCategoryV1::CandidateAdmission => {
+                OperationProtocolErrorCategoryV1::DocumentInvalid
+            }
+            ProtocolCompactGroupAttachmentCategoryV1::RendererAdmission => {
+                OperationProtocolErrorCategoryV1::RenderUnsupported
+            }
+            ProtocolCompactGroupAttachmentCategoryV1::SessionConflict => {
+                OperationProtocolErrorCategoryV1::InternalFailure
+            }
+        };
+        Self {
+            category,
+            message: "compact-group attachment refused".to_owned(),
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+            compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: Some(refusal),
         }
     }
     pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
@@ -49,6 +86,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -79,6 +117,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
     pub(crate) fn document_admission(message: String) -> Self {
@@ -90,6 +129,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -102,6 +142,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -114,6 +155,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -126,6 +168,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -138,6 +181,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -154,6 +198,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -166,6 +211,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -178,6 +224,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -190,6 +237,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -218,6 +266,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -260,6 +309,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -295,6 +345,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -307,6 +358,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -337,6 +389,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -357,6 +410,7 @@ impl ExecutionFailureV1 {
             }),
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 
@@ -396,6 +450,10 @@ impl ExecutionFailureV1 {
         error: ferrum_document::ReactionMemberSelectionRefusalV1,
     ) -> Self {
         let (category, recovery) = match error {
+            ferrum_document::ReactionMemberSelectionRefusalV1::InvalidIdentity(_) => (
+                ProtocolReactionRefusalCategoryV1::InvalidRequest,
+                ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            ),
             ferrum_document::ReactionMemberSelectionRefusalV1::UnknownReaction
             | ferrum_document::ReactionMemberSelectionRefusalV1::UnresolvedReaction => (
                 ProtocolReactionRefusalCategoryV1::MissingReaction,
@@ -517,6 +575,7 @@ impl ExecutionFailureV1 {
             catalog_placement_refusal: None,
             reaction_refusal: Some(ReactionRefusalV1 { category, recovery }),
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         }
     }
 }
@@ -583,6 +642,31 @@ mod tests {
             })
         );
         assert_eq!(failure.message, "reaction command refused");
+    }
+
+    #[test]
+    fn invalid_durable_reaction_identity_keeps_the_public_refresh_contract() {
+        let failure = ExecutionFailureV1::reaction_selection_refusal(
+            ferrum_document::ReactionMemberSelectionRefusalV1::InvalidIdentity(
+                ferrum_document::ProjectionError::InvalidValue {
+                    context: "durable reaction binding".to_owned(),
+                    field: "object:id",
+                    value: "malformed retained identity".to_owned(),
+                },
+            ),
+        );
+
+        assert_eq!(
+            failure.category,
+            OperationProtocolErrorCategoryV1::DocumentInvalid
+        );
+        assert_eq!(
+            failure.reaction_refusal,
+            Some(ReactionRefusalV1 {
+                category: ProtocolReactionRefusalCategoryV1::InvalidRequest,
+                recovery: ProtocolReactionRefusalRecoveryV1::RefreshAndRestart,
+            })
+        );
     }
 
     #[test]

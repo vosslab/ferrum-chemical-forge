@@ -6,12 +6,16 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.actions.context_menu
+import ferrum_qt.declarative_resources
 import ferrum_qt.ferrum.direct_root_preview
+import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.ferrum.document_tab_errors
 import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.structure_selection_mode
 import ferrum_qt.ferrum.window_mode_sync
 import ferrum_qt.modes.base_mode
+import ferrum_qt.themes.document_display_palette
 
 
 #============================================
@@ -27,6 +31,7 @@ class FerrumNativeStructureSelectionMixin:
 		self._structure_marquee = None
 		self._structure_press_scene = None
 		self._structure_tab = None
+		self._delete_structure_selection_action = None
 
 	#============================================
 	def _build_structure_selection_action(self) -> None:
@@ -37,6 +42,25 @@ class FerrumNativeStructureSelectionMixin:
 			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
 		))
 		self._register_action("draw.selection.structure", self._select_structure_action)
+		self._delete_structure_selection_action = PySide6.QtGui.QAction(
+			self.tr("Delete Selection"), self,
+		)
+		self._delete_structure_selection_action.setToolTip(self.tr(
+			"Remove supported selected targets through Rust",
+		))
+		self._delete_structure_selection_action.setStatusTip(self.tr(
+			"Remove supported selected targets through Rust",
+		))
+		self._delete_structure_selection_action.triggered.connect(
+			self._request_structure_deletion,
+		)
+		self._register_action(
+			"edit.delete_selection", self._delete_structure_selection_action,
+			shortcut_exemption_reason=(
+				"Delete and Backspace are normalized by the active Select Structure tool "
+				"and trigger this registered action."
+			),
+		)
 		binding = ferrum_qt.ferrum.window_mode_sync.FerrumWindowToolBinding(
 			self._select_structure_action, ferrum_qt.modes.base_mode.ModeId.EDIT,
 			ferrum_qt.ferrum.structure_selection_mode.StructureSelectionMode(),
@@ -55,6 +79,19 @@ class FerrumNativeStructureSelectionMixin:
 		):
 			self._cancel_structure_selection()
 		self._select_structure_action.setEnabled(enabled)
+		self._refresh_structure_deletion_action(enabled)
+
+	#============================================
+	def _refresh_structure_deletion_action(self, selection_owner_enabled: bool) -> None:
+		"""Enable the registered deletion action only for this live selection."""
+		action = self._delete_structure_selection_action
+		selection = self._structure_selection
+		action.setEnabled(
+			selection_owner_enabled
+			and self._structure_tab is self._active_native_tab()
+			and selection is not None
+			and bool(selection.targets)
+		)
 
 	#============================================
 	def _activate_structure_selection(self) -> bool:
@@ -97,7 +134,7 @@ class FerrumNativeStructureSelectionMixin:
 			self._finish_structure_marquee(intent.points[1], intent.modifiers)
 			return
 		if intent.operation_id == "selection.delete" and not intent.points:
-			PySide6.QtCore.QTimer.singleShot(0, self._commit_structure_deletion)
+			self._delete_structure_selection_action.trigger()
 			return
 		raise RuntimeError("Ferrum structural selection received an unsupported mode intent.")
 
@@ -255,6 +292,40 @@ class FerrumNativeStructureSelectionMixin:
 				tab, tuple(target.bounds for target in selection.targets),
 			)
 		)
+		self._refresh_structure_deletion_action(self._select_structure_action.isEnabled())
+
+	#============================================
+	def _request_structure_deletion(self) -> None:
+		"""Defer the one shared selection deletion operation to the Qt event loop."""
+		if self._delete_structure_selection_action.isEnabled():
+			PySide6.QtCore.QTimer.singleShot(0, self._commit_structure_deletion)
+
+	#============================================
+	def _show_structure_selection_context_menu(
+			self, viewport: PySide6.QtWidgets.QWidget,
+			global_position: PySide6.QtCore.QPoint) -> bool:
+		"""Present declared enabled actions without changing the Rust selection."""
+		if viewport is not self._controller_native_viewport:
+			return False
+		if not self._delete_structure_selection_action.isEnabled():
+			self.statusBar().showMessage(self.tr(
+				"Select a structure first, then open Drawing actions.",
+			), 5000)
+			return True
+		accessible_name, action_groups = ferrum_qt.declarative_resources.load_context_menu_placement(
+			self._action_registry,
+		)
+		menu = ferrum_qt.actions.context_menu.build_context_menu(
+			viewport, self._action_registry, action_groups, accessible_name,
+		)
+		if menu is None:
+			self.statusBar().showMessage(self.tr(
+				"Select a structure first, then open Drawing actions.",
+			), 5000)
+			return True
+		self.statusBar().showMessage(self.tr("Selected structure actions."), 5000)
+		ferrum_qt.actions.context_menu.present_context_menu(menu, viewport, global_position)
+		return True
 
 	#============================================
 	def _dispose_structure_marquee(self) -> None:
@@ -270,11 +341,18 @@ class FerrumNativeStructureSelectionMixin:
 		scene = tab.view.scene()
 		if scene is None:
 			raise RuntimeError("Ferrum document has no current scene")
-		pen = PySide6.QtGui.QPen(PySide6.QtWidgets.QApplication.palette().highlight().color())
-		pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
-		item = scene.addRect(PySide6.QtCore.QRectF(start, start), pen)
+		item = scene.addRect(PySide6.QtCore.QRectF(start, start))
 		item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 		item.setZValue(1_000_000.0)
+		refreshable = ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRoleMaterialRefreshableV1(
+			(item,),
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.SELECTION_OUTLINE,
+			None, 1.5, PySide6.QtCore.Qt.PenStyle.DashLine,
+		)
+		refreshable.refresh_document_display_palette(tab.document_display_palette)
+		ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable(
+			tab, item, refreshable,
+		)
 		return item
 
 	#============================================

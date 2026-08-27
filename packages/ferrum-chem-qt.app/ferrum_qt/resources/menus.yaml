@@ -3,6 +3,22 @@
 # Feature owners construct, connect, and register QActions. This resource owns
 # their canonical menu client, task grouping, and explicit menu boundaries.
 
+contexts:
+  - id: selected_structure
+    accessible_name: "Selected structure actions"
+    groups:
+      - id: edit_selection
+        actions:
+          - edit.cut
+          - edit.copy
+          - edit.paste
+      - id: inspect
+        actions:
+          - view.properties.toggle
+      - id: remove
+        actions:
+          - edit.delete_selection
+
 menus:
   - id: file
     label_key: "File"
@@ -271,6 +287,11 @@ menus:
     label_key: "View"
     help_key: "Canvas zoom, grid, and projection controls"
     items:
+      - section:
+          id: view_commands
+          label_key: "Commands"
+          items:
+            - action: view.command_palette
       - section:
           id: view_zoom
           label_key: "Zoom"

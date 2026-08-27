@@ -136,14 +136,18 @@ pub(crate) fn observe_current_document_atom_oxidation_v1(
     }
     let root = document
         .resolve_document_object_id(&request.molecule_id)
-        .filter(|record| {
-            record.class() == TypedClass::Molecule && record.path().components().len() == 1
-        })
+        .map_err(|_| DocumentAtomOxidationRefusalV1::DirectRootMismatch)?
         .ok_or(DocumentAtomOxidationRefusalV1::UnknownDirectMolecule)?;
+    if root.class() != TypedClass::Molecule || root.path().components().len() != 1 {
+        return Err(DocumentAtomOxidationRefusalV1::UnknownDirectMolecule);
+    }
     let selected = document
         .resolve_document_object_id(&request.atom_id)
-        .filter(|record| record.class() == TypedClass::Atom)
+        .map_err(|_| DocumentAtomOxidationRefusalV1::DirectRootMismatch)?
         .ok_or(DocumentAtomOxidationRefusalV1::UnknownAtom)?;
+    if selected.class() != TypedClass::Atom {
+        return Err(DocumentAtomOxidationRefusalV1::UnknownAtom);
+    }
     if selected.path().components().len() != 2
         || selected.path().components().first() != root.path().components().first()
     {
@@ -393,8 +397,8 @@ mod tests {
         DocumentAtomOxidationObservationRequestV1::new(
             observation.snapshot().revision(),
             *observation.snapshot().digest(),
-            molecule.id().expect("durable root").clone(),
-            molecule.atoms()[atom].id().expect("durable atom").clone(),
+            molecule.document_object_id().clone(),
+            molecule.atoms()[atom].document_object_id().clone(),
         )
     }
 
@@ -516,8 +520,8 @@ mod tests {
         let request = DocumentAtomOxidationObservationRequestV1::new(
             observation.snapshot().revision(),
             *observation.snapshot().digest(),
-            first.id().expect("first durable root").clone(),
-            second.atoms()[0].id().expect("second durable atom").clone(),
+            first.document_object_id().clone(),
+            second.atoms()[0].document_object_id().clone(),
         );
         assert_eq!(
             session.observe_atom_oxidation_v1(&request),

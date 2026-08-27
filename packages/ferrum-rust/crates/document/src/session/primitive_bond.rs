@@ -56,6 +56,7 @@ impl DocumentSession {
             .current_state_v1()
             .document()
             .resolve_document_object_id(molecule_object_id)
+            .map_err(|_| SessionOperationError::InvalidCreateAtomTarget(object_id.clone()))?
             .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_id.clone()))?;
         if record.class() != TypedClass::Molecule {
             return Err(SessionOperationError::InvalidCreateAtomTarget(object_id));
@@ -133,6 +134,7 @@ impl DocumentSession {
         let document = self.current_document_v1();
         let target = document
             .resolve_document_object_id(object_id)
+            .map_err(|_| SessionOperationError::InvalidCreateBondTarget(object_key.clone()))?
             .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_key.clone()))?;
         if target.class() != TypedClass::Atom {
             return Err(SessionOperationError::InvalidCreateBondTarget(object_key));

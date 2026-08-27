@@ -112,8 +112,7 @@ fn observation_and_request(
     let session = DocumentSession::load(&source).expect("source loads");
     let observation = session.observe(0).expect("source projects");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let request = DocumentMoleculeMolblockRequestV1::new(
         observation.snapshot().revision(),
@@ -225,9 +224,7 @@ fn stale_foreign_and_drawing_style_requests_never_reach_the_engine() {
         Err(DocumentMoleculeMolblockErrorV1::Observation(_))
     ));
 
-    let foreign =
-        DocumentObjectIdV1::parse("ferrum-document-object-v1/0123456789abcdef0123456789abcdef")
-            .expect("foreign selector grammar");
+    let foreign = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     let foreign = DocumentMoleculeMolblockRequestV1::new(
         0,
         *request.expected_digest(),
@@ -252,8 +249,7 @@ fn authored_title_is_frozen_and_written_without_text_postprocessing() {
     let named_session = DocumentSession::load(named_source).expect("named source loads");
     let named_observation = named_session.observe(0).expect("named source projects");
     let named_id = named_observation.projection().molecules()[0]
-        .id()
-        .expect("named durable molecule")
+        .document_object_id()
         .clone();
     let named_request = DocumentMoleculeMolblockRequestV1::new(
         0,

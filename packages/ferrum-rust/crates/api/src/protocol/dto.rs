@@ -4,6 +4,7 @@
 //! facade preserves the established `protocol::dto` Rust surface.
 
 mod catalog_reaction_dto;
+mod document_compact_group_attachment_v1;
 mod document_general_dto;
 mod document_interchange_dto;
 mod document_molecule_diagnostics_dto;
@@ -14,6 +15,7 @@ mod operation_dto;
 mod presentation_author_dto;
 
 pub use catalog_reaction_dto::*;
+pub use document_compact_group_attachment_v1::*;
 pub use document_general_dto::*;
 pub use document_interchange_dto::*;
 pub use document_molecule_diagnostics_dto::*;

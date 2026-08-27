@@ -7,23 +7,24 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.bridge.display_geometry
+from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
 import ferrum_qt.config.geometry_units
-import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.document_display_palette
 
 
 GRID_Z_VALUE = -0.5
-_MINIMUM_GRID_LIGHTNESS_DELTA = 72
-_GRID_CONTRAST_ADJUSTMENT_LIMIT = 16
 _GRID_PHYSICAL_LINE_WIDTH_PX = 1.35
 _GRID_VERTEX_DIAMETER_PT = 2.6
 
 
 #============================================
-class FerrumNativeHexGridItem(PySide6.QtWidgets.QGraphicsItem):
+class FerrumNativeHexGridItem(
+		PySide6.QtWidgets.QGraphicsItem, DisplayPaletteRefreshable):
 	"""Paint one disposable grid from Rust-issued finite display geometry."""
 
 	#============================================
-	def __init__(self, paper_rect: PySide6.QtCore.QRectF) -> None:
+	def __init__(self, paper_rect: PySide6.QtCore.QRectF,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Cache one bounded paper-local grid and current application colors."""
 		super().__init__()
 		self.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
@@ -38,7 +39,7 @@ class FerrumNativeHexGridItem(PySide6.QtWidgets.QGraphicsItem):
 		self._line_pen = PySide6.QtGui.QPen()
 		self._dot_pen = PySide6.QtGui.QPen()
 		self._dot_brush = PySide6.QtGui.QBrush()
-		self.refresh_application_style()
+		self.refresh_display_palette(palette)
 		self.setZValue(GRID_Z_VALUE)
 
 	#============================================
@@ -63,15 +64,13 @@ class FerrumNativeHexGridItem(PySide6.QtWidgets.QGraphicsItem):
 		painter.restore()
 
 	#============================================
-	def refresh_application_style(self) -> None:
-		"""Apply a legible transient grid style matching the active paper surface."""
-		theme_name = _application_theme_name()
-		colors = ferrum_qt.themes.theme_loader.get_grid_colors(theme_name)
-		paper_color = PySide6.QtGui.QColor(
-			ferrum_qt.themes.theme_loader.get_paper_color(theme_name),
-		)
-		line_color = _visible_grid_color(
-			PySide6.QtGui.QColor(colors["line"]), paper_color,
+	def refresh_display_palette(self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
+		"""Refresh cached grid pens and brushes from the current display palette."""
+		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+			raise TypeError("Ferrum grid requires a document display palette")
+		line_color = palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.GRID_LINE,
 		)
 		line_pen = PySide6.QtGui.QPen(line_color)
 		# A cosmetic pen keeps its physical-pixel footprint at ordinary canvas
@@ -79,11 +78,11 @@ class FerrumNativeHexGridItem(PySide6.QtWidgets.QGraphicsItem):
 		# 100 percent, even when their source color has adequate contrast.
 		line_pen.setWidthF(_GRID_PHYSICAL_LINE_WIDTH_PX)
 		line_pen.setCosmetic(True)
-		dot_color = _visible_grid_color(
-			PySide6.QtGui.QColor(colors["dot_outline"]), paper_color,
+		dot_color = palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.GRID_DOT_OUTLINE,
 		)
-		dot_fill_color = _visible_grid_color(
-			PySide6.QtGui.QColor(colors["dot_fill"]), paper_color,
+		dot_fill_color = palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.GRID_DOT_FILL,
 		)
 		dot_pen = PySide6.QtGui.QPen(dot_color)
 		dot_pen.setWidthF(_GRID_PHYSICAL_LINE_WIDTH_PX)
@@ -123,55 +122,3 @@ def _hex_grid_dot_path(paper_rect: PySide6.QtCore.QRectF) -> PySide6.QtGui.QPain
 			_GRID_VERTEX_DIAMETER_PT, _GRID_VERTEX_DIAMETER_PT,
 		)
 	return path
-
-
-#============================================
-def _application_theme_name() -> str:
-	"""Map the active palette to the package's matching grid color family."""
-	color = PySide6.QtWidgets.QApplication.palette().color(
-		PySide6.QtGui.QPalette.ColorRole.Base,
-	)
-	return "dark" if color.lightness() < 128 else "light"
-
-
-#============================================
-def _visible_grid_color(
-		color: PySide6.QtGui.QColor, paper_color: PySide6.QtGui.QColor,
-		) -> PySide6.QtGui.QColor:
-	"""Return one paper-legible grid color while retaining passing theme tokens.
-
-	The grid is painted on the themed paper rectangle rather than on Qt's chrome
-	palette base.  Repeated small adjustments preserve each token's hue and
-	saturation when possible; the explicit HSL endpoint guarantees the published
-	minimum lightness separation when a repeated adjustment reaches an endpoint.
-	"""
-	visible_color = PySide6.QtGui.QColor(color)
-	for _unused_index in range(_GRID_CONTRAST_ADJUSTMENT_LIMIT):
-		if _grid_lightness_delta(visible_color, paper_color) >= _MINIMUM_GRID_LIGHTNESS_DELTA:
-			return visible_color
-		if paper_color.lightness() >= 128:
-			visible_color = visible_color.darker(110)
-		else:
-			visible_color = visible_color.lighter(110)
-	if paper_color.lightness() >= 128:
-		target_lightness = paper_color.lightness() - _MINIMUM_GRID_LIGHTNESS_DELTA
-	else:
-		target_lightness = paper_color.lightness() + _MINIMUM_GRID_LIGHTNESS_DELTA
-	visible_color.setHsl(
-		visible_color.hslHue(),
-		visible_color.hslSaturation(),
-		target_lightness,
-		visible_color.alpha(),
-	)
-	if _grid_lightness_delta(visible_color, paper_color) < _MINIMUM_GRID_LIGHTNESS_DELTA:
-		raise RuntimeError("Ferrum grid contrast endpoint did not meet its contract")
-	return visible_color
-
-
-#============================================
-def _grid_lightness_delta(
-		color: PySide6.QtGui.QColor, paper_color: PySide6.QtGui.QColor,
-		) -> int:
-	"""Return the deterministic lightness separation used by the grid contract."""
-	delta = abs(color.lightness() - paper_color.lightness())
-	return delta

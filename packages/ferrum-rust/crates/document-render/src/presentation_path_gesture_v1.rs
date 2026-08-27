@@ -7,28 +7,29 @@ use ferrum_document::{
     PresentationPathKindV1, Rgb24V1, SessionOperation, SessionOperationTransitionRequestV1,
     SessionOperationV1, TransitionAuthorizationV1, TransparentOrRgb24V1,
 };
+use ferrum_render::{RenderPaintV3, Rgb24};
 use thiserror::Error;
 
 use super::require_fence;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresentationPathAppearanceV1 {
-    stroke_color: Rgb24V1,
+    stroke_paint: RenderPaintV3,
     stroke_width: GeometricLineWidthV1,
-    fill_color: Option<Rgb24V1>,
+    fill_paint: Option<RenderPaintV3>,
 }
 impl PresentationPathAppearanceV1 {
     #[must_use]
-    pub fn stroke_color(&self) -> &str {
-        self.stroke_color.as_str()
+    pub const fn stroke_paint(&self) -> &RenderPaintV3 {
+        &self.stroke_paint
     }
     #[must_use]
     pub fn stroke_width(&self) -> f64 {
         self.stroke_width.value()
     }
     #[must_use]
-    pub fn fill_color(&self) -> Option<&str> {
-        self.fill_color.as_ref().map(Rgb24V1::as_str)
+    pub fn fill_paint(&self) -> Option<&RenderPaintV3> {
+        self.fill_paint.as_ref()
     }
 }
 
@@ -291,9 +292,9 @@ fn resolve_path(
             CreatePresentationPathV1::new(
                 path.clone(),
                 PresentationAppearanceV1::new(
-                    gesture.appearance.stroke_color,
+                    document_rgb(&gesture.appearance.stroke_paint),
                     gesture.appearance.stroke_width,
-                    gesture.appearance.fill_color,
+                    gesture.appearance.fill_paint.as_ref().map(document_rgb),
                 ),
             ),
         )),
@@ -327,21 +328,34 @@ fn appearance(
         .map_err(|_| PresentationPathRenderErrorV1::RenderPreparation)?;
     let standard = observation.projection().drawing_standard();
     Ok(PresentationPathAppearanceV1 {
-        stroke_color: standard
+        stroke_paint: standard
             .and_then(|value| value.line_color())
-            .cloned()
-            .unwrap_or_else(|| Rgb24V1::new("#000000").expect("closed built-in colour")),
+            .map(authored_paint)
+            .unwrap_or_else(RenderPaintV3::document_foreground),
         stroke_width: GeometricLineWidthV1::new(
             standard
                 .and_then(|value| value.line_width())
                 .map_or(1.0, |value| value.value()),
         )
         .ok_or(PresentationPathRenderErrorV1::RenderPreparation)?,
-        fill_color: standard
+        fill_paint: standard
             .and_then(|value| value.area_color())
             .and_then(|value| match value {
                 TransparentOrRgb24V1::Transparent => None,
-                TransparentOrRgb24V1::Rgb24(color) => Some(color.clone()),
+                TransparentOrRgb24V1::Rgb24(color) => Some(authored_paint(color)),
             }),
     })
+}
+
+fn authored_paint(value: &Rgb24V1) -> RenderPaintV3 {
+    let rgb = value
+        .as_str()
+        .strip_prefix('#')
+        .expect("document RGB is hash-prefixed");
+    RenderPaintV3::authored_rgb24(Rgb24::new(rgb).expect("validated document RGB"))
+}
+
+fn document_rgb(value: &RenderPaintV3) -> Rgb24V1 {
+    Rgb24V1::new(format!("#{}", value.export_rgb().as_str()))
+        .expect("resolved render RGB is valid document RGB")
 }

@@ -5,8 +5,8 @@ fn point(x: f64, y: f64) -> RenderPoint {
     RenderPoint::new(x, y).expect("test point")
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("test RGB"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test RGB"))
 }
 
 fn width(value: f64) -> PositiveFinite {
@@ -100,14 +100,14 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
                 1,
                 BatchSpace::Scene,
                 vec![RenderOp::Path(
-                    PathOpV2::new(
+                    PathOpV3::new(
                         vec![
-                            ScenePathCommandV2::MoveTo(point(2.0, 2.0)),
-                            ScenePathCommandV2::LineTo(point(12.0, 2.0)),
-                            ScenePathCommandV2::LineTo(point(7.0, 10.0)),
-                            ScenePathCommandV2::Close,
+                            ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
+                            ScenePathCommandV3::LineTo(point(12.0, 2.0)),
+                            ScenePathCommandV3::LineTo(point(7.0, 10.0)),
+                            ScenePathCommandV3::Close,
                         ],
-                        Some(ScenePathStrokeV2::new(paint("112233"), width(1.0))),
+                        Some(ScenePathStrokeV3::new(paint("112233"), width(1.0))),
                         Some(paint("aabbcc")),
                         0,
                     )

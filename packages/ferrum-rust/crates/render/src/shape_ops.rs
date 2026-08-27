@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Paint, PositiveFinite, RenderError, RenderPoint};
+use crate::{PositiveFinite, RenderError, RenderPaintV3, RenderPoint};
 
 /// One explicit finite ellipse with optional outline and fill paint.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -13,8 +13,8 @@ pub struct EllipseOp {
     radius_y: PositiveFinite,
     rotation_degrees: f64,
     stroke_width: Option<PositiveFinite>,
-    stroke_paint: Option<Paint>,
-    fill_paint: Option<Paint>,
+    stroke_paint: Option<RenderPaintV3>,
+    fill_paint: Option<RenderPaintV3>,
     z: i32,
 }
 
@@ -27,8 +27,8 @@ impl EllipseOp {
         radius_y: PositiveFinite,
         rotation_degrees: f64,
         stroke_width: Option<PositiveFinite>,
-        stroke_paint: Option<Paint>,
-        fill_paint: Option<Paint>,
+        stroke_paint: Option<RenderPaintV3>,
+        fill_paint: Option<RenderPaintV3>,
         z: i32,
     ) -> Result<Self, RenderError> {
         if !rotation_degrees.is_finite() {
@@ -89,12 +89,12 @@ impl EllipseOp {
     }
     /// Return explicit outline paint when an outline exists.
     #[must_use]
-    pub fn stroke_paint(&self) -> Option<&Paint> {
+    pub fn stroke_paint(&self) -> Option<&RenderPaintV3> {
         self.stroke_paint.as_ref()
     }
     /// Return explicit fill paint when a fill exists.
     #[must_use]
-    pub fn fill_paint(&self) -> Option<&Paint> {
+    pub fn fill_paint(&self) -> Option<&RenderPaintV3> {
         self.fill_paint.as_ref()
     }
     /// Return deterministic z-order within the batch.
@@ -117,8 +117,8 @@ impl<'de> Deserialize<'de> for EllipseOp {
             radius_y: PositiveFinite,
             rotation_degrees: f64,
             stroke_width: Option<PositiveFinite>,
-            stroke_paint: Option<Paint>,
-            fill_paint: Option<Paint>,
+            stroke_paint: Option<RenderPaintV3>,
+            fill_paint: Option<RenderPaintV3>,
             z: i32,
         }
         let wire = WireEllipseOp::deserialize(deserializer)?;

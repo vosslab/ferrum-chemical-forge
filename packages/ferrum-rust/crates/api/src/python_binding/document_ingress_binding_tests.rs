@@ -14,6 +14,8 @@ const SINGLE_ATOM_SDF_V1: &str = concat!(
     "$$$$\n",
 );
 const TWO_ATOM_CML_V1: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
+const CDXML_WITH_DECLARED_LOSSES_V1: &str = r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd"><CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1"><fragment id="source-fragment"><n id="source-atom" p="0 0"/></fragment></page></CDXML>"#;
+const CDXML_UNREPRESENTED_SEMANTIC_V1: &str = r#"<CDXML><page><fragment id="source-fragment"><n id="source-atom" p="0 0" Radical="1"/></fragment></page></CDXML>"#;
 
 fn temporary_sdf_path() -> std::path::PathBuf {
     std::env::temp_dir().join(format!("ferrum-pyo3-sdf-{}.sdf", std::process::id()))
@@ -21,6 +23,13 @@ fn temporary_sdf_path() -> std::path::PathBuf {
 
 fn temporary_cml_path(case: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("ferrum-pyo3-cml-{case}-{}.cml", std::process::id()))
+}
+
+fn temporary_cdxml_path(case: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "ferrum-pyo3-cdxml-{case}-{}.cdxml",
+        std::process::id()
+    ))
 }
 
 fn issued_descriptor<'py>(
@@ -289,5 +298,108 @@ fn cml_interchange_admission_observation_matches_committed_snapshot() {
             );
         }
         fs::remove_file(path).expect("remove CML");
+    });
+}
+
+#[test]
+fn cdxml_descriptor_prepares_through_the_opaque_generic_route() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        let document_session = module.getattr("DocumentSession").expect("session type");
+        let descriptors = document_session
+            .call_method0("local_interchange_open_descriptors_v1")
+            .expect("descriptors issue");
+        let cdxml_descriptor = issued_descriptor(&descriptors, ".cdxml");
+        let cdxml_handle = cdxml_descriptor
+            .getattr("route_handle")
+            .expect("CDXML route handle");
+        let path = temporary_cdxml_path("generic-route");
+        fs::write(&path, CDXML_WITH_DECLARED_LOSSES_V1).expect("write CDXML");
+
+        let prepared = document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                (path.to_string_lossy().as_ref(), cdxml_handle),
+            )
+            .expect("registered CDXML descriptor prepares a new document");
+        let summary = prepared
+            .getattr("interchange_summary")
+            .expect("safe generic receipt");
+        assert_eq!(
+            summary
+                .getattr("format_id")
+                .expect("format id")
+                .extract::<String>()
+                .expect("format id is text"),
+            crate::CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1
+        );
+        assert_eq!(
+            summary
+                .getattr("dropped_categories")
+                .expect("declared loss categories")
+                .extract::<Vec<String>>()
+                .expect("declared loss categories are text"),
+            ["lexical_syntax", "document_view_metadata"]
+        );
+        let admission = prepared
+            .call_method0("take_admission_v1")
+            .expect("redeem CDXML admission");
+        assert_eq!(
+            admission
+                .get_item(3)
+                .expect("admitted source kind")
+                .extract::<String>()
+                .expect("admitted source kind is text"),
+            "cdxml"
+        );
+        fs::remove_file(path).expect("remove CDXML");
+    });
+}
+
+#[test]
+fn cdxml_opaque_route_refuses_unrepresented_semantics_without_source_disclosure() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        let document_session = module.getattr("DocumentSession").expect("session type");
+        let descriptors = document_session
+            .call_method0("local_interchange_open_descriptors_v1")
+            .expect("descriptors issue");
+        let cdxml_handle = issued_descriptor(&descriptors, ".cdxml")
+            .getattr("route_handle")
+            .expect("CDXML route handle");
+        let path = temporary_cdxml_path("refusal");
+        fs::write(&path, CDXML_UNREPRESENTED_SEMANTIC_V1).expect("write rejected CDXML");
+
+        let error = document_session
+            .call_method1(
+                "prepare_local_interchange_file_v1",
+                (path.to_string_lossy().as_ref(), cdxml_handle),
+            )
+            .expect_err("unrepresented CDXML semantics must refuse before preparation");
+        let value = error.value(py);
+        assert_eq!(
+            value
+                .getattr("stage")
+                .expect("typed refusal stage")
+                .to_string(),
+            "interchange"
+        );
+        assert_eq!(
+            value
+                .getattr("reason")
+                .expect("typed refusal reason")
+                .to_string(),
+            "attribute_unsupported"
+        );
+        let rendered = error.to_string();
+        assert!(
+            !rendered.contains("source-fragment") && !rendered.contains("Radical"),
+            "typed refusal must not disclose CDXML source facts"
+        );
+        fs::remove_file(path).expect("remove rejected CDXML");
     });
 }

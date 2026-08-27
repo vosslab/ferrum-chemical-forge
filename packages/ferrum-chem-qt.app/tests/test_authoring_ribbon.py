@@ -88,6 +88,83 @@ def test_group_local_more_reuses_disabled_checked_action(qapp: PySide6.QtWidgets
 
 
 #============================================
+def test_group_states_keep_each_original_action_reachable_once(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Expanded, compact, and collapsed routes preserve registry QAction identity."""
+	parent = PySide6.QtWidgets.QWidget()
+	actions = tuple(PySide6.QtGui.QAction(f"Command {index}", parent) for index in range(3))
+	entries = (
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.primary", "primary", "required", actions[0],
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.supporting_one", "supporting", "normal", actions[1],
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.supporting_two", "supporting", "normal", actions[2],
+		),
+	)
+	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout(
+			"draw", "Draw", "More drawing tools", entries,
+		), parent,
+	)
+	group.resize(500, 100)
+	group.show()
+	parent.show()
+	try:
+		for state in ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState:
+			group.set_display_state(state)
+			qapp.processEvents()
+			assert group.visible_actions() == actions
+			assert len(set(group.visible_actions())) == len(actions)
+		assert group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.EXPANDED) > (
+			group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COMPACT)
+		) > group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
+	finally:
+		parent.close()
+
+
+#============================================
+def test_group_focus_moves_to_exposed_popup_when_direct_client_hides(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A resize-state transition keeps keyboard focus on an exposed group client."""
+	parent = PySide6.QtWidgets.QWidget()
+	primary = PySide6.QtGui.QAction("Primary", parent)
+	supporting = PySide6.QtGui.QAction("Supporting", parent)
+	entries = (
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.primary", "primary", "required", primary,
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.supporting", "supporting", "normal", supporting,
+		),
+	)
+	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout(
+			"draw", "Draw", "More drawing tools", entries,
+		), parent,
+	)
+	group.resize(400, 100)
+	group.show()
+	parent.show()
+	try:
+		supporting_button = group.direct_button_for(supporting)
+		primary_button = group.direct_button_for(primary)
+		assert supporting_button is not None and primary_button is not None
+		supporting_button.setFocus()
+		qapp.processEvents()
+		group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COMPACT)
+		assert group._more_button.hasFocus()
+		primary_button.setFocus()
+		qapp.processEvents()
+		group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
+		assert group._group_button.hasFocus()
+	finally:
+		parent.close()
+
+
+#============================================
 def test_ribbon_rejects_duplicate_same_tab_action_placement(qapp: object) -> None:
 	"""One tab cannot create competing direct clients for the same action."""
 	parent = PySide6.QtWidgets.QWidget()

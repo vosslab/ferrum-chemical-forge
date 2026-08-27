@@ -49,17 +49,17 @@ pub(crate) fn resolve_probe(
                 .direct_atom_object_id
                 .as_ref()
                 .expect("validated at construction");
-            let mut matching_atoms = atoms.filter(|atom| atom.id() == Some(direct_object_id));
+            let mut matching_atoms =
+                atoms.filter(|atom| atom.document_object_id() == direct_object_id);
             let Some(atom) = matching_atoms.next() else {
                 return Err(DirectBondPointerProbeError::UnknownDirectAtom);
             };
             if matching_atoms.next().is_some() {
                 return Err(DirectBondPointerProbeError::AmbiguousAtom);
             }
-            let Some(atom) = atom.id() else {
-                return Err(DirectBondPointerProbeError::UnknownDirectAtom);
-            };
-            Ok(DirectBondEndpointIntent::ExistingAtom { atom: atom.clone() })
+            Ok(DirectBondEndpointIntent::ExistingAtom {
+                atom: atom.document_object_id().clone(),
+            })
         }
         DirectBondPointerHitState::None => {
             let pointer_viewport = probe
@@ -68,7 +68,7 @@ pub(crate) fn resolve_probe(
             let mut closest: Option<(f64, DocumentObjectIdV1)> = None;
             let mut tied = false;
             for atom in atoms {
-                let Some(atom_id) = atom.id() else { continue };
+                let atom_id = atom.document_object_id();
                 let position = atom.position();
                 let atom_point = DirectBondPoint2V1::new(position.x(), position.y())
                     .map_err(|_| DirectBondPointerProbeError::UnknownDirectAtom)?;

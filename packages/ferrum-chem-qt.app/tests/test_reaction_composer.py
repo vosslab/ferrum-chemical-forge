@@ -6,6 +6,7 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.engine
 
@@ -80,7 +81,7 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 	qapp.processEvents()
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		_REACTION_CDML, "reaction-input.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	main_window._register_native_tab(tab, activate=True)
 	observation = tab.observe_direct_root_interaction()
 	root_ids = tuple(

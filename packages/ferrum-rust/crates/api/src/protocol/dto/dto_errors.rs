@@ -4,8 +4,8 @@ use schemars::JsonSchema;
 
 use serde::Serialize;
 
-use super::CompactGroupMaterializationRefusalV1;
 use super::PresentationAuthoringKindV1;
+use super::{CompactGroupAttachmentRefusalV1, CompactGroupMaterializationRefusalV1};
 
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -53,6 +53,9 @@ pub struct OperationProtocolErrorV1 {
     /// Closed compact-materialization recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compact_group_materialization_refusal: Option<CompactGroupMaterializationRefusalV1>,
+    /// Closed compact-attachment recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_group_attachment_refusal: Option<CompactGroupAttachmentRefusalV1>,
 }
 
 /// Typed public facts for a protocol-wide resource-limit refusal.
@@ -309,6 +312,9 @@ pub enum ProtocolOperationKindV1 {
     /// `document.compact-group.materialize.v1`.
     #[serde(rename = "document.compact-group.materialize.v1")]
     DocumentCompactGroupMaterialize,
+    /// `document.compact-group.attach.v1`.
+    #[serde(rename = "document.compact-group.attach.v1")]
+    DocumentCompactGroupAttach,
     /// `document.molecule.interchange.import.v1`.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport,

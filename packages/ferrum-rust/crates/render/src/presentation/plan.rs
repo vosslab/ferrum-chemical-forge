@@ -6,7 +6,7 @@
 
 use crate::{
     DocumentPlusRenderV1, DocumentTextRenderV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, Paint, PathCommandV1, RenderError, RenderPoint, TextOp,
+    FerrumFontEnvironmentV1, PathCommandV1, RenderError, RenderPaintV3, RenderPoint, TextOp,
     VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{
@@ -146,7 +146,7 @@ pub enum PresentationPreviewRenderRootV1 {
         anchor: RenderPoint,
         operation: TextOp,
         bounds: PresentationRenderBoundsV1,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     },
 }
 

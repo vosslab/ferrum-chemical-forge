@@ -15,7 +15,7 @@ use ferrum_domain::haworth::{
 use crate::direct_glycosidic_haworth::{
     extended_direct_base, padded_direct_q, rounded_direct_wedge,
 };
-use crate::{Paint, PositiveFinite, RenderError, RenderPoint, RenderProvenance};
+use crate::{PositiveFinite, RenderError, RenderPaintV3, RenderPoint, RenderProvenance};
 
 const MAX_TARGETS: usize = 14;
 
@@ -25,7 +25,7 @@ pub struct AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
     provenance: RenderProvenance,
     depiction: &'a AuthoredDirectGlycosidicHaworthDepictionV1,
     canonical_bond_targets: &'a [crate::RenderTarget],
-    paint: Paint,
+    paint: RenderPaintV3,
     line_width: PositiveFinite,
     wedge_width: PositiveFinite,
 }
@@ -37,7 +37,7 @@ impl<'a> AuthoredDirectGlycosidicHaworthRenderRequestV1<'a> {
         provenance: RenderProvenance,
         depiction: &'a AuthoredDirectGlycosidicHaworthDepictionV1,
         canonical_bond_targets: &'a [crate::RenderTarget],
-        paint: Paint,
+        paint: RenderPaintV3,
         line_width: PositiveFinite,
         wedge_width: PositiveFinite,
     ) -> Self {
@@ -108,7 +108,7 @@ impl AuthoredDirectGlycosidicHaworthDrawOpV1 {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AuthoredDirectGlycosidicHaworthRenderPlanV1 {
     provenance: RenderProvenance,
-    paint: Paint,
+    paint: RenderPaintV3,
     operations: Vec<AuthoredDirectGlycosidicHaworthDrawOpV1>,
 }
 
@@ -118,7 +118,7 @@ impl AuthoredDirectGlycosidicHaworthRenderPlanV1 {
         self.provenance
     }
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) const fn paint(&self) -> &Paint {
+    pub(crate) const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     pub(crate) fn operations(&self) -> &[AuthoredDirectGlycosidicHaworthDrawOpV1] {
@@ -127,7 +127,7 @@ impl AuthoredDirectGlycosidicHaworthRenderPlanV1 {
     #[cfg(test)]
     pub(crate) fn test_plan(
         provenance: RenderProvenance,
-        paint: Paint,
+        paint: RenderPaintV3,
         operations: Vec<AuthoredDirectGlycosidicHaworthDrawOpV1>,
     ) -> Self {
         Self {

@@ -7,6 +7,7 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.document_tab
 
@@ -30,7 +31,7 @@ def test_native_arrow_edit_updates_the_document_and_retains_selection(
 		'width="1" color="#000"><point x="0" y="0"/>'
 		'<point x="40" y="0"/></arrow></cdml>',
 		"arrow.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		_select_arrow(tab)
 		changes = ferrum_qt.ferrum.arrow_properties.property_changes_from_dialog(

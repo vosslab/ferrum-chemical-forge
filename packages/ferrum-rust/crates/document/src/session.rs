@@ -83,7 +83,7 @@ pub use admitted_transition_v1::{
 pub use attached_compact_group::{
     AttachedCompactGroupAvailabilityCategoryV1, AttachedCompactGroupAvailabilityV1,
     AttachedCompactGroupCommitResultV1, AttachedCompactGroupSessionErrorV1,
-    PendingAttachedCompactGroupV1,
+    AttachedCompactGroupTargetV1, PendingAttachedCompactGroupV1,
 };
 /// Concrete internal Rust transaction seam for the API-owned attached-C6 bridge.
 ///
@@ -509,7 +509,7 @@ impl DocumentSession {
     ) -> Result<Option<DirectBondPoint2V1>, crate::ProjectionError> {
         let Some(target) = self
             .current_document_v1()
-            .resolve_document_object_id(object_id)
+            .resolve_document_object_id(object_id)?
         else {
             return Ok(None);
         };

@@ -19,8 +19,7 @@ const SOURCE: &str = concat!(
 
 fn atom(observation: &super::SessionDocumentObservationV1, index: usize) -> DocumentObjectIdV1 {
     observation.projection().molecules()[0].atoms()[index]
-        .id()
-        .expect("fixture atom must have durable identity")
+        .document_object_id()
         .clone()
 }
 
@@ -29,6 +28,7 @@ fn structural_cut_is_one_reversible_topology_edit() {
     let mut session = DocumentSession::load(SOURCE).expect("fixture must load");
     let observation = session.observe(0).expect("fixture must project");
     let before = observation.snapshot().clone();
+    let expected_remaining = vec![atom(&observation, 0), atom(&observation, 2)];
     let plan = prepare_document_clipboard_cut_v1(
         &observation,
         DocumentClipboardSelectionV1::new(vec![atom(&observation, 1)])
@@ -43,7 +43,7 @@ fn structural_cut_is_one_reversible_topology_edit() {
     let remaining = molecule
         .atoms()
         .iter()
-        .map(|atom| atom.source_id().expect("fixture source ID"))
+        .map(|atom| atom.document_object_id().clone())
         .collect::<Vec<_>>();
 
     assert_eq!(
@@ -55,7 +55,7 @@ fn structural_cut_is_one_reversible_topology_edit() {
             changed.snapshot().cdml().contains("id=\"foreign\""),
             changed.snapshot().cdml().contains("retained=\"opaque\""),
         ),
-        (1, vec!["a", "c"], 0, false, true, true),
+        (1, expected_remaining, 0, false, true, true),
     );
     let restored = session.undo(1).expect("Cut must undo");
     let restored = restored.observation();
@@ -95,8 +95,7 @@ fn durable_nonmember_selectors_refuse_cut_preparation() {
     let session = DocumentSession::load(SOURCE).expect("fixture must load");
     let observation = session.observe(0).expect("fixture must project");
     let molecule = observation.projection().molecules()[0]
-        .id()
-        .expect("fixture molecule must have durable identity")
+        .document_object_id()
         .clone();
     assert!(matches!(
         prepare_document_clipboard_cut_v1(

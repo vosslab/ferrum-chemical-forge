@@ -36,6 +36,7 @@ pub struct DocumentInterchangeProvenanceV1 {
 #[serde(rename_all = "snake_case")]
 pub enum DocumentInterchangeLossCategoryV1 {
     LexicalSyntax,
+    DocumentViewMetadata,
 }
 
 /// Bounded protocol-owned facts for one fixed-target interchange import.

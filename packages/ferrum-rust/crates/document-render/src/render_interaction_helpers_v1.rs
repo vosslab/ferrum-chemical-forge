@@ -77,14 +77,14 @@ pub(super) fn union_bounds(values: &[RenderInteractionBoundsV1]) -> RenderIntera
 }
 
 /// Return the finite renderer-issued bounds for one lowered scene path.
-pub(super) fn path_bounds(path: &PathOpV2) -> RenderInteractionBoundsV1 {
+pub(super) fn path_bounds(path: &PathOpV3) -> RenderInteractionBoundsV1 {
     let mut points = Vec::new();
     for command in path.commands() {
         match command {
-            ScenePathCommandV2::MoveTo(point) | ScenePathCommandV2::LineTo(point) => {
+            ScenePathCommandV3::MoveTo(point) | ScenePathCommandV3::LineTo(point) => {
                 points.push((point.x(), point.y()));
             }
-            ScenePathCommandV2::CubicTo {
+            ScenePathCommandV3::CubicTo {
                 control_1,
                 control_2,
                 end,
@@ -93,7 +93,7 @@ pub(super) fn path_bounds(path: &PathOpV2) -> RenderInteractionBoundsV1 {
                 points.push((control_2.x(), control_2.y()));
                 points.push((end.x(), end.y()));
             }
-            ScenePathCommandV2::Close => {}
+            ScenePathCommandV3::Close => {}
         }
     }
     let (first_x, first_y) = points[0];

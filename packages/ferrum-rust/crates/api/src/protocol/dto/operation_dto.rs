@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::{
-    catalog_reaction_dto::*, document_general_dto::*, document_interchange_dto::*,
-    document_molecule_diagnostics_dto::*, document_observation_dto::*, document_report_dto::*,
-    dto_errors::*, presentation_author_dto::*,
+    catalog_reaction_dto::*, document_compact_group_attachment_v1::*, document_general_dto::*,
+    document_interchange_dto::*, document_molecule_diagnostics_dto::*, document_observation_dto::*,
+    document_report_dto::*, dto_errors::*, presentation_author_dto::*,
 };
 
 /// Exact schema identifier accepted for V1 requests.
@@ -143,6 +143,9 @@ pub enum OperationProtocolOperationV1 {
     /// Materialize one attached compact group through the generic session transition.
     #[serde(rename = "document.compact-group.materialize.v1")]
     DocumentCompactGroupMaterialize(DocumentCompactGroupMaterializationRequestV1),
+    /// Attach one catalog-selected compact group through the generic session transition.
+    #[serde(rename = "document.compact-group.attach.v1")]
+    DocumentCompactGroupAttach(DocumentCompactGroupAttachmentRequestV1),
     /// Import one explicitly selected interchange format into a new request-owned document.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport(DocumentMoleculeInterchangeImportRequestV1),
@@ -336,6 +339,11 @@ pub enum OperationProtocolOutcomeV1 {
     DocumentCompactGroupMaterialize {
         materialization: DocumentCompactGroupMaterializationResultV1,
     },
+    /// One committed renderer-admitted compact-group attachment.
+    #[serde(rename = "document.compact-group.attach.v1")]
+    DocumentCompactGroupAttach {
+        attachment: DocumentCompactGroupAttachmentResultV1,
+    },
     /// Bounded interchange import summary without a document artifact or identifiers.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport {
@@ -429,6 +437,9 @@ impl OperationProtocolOperationV1 {
             }
             Self::DocumentCompactGroupMaterialize(_) => {
                 ProtocolOperationKindV1::DocumentCompactGroupMaterialize
+            }
+            Self::DocumentCompactGroupAttach(_) => {
+                ProtocolOperationKindV1::DocumentCompactGroupAttach
             }
             Self::DocumentMoleculeInterchangeImport(_) => {
                 ProtocolOperationKindV1::DocumentMoleculeInterchangeImport

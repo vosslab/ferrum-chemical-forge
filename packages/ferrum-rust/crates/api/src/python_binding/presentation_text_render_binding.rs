@@ -5,7 +5,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::render_binding::{
-    PyGlyphPlacementV1, PyPresentationTextBoundsV1, PyRenderPointV1, PyRenderTargetV1,
+    PyGlyphPlacementV1, PyPresentationTextBoundsV1, PyRenderPaintV3, PyRenderPointV1,
+    PyRenderTargetV1, paint_from,
 };
 
 #[pyclass(frozen, name = "PresentationTextSourceRunV1", skip_from_py_object)]
@@ -48,7 +49,7 @@ pub(crate) struct PyPresentationTextOpV1 {
     #[pyo3(get)]
     size: f64,
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     z: i32,
 }
@@ -74,7 +75,7 @@ pub(crate) struct PyDocumentTextRenderV1 {
     #[pyo3(get)]
     bounds: PyPresentationTextBoundsV1,
     #[pyo3(get)]
-    background: Option<String>,
+    background: Option<PyRenderPaintV3>,
 }
 
 #[pymethods]
@@ -106,9 +107,7 @@ impl From<&DocumentTextRenderV1> for PyDocumentTextRenderV1 {
                 right: bounds.right(),
                 bottom: bounds.bottom(),
             },
-            background: value
-                .background()
-                .map(|paint| paint.color().as_str().to_owned()),
+            background: value.background().map(paint_from),
         }
     }
 }
@@ -125,7 +124,7 @@ fn operation(value: &PresentationTextOp) -> PyPresentationTextOpV1 {
         runs: value.runs().iter().map(glyph_run).collect(),
         face: value.face().as_str().to_owned(),
         size: value.size().get(),
-        paint: value.paint().color().as_str().to_owned(),
+        paint: paint_from(value.paint()),
         z: value.z(),
     }
 }

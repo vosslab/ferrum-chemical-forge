@@ -101,7 +101,7 @@ pub(crate) enum Command {
         /// Output path, or `-` for standard output.
         #[arg(short, long, conflicts_with = "json")]
         output: Option<PathBuf>,
-        /// Source syntax; otherwise inferred from .smi, .inchi, .mol, .sdf, .cdml, or .cml.
+        /// Source syntax; otherwise inferred from .smi, .inchi, .mol, .sdf, .cdml, .cml, or .cdxml.
         #[arg(long = "from", value_parser = parse_interchange_input_format)]
         input_format: Option<InterchangeInputFormat>,
         /// Target syntax resolved by Ferrum's conversion-output registry.
@@ -208,6 +208,7 @@ pub(crate) enum InterchangeFormat {
 pub(crate) enum InterchangeInputFormat {
     Native(InterchangeFormat),
     CmlSimpleMolecule,
+    CdxmlSimpleMolecule,
 }
 
 impl From<InterchangeInputFormat> for InterchangeFormatV1 {
@@ -215,6 +216,7 @@ impl From<InterchangeInputFormat> for InterchangeFormatV1 {
         match value {
             InterchangeInputFormat::Native(format) => format.into(),
             InterchangeInputFormat::CmlSimpleMolecule => Self::CmlSimpleMolecule,
+            InterchangeInputFormat::CdxmlSimpleMolecule => Self::CdxmlSimpleMolecule,
         }
     }
 }
@@ -236,6 +238,7 @@ pub(crate) fn interchange_input_format_from_protocol_format(
 ) -> InterchangeInputFormat {
     match format {
         InterchangeFormatV1::CmlSimpleMolecule => InterchangeInputFormat::CmlSimpleMolecule,
+        InterchangeFormatV1::CdxmlSimpleMolecule => InterchangeInputFormat::CdxmlSimpleMolecule,
         InterchangeFormatV1::Smiles => InterchangeInputFormat::Native(InterchangeFormat::Smiles),
         InterchangeFormatV1::InchiStandard => {
             InterchangeInputFormat::Native(InterchangeFormat::InchiStandard)
@@ -271,6 +274,19 @@ impl From<InterchangeFormat> for InterchangeFormatV1 {
             InterchangeFormat::SdfV3000 => Self::SdfV3000,
             InterchangeFormat::Cdml => Self::Cdml,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InterchangeInputFormat, parse_interchange_input_format};
+
+    #[test]
+    fn cdxml_alias_resolves_to_the_cdxml_input_identity() {
+        assert_eq!(
+            parse_interchange_input_format("cdxml"),
+            Ok(InterchangeInputFormat::CdxmlSimpleMolecule)
+        );
     }
 }
 
@@ -338,6 +354,13 @@ pub(crate) enum SdfVersion {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum NamedDocumentCommand {
+    /// Report one selected molecule through the frozen molecule-report route.
+    #[command(name = "document.molecule.report.v1")]
+    DocumentMoleculeReport {
+        input: PathBuf,
+        #[arg(short, long, value_parser = output_file_path)]
+        output: Option<PathBuf>,
+    },
     /// Check selected direct roots through the frozen structure-diagnostics route.
     #[command(name = "document.molecule.diagnostics.v1")]
     DocumentMoleculeDiagnostics {
@@ -348,6 +371,13 @@ pub(crate) enum NamedDocumentCommand {
     /// Materialize one typed compact group through the frozen protocol route.
     #[command(name = "document.compact-group.materialize.v1")]
     DocumentCompactGroupMaterialize {
+        input: PathBuf,
+        #[arg(short, long, value_parser = output_file_path)]
+        output: Option<PathBuf>,
+    },
+    /// Attach one typed compact group through the frozen protocol route.
+    #[command(name = "document.compact-group.attach.v1")]
+    DocumentCompactGroupAttach {
         input: PathBuf,
         #[arg(short, long, value_parser = output_file_path)]
         output: Option<PathBuf>,
@@ -444,6 +474,11 @@ impl NamedDocumentCommand {
         self,
     ) -> (ProtocolOperationKindV1, PathBuf, Option<PathBuf>) {
         match self {
+            Self::DocumentMoleculeReport { input, output } => (
+                ProtocolOperationKindV1::DocumentMoleculeReport,
+                input,
+                output,
+            ),
             Self::DocumentMoleculeDiagnostics { input, output } => (
                 ProtocolOperationKindV1::DocumentMoleculeDiagnostics,
                 input,
@@ -451,6 +486,11 @@ impl NamedDocumentCommand {
             ),
             Self::DocumentCompactGroupMaterialize { input, output } => (
                 ProtocolOperationKindV1::DocumentCompactGroupMaterialize,
+                input,
+                output,
+            ),
+            Self::DocumentCompactGroupAttach { input, output } => (
+                ProtocolOperationKindV1::DocumentCompactGroupAttach,
                 input,
                 output,
             ),

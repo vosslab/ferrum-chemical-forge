@@ -235,7 +235,7 @@ class FerrumNativeSnapshotExportWindowMixin:
 			return None
 		return _SnapshotExportCapture(
 			tab, snapshot.revision, snapshot.digest, observation,
-			tab.local_cdml_origin_token,
+			tab.local_document_origin_token,
 		)
 
 	#============================================

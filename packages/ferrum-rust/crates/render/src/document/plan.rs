@@ -82,14 +82,9 @@ pub fn compose_document_render_plan_v1(
         .try_reserve(projection.molecules().len())
         .map_err(|_| RenderError::ResourceExhausted)?;
     for molecule in projection.molecules() {
-        let Some(molecule_id) = molecule.id() else {
-            return Err(invalid(
-                "authoritative molecule payload has no durable document object ID",
-            ));
-        };
         insert_unique(
             &mut molecule_roots,
-            molecule_id.as_str(),
+            molecule.document_object_id().as_str(),
             molecule,
             "authoritative molecule roots",
         )?;
@@ -146,7 +141,7 @@ pub fn compose_document_render_plan_v1(
                 let Some(entry) = molecule_plans.remove(target.as_str()) else {
                     return Err(invalid("direct molecule root has no render plan"));
                 };
-                if molecule.id() != Some(target)
+                if molecule.document_object_id() != target
                     || entry.molecule().document_object_id() != target
                     || entry.provenance() != provenance
                 {

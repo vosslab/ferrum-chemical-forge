@@ -10,7 +10,7 @@ use super::binding::{
     PreparedOperationStaleSnapshotError, PyDocumentSession, PySessionOperationResultV1,
     document_result,
 };
-use super::render_binding::{PyRenderOperationV2, PyRenderPointV1, operation_from};
+use super::render_binding::{PyRenderOperationV3, PyRenderPointV1, operation_from};
 use ferrum_document::{
     AdmittedSessionTransitionRefusalV1, PreparedSessionTransitionPresentationRefusalV1,
     PreparedSessionTransitionPresentationV1, PreparedSessionTransitionV1,
@@ -138,7 +138,7 @@ pub(crate) struct PyDocumentPrecommitPaintPrimitiveV1 {
     #[pyo3(get)]
     display_layer: String,
     #[pyo3(get)]
-    operation: PyRenderOperationV2,
+    operation: PyRenderOperationV3,
 }
 
 #[pymethods]

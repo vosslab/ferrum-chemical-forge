@@ -217,7 +217,7 @@ class FerrumNativeMainWindow(
 		)
 		self.setStatusBar(ferrum_qt.widgets.status_bar.StatusBar(self))
 		self._install_native_view_status_controls()
-		self._refresh_actions()
+		self._window_mode_sync.subscribe(self._refresh_actions)
 
 	#============================================
 	def _queue_operation_presentation_v1(self, tab: object, operation_kind: str,
@@ -497,13 +497,13 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _register_action(self, action_id: str, action: PySide6.QtGui.QAction,
-			*, lifecycle: str = "static") -> None:
+			*, lifecycle: str = "static", shortcut_exemption_reason: str | None = None) -> None:
 		"""Bind one already-wired Ferrum command to its stable menu identity."""
 		if not action.toolTip() and not action.statusTip() and not action.whatsThis():
 			action.setToolTip(action.text().replace("&", "").strip())
 		self._action_registry.register_existing(
 			action_id, action, lifecycle=lifecycle,
-			shortcut_exemption_reason=(
+			shortcut_exemption_reason=shortcut_exemption_reason or (
 				"This labelled desktop command has no portable default shortcut."
 			),
 		)

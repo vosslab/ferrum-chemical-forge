@@ -247,6 +247,7 @@ impl ConversionOutputRegistryV1 {
             InterchangeFormatV1::SdfV3000 => Some(&SDF_V3000_DESCRIPTOR_V1),
             InterchangeFormatV1::Cdml => None,
             InterchangeFormatV1::CmlSimpleMolecule => Some(&CML_SIMPLE_MOLECULE_DESCRIPTOR_V1),
+            InterchangeFormatV1::CdxmlSimpleMolecule => None,
         }
     }
 
@@ -365,6 +366,23 @@ mod tests {
             Some(cdml)
         );
         assert_eq!(ConversionOutputRegistryV1::validate_exact_join(), Ok(()));
+    }
+
+    #[test]
+    fn cdxml_is_an_input_only_protocol_format() {
+        assert_eq!(ConversionOutputRegistryV1::lookup_alias("cdxml"), None);
+        assert_eq!(
+            ConversionOutputRegistryV1::lookup_chemistry_format(
+                InterchangeFormatV1::CdxmlSimpleMolecule
+            ),
+            None
+        );
+        assert_eq!(
+            ConversionOutputRegistryV1::lookup_protocol_format(
+                InterchangeFormatV1::CdxmlSimpleMolecule
+            ),
+            None
+        );
     }
 
     #[test]

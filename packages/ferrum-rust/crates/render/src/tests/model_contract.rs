@@ -17,8 +17,8 @@ fn size(value: f64) -> PositiveFinite {
     PositiveFinite::new(value).expect("test extent is positive and finite")
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("test rgb"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test rgb"))
 }
 
 fn run(text: &str, script: TextScript) -> TextRun {
@@ -68,12 +68,12 @@ fn line() -> RenderOp {
 
 fn filled_path() -> RenderOp {
     RenderOp::Path(
-        PathOpV2::new(
+        PathOpV3::new(
             vec![
-                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
-                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
-                ScenePathCommandV2::LineTo(point(3.0, 4.0)),
-                ScenePathCommandV2::Close,
+                ScenePathCommandV3::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV3::LineTo(point(5.0, 1.0)),
+                ScenePathCommandV3::LineTo(point(3.0, 4.0)),
+                ScenePathCommandV3::Close,
             ],
             None,
             Some(paint("112233")),
@@ -111,8 +111,8 @@ fn plan_json_is_canonical_and_round_trips() {
     let second = restored.to_canonical_json().expect("serialize again");
     assert_eq!(first, second);
     assert_eq!(restored, original);
-    assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v2\""));
-    assert!(first.contains("\"paint\":\"112233\""));
+    assert!(first.starts_with("{\"schema\":\"ferrum-render-plan-v3\""));
+    assert!(first.contains("\"paint\":{\"kind\":\"authored_rgb24\",\"rgb\":\"112233\"}"));
     assert_eq!(
         original
             .batches()
@@ -179,10 +179,10 @@ fn scene_path_requires_closed_finite_drawable_painted_geometry() {
     let accepted = filled_path();
     assert!(RenderBatch::new(target(0x31), 1, BatchSpace::Scene, vec![accepted],).is_ok());
     assert!(
-        PathOpV2::new(
+        PathOpV3::new(
             vec![
-                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
-                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
+                ScenePathCommandV3::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV3::LineTo(point(5.0, 1.0)),
             ],
             None,
             Some(paint("112233")),
@@ -191,10 +191,10 @@ fn scene_path_requires_closed_finite_drawable_painted_geometry() {
         .is_err()
     );
     assert!(
-        PathOpV2::new(
+        PathOpV3::new(
             vec![
-                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
-                ScenePathCommandV2::LineTo(point(5.0, 1.0)),
+                ScenePathCommandV3::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV3::LineTo(point(5.0, 1.0)),
             ],
             None,
             None,
@@ -203,10 +203,10 @@ fn scene_path_requires_closed_finite_drawable_painted_geometry() {
         .is_err()
     );
     assert!(
-        PathOpV2::new(
+        PathOpV3::new(
             vec![
-                ScenePathCommandV2::MoveTo(point(1.0, 1.0)),
-                ScenePathCommandV2::Close,
+                ScenePathCommandV3::MoveTo(point(1.0, 1.0)),
+                ScenePathCommandV3::Close,
             ],
             None,
             Some(paint("112233")),

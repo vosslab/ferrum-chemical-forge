@@ -1,5 +1,10 @@
 # Retired Python backend ownership ledger
 
+> Historical snapshot: this audit records the 2026-08-14/15 retirement checkpoint.
+> Its CDXML refusal statements describe that dated state, not the current product contract.
+> See [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md)
+> and [ferrum_qt_capability_matrix.md](ferrum_qt_capability_matrix.md) for current scope.
+
 ## Purpose and authority
 
 This is the M15/M16/M22 runtime-ownership transfer ledger. It answers which production
@@ -55,7 +60,7 @@ mean a compatibility host remains. Detailed dispositions stay in the capability 
 | Capability rows | Ordinary product authority | Current disposition |
 | --- | --- | --- |
 | FQ-001--003 | Rust `DocumentSession` and ordinary `MainWindow` own startup, document admission, typed projection, Save/Save As, close, recovery, duplicate activation, fenced current-tab replacement, Recent Files, and the bounded decoded CD-SVG Open V1 route. | The retired host owns nothing. CD-SVG export/round trip is dropped; `.cdsvg`, `.svgz`, and compressed CDML are refused by the ordinary window without document mutation. |
-| FQ-004--006 | Rust-native molecule codecs and artifact controllers own admitted imports, safe publication, and ordinary `File -> Export...` SVG, PDF, and transparent PNG. | CDXML and CML are refused. CD-SVG export/round trip and a public export API/CLI freeze are pre-production drops, not compatibility routes. |
+| FQ-004--006 | Rust-native molecule codecs and artifact controllers own admitted imports, safe publication, and ordinary `File -> Export...` SVG, PDF, and transparent PNG. | At this dated checkpoint, CDXML and CML were refused. CD-SVG export/round trip and a public export API/CLI freeze were pre-production drops, not compatibility routes. |
 | FQ-007/007a | Rust document operations and ordinary Qt gesture clients own the accepted atom/bond creation, editing, deletion, projection, rendering, bounded Properties client, `n1`/`n2`/`n3`, `w1`/`h1`, and C6 ring slices. | Unported modes, ring variants, fusion/aromaticity/heteroatom policy, and other bond styles are pre-production drops until a new native contract names an owner. |
 | FQ-008--009 | Rust-native SMILES/InChI, coordinate generation, and authenticated insertion own the accepted bounded route. | Unported codecs and preparation workflows are pre-production drops; they have no OASA worker or fallback route. |
 | FQ-010 | Rust owns the accepted information, exact-name, explicit-fragment, linear-form, and bounded `Chemistry -> Check Bond Capacity...` slices. | Oxidation, historical group/search tools, generated names, and broader checks are pre-production drops pending a new native contract. |

@@ -18,8 +18,8 @@ use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyp
 use crate::{
     BatchSpace, DocumentRenderContentV1, DocumentRenderOutcomeV1, DocumentRenderPlanV1,
     DocumentTextLayoutV1, DocumentTextOpV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlan, Paint,
-    PathCommandV1, PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderPoint,
+    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlan, PathCommandV1,
+    PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderPaintV3, RenderPoint,
     RenderTarget, RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1,
     VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
@@ -66,7 +66,7 @@ pub(crate) trait DrawSinkV1 {
     }
     fn begin_document_text(&mut self) -> Result<(), Self::Error>;
     fn end_document_text(&mut self) -> Result<(), Self::Error>;
-    fn begin_text_operation(&mut self, z: i32, paint: &Paint) -> Result<(), Self::Error>;
+    fn begin_text_operation(&mut self, z: i32, paint: &RenderPaintV3) -> Result<(), Self::Error>;
     fn end_text_operation(&mut self) -> Result<(), Self::Error>;
     fn save(&mut self) -> Result<(), Self::Error>;
     fn concat_translate(&mut self, anchor: RenderPoint) -> Result<(), Self::Error>;
@@ -74,7 +74,7 @@ pub(crate) trait DrawSinkV1 {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        paint: &Paint,
+        paint: &RenderPaintV3,
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error>;
     fn draw_path(
@@ -151,7 +151,7 @@ pub(crate) struct DrawPathV1 {
 /// The complete V1 stroke profile; no sink obtains a toolkit default.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct DrawStrokeV1<'a> {
-    pub(crate) paint: &'a Paint,
+    pub(crate) paint: &'a RenderPaintV3,
     pub(crate) width: PositiveFinite,
     pub(crate) line_cap: DrawLineCapV1,
     pub(crate) line_join: VectorStrokeLineJoinV1,
@@ -177,7 +177,7 @@ impl DrawLineCapV1 {
 /// Explicit fill/stroke semantics for one primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct DrawStyleV1<'a> {
-    pub(crate) fill: Option<&'a Paint>,
+    pub(crate) fill: Option<&'a RenderPaintV3>,
     pub(crate) stroke: Option<DrawStrokeV1<'a>>,
     pub(crate) fill_rule: Option<VectorFillRuleV1>,
 }
@@ -439,7 +439,7 @@ fn lower_authored_direct_operations_to_sink_v1<S: DrawSinkV1>(
 pub(crate) fn direct_path<S: DrawSinkV1>(
     sink: &mut S,
     endpoints: [RenderPoint; 2],
-    paint: &Paint,
+    paint: &RenderPaintV3,
     width: PositiveFinite,
     cap: DrawLineCapV1,
     metadata: DrawMetadataV1,
@@ -583,7 +583,7 @@ fn vector_command(command: PathCommandV1) -> DrawPathCommandV1 {
 
 fn vector_style<'a>(
     stroke: Option<&'a StrokeV1>,
-    fill: Option<&'a Paint>,
+    fill: Option<&'a RenderPaintV3>,
     fill_rule: Option<VectorFillRuleV1>,
 ) -> DrawStyleV1<'a> {
     DrawStyleV1 {
@@ -654,7 +654,7 @@ impl TextRunV1 for TextRun {
 
 fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
     z: i32,
-    paint: &Paint,
+    paint: &RenderPaintV3,
     size: f64,
     operation_origin: RenderPoint,
     runs: &[R],
@@ -714,7 +714,7 @@ fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
 
 fn lower_presentation_text_runs<S: DrawSinkV1>(
     z: i32,
-    paint: &Paint,
+    paint: &RenderPaintV3,
     size: f64,
     operation_origin: RenderPoint,
     runs: &[PresentationGlyphRun],
@@ -923,7 +923,7 @@ impl DrawSinkV1 for () {
     fn end_document_text(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn begin_text_operation(&mut self, _: i32, _: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, _: i32, _: &RenderPaintV3) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_text_operation(&mut self) -> Result<(), Self::Error> {
@@ -941,7 +941,7 @@ impl DrawSinkV1 for () {
     fn fill_rect(
         &mut self,
         _: DrawRectV1,
-        _: &Paint,
+        _: &RenderPaintV3,
         _: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         Ok(())

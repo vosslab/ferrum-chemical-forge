@@ -1,5 +1,10 @@
 # Ferrum migration account-switch handoff
 
+> Historical snapshot: this report records the 2026-08-14/15 migration checkpoint.
+> Its CDXML refusal statements describe that dated state, not the current product contract.
+> See [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md)
+> and [ferrum_qt_capability_matrix.md](../audits/ferrum_qt_capability_matrix.md) for current scope.
+
 ## Purpose
 
 This is the restart point for the 2026-08-14 manager run. The worktree is heavily dirty and

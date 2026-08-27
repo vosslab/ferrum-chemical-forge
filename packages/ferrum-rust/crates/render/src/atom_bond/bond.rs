@@ -11,7 +11,8 @@ use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     BatchSpace, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, GlyphBounds, LineOp,
-    Paint, PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderTarget,
+    PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPaintV3,
+    RenderTarget,
 };
 
 use super::{
@@ -34,7 +35,7 @@ pub(super) struct BondLineAppearance {
     pub(super) stroke_width: PositiveFinite,
     pub(super) lane_spacing: PositiveFinite,
     pub(super) wedge_width: PositiveFinite,
-    pub(super) paint: Paint,
+    pub(super) paint: RenderPaintV3,
 }
 #[derive(Clone, Debug, PartialEq)]
 struct CarrierMarkRenderFact {
@@ -91,7 +92,7 @@ impl BondRenderTarget {
         stroke_width: PositiveFinite,
         lane_spacing: PositiveFinite,
         wedge_width: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Self {
         self.appearance = Some(BondLineAppearance {
             stroke_width,
@@ -129,7 +130,7 @@ pub(super) fn build_bond_batch(
     stroke_width: PositiveFinite,
     lane_spacing: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<RenderBatch, RenderIssueKind> {
     let Some(first) = endpoints.get(&bond.first_endpoint) else {
         return Err(RenderIssueKind::UnrenderableTarget {
@@ -247,7 +248,7 @@ fn build_haworth_front_bond_batch(
     context: &BondLineContext<'_>,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<RenderBatch, RenderIssueKind> {
     let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
     build_haworth_front_batch(HaworthFrontBondInput {
@@ -268,7 +269,7 @@ fn build_directed_stereo_batch(
     context: &BondLineContext<'_>,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<RenderBatch, RenderIssueKind> {
     let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
     let tip = center.start();
@@ -301,7 +302,7 @@ fn build_bond_line(
     context: &BondLineContext<'_>,
     offset: f64,
     width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 ) -> Result<LineOp, RenderIssueKind> {
     let local_offset = Vector2::new(

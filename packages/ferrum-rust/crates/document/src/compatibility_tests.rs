@@ -63,9 +63,9 @@ fn unqualified_cdml_root_is_rejected() {
 }
 
 #[test]
-fn historic_bkchem_cdml_root_is_rejected() {
-    let historic_namespace = concat!("http://www.freesoftware.fsf.org/", "bkchem/cdml");
-    let source = format!(r#"<cdml xmlns="{historic_namespace}"/>"#);
+fn foreign_cdml_namespace_root_is_rejected() {
+    let foreign_namespace = "urn:foreign:cdml";
+    let source = format!(r#"<cdml xmlns="{foreign_namespace}"/>"#);
     assert!(TypedDocument::parse(&source).is_err());
 }
 

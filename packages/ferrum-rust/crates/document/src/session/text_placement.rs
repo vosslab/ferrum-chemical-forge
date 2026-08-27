@@ -61,6 +61,7 @@ pub(super) fn prepare(
         .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
     let document_object_id = document
         .document_object_id_for_source_id_v1(&identifier)
+        .map_err(|_| TextPlacementErrorV1::SessionConflict)?
         .ok_or(TextPlacementErrorV1::SessionConflict)?;
     let revision = session
         .next_revision_v1()

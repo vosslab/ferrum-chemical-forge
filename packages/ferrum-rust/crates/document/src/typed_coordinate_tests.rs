@@ -18,10 +18,7 @@ fn mixed_targets(session: &DocumentSession) -> Vec<TopLevelRootSelectorV1> {
     let projection = observation.projection();
     vec![
         selector(
-            projection.molecules()[0]
-                .id()
-                .expect("fixture molecule is durable")
-                .clone(),
+            projection.molecules()[0].document_object_id().clone(),
             TopLevelRootKindV1::Molecule,
         ),
         selector(

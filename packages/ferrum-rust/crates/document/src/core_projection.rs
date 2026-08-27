@@ -131,7 +131,7 @@ impl TypedDocument {
         &self,
         object_id: &DocumentObjectIdV1,
     ) -> Result<Option<Molecule>, CoreProjectionError> {
-        let Some(record) = self.resolve_document_object_id(object_id) else {
+        let Some(record) = self.resolve_document_object_id(object_id)? else {
             return Ok(None);
         };
         if record.class() != TypedClass::Molecule {

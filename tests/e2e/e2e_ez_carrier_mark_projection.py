@@ -18,6 +18,8 @@ import ferrum_chem
 import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
+import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 #============================================
@@ -96,10 +98,12 @@ def main() -> int:
 	carrier_x, carrier_y = _carrier_geometry(
 		session.observe_render(observation.snapshot.revision),
 	)
+	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(app)
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		observation.snapshot.cdml, "native-ez.cdml",
+		window._require_document_display_palette(),
 	)
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
 	window._register_native_tab(tab, activate=True)
 	window.show()
 	app.processEvents()

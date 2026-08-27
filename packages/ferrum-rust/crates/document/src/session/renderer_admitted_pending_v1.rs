@@ -132,12 +132,12 @@ fn direct_root_candidate_v1(
     projection: &ferrum_document_projection::DocumentProjectionV1,
     direct_root: &DocumentDirectRootV1,
 ) -> Result<CompleteRenderRootCandidateV1, RendererAdmittedPendingErrorV1> {
-    let identity = durable_identity_v1(Some(direct_root.document_object_id()))?;
+    let identity = durable_identity_v1(direct_root.document_object_id())?;
     let lowering = match direct_root.kind() {
         DocumentDirectRootKindV1::Molecule => projection
             .molecules()
             .iter()
-            .any(|molecule| molecule.id() == Some(direct_root.document_object_id()))
+            .any(|molecule| molecule.document_object_id() == direct_root.document_object_id())
             .then_some(CompleteRenderRootLoweringV1::Visual(
                 CompleteRenderPrimitiveV1::Molecule,
             ))
@@ -223,14 +223,10 @@ fn presentation_root_lowering_v1(
 }
 
 fn durable_identity_v1(
-    identity: Option<&crate::DocumentObjectIdV1>,
+    identity: &crate::DocumentObjectIdV1,
 ) -> Result<CompleteRenderRootIdentityV1, RendererAdmittedPendingErrorV1> {
-    identity
-        .ok_or(RendererAdmittedPendingErrorV1::Admission)
-        .and_then(|value| {
-            CompleteRenderRootIdentityV1::new(value.as_str())
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
-        })
+    CompleteRenderRootIdentityV1::new(identity.as_str())
+        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
 }
 
 #[cfg(test)]

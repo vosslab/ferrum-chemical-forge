@@ -270,8 +270,7 @@ mod tests {
             .projection()
             .molecules()[0]
             .atoms()[0]
-            .id()
-            .expect("direct atom")
+            .document_object_id()
             .clone()
     }
 

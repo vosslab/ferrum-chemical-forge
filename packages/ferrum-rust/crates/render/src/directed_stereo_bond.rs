@@ -4,8 +4,8 @@ use ferrum_geometry::Vector2;
 
 use crate::bond_style::BondStyle;
 use crate::{
-    LineOp, Paint, PathOpV2, PositiveFinite, RenderError, RenderIssueKind, RenderOp, RenderPoint,
-    ScenePathCommandV2,
+    LineOp, PathOpV3, PositiveFinite, RenderError, RenderIssueKind, RenderOp, RenderPaintV3,
+    RenderPoint, ScenePathCommandV3,
 };
 
 /// Maximum useful hatch strokes for one ordinary directed bond.
@@ -26,7 +26,7 @@ pub(crate) fn directed_stereo_operations(
     perpendicular: Vector2,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<Vec<RenderOp>, RenderIssueKind> {
     let half_base = wedge_width.get() / 2.0;
     if !half_base.is_finite() || half_base <= 0.0 {
@@ -38,12 +38,12 @@ pub(crate) fn directed_stereo_operations(
     let base_right = render_offset(base, perpendicular, -half_base)?;
     match style {
         BondStyle::SolidWedge => Ok(vec![RenderOp::Path(
-            PathOpV2::new(
+            PathOpV3::new(
                 vec![
-                    ScenePathCommandV2::MoveTo(tip),
-                    ScenePathCommandV2::LineTo(base_left),
-                    ScenePathCommandV2::LineTo(base_right),
-                    ScenePathCommandV2::Close,
+                    ScenePathCommandV3::MoveTo(tip),
+                    ScenePathCommandV3::LineTo(base_left),
+                    ScenePathCommandV3::LineTo(base_right),
+                    ScenePathCommandV3::Close,
                 ],
                 None,
                 Some(paint),
@@ -69,7 +69,7 @@ fn build_hashed_wedge_operations(
     perpendicular: Vector2,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
 ) -> Result<Vec<RenderOp>, RenderIssueKind> {
     let dx = base.x() - tip.x();
     let dy = base.y() - tip.y();

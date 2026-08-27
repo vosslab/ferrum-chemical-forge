@@ -320,7 +320,7 @@ class FerrumNativeLineToolPointerMixin:
 			return
 		if intent.tool is _NativeLineTool.INSERT_TEXT:
 			dialog = None
-			font = None
+			font_changes = None
 			runs = None
 			try:
 				gesture = intent.tab.begin_text_placement_gesture(
@@ -328,10 +328,13 @@ class FerrumNativeLineToolPointerMixin:
 				)
 				defaults = intent.tab.text_placement_defaults(gesture)
 				model = ferrum_qt.ferrum.text_placement.dialog_model_from_defaults(defaults)
-				dialog = ferrum_qt.ferrum.text_placement.dialog_for_placement(model, self)
-				accepted = dialog.exec() == PySide6.QtWidgets.QDialog.DialogCode.Accepted
+				dialog = ferrum_qt.ferrum.text_placement.dialog_for_placement(
+					model, self, intent.tab.document_display_palette,
+				)
+				result = PySide6.QtWidgets.QDialog.DialogCode(dialog.exec())
+				accepted = result is PySide6.QtWidgets.QDialog.DialogCode.Accepted
 				if accepted:
-					font = dialog.font_values()
+					font_changes = dict(dialog.changes())
 					runs = ferrum_qt.ferrum.text_placement.runs_from_dialog(dialog.get_runs())
 			except Exception as exc:
 				self._cancel_line_gesture()
@@ -348,13 +351,12 @@ class FerrumNativeLineToolPointerMixin:
 				), 5000)
 				return
 			try:
-				if type(font) is not dict or type(runs) is not tuple:
+				if type(font_changes) is not dict or type(runs) is not tuple:
 					raise RuntimeError("Ferrum Text dialog did not return immutable authoring values")
 				preview = intent.tab.preview_text_placement_gesture(
 					gesture, runs,
-					None if font["font_size"] == model.font_size else font["font_size"],
-					None if font["font_color"].lower() == model.color.lower()
-					else font["font_color"],
+					font_changes.get("font_size"),
+					font_changes.get("font_color"),
 				)
 				overlay = ferrum_qt.ferrum.text_placement_preview.create_text_placement_overlay(
 					intent.tab, preview.overlay,

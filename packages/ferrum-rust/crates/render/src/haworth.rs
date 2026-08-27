@@ -3,7 +3,8 @@
 use ferrum_domain::haworth::{BondDepiction, HaworthFragment, HaworthPoint};
 
 use crate::{
-    BatchSpace, LineOp, Paint, PositiveFinite, RenderError, RenderOp, RenderPoint, RenderProvenance,
+    BatchSpace, LineOp, PositiveFinite, RenderError, RenderOp, RenderPaintV3, RenderPoint,
+    RenderProvenance,
 };
 
 /// Identifier-free Haworth paint batch for detached previews.
@@ -57,7 +58,7 @@ pub struct HaworthRenderRequest {
     /// Explicit normal bond stroke width.
     pub line_width: PositiveFinite,
     /// Explicit line paint with no renderer fallback.
-    pub line_paint: Paint,
+    pub line_paint: RenderPaintV3,
 }
 
 /// Lower every accepted Haworth ring and glycosidic bond to a V1 batch.
@@ -136,7 +137,7 @@ fn point(value: HaworthPoint) -> Result<RenderPoint, RenderError> {
 fn wide_face_lines(
     points: [HaworthPoint; 2],
     width: PositiveFinite,
-    paint: &Paint,
+    paint: &RenderPaintV3,
 ) -> Result<Vec<RenderOp>, RenderError> {
     let dx = points[1].x - points[0].x;
     let dy = points[1].y - points[0].y;
@@ -179,7 +180,7 @@ mod tests {
     };
 
     use super::{HaworthPreviewBatchV1, HaworthRenderRequest, lower_haworth_fragment};
-    use crate::{Paint, PositiveFinite, RenderOp, RenderProvenance, RenderRevision, Rgb24};
+    use crate::{PositiveFinite, RenderOp, RenderPaintV3, RenderProvenance, RenderRevision};
 
     fn atom(index: usize, element: &str) -> Atom {
         Atom::new(
@@ -265,7 +266,7 @@ mod tests {
             provenance: RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             fragment,
             line_width: PositiveFinite::new(1.0).expect("width"),
-            line_paint: Paint::rgb24(Rgb24::new("000000").expect("paint")),
+            line_paint: RenderPaintV3::document_foreground(),
         })
         .expect("plan");
         assert_eq!(plan.batches().len(), 6);

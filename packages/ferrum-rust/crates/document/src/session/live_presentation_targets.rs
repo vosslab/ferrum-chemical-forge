@@ -18,7 +18,7 @@ impl DocumentSession {
             .map(|(object_id, kind)| {
                 let record = self
                     .current_document_v1()
-                    .resolve_document_object_id(object_id)
+                    .resolve_document_object_id(object_id)?
                     .ok_or_else(|| {
                         SessionOperationError::UnknownDocumentObject(object_id.as_str().to_owned())
                     })?;
@@ -69,6 +69,7 @@ mod tests {
                 &PersistentId::new(source).expect("test source identifier"),
             )
             .expect("typed ingress persists the test record identity")
+            .expect("typed ingress resolves the persisted document object identity")
     }
 
     #[test]

@@ -115,6 +115,7 @@ fn paste_is_one_history_step_and_repeated_use_allocates_fresh_roots() {
             session
                 .current_document_v1()
                 .resolve_document_object_id(object_id)
+                .expect("redo document identity index must resolve")
                 .is_some(),
             "redo must retain every accepted opaque root selector"
         );
@@ -126,6 +127,7 @@ fn paste_is_one_history_step_and_repeated_use_allocates_fresh_roots() {
             reopened
                 .current_document_v1()
                 .resolve_document_object_id(object_id)
+                .expect("reopened document identity index must resolve")
                 .is_some(),
             "reopened Paste must retain every accepted opaque root selector"
         );

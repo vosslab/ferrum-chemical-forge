@@ -38,7 +38,8 @@ network, fixture, menu-inventory, or source-count gate.
 | FQ-001 | Application and tabs | Supported: `ferrum_qt` ordinary `MainWindow` with Rust document sessions. | Create, close, bootstrap, Recent, and explicitly targeted current-tab Open retain tab and stale/busy containment. |
 | FQ-002 | CDML and decoded CD-SVG files | Supported: Rust local-document ingress/publication with native Qt file clients. | Open/save/Save As/close/Recent/recovery support bounded CDML; a decoded CD-SVG `.svg` becomes a clean Save-As-only CDML document while retaining source provenance. |
 | FQ-002 update | CML/CML2 File/Open and CLI conversion output | Supported as two bounded Rust-owned profiles. | Valid closed-profile CML/CML2 opens into one clean new native tab while preserving the bootstrap tab. Separately, `ferrum convert --to cml|cml2` emits canonical CML2; `cml1` is input-only. Direct CML conversion preserves validated molecule/atom IDs and record order, while generic conversion refuses facts outside the lossless CML2 profile. This adds no current-tab replacement, append, generic interchange importer, Qt CML export, CML document model, or CDML save baseline. |
-| FQ-002a | Unsupported local document formats | Refused with recovery: suffix-only native Qt refusal before document work. | CDXML, `.cdsvg`, `.svgz`, compressed CDML, and compressed SVG do not parse, decompress, mutate a tab, or invoke a fallback. `Recovery Export CDML...` writes a recovery copy of the current supported document; it is not a converter. |
+| FQ-002a | CDXML simple-molecule File/Open | Supported: Rust chemistry decoder and document interchange admission with the native Qt File/Open client. | Bounded input-only `.cdxml` creates one clean new tab with typed CDXML provenance, reallocated durable IDs, canonical declared losses, and no source save baseline. First Save or Save As writes CDML. Unsupported chemistry or presentation, namespaces, and malformed or over-budget input refuse without mutating the active document. `ferrum convert` refuses CDXML before source read because the descriptor admits it only for new-document Open. |
+| FQ-002b | Other local document formats | Refused with recovery: suffix-only native Qt refusal before document work. | CDX, `.cdsvg`, `.svgz`, compressed CDML, and compressed SVG do not parse, decompress, mutate a tab, or invoke a fallback. `Recovery Export CDML...` writes a recovery copy of the current supported document; it is not a converter. |
 | FQ-003 | CDML projection and opaque facts | Supported: Rust typed document/session/projection boundary. | The native path owns typed facts, rendering observations, and bounded opaque preservation. Lexical XML fidelity is not promised. |
 | FQ-004 | Chemistry import | Supported: Rust chemistry/document import plus native Qt clients. | SMILES, representable InChI, V2000/V3000 Molfile, and bounded 2D SDF import through one authenticated native operation. This does not subsume FQ-002's separate CML/CML2 new-document profile. Unsupported chemistry fails visibly without partial insertion. |
 | FQ-005 | Molecule file export | Supported: Rust chemistry/document export plus safe native publication. | Selected supported direct roots export as Molfile, one-record SDF, SMILES, or Standard/Fixed-H InChI without mutating the document. Two or more distinct direct roots also export as one atomic multi-record SDF V2000 or V3000 file through the CLI and explicit Qt actions; Rust defines record order. Unrepresentable variants remain future contracts. |
@@ -71,8 +72,8 @@ The M15 utility-disposition closure records the retained strict peptide,
 linear-form, geometry-repair, and rotation routes while retiring unowned compact
 sugar, catalog, group, and search families. The M16 host-retirement closure
 establishes a single ordinary native desktop route, a production package with no
-OASA dependency, a representative actionable CDXML refusal/nonmutation behavior
-test, and disposable local-program evidence.
+OASA dependency, and disposable local-program evidence. The delivered CDXML profile has
+separate success and refusal/nonmutation evidence.
 Earlier migration reports that describe a compatibility host, OASA routes, or
 their test suite are historical provenance and do not describe current behavior.
 
@@ -103,8 +104,9 @@ acceptance evidence.
 | FQ-020 and FQ-021 | Qt view, preferences, metadata, help, and release-boundary receipts. | Focused native behavior and ordinary launch evidence. |
 | FQ-022 | Explicit built-in registration and no third-party extension contract. | Supported built-in behavior evidence; extension execution is a recorded pre-production drop. |
 
-FQ-002's unsupported-format update is a refusal decision with its representative durable CDXML
-nonmutation behavior test. FQ-015 and FQ-023 are pre-production drops; no parity test is owed.
+FQ-002a records the bounded CDXML new-document profile and its success/refusal evidence;
+FQ-002b retains the remaining local-format refusals. FQ-015 and FQ-023 are pre-production drops;
+no parity test is owed.
 Future-contract exclusions in supported rows remain outside their named lane until a later plan
 adopts them.
 

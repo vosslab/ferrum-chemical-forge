@@ -14,9 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use super::document_compact_group_materialization_v1::{
     compact_group_materialization_outcome, compact_refusal,
-    execute_document_compact_group_materialize_transition_on_session, parse_digest,
+    execute_document_compact_group_materialize_transition_on_session,
 };
 use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize_on_session;
+use super::document_request_parse_v1::parse_sha256_hex;
 use super::execution::{
     ExecutionFailureV1, OperationProtocolAdmissionV1, admit_operation_request_v1,
     admit_shared_response_budget_v1, canonical_protocol_envelope_json_v1, hex_digest,
@@ -181,12 +182,12 @@ fn compact_group_materialization_availability(
         .projection()
         .molecules()
         .iter()
-        .find(|molecule| molecule.id() == Some(&molecule_object_id))
+        .find(|molecule| molecule.document_object_id() == &molecule_object_id)
         .is_some_and(|molecule| {
             molecule
                 .compact_groups()
                 .iter()
-                .any(|compact_group| compact_group.id() == &compact_group_object_id)
+                .any(|compact_group| compact_group.document_object_id() == &compact_group_object_id)
         });
     if !target_is_owned_by_molecule {
         return CompactGroupMaterializationAvailabilityV1::UnknownOrForeignTarget;
@@ -408,7 +409,7 @@ fn parse_live_compact_group_targets(
                 ProtocolCompactGroupMaterializationRecoveryV1::CorrectTarget,
             )
         })?;
-    let expected_digest = parse_digest(expected_digest_hex)?;
+    let expected_digest = parse_sha256_hex(expected_digest_hex)?;
     Ok(
         ferrum_document::DocumentCompactGroupMaterializationRequestV1::new(
             expected_revision,
@@ -524,8 +525,8 @@ mod tests {
                     "expected_revision": snapshot.revision(),
                     "expected_digest_hex": digest,
                 },
-                "molecule_id": molecule.id().expect("durable molecule").as_str(),
-                "anchor_atom_id": molecule.atoms()[0].id().expect("durable atom").as_str(),
+                "molecule_id": molecule.document_object_id().as_str(),
+                "anchor_atom_id": molecule.atoms()[0].document_object_id().as_str(),
             },
         })
         .to_string()
@@ -541,9 +542,9 @@ mod tests {
             .expect("two typed compact-group session")
     }
 
-    fn unsupported_compact_group_live_session() -> DocumentSession {
+    fn phenyl_compact_group_live_session() -> DocumentSession {
         DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"anchor\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><compact-group id=\"group\" version=\"1\" catalog-key=\"phenyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group><bond id=\"outside\" start=\"anchor\" end=\"group\" type=\"n1\"/></molecule></cdml>")
-            .expect("unsupported compact-group session")
+            .expect("phenyl compact-group session")
     }
 
     fn compact_group_request(session: &DocumentSession) -> String {
@@ -564,7 +565,7 @@ mod tests {
                 "kind": "document.compact-group.materialize.v1",
                 "expected_revision": snapshot.revision(),
                 "expected_digest_hex": digest,
-                "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+                "molecule_object_id": molecule.document_object_id().as_str(),
                 "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
             },
         })
@@ -580,7 +581,7 @@ mod tests {
         json!({
             "expected_revision": snapshot.revision(),
             "expected_digest_hex": hex_digest(snapshot.digest()),
-            "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+            "molecule_object_id": molecule.document_object_id().as_str(),
             "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
         })
         .to_string()
@@ -607,7 +608,7 @@ mod tests {
                     "expected_revision": snapshot.revision(),
                     "expected_digest_hex": digest,
                 },
-                "molecule_id": molecule.id().expect("durable molecule").as_str(),
+                "molecule_id": molecule.document_object_id().as_str(),
                 "compact_group_id": molecule.compact_groups()[0].id().as_str(),
             },
         })
@@ -820,7 +821,7 @@ mod tests {
         let request = json!({
             "expected_revision": snapshot.revision(),
             "expected_digest_hex": hex_digest(snapshot.digest()),
-            "molecule_object_id": first.id().expect("first durable molecule").as_str(),
+            "molecule_object_id": first.document_object_id().as_str(),
             "compact_group_object_id": second.compact_groups()[0].id().as_str(),
         })
         .to_string();
@@ -839,14 +840,18 @@ mod tests {
     }
 
     #[test]
-    fn live_compact_group_availability_refuses_an_unsupported_recipe() {
-        let mut session = unsupported_compact_group_live_session();
+    fn live_compact_group_availability_reports_phenyl_available() {
+        let mut session = phenyl_compact_group_live_session();
         let request = compact_group_availability_request(&session);
         let receipt =
             query_live_compact_group_materialization_availability_v1(&mut session, &request)
-                .expect("unsupported-recipe availability receipt");
+                .expect("phenyl availability receipt");
 
-        assert!(receipt.response_json().contains("ineligible_target"));
+        assert!(
+            receipt
+                .response_json()
+                .contains("\"availability\":\"eligible\"")
+        );
     }
 
     #[test]

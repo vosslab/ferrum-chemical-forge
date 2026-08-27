@@ -9,6 +9,10 @@ import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 
+# local repo modules
+import ferrum_qt.ferrum.document_display_refresh
+import ferrum_qt.themes.document_display_palette
+
 
 _MARKER_RADIUS = 3.0
 
@@ -155,15 +159,6 @@ def create_rotation_preview(tab: object,
 	if scene is None:
 		raise RuntimeError("Ferrum document has no current scene")
 	positions = _position_map(selection.positions)
-	color = PySide6.QtWidgets.QApplication.palette().color(
-		PySide6.QtGui.QPalette.ColorRole.Highlight,
-	)
-	pen = PySide6.QtGui.QPen(color)
-	pen.setWidthF(1.5)
-	pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
-	pen.setCosmetic(False)
-	fill = PySide6.QtGui.QColor(color)
-	fill.setAlpha(96)
 	root = PySide6.QtWidgets.QGraphicsItemGroup()
 	root.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 	root.setZValue(1_000_000.0)
@@ -172,8 +167,6 @@ def create_rotation_preview(tab: object,
 	for atom_id in selected_ids:
 		position = positions[atom_id]
 		marker = PySide6.QtWidgets.QGraphicsEllipseItem(root)
-		marker.setPen(pen)
-		marker.setBrush(PySide6.QtGui.QBrush(fill))
 		_set_marker_position(marker, position)
 		markers.append((atom_id, marker))
 	bonds = []
@@ -181,11 +174,47 @@ def create_rotation_preview(tab: object,
 		if start_id not in positions or end_id not in positions:
 			continue
 		line = PySide6.QtWidgets.QGraphicsLineItem(root)
-		line.setPen(pen)
 		line.setLine(PySide6.QtCore.QLineF(positions[start_id], positions[end_id]))
 		bonds.append((start_id, end_id, line))
 	scene.addItem(root)
-	return FerrumNativeRotationPreview(selection, root, tuple(markers), tuple(bonds))
+	preview = FerrumNativeRotationPreview(selection, root, tuple(markers), tuple(bonds))
+	refreshable = _RotationDisplayRefreshable(preview)
+	refreshable.refresh_document_display_palette(tab.document_display_palette)
+	ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable(
+		tab, root, refreshable,
+	)
+	return preview
+
+
+#============================================
+class _RotationDisplayRefreshable:
+	"""Replace only the material of one retained rotation skeleton."""
+
+	def __init__(self, preview: FerrumNativeRotationPreview) -> None:
+		"""Retain the preview items without copying selection or geometry facts."""
+		self._preview = preview
+
+	#============================================
+	def refresh_document_display_palette(
+			self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
+		"""Refresh marker and skeleton material while preserving current rotation."""
+		outline = palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.PREVIEW_OUTLINE,
+		)
+		pen = PySide6.QtGui.QPen(outline)
+		pen.setWidthF(1.5)
+		pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
+		pen.setCosmetic(False)
+		brush = PySide6.QtGui.QBrush(palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.PREVIEW_FILL,
+		))
+		for _atom_id, marker in self._preview.markers:
+			marker.setPen(pen)
+			marker.setBrush(brush)
+		for _start_id, _end_id, line in self._preview.bonds:
+			line.setPen(pen)
 
 
 #============================================

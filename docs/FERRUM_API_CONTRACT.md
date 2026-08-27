@@ -120,6 +120,11 @@ budget. An over-budget response is refused rather than delivered partially and
 is the response-budget case that carries structured recovery for reducing the
 request.
 
+The named local adapter is `ferrum document command
+document.molecule.report.v1 <input>`. It reads the same complete operation
+request as `ferrum protocol run` and returns the same typed envelope; it adds no
+report-specific request schema, executor, or result translation.
+
 Each root record has a nullable `stereo_semantics` descriptor. When present, its
 tetrahedral descriptors are ordered by ascending center position and its E/Z
 descriptors by ascending bond position. Tetrahedral ligands are exactly four
@@ -304,7 +309,8 @@ contains one complete standard-base64 artifact or no artifact; it never exposes 
 
 The `inspect`, `validate`, `rewrite`, `render`, `convert`, `coords`, and `open` commands construct their
 corresponding requests. The named document commands
-`document command presentation.author.v1`, `document command catalog.insert.v1`, and
+`document command presentation.author.v1`, `document command catalog.insert.v1`,
+`document command document.molecule.report.v1`, and
 `document command document.compact-group.materialize.v1` accept one
 complete operation JSON object, just as `protocol run` does, so a script can use the fence from
 `document.inspect` without an in-process session. `--json` emits the complete envelope. `ferrum open --json` emits the same `document.molecule.interchange.import.v1` success or typed-refusal envelope as the named protocol operation, with the verb-owned opaque request ID `ferrum-cli`. An admitted CML refusal writes exactly one error envelope to standard output, leaves standard error empty, exits `1`, and publishes no CDML artifact. Other completed unsuccessful human-oriented verb outcomes likewise exit `1` after exactly one diagnostic or JSON envelope. Named protocol subcommands retain their separate protocol exit contract. Without

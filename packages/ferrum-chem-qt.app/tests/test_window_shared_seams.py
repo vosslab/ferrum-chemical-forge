@@ -11,6 +11,8 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
+import ferrum_qt.themes.document_display_palette
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.actions.action_registry
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
@@ -45,6 +47,56 @@ def _add_atom_through_active_canvas(
 
 
 #============================================
+def test_main_window_requires_a_theme_manager_before_building_its_shell(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""The application shell owns an applied display palette from construction."""
+	del qapp
+	with pytest.raises(TypeError, match="requires ThemeManager"):
+		ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	try:
+		assert isinstance(
+			window._require_document_display_palette(),
+			ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		)
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_later_registered_tab_receives_the_current_theme_change_palette(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""A tab registered after a switch receives the manager's stored palette."""
+	del qapp
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	changes: list[object] = []
+	theme_manager.theme_changed.connect(changes.append)
+	theme_manager.apply_theme("dark")
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "later-theme-change.cdml",
+		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
+	)
+	try:
+		window._register_native_tab(tab, activate=True)
+		change = changes[-1]
+		assert change.name == "dark"
+		assert tab.view.backgroundBrush().color() == change.palette.color(
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.
+			CANVAS_SURROUND,
+		)
+	finally:
+		if not tab.is_disposed:
+			tab.dispose()
+		window.close()
+		window.deleteLater()
+
+
+#============================================
 def test_disposed_document_reports_typed_unavailable_properties(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
@@ -52,7 +104,7 @@ def test_disposed_document_reports_typed_unavailable_properties(
 	del qapp
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "typed-observation.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		assert isinstance(
 			tab.resolve_live_property_observation(),
@@ -69,12 +121,13 @@ def test_disposed_document_reports_typed_unavailable_properties(
 #============================================
 def test_ordinary_window_uses_shared_declarative_clients(
 		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		) -> None:
 	"""The running product reuses shared actions in its mode, property, and zoom UI."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "shared-seams.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		qapp.processEvents()
@@ -107,6 +160,92 @@ def test_ordinary_window_uses_shared_declarative_clients(
 		window._cancel_line_gesture()
 		if not tab.is_disposed:
 			tab.dispose()
+		window.close()
+
+
+#============================================
+def test_shown_window_keeps_1440_by_900_across_all_authoring_tabs(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""Every allocator-owned ribbon page preserves the requested 16:10 outer window."""
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	try:
+		window.resize(1440, 900)
+		window.show()
+		qapp.processEvents()
+		assert window.size() == PySide6.QtCore.QSize(1440, 900)
+		ribbon = window._authoring_ribbon
+		for index in range(ribbon._tabs.count()):
+			ribbon._tabs.setCurrentIndex(index)
+			qapp.processEvents()
+			assert window.size() == PySide6.QtCore.QSize(1440, 900)
+			page = ribbon._tabs.currentWidget()
+			assert page is not None and page.contentsRect().contains(
+				PySide6.QtCore.QRect(
+					page.contentsRect().topLeft(),
+					PySide6.QtCore.QSize(max(0, page.minimumSizeHint().width()), 1),
+				),
+			)
+			for group in ribbon.groups_for_tab(ribbon._layouts[index].id):
+				assert group.visible_actions()
+				assert group.focus_target_for(group.visible_actions()[0]).accessibleName()
+	finally:
+		window.close()
+
+
+#============================================
+def test_structure_ribbon_allocator_restores_expanded_groups_from_live_hints(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""The page allocator reduces at 16:10 and restores at its measured wide surface."""
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	try:
+		window.resize(1440, 900)
+		window.show()
+		qapp.processEvents()
+		ribbon = window._authoring_ribbon
+		structure_index = next(index for index, layout in enumerate(ribbon._layouts)
+			if layout.id == "structure")
+		ribbon._tabs.setCurrentIndex(structure_index)
+		qapp.processEvents()
+		page = ribbon._tabs.currentWidget()
+		assert page is not None
+		states = tuple(group.display_state for group in ribbon.groups_for_tab("structure"))
+		assert any(state.value != "expanded" for state in states)
+		expanded = type(states[0]).EXPANDED
+		full_width = page._required_width(tuple(expanded for _state in states))
+		window.resize(window.width() + full_width - page.width(), 900)
+		qapp.processEvents()
+		assert all(group.display_state is expanded
+			for group in ribbon.groups_for_tab("structure"))
+	finally:
+		window.close()
+
+
+#============================================
+def test_ordinary_window_exposes_command_palette_through_view_menu_and_shortcut(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""The running application gives one live View-menu action a portable shortcut."""
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	try:
+		action = window._action_registry.get_qt_action("view.command_palette")
+		assert action in window._view_menu.actions()
+		assert action.shortcut().toString(
+			PySide6.QtGui.QKeySequence.SequenceFormat.PortableText,
+		) == "Ctrl+K"
+		assert action.shortcutContext() == (
+			PySide6.QtCore.Qt.ShortcutContext.WindowShortcut
+		)
+		window.show()
+		action.trigger()
+		qapp.processEvents()
+		assert window._command_palette_controller.dialog.isVisible()
+		assert window._command_palette_controller.dialog.search_field.hasFocus()
+	finally:
 		window.close()
 
 
@@ -210,7 +349,7 @@ def test_native_atom_input_dispatches_to_rust_mutation_through_window_mode_sync(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"atom-dispatch.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		qapp.processEvents()
@@ -237,7 +376,7 @@ def test_native_structure_selection_preserves_shift_additive_targets(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom><atom id='a2' name='O'><point x='70' y='10'/></atom></molecule></cdml>",
 		"structure-shift-selection.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		qapp.processEvents()
@@ -265,11 +404,11 @@ def test_controller_viewport_input_releases_on_tab_switch_and_close(
 	first = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='first'><atom id='a' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"first.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	second = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='second'><atom id='b' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"second.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(first, activate=True)
 		window._register_native_tab(second, activate=False)
@@ -306,7 +445,7 @@ def test_explicit_discard_closes_a_real_dirty_tab_without_mutating_its_dirty_sta
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"discard-close.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	atom = window._action_registry.get_qt_action("draw.atom_at_point")
 	assert window._window_mode_sync.select_action(atom)
@@ -340,7 +479,7 @@ def test_explicit_discard_retains_refresh_required_tab(
 	window = main_window
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "refresh-required-close.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	monkeypatch.setattr(type(tab), "requires_refresh", property(lambda _tab: True))
 	result = window._close_native_tab_at(
@@ -362,7 +501,7 @@ def test_explicit_save_closes_dirty_tab_through_real_native_save(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"typed-close-save.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	qapp.processEvents()
 	tab.save_atomic(destination)
@@ -385,7 +524,7 @@ def test_explicit_save_failure_retains_dirty_tab(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"typed-close-save-failed.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	qapp.processEvents()
 	_add_atom_through_active_canvas(qapp, window, tab)
@@ -407,7 +546,7 @@ def test_explicit_keep_open_retains_dirty_tab_without_prompt(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"typed-close-keep-open.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	qapp.processEvents()
 	_add_atom_through_active_canvas(qapp, window, tab)
@@ -425,7 +564,7 @@ def test_invalid_close_index_returns_no_tab_without_window_mutation(main_window:
 	window = main_window
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "typed-close-invalid-index.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	window._register_native_tab(tab, activate=True)
 	result = window._close_native_tab_at(
 		-1, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
@@ -443,7 +582,7 @@ def test_programmatic_tool_transitions_dispatch_to_newly_active_selection_featur
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
 		"programmatic-mode-transitions.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		bond = window._action_registry.get_qt_action("draw.bond")
@@ -474,7 +613,7 @@ def test_line_dispatch_rejects_mismatched_normalized_tool_without_mutation(
 	window = main_window
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "mismatched-line-intent.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		bond_action = window._action_registry.get_qt_action("draw.bond")

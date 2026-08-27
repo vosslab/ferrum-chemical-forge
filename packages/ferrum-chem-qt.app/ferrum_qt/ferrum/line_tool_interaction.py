@@ -11,6 +11,8 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_root_preview
+import ferrum_qt.ferrum.document_display_refresh
+import ferrum_qt.themes.document_display_palette
 import ferrum_qt.ferrum.line_tool_intent
 
 _NativeLineTool = ferrum_qt.ferrum.line_tool_intent._NativeLineTool
@@ -340,16 +342,10 @@ class FerrumNativeLineToolInteractionMixin:
 		scene = tab.view.scene()
 		if scene is None:
 			raise RuntimeError("Ferrum document has no current scene")
-		color = PySide6.QtWidgets.QApplication.palette().color(
-			PySide6.QtGui.QPalette.ColorRole.Highlight,
-		)
-		pen = PySide6.QtGui.QPen(color)
-		pen.setWidthF(1.5)
-		pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
-		pen.setCosmetic(False)
-		preview = scene.addLine(PySide6.QtCore.QLineF(start, start), pen)
+		preview = scene.addLine(PySide6.QtCore.QLineF(start, start))
 		preview.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 		preview.setZValue(1_000_000.0)
+		self._register_preview_outline(tab, preview)
 		return preview
 
 	#============================================
@@ -369,17 +365,25 @@ class FerrumNativeLineToolInteractionMixin:
 		scene = tab.view.scene()
 		if scene is None:
 			raise RuntimeError("Ferrum document has no current scene")
-		color = PySide6.QtWidgets.QApplication.palette().color(
-			PySide6.QtGui.QPalette.ColorRole.Highlight,
-		)
-		pen = PySide6.QtGui.QPen(color)
-		pen.setWidthF(1.5)
-		pen.setStyle(PySide6.QtCore.Qt.PenStyle.DashLine)
-		pen.setCosmetic(False)
-		preview = scene.addRect(PySide6.QtCore.QRectF(start, start), pen)
+		preview = scene.addRect(PySide6.QtCore.QRectF(start, start))
 		preview.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 		preview.setZValue(1_000_000.0)
+		self._register_preview_outline(tab, preview)
 		return preview
+
+	#============================================
+	@staticmethod
+	def _register_preview_outline(tab: object, item: object) -> None:
+		"""Bind one line-tool outline to the tab-owned transient refresh registry."""
+		refreshable = ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRoleMaterialRefreshableV1(
+			(item,),
+			ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.PREVIEW_OUTLINE,
+			None, 1.5, PySide6.QtCore.Qt.PenStyle.DashLine,
+		)
+		refreshable.refresh_document_display_palette(tab.document_display_palette)
+		ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable(
+			tab, item, refreshable,
+		)
 
 	#============================================
 	def _reset_line_gesture_start(self) -> None:
@@ -533,6 +537,9 @@ class FerrumNativeLineToolInteractionMixin:
 	def _dispose_line_preview(self,
 			preview: PySide6.QtWidgets.QGraphicsItem | None) -> None:
 		"""Dispose a preview through the shared explicit graphics owner boundary."""
+		ferrum_qt.ferrum.document_display_refresh.unregister_attached_document_display_refreshable(
+			preview,
+		)
 		scene = ferrum_qt.canvas.graphics_disposal.native_scene_for_item(preview)
 		if scene is None:
 			return

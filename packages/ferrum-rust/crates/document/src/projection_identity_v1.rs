@@ -4,19 +4,10 @@ use ferrum_document_projection::{DocumentObjectIdV1, ProjectionError, Projection
 
 use crate::TypedRecord;
 
-/// Read a persisted durable lower identity from one retained typed record.
-pub(crate) fn document_object_id_from_record_v1(
-    record: &TypedRecord,
-) -> Option<DocumentObjectIdV1> {
-    projection_document_object_id_from_record_v1(record)
-        .ok()
-        .flatten()
-}
-
-/// Read a persisted durable identity for a projection without erasing malformed metadata.
+/// Read the required persisted durable identity for a retained projection record.
 pub(crate) fn projection_document_object_id_from_record_v1(
     record: &TypedRecord,
-) -> Result<Option<DocumentObjectIdV1>, ProjectionError> {
+) -> Result<DocumentObjectIdV1, ProjectionError> {
     record
         .document_object_id_metadata_v1()
         .map(|value| {
@@ -28,7 +19,10 @@ pub(crate) fn projection_document_object_id_from_record_v1(
                 }
             })
         })
-        .transpose()
+        .transpose()?
+        .ok_or_else(|| ProjectionError::MissingDocumentObjectId {
+            context: record.path().to_string(),
+        })
 }
 
 /// Derive a projection-local lower identity from one retained typed record.
@@ -48,7 +42,7 @@ pub(crate) fn projection_local_object_key_from_record_v1(
 mod tests {
     use crate::{TypedClass, TypedDocument};
 
-    use super::document_object_id_from_record_v1;
+    use super::projection_document_object_id_from_record_v1;
 
     #[test]
     fn typed_record_reads_a_persisted_durable_lower_identity() {
@@ -62,7 +56,7 @@ mod tests {
             .expect("typed document must retain its molecule");
 
         assert!(
-            document_object_id_from_record_v1(molecule)
+            projection_document_object_id_from_record_v1(molecule)
                 .expect("typed ingress must persist a durable identity")
                 .as_str()
                 .starts_with("ferrum-document-object-v1/")

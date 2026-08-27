@@ -9,8 +9,11 @@ use ferrum_document_projection::{
     DocumentDirectRootKindV1, DocumentProjectionV1, PresentationRecordKindV1,
 };
 
+use crate::direct_cdml_semantic_index_v1::{
+    DirectReactionDurableMemberV1, DirectReactionDurableV1,
+};
 use crate::{
-    DirectCdmlSemanticIndexV1, DirectReactionRoleV1, DocumentObjectIdV1, PersistentId,
+    DirectCdmlSemanticIndexV1, DirectReactionRoleV1, DocumentObjectIdV1,
     ReactionDefinitionDiagnosticV1, TypedClass, TypedDocument,
 };
 
@@ -185,8 +188,11 @@ impl DocumentReactionMemberSelectionV1 {
 }
 
 /// Closed refusal surface for reaction-member observation and selection validation.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum ReactionMemberSelectionRefusalV1 {
+    /// A retained document identity was malformed or missing while resolving reaction facts.
+    #[error("reaction selection encountered an invalid retained document identity: {0}")]
+    InvalidIdentity(#[source] crate::ProjectionError),
     /// The durable reaction ID no longer resolves in the retained document.
     #[error("reaction selection names an unknown durable document object")]
     UnknownReaction,
@@ -222,18 +228,8 @@ impl DocumentSession {
             .observe(self.current_revision_v1())
             .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
         let document = self.current_document_v1();
-        let source = document
-            .to_xml()
-            .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
-        let definitions = crate::inspect_direct_reactions_v1(&source)
-            .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
-        let reactions = definitions
-            .iter()
-            .filter_map(|definition| list_reaction(document, observation.projection(), definition))
-            .collect();
-        Ok(DocumentReactionListObservationV1 { reactions })
+        build_reaction_list_observation_v1(document, observation.projection())
     }
-
     /// Observe one direct reaction using durable document-owned IDs only.
     pub fn observe_reaction_members_v1(
         &self,
@@ -302,17 +298,41 @@ impl DocumentSession {
     }
 }
 
+fn build_reaction_list_observation_v1(
+    document: &TypedDocument,
+    projection: &DocumentProjectionV1,
+) -> Result<DocumentReactionListObservationV1, ReactionMemberSelectionRefusalV1> {
+    let index = DirectCdmlSemanticIndexV1::from_document(document);
+    let durable = index
+        .bind_durable_reactions_v1(document)
+        .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?;
+    let reactions = durable
+        .durable_reactions_v1()
+        .iter()
+        .map(|reaction| list_reaction(document, projection, reaction))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+    Ok(DocumentReactionListObservationV1 { reactions })
+}
+
 fn list_reaction(
     document: &TypedDocument,
     projection: &DocumentProjectionV1,
-    definition: &crate::ReactionDefinitionV1,
-) -> Option<DocumentReactionListReactionV1> {
-    let source_id = PersistentId::new(definition.identifier()?.to_owned()).ok()?;
-    let reaction_object_id = document.document_object_id_for_source_id_v1(&source_id)?;
-    let selection_observation = definition
-        .is_strict()
-        .then(|| observe_reaction(document, &reaction_object_id).ok())
-        .flatten();
+    reaction: &DirectReactionDurableV1,
+) -> Result<Option<DocumentReactionListReactionV1>, ReactionMemberSelectionRefusalV1> {
+    let selection_observation = if reaction.is_strict() {
+        match observe_durable_reaction(document, reaction) {
+            Ok(selection) => Some(selection),
+            Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(error)) => {
+                return Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(error));
+            }
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
     let (members, selection_observation) = selection_observation
         .and_then(|selection| {
             reaction_list_members(projection, &selection).map(|members| (members, selection))
@@ -326,13 +346,13 @@ fn list_reaction(
     } else {
         DocumentReactionListDispositionV1::DisplayOnly
     };
-    Some(DocumentReactionListReactionV1 {
-        reaction_object_id,
+    Ok(Some(DocumentReactionListReactionV1 {
+        reaction_object_id: reaction.reaction_object_id().clone(),
         disposition,
-        diagnostics: definition.diagnostics().to_vec(),
+        diagnostics: reaction.diagnostics().to_vec(),
         members,
         selection_observation,
-    })
+    }))
 }
 
 fn reaction_list_members(
@@ -388,88 +408,68 @@ fn observe_reaction(
 ) -> Result<DocumentReactionSelectionObservationV1, ReactionMemberSelectionRefusalV1> {
     let reaction_record = document
         .resolve_document_object_id(reaction_object_id)
+        .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
         .ok_or(ReactionMemberSelectionRefusalV1::UnknownReaction)?;
     if reaction_record.class() != TypedClass::Reaction
         || reaction_record.path().components().len() != 1
     {
         return Err(ReactionMemberSelectionRefusalV1::WrongReactionKind);
     }
-    let reaction_source_id = document
-        .source_id_for_document_object_id_v1(reaction_object_id)
-        .ok_or(ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
-    let source = document
-        .to_xml()
-        .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
     let index = DirectCdmlSemanticIndexV1::from_document(document);
-    let definitions = crate::inspect_direct_reactions_v1(&source)
-        .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
-    let mut definitions = definitions
-        .iter()
-        .filter(|definition| definition.identifier() == Some(reaction_source_id.as_str()))
-        .filter(|definition| {
-            index.roots().iter().any(|root| {
-                root.identifier() == definition.identifier()
-                    && root.kind() == crate::DirectCdmlRootKindV1::Reaction
-            })
-        });
-    let definition = definitions
-        .next()
+    let durable = index
+        .bind_durable_reactions_v1(document)
+        .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?;
+    let reaction = durable
+        .durable_reaction_v1(reaction_object_id)
         .ok_or(ReactionMemberSelectionRefusalV1::UnresolvedReaction)?;
-    if definitions.next().is_some()
-        || index
-            .roots()
-            .iter()
-            .filter(|root| {
-                root.identifier() == Some(reaction_source_id.as_str())
-                    && root.kind() == crate::DirectCdmlRootKindV1::Reaction
-            })
-            .count()
-            != 1
-    {
+    observe_durable_reaction(document, reaction)
+}
+
+fn observe_durable_reaction(
+    document: &TypedDocument,
+    reaction: &DirectReactionDurableV1,
+) -> Result<DocumentReactionSelectionObservationV1, ReactionMemberSelectionRefusalV1> {
+    if !reaction.is_strict() {
+        if reaction.diagnostics().iter().any(|diagnostic| {
+            matches!(
+                diagnostic,
+                ReactionDefinitionDiagnosticV1::MissingIdref
+                    | ReactionDefinitionDiagnosticV1::EmptyIdref
+                    | ReactionDefinitionDiagnosticV1::MissingTarget
+                    | ReactionDefinitionDiagnosticV1::WrongTargetKind
+            )
+        }) {
+            return Err(ReactionMemberSelectionRefusalV1::UnresolvedMember);
+        }
         return Err(ReactionMemberSelectionRefusalV1::UnresolvedReaction);
     }
-    let members = definition
+    let members = reaction
         .members()
         .iter()
-        .map(|member| {
-            observe_member(
-                document,
-                member.role(),
-                member.identifier(),
-                member.role_ordinal(),
-                member.source_order(),
-            )
-        })
+        .map(|member| observe_member(document, member))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(DocumentReactionSelectionObservationV1 {
-        reaction_object_id: reaction_object_id.clone(),
+        reaction_object_id: reaction.reaction_object_id().clone(),
         members,
     })
 }
 
 fn observe_member(
     document: &TypedDocument,
-    role: DirectReactionRoleV1,
-    source_id: &str,
-    role_ordinal: u32,
-    source_order: u32,
+    member: &DirectReactionDurableMemberV1,
 ) -> Result<DocumentReactionMemberObservationV1, ReactionMemberSelectionRefusalV1> {
-    let source_id = PersistentId::new(source_id.to_owned())
-        .map_err(|_| ReactionMemberSelectionRefusalV1::UnresolvedMember)?;
-    let object_id = document
-        .document_object_id_for_source_id_v1(&source_id)
-        .ok_or(ReactionMemberSelectionRefusalV1::UnresolvedMember)?;
     let record = document
-        .resolve_document_object_id(&object_id)
+        .resolve_document_object_id(member.member_object_id())
+        .map_err(ReactionMemberSelectionRefusalV1::InvalidIdentity)?
         .ok_or(ReactionMemberSelectionRefusalV1::UnresolvedMember)?;
-    if record.path().components().len() != 1 || !role_matches_class(role, record.class()) {
+    if record.path().components().len() != 1 || !role_matches_class(member.role(), record.class()) {
         return Err(ReactionMemberSelectionRefusalV1::UnresolvedMember);
     }
     Ok(DocumentReactionMemberObservationV1 {
-        role,
-        object_id,
-        role_ordinal,
-        source_order,
+        role: member.role(),
+        object_id: member.member_object_id().clone(),
+        role_ordinal: member.role_ordinal(),
+        source_order: member.source_order(),
     })
 }
 
@@ -486,7 +486,9 @@ fn role_matches_class(role: DirectReactionRoleV1, class: TypedClass) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::DocumentReactionMemberTargetsV1;
     use super::*;
+    use crate::PersistentId;
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:object=\"urn:ferrum:document-object:v1\"><molecule id=\"left\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule><arrow id=\"arrow\" type=\"normal\"><point x=\"5\" y=\"0\"/><point x=\"15\" y=\"0\"/></arrow><molecule id=\"right\"><atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom></molecule><reaction id=\"reaction\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000001\"><reactant idref=\"left\"/><arrow idref=\"arrow\"/><product idref=\"right\"/></reaction></cdml>";
 
@@ -494,6 +496,7 @@ mod tests {
         session
             .current_document_v1()
             .document_object_id_for_source_id_v1(&PersistentId::new(source).expect("source ID"))
+            .expect("durable identity projection must succeed")
             .expect("durable object ID")
     }
 
@@ -511,7 +514,7 @@ mod tests {
         let selection = session
             .select_reaction_members_v1(&observation)
             .expect("selection");
-        assert_eq!(session.validate_reaction_selection_v1(&selection), Ok(()));
+        assert!(session.validate_reaction_selection_v1(&selection).is_ok());
     }
 
     #[test]
@@ -537,10 +540,10 @@ mod tests {
 
         let mut stale = selection;
         stale.revision += 1;
-        assert_eq!(
+        assert!(matches!(
             session.resolve_reaction_member_root_selectors_v1(&stale),
             Err(ReactionMemberSelectionRefusalV1::StaleRevision)
-        );
+        ));
     }
 
     #[test]
@@ -553,30 +556,30 @@ mod tests {
             .select_reaction_members_v1(&observation)
             .expect("selection");
         let other = DocumentSession::load(SOURCE).expect("other session");
-        assert_eq!(
+        assert!(matches!(
             other.validate_reaction_selection_v1(&selection),
             Err(ReactionMemberSelectionRefusalV1::ForeignSession)
-        );
+        ));
         let mut stale = selection.clone();
         stale.revision += 1;
-        assert_eq!(
+        assert!(matches!(
             session.validate_reaction_selection_v1(&stale),
             Err(ReactionMemberSelectionRefusalV1::StaleRevision)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             session.observe_reaction_members_v1(&object(&session, "left")),
             Err(ReactionMemberSelectionRefusalV1::WrongReactionKind)
-        );
+        ));
     }
 
     #[test]
     fn refuses_unresolved_members_without_exposing_source_lookup() {
         let source = SOURCE.replace("idref=\"right\"", "idref=\"missing\"");
         let session = DocumentSession::load(&source).expect("session");
-        assert_eq!(
+        assert!(matches!(
             session.observe_reaction_members_v1(&object(&session, "reaction")),
             Err(ReactionMemberSelectionRefusalV1::UnresolvedMember)
-        );
+        ));
     }
 
     #[test]
@@ -635,5 +638,186 @@ mod tests {
         assert!(list.reactions()[1].members().is_empty());
         assert!(list.reactions()[1].selection_observation().is_none());
         assert!(!list.reactions()[1].diagnostics().is_empty());
+    }
+
+    #[test]
+    fn durable_observation_preserves_complete_role_order_and_reloads_identity_facts() {
+        let source = SOURCE.replace(
+            "<reaction id=\"reaction\"",
+            "<text id=\"condition\"><point x=\"10\" y=\"-5\"/></text><plus id=\"plus\"><point x=\"10\" y=\"5\"/></plus><reaction id=\"reaction\"",
+        ).replace(
+            "<product idref=\"right\"/>",
+            "<product idref=\"right\"/><condition idref=\"condition\"/><plus idref=\"plus\"/>",
+        );
+        let session = DocumentSession::load(&source).expect("session");
+        let observation = session
+            .observe_reaction_members_v1(&object(&session, "reaction"))
+            .expect("durable observation");
+        assert_eq!(
+            observation
+                .members()
+                .iter()
+                .map(DocumentReactionMemberObservationV1::role)
+                .collect::<Vec<_>>(),
+            vec![
+                DirectReactionRoleV1::Reactant,
+                DirectReactionRoleV1::Arrow,
+                DirectReactionRoleV1::Product,
+                DirectReactionRoleV1::Condition,
+                DirectReactionRoleV1::Plus,
+            ]
+        );
+        let reloaded = DocumentSession::load(session.snapshot().expect("snapshot").cdml())
+            .expect("reloaded session");
+        let reobserved = reloaded
+            .observe_reaction_members_v1(&object(&reloaded, "reaction"))
+            .expect("reloaded observation");
+        assert_eq!(
+            reobserved
+                .members()
+                .iter()
+                .map(|member| (
+                    member.role(),
+                    member.object_id().clone(),
+                    member.role_ordinal()
+                ))
+                .collect::<Vec<_>>(),
+            observation
+                .members()
+                .iter()
+                .map(|member| (
+                    member.role(),
+                    member.object_id().clone(),
+                    member.role_ordinal()
+                ))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn wrong_role_member_remains_display_only_and_refuses_selection() {
+        let source = SOURCE.replace("<arrow idref=\"arrow\"/>", "<arrow idref=\"left\"/>");
+        let session = DocumentSession::load(&source).expect("session");
+        assert!(matches!(
+            session.observe_reaction_members_v1(&object(&session, "reaction")),
+            Err(ReactionMemberSelectionRefusalV1::UnresolvedMember)
+        ));
+        let list = session.observe_reaction_list_v1().expect("reaction list");
+        let reaction = list.reactions().first().expect("reaction");
+        assert_eq!(
+            reaction.disposition(),
+            DocumentReactionListDispositionV1::DisplayOnly
+        );
+        assert!(!reaction.diagnostics().is_empty());
+    }
+
+    #[test]
+    fn mutation_undo_redo_stales_prior_selection_and_reobserves_durable_members() {
+        let source = SOURCE.replace(
+            "</cdml>",
+            "<molecule id=\"new-left\"><atom id=\"c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule><arrow id=\"new-arrow\"><point x=\"45\" y=\"0\"/><point x=\"55\" y=\"0\"/></arrow><molecule id=\"new-right\"><atom id=\"d\" name=\"C\"><point x=\"60\" y=\"0\"/></atom></molecule></cdml>",
+        );
+        let mut session = DocumentSession::load(&source).expect("session");
+        let initial = session
+            .observe_reaction_members_v1(&object(&session, "reaction"))
+            .expect("initial observation");
+        let prior_selection = session
+            .select_reaction_members_v1(&initial)
+            .expect("prior selection");
+        let targets = DocumentReactionMemberTargetsV1::new(
+            vec![object(&session, "new-left")],
+            object(&session, "new-arrow"),
+            vec![object(&session, "new-right")],
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("replacement targets");
+        let command = session
+            .begin_replace_reaction_members_v1(
+                session.issue_authoring_capability_v1(),
+                prior_selection.clone(),
+                targets,
+            )
+            .expect("replace command");
+        let request = session
+            .resolve_replace_reaction_members_command_v1(command)
+            .expect("replace request");
+        let mut prepared = session
+            .prepare_session_operation_transition_v1(request)
+            .expect("prepared replacement");
+        session
+            .commit_session_operation_transition_v1(&mut prepared)
+            .expect("committed replacement");
+        assert!(matches!(
+            session.validate_reaction_selection_v1(&prior_selection),
+            Err(ReactionMemberSelectionRefusalV1::StaleRevision)
+        ));
+        session
+            .undo(session.snapshot().expect("replacement snapshot").revision())
+            .expect("undo replacement");
+        let undone = session
+            .observe_reaction_members_v1(&object(&session, "reaction"))
+            .expect("undo observation");
+        assert_eq!(undone, initial);
+        session
+            .redo(session.snapshot().expect("undo snapshot").revision())
+            .expect("redo replacement");
+        let redone = session
+            .observe_reaction_members_v1(&object(&session, "reaction"))
+            .expect("redo observation");
+        assert_eq!(
+            redone
+                .members()
+                .iter()
+                .map(|member| member.object_id().clone())
+                .collect::<Vec<_>>(),
+            vec![
+                object(&session, "new-left"),
+                object(&session, "new-arrow"),
+                object(&session, "new-right"),
+            ]
+        );
+    }
+
+    #[test]
+    fn corrupted_reaction_identity_refuses_list_and_single_observation() {
+        let session = DocumentSession::load(SOURCE).expect("session");
+        let reaction_object_id = object(&session, "reaction");
+        let projection = session.observe(0).expect("projection");
+        let mut document = session
+            .current_document_v1()
+            .detached_candidate()
+            .expect("detached document");
+        document.corrupt_direct_document_object_id_for_test("reaction");
+
+        assert!(matches!(
+            build_reaction_list_observation_v1(&document, projection.projection()),
+            Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(_))
+        ));
+        assert!(matches!(
+            observe_reaction(&document, &reaction_object_id),
+            Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(_))
+        ));
+    }
+
+    #[test]
+    fn corrupted_member_identity_refuses_list_and_single_observation() {
+        let session = DocumentSession::load(SOURCE).expect("session");
+        let reaction_object_id = object(&session, "reaction");
+        let projection = session.observe(0).expect("projection");
+        let mut document = session
+            .current_document_v1()
+            .detached_candidate()
+            .expect("detached document");
+        document.corrupt_direct_document_object_id_for_test("left");
+
+        assert!(matches!(
+            build_reaction_list_observation_v1(&document, projection.projection()),
+            Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(_))
+        ));
+        assert!(matches!(
+            observe_reaction(&document, &reaction_object_id),
+            Err(ReactionMemberSelectionRefusalV1::InvalidIdentity(_))
+        ));
     }
 }

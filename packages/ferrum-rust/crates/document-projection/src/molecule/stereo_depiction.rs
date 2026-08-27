@@ -72,14 +72,8 @@ impl DoubleBondCarrierMarkProjectionV1 {
         if carrier.order() != Some(BondOrder::Single) {
             return Err(DoubleBondCarrierMarkProjectionV1Error::CarrierIsNotSingle);
         }
-        let central_double_bond = central.id().cloned().ok_or(
-            DoubleBondCarrierMarkProjectionV1Error::MissingBondIdentity {
-                role: "central double",
-            },
-        )?;
-        let carrier_bond = carrier.id().cloned().ok_or(
-            DoubleBondCarrierMarkProjectionV1Error::MissingBondIdentity { role: "carrier" },
-        )?;
+        let central_double_bond = central.document_object_id().clone();
+        let carrier_bond = carrier.document_object_id().clone();
         let carrier_start = carrier
             .start()
             .object_id()

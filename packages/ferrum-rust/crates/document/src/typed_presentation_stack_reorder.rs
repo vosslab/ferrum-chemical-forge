@@ -87,7 +87,7 @@ fn validate_complete_bracket_selection(
         .iter()
         .map(|target| target.document_object_id())
         .collect::<HashSet<_>>();
-    for pair in super::bracket_pair_projection_v1::bracket_pairs(document) {
+    for pair in super::bracket_pair_projection_v1::bracket_pairs(document)? {
         let selected_members = pair
             .members()
             .iter()

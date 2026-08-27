@@ -258,7 +258,9 @@ def main() -> int:
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
 	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(app)
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
-	water = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_WATER_CDML, "water.cdml")
+	water = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_WATER_CDML, "water.cdml", window._require_document_display_palette(),
+	)
 	window._register_native_tab(water, activate=True)
 	window.show()
 	app.processEvents()
@@ -341,7 +343,7 @@ def main() -> int:
 		)
 
 		excluded = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
-			_EXCLUDED_CDML, "fluoride.cdml",
+			_EXCLUDED_CDML, "fluoride.cdml", window._require_document_display_palette(),
 		)
 		window._register_native_tab(excluded, activate=True)
 		app.processEvents()

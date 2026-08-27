@@ -6,8 +6,8 @@ use ferrum_geometry::{Point2, Vector2};
 
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BatchSpace, GlyphBounds, LineOp, Paint, PositiveFinite, RenderBatch, RenderError, RenderOp,
-    RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
+    BatchSpace, GlyphBounds, LineOp, PositiveFinite, RenderBatch, RenderError, RenderOp,
+    RenderPaintV3, RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
 };
 
 pub(crate) const GROUP_LABEL_SIZE_PT_V1: f64 = 14.0;
@@ -137,7 +137,7 @@ impl CompactGroupRenderPrimitiveV1 {
         group: &CompactGroupProjectionV1,
         owner_molecule_object_id: &DocumentObjectIdV1,
         metrics: &VerifiedTelexGlyphMetrics,
-        paint: Paint,
+        paint: RenderPaintV3,
     ) -> Result<Self, RenderError> {
         let identifier = group.id().as_str().to_owned();
         let source = Identifier::new(&identifier).map_err(|_| {
@@ -372,8 +372,8 @@ mod tests {
         PositiveFinite::new(value).expect("test extent is positive and finite")
     }
 
-    fn paint() -> Paint {
-        Paint::rgb24(Rgb24::new("000000").expect("test RGB is valid"))
+    fn paint() -> RenderPaintV3 {
+        RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("test RGB is valid"))
     }
 
     fn object_id(entropy: u8) -> DocumentObjectIdV1 {

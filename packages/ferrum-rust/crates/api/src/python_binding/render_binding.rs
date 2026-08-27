@@ -5,7 +5,7 @@ use ferrum_document::{
     DocumentRenderObservationV1, PresentationTargetV1,
 };
 use ferrum_render::{
-    BatchSpace, DepictionSuppressionV1, DocumentMoleculeRenderPlanV2, DocumentPlusRenderV1, LineOp,
+    BatchSpace, DepictionSuppressionV1, DocumentMoleculeRenderPlanV3, DocumentPlusRenderV1, LineOp,
     MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind, RenderOp,
     RenderPoint, RenderTarget, TextOp, TextScript, VectorStrokeLineCapV1,
     verified_telex_regular_v1,
@@ -124,7 +124,7 @@ pub(crate) struct PyTextOpV1 {
     #[pyo3(get)]
     size: f64,
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     z: i32,
 }
@@ -147,7 +147,7 @@ pub(crate) struct PyLineOpV1 {
     #[pyo3(get)]
     width: f64,
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     z: i32,
 }
@@ -162,7 +162,7 @@ pub(crate) struct PyMaskOpV1 {
     #[pyo3(get)]
     height: f64,
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     z: i32,
 }
@@ -181,33 +181,33 @@ pub(crate) struct PyEllipseOpV1 {
     #[pyo3(get)]
     stroke_width: Option<f64>,
     #[pyo3(get)]
-    stroke_paint: Option<String>,
+    stroke_paint: Option<PyRenderPaintV3>,
     #[pyo3(get)]
-    fill_paint: Option<String>,
+    fill_paint: Option<PyRenderPaintV3>,
     #[pyo3(get)]
     z: i32,
 }
 
-/// Frozen source-owned V2 scene path.  Qt receives only these commands and paint.
-#[pyclass(frozen, name = "PathOpV2", skip_from_py_object)]
+/// Frozen source-owned V3 scene path.  Qt receives only these commands and paint.
+#[pyclass(frozen, name = "PathOpV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyPathOpV2 {
-    commands: Vec<PyScenePathCommandV2>,
+pub(crate) struct PyPathOpV3 {
+    commands: Vec<PyScenePathCommandV3>,
     #[pyo3(get)]
     stroke_width: Option<f64>,
     #[pyo3(get)]
-    stroke_paint: Option<String>,
+    stroke_paint: Option<PyRenderPaintV3>,
     #[pyo3(get)]
     stroke_line_cap: Option<String>,
     #[pyo3(get)]
-    fill_paint: Option<String>,
+    fill_paint: Option<PyRenderPaintV3>,
     #[pyo3(get)]
     z: i32,
 }
 
-#[pyclass(frozen, name = "ScenePathCommandV2", skip_from_py_object)]
+#[pyclass(frozen, name = "ScenePathCommandV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyScenePathCommandV2 {
+pub(crate) struct PyScenePathCommandV3 {
     #[pyo3(get)]
     kind: String,
     #[pyo3(get)]
@@ -219,16 +219,30 @@ pub(crate) struct PyScenePathCommandV2 {
 }
 
 #[pymethods]
-impl PyPathOpV2 {
+impl PyPathOpV3 {
     #[getter]
     fn commands(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         frozen_tuple(py, &self.commands)
     }
 }
 
-#[pyclass(frozen, name = "RenderOperationV2", skip_from_py_object)]
+/// Frozen tagged V3 paint facts copied from Rust-owned render operations.
+#[pyclass(frozen, name = "RenderPaintV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderOperationV2 {
+pub(crate) struct PyRenderPaintV3 {
+    #[pyo3(get)]
+    kind: String,
+    #[pyo3(get)]
+    export_rgb: String,
+    #[pyo3(get)]
+    role: Option<String>,
+    #[pyo3(get)]
+    element: Option<String>,
+}
+
+#[pyclass(frozen, name = "RenderOperationV3", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyRenderOperationV3 {
     #[pyo3(get)]
     kind: String,
     operation: PyRenderOperationPayload,
@@ -241,11 +255,11 @@ enum PyRenderOperationPayload {
     DoubleBondCarrierMark(PyLineOpV1),
     Mask(PyMaskOpV1),
     Ellipse(PyEllipseOpV1),
-    Path(PyPathOpV2),
+    Path(PyPathOpV3),
 }
 
 #[pymethods]
-impl PyRenderOperationV2 {
+impl PyRenderOperationV3 {
     #[getter]
     fn operation(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.operation {
@@ -261,15 +275,15 @@ impl PyRenderOperationV2 {
     }
 }
 
-#[pyclass(frozen, name = "RenderBatchV2", skip_from_py_object)]
+#[pyclass(frozen, name = "RenderBatchV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderBatchV2 {
+pub(crate) struct PyRenderBatchV3 {
     #[pyo3(get)]
     target: PyRenderTargetV1,
     coordinate_space: PyRenderCoordinateSpace,
     #[pyo3(get)]
     display_layer: String,
-    operations: Vec<PyRenderOperationV2>,
+    operations: Vec<PyRenderOperationV3>,
 }
 
 #[derive(Clone)]
@@ -279,7 +293,7 @@ enum PyRenderCoordinateSpace {
 }
 
 #[pymethods]
-impl PyRenderBatchV2 {
+impl PyRenderBatchV3 {
     #[getter]
     fn coordinate_space(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.coordinate_space {
@@ -304,14 +318,14 @@ pub(crate) struct PyRenderIssueV1 {
     detail: String,
 }
 
-#[pyclass(frozen, name = "RenderPlanV2", skip_from_py_object)]
+#[pyclass(frozen, name = "RenderPlanV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyRenderPlanV2 {
+pub(crate) struct PyRenderPlanV3 {
     #[pyo3(get)]
     schema: String,
     #[pyo3(get)]
     provenance: PyRenderProvenanceV1,
-    batches: Vec<PyRenderBatchV2>,
+    batches: Vec<PyRenderBatchV3>,
     issues: Vec<PyRenderIssueV1>,
 }
 
@@ -331,18 +345,18 @@ pub(crate) struct PyMoleculeRenderRootV1 {
     document_object_id: String,
 }
 
-#[pyclass(frozen, name = "DocumentMoleculeRenderPlanV2", skip_from_py_object)]
+#[pyclass(frozen, name = "DocumentMoleculeRenderPlanV3", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyDocumentMoleculeRenderPlanV2 {
+pub(crate) struct PyDocumentMoleculeRenderPlanV3 {
     #[pyo3(get)]
     molecule: PyMoleculeRenderRootV1,
     #[pyo3(get)]
-    plan: PyRenderPlanV2,
+    plan: PyRenderPlanV3,
     member_issues: Vec<PyMoleculeMemberDepictionIssueV1>,
 }
 
 #[pymethods]
-impl PyRenderPlanV2 {
+impl PyRenderPlanV3 {
     #[getter]
     fn batches(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         frozen_tuple(py, &self.batches)
@@ -354,7 +368,7 @@ impl PyRenderPlanV2 {
 }
 
 #[pymethods]
-impl PyDocumentMoleculeRenderPlanV2 {
+impl PyDocumentMoleculeRenderPlanV3 {
     #[getter]
     fn member_issues(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         frozen_tuple(py, &self.member_issues)
@@ -397,7 +411,7 @@ pub(crate) struct PyDocumentPlusRenderV1 {
     #[pyo3(get)]
     bounds: PyPresentationTextBoundsV1,
     #[pyo3(get)]
-    background: Option<String>,
+    background: Option<PyRenderPaintV3>,
 }
 
 #[pyclass(frozen, name = "RenderObservationV1", skip_from_py_object)]
@@ -409,7 +423,7 @@ pub(crate) struct PyRenderObservationV1 {
     document: super::projection_binding::PySessionDocumentObservationV1,
     #[pyo3(get)]
     profile: String,
-    molecule_plans: Vec<PyDocumentMoleculeRenderPlanV2>,
+    molecule_plans: Vec<PyDocumentMoleculeRenderPlanV3>,
     plus_renders: Vec<PyDocumentPlusRenderV1>,
     text_renders: Vec<super::presentation_text_render_binding::PyDocumentTextRenderV1>,
     #[pyo3(get)]
@@ -509,6 +523,9 @@ pub(crate) fn error_result(
         DocumentRenderObservationErrorV1::Projection(error) => {
             Ok(RenderDepictionError::new_err(error.to_string()))
         }
+        DocumentRenderObservationErrorV1::ProjectionMismatch => Ok(RenderProvenanceError::new_err(
+            "render observation projection identity did not match its authoritative document",
+        )),
         DocumentRenderObservationErrorV1::ProvenanceMismatch => Ok(RenderProvenanceError::new_err(
             "render observation provenance did not match its authoritative document",
         )),
@@ -517,9 +534,9 @@ pub(crate) fn error_result(
 
 fn document_molecule_plan_from(
     py: Python<'_>,
-    value: &DocumentMoleculeRenderPlanV2,
-) -> PyResult<PyDocumentMoleculeRenderPlanV2> {
-    Ok(PyDocumentMoleculeRenderPlanV2 {
+    value: &DocumentMoleculeRenderPlanV3,
+) -> PyResult<PyDocumentMoleculeRenderPlanV3> {
+    Ok(PyDocumentMoleculeRenderPlanV3 {
         molecule: PyMoleculeRenderRootV1 {
             document_object_id: value.molecule().document_object_id().as_str().to_owned(),
         },
@@ -532,9 +549,9 @@ fn document_molecule_plan_from(
     })
 }
 
-pub(crate) fn plan_from(py: Python<'_>, plan: &MoleculeRenderPlan) -> PyResult<PyRenderPlanV2> {
-    Ok(PyRenderPlanV2 {
-        schema: "ferrum-render-plan-v2".to_owned(),
+pub(crate) fn plan_from(py: Python<'_>, plan: &MoleculeRenderPlan) -> PyResult<PyRenderPlanV3> {
+    Ok(PyRenderPlanV3 {
+        schema: "ferrum-render-plan-v3".to_owned(),
         provenance: PyRenderProvenanceV1 {
             revision: plan.revision().get(),
             digest: hex_digest(&plan.provenance().digest()),
@@ -548,7 +565,7 @@ pub(crate) fn plan_from(py: Python<'_>, plan: &MoleculeRenderPlan) -> PyResult<P
     })
 }
 
-fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> {
+fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV3> {
     let coordinate_space = match batch.coordinate_space() {
         BatchSpace::AtomLocal { anchor } => {
             PyRenderCoordinateSpace::AtomLocal(PyAtomLocalSpaceV1 {
@@ -560,7 +577,7 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> 
             kind: "scene".to_owned(),
         }),
     };
-    Ok(PyRenderBatchV2 {
+    Ok(PyRenderBatchV3 {
         target: batch.target().into(),
         coordinate_space,
         display_layer: match batch.display_layer() {
@@ -576,7 +593,39 @@ fn batch_from(py: Python<'_>, batch: &RenderBatch) -> PyResult<PyRenderBatchV2> 
     })
 }
 
-pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperationV2> {
+pub(crate) fn paint_from(value: &ferrum_render::RenderPaintV3) -> PyRenderPaintV3 {
+    use ferrum_render::{DocumentContentPaintRoleV1, RenderPaintV3};
+
+    let export_rgb = value.export_rgb().as_str().to_owned();
+    match value {
+        RenderPaintV3::AuthoredRgb24 { .. } => PyRenderPaintV3 {
+            kind: "authored_rgb24".to_owned(),
+            export_rgb,
+            role: None,
+            element: None,
+        },
+        RenderPaintV3::ThemeRole { role } => PyRenderPaintV3 {
+            kind: "theme_role".to_owned(),
+            export_rgb,
+            role: Some(
+                match role {
+                    DocumentContentPaintRoleV1::DocumentForeground => "document_foreground",
+                    DocumentContentPaintRoleV1::AtomNumber => "atom_number",
+                }
+                .to_owned(),
+            ),
+            element: None,
+        },
+        RenderPaintV3::ElementRole { element } => PyRenderPaintV3 {
+            kind: "element_role".to_owned(),
+            export_rgb,
+            role: None,
+            element: Some(element.as_str().to_owned()),
+        },
+    }
+}
+
+pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRenderOperationV3> {
     let (kind, operation) = match value {
         RenderOp::Text(text) => ("text", PyRenderOperationPayload::Text(text_from(text))),
         RenderOp::Line(line) => ("line", PyRenderOperationPayload::Line(line_from(line))),
@@ -590,7 +639,7 @@ pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRe
                 origin: mask.origin().into(),
                 width: mask.width().get(),
                 height: mask.height().get(),
-                paint: mask.paint().color().as_str().to_owned(),
+                paint: paint_from(mask.paint()),
                 z: mask.z(),
             }),
         ),
@@ -602,18 +651,14 @@ pub(crate) fn operation_from(_py: Python<'_>, value: &RenderOp) -> PyResult<PyRe
                 radius_y: ellipse.radius_y().get(),
                 rotation_degrees: ellipse.rotation_degrees(),
                 stroke_width: ellipse.stroke_width().map(|width| width.get()),
-                stroke_paint: ellipse
-                    .stroke_paint()
-                    .map(|paint| paint.color().as_str().to_owned()),
-                fill_paint: ellipse
-                    .fill_paint()
-                    .map(|paint| paint.color().as_str().to_owned()),
+                stroke_paint: ellipse.stroke_paint().map(paint_from),
+                fill_paint: ellipse.fill_paint().map(paint_from),
                 z: ellipse.z(),
             }),
         ),
         RenderOp::Path(path) => ("path", PyRenderOperationPayload::Path(path_from(path))),
     };
-    Ok(PyRenderOperationV2 {
+    Ok(PyRenderOperationV3 {
         kind: kind.to_owned(),
         operation,
     })
@@ -624,7 +669,7 @@ fn line_from(line: &LineOp) -> PyLineOpV1 {
         start: line.start().into(),
         end: line.end().into(),
         width: line.width().get(),
-        paint: line.paint().color().as_str().to_owned(),
+        paint: paint_from(line.paint()),
         z: line.z(),
     }
 }
@@ -652,40 +697,40 @@ fn text_from(text: &TextOp) -> PyTextOpV1 {
             .collect(),
         face: text.face().as_str().to_owned(),
         size: text.size().get(),
-        paint: text.paint().color().as_str().to_owned(),
+        paint: paint_from(text.paint()),
         z: text.z(),
     }
 }
 
-fn path_from(path: &ferrum_render::PathOpV2) -> PyPathOpV2 {
-    use ferrum_render::ScenePathCommandV2;
+fn path_from(path: &ferrum_render::PathOpV3) -> PyPathOpV3 {
+    use ferrum_render::ScenePathCommandV3;
     let commands = path
         .commands()
         .iter()
         .map(|command| match command {
-            ScenePathCommandV2::MoveTo(point) => PyScenePathCommandV2 {
+            ScenePathCommandV3::MoveTo(point) => PyScenePathCommandV3 {
                 kind: "move_to".to_owned(),
                 point: Some((*point).into()),
                 control_1: None,
                 control_2: None,
             },
-            ScenePathCommandV2::LineTo(point) => PyScenePathCommandV2 {
+            ScenePathCommandV3::LineTo(point) => PyScenePathCommandV3 {
                 kind: "line_to".to_owned(),
                 point: Some((*point).into()),
                 control_1: None,
                 control_2: None,
             },
-            ScenePathCommandV2::CubicTo {
+            ScenePathCommandV3::CubicTo {
                 control_1,
                 control_2,
                 end,
-            } => PyScenePathCommandV2 {
+            } => PyScenePathCommandV3 {
                 kind: "cubic_to".to_owned(),
                 point: Some((*end).into()),
                 control_1: Some((*control_1).into()),
                 control_2: Some((*control_2).into()),
             },
-            ScenePathCommandV2::Close => PyScenePathCommandV2 {
+            ScenePathCommandV3::Close => PyScenePathCommandV3 {
                 kind: "close".to_owned(),
                 point: None,
                 control_1: None,
@@ -693,17 +738,15 @@ fn path_from(path: &ferrum_render::PathOpV2) -> PyPathOpV2 {
             },
         })
         .collect();
-    PyPathOpV2 {
+    PyPathOpV3 {
         commands,
         stroke_width: path.stroke().map(|stroke| stroke.width().get()),
-        stroke_paint: path
-            .stroke()
-            .map(|stroke| stroke.paint().color().as_str().to_owned()),
+        stroke_paint: path.stroke().map(|stroke| paint_from(stroke.paint())),
         stroke_line_cap: path.stroke().map(|stroke| match stroke.line_cap() {
             VectorStrokeLineCapV1::Butt => "butt".to_owned(),
             VectorStrokeLineCapV1::Round => "round".to_owned(),
         }),
-        fill_paint: path.fill().map(|paint| paint.color().as_str().to_owned()),
+        fill_paint: path.fill().map(paint_from),
         z: path.z(),
     }
 }
@@ -720,9 +763,7 @@ pub(crate) fn plus_from(value: &DocumentPlusRenderV1) -> PyDocumentPlusRenderV1 
             right: bounds.right(),
             bottom: bounds.bottom(),
         },
-        background: value
-            .background()
-            .map(|paint| paint.color().as_str().to_owned()),
+        background: value.background().map(paint_from),
     }
 }
 
@@ -776,22 +817,23 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(verified_telex_regular, module)?)?;
     module.add_class::<PyRenderObservationV1>()?;
     module.add_class::<PyMoleculeRenderRootV1>()?;
-    module.add_class::<PyDocumentMoleculeRenderPlanV2>()?;
-    module.add_class::<PyRenderPlanV2>()?;
+    module.add_class::<PyDocumentMoleculeRenderPlanV3>()?;
+    module.add_class::<PyRenderPlanV3>()?;
     module.add_class::<PyRenderProvenanceV1>()?;
-    module.add_class::<PyRenderBatchV2>()?;
+    module.add_class::<PyRenderBatchV3>()?;
     module.add_class::<PyRenderTargetV1>()?;
     module.add_class::<PyAtomLocalSpaceV1>()?;
     module.add_class::<PySceneSpaceV1>()?;
-    module.add_class::<PyRenderOperationV2>()?;
+    module.add_class::<PyRenderOperationV3>()?;
+    module.add_class::<PyRenderPaintV3>()?;
     module.add_class::<PyTextOpV1>()?;
     module.add_class::<PyTextRunV1>()?;
     module.add_class::<PyGlyphPlacementV1>()?;
     module.add_class::<PyLineOpV1>()?;
     module.add_class::<PyMaskOpV1>()?;
     module.add_class::<PyEllipseOpV1>()?;
-    module.add_class::<PyPathOpV2>()?;
-    module.add_class::<PyScenePathCommandV2>()?;
+    module.add_class::<PyPathOpV3>()?;
+    module.add_class::<PyScenePathCommandV3>()?;
     module.add_class::<PyRenderIssueV1>()?;
     module.add_class::<PyMoleculeMemberDepictionIssueV1>()?;
     module.add_class::<PyDocumentPlusRenderV1>()?;

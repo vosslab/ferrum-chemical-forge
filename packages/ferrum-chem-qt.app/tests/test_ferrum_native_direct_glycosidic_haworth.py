@@ -1,6 +1,7 @@
 """Visible ordinary-native behavior for direct-glycosidic Haworth insertion."""
 
 import os
+import unittest.mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -9,6 +10,10 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 import ferrum_chem
+import ferrum_qt.canvas.graphics_disposal
+import ferrum_qt.ferrum.document_display_refresh
+import ferrum_qt.themes.theme_loader
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
 
@@ -132,10 +137,12 @@ def _start_placement(window: PySide6.QtWidgets.QMainWindow,
 def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""One visible request reaches Rust's ordinary projection only after a page click."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "direct-haworth.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -162,10 +169,12 @@ def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Escape cancels the captured receipt instead of creating or redirecting a drawing."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "cancel-direct-haworth.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -177,6 +186,86 @@ def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 		)
 		assert window._direct_glycosidic_haworth_intent is None
 		assert tab.current_snapshot == before
+	finally:
+		window.close()
+		window.deleteLater()
+		qapp.processEvents()
+
+
+def test_direct_glycosidic_preview_releases_palette_before_graphics_disposal(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""The direct route ends palette ownership before it removes its real overlay."""
+	light = ferrum_qt.themes.theme_loader.get_document_display_palette("light")
+	dark = ferrum_qt.themes.theme_loader.get_document_display_palette("dark")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "direct-haworth-palette.cdml", light,
+	)
+	lifecycle: list[str] = []
+	refreshes: list[object] = []
+	preview: object | None = None
+	register = ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable
+	unregister = ferrum_qt.ferrum.document_display_refresh.unregister_attached_document_display_refreshable
+	dispose = ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator.dispose_scene_projection_items
+
+	def record_registration(tab_owner: object, item: object, refreshable: object) -> None:
+		nonlocal preview
+		preview = item
+		refresh = refreshable.refresh_document_display_palette
+
+		def record_refresh(palette: object) -> None:
+			refreshes.append(palette)
+			refresh(palette)
+
+		refreshable.refresh_document_display_palette = record_refresh
+		lifecycle.append("register")
+		register(tab_owner, item, refreshable)
+
+	def record_unregistration(item: object | None) -> None:
+		if preview is not None and item is preview:
+			lifecycle.append("unregister")
+		unregister(item)
+
+	def record_disposal(
+			coordinator: object, scene: object, items: list[object],
+			) -> object:
+		if preview is not None and tuple(items) == (preview,):
+			lifecycle.append("dispose")
+		return dispose(coordinator, scene, items)
+
+	try:
+		window._register_native_tab(tab, activate=True)
+		window.show()
+		qapp.processEvents()
+		with (
+			unittest.mock.patch.object(
+				ferrum_qt.ferrum.document_display_refresh,
+				"register_attached_document_display_refreshable",
+				side_effect=record_registration,
+			),
+			unittest.mock.patch.object(
+				ferrum_qt.ferrum.document_display_refresh,
+				"unregister_attached_document_display_refreshable",
+				side_effect=record_unregistration,
+			),
+			unittest.mock.patch.object(
+				ferrum_qt.canvas.graphics_disposal.GraphicsDisposalCoordinator,
+				"dispose_scene_projection_items",
+				autospec=True,
+				side_effect=record_disposal,
+			),
+		):
+			_start_placement(window, qapp)
+			PySide6.QtTest.QTest.mouseClick(
+				tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+				PySide6.QtCore.QPoint(600, 400),
+			)
+		assert lifecycle == ["register", "unregister", "dispose"]
+		tab.apply_theme_change(ferrum_qt.themes.theme_manager.ThemeChangeV1("dark", dark))
+		assert refreshes == []
 	finally:
 		window.close()
 		window.deleteLater()

@@ -15,6 +15,7 @@ import ferrum_qt.ferrum.bond_creation as native_bond_creation
 import ferrum_qt.ferrum.clipboard_paste_tab as native_clipboard_paste_tab
 import ferrum_qt.ferrum.clipboard_cut_tab as native_clipboard_cut_tab
 import ferrum_qt.ferrum.document_tab_construction as native_tab_construction
+import ferrum_qt.ferrum.document_display_tab as native_document_display_tab
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.ferrum.geometry_repair as native_geometry_repair
 import ferrum_qt.ferrum.graphics_view
@@ -50,10 +51,11 @@ import ferrum_qt.ferrum.document_tab_molecules as native_document_tab_molecules
 import ferrum_qt.ferrum.document_tab_selection as native_document_tab_selection
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.explicit_fragment_tab as native_explicit_fragment
-import ferrum_qt.ferrum.local_cdml_origin_tab as native_local_cdml_origin_tab
+import ferrum_qt.ferrum.local_document_origin_tab as native_local_document_origin_tab
 import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
 import ferrum_qt.ferrum.live_document_transaction as native_live_document_transaction
 import ferrum_qt.ferrum.smarts_selected_root_capture_tab as native_smarts_selected_root_capture
+import ferrum_qt.themes.document_display_palette
 
 
 #============================================
@@ -99,12 +101,13 @@ class _ImplicitAtomPick:
 
 #============================================
 class FerrumNativeDocumentTab(
+		native_document_display_tab.FerrumNativeDocumentDisplayTabMixin,
 		native_document_tab_selection.FerrumNativeDocumentSelectionMixin,
 		native_smarts_selected_root_capture.FerrumNativeSmartsSelectedRootCaptureTabMixin,
 		native_live_document_transaction.FerrumLiveDocumentTransactionMixin,
 		native_document_tab_molecules.FerrumNativeDocumentMoleculeChoicesMixin,
 		native_catalog_palette.FerrumNativeCatalogPlacementTabMixin,
-		native_local_cdml_origin_tab.FerrumNativeLocalCdmlOriginTabMixin,
+		native_local_document_origin_tab.FerrumNativeLocalDocumentOriginTabMixin,
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
 		native_attached_cyclohexane_tab.FerrumNativeAttachedCyclohexaneTabMixin,
 		native_compact_group_authoring.FerrumNativeCompactGroupAuthoringTabMixin,
@@ -152,7 +155,12 @@ class FerrumNativeDocumentTab(
 	selection_changed = PySide6.QtCore.Signal()
 
 	#============================================
-	def __init__(self, cdml: str, title: str) -> None:
+	def __init__(
+			self,
+			cdml: str,
+			title: str,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
 		"""Load complete CDML into one exact Ferrum session and paint it.
 
 		Args:
@@ -166,11 +174,13 @@ class FerrumNativeDocumentTab(
 				raise TypeError("Ferrum document tab requires CDML and title strings")
 			session = engine.DocumentSession.load(cdml)
 			resource = engine.verified_telex_regular()
-			view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(self)
+			if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
+				raise TypeError("Ferrum document tab requires a document display palette")
+			view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(palette, self)
 			controller = ferrum_qt.canvas.ferrum_render_projection.FerrumRenderProjectionController(
-				view, resource,
+				view, resource, palette,
 			)
-			self._initialize(title, session, view, controller)
+			self._initialize(title, session, view, controller, palette)
 			self._refresh_from_current_revision()
 		except Exception:
 				self._dispose_partial_resources()
@@ -178,36 +188,47 @@ class FerrumNativeDocumentTab(
 
 	#============================================
 	@classmethod
-	def from_session(cls, session: object, title: str) -> "FerrumNativeDocumentTab":
+	def from_session(
+			cls,
+			session: object,
+			title: str,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> "FerrumNativeDocumentTab":
 		"""Project one detached Rust-owned session without loading CDML in Qt."""
 		tab = native_tab_construction.create_document_tab_from_session(
-			cls, session, title,
+			cls, session, title, palette,
 		)
 		return tab
 
 	#============================================
 	@classmethod
 	def from_admitted_local_open(
-			cls, session: object, title: str, observation: object,
+			cls,
+			session: object,
+			title: str,
+			observation: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			) -> "FerrumNativeDocumentTab":
 		"""Install one worker-prepared session and matching immutable observation."""
 		tab = native_tab_construction.create_admitted_local_document_tab(
-			cls, session, title, observation, FerrumNativeDocumentTabError,
+			cls, session, title, observation, FerrumNativeDocumentTabError, palette,
 		)
 		return tab
 
 	#============================================
 	@classmethod
 	def _from_fixture(cls, title: str, session: object,
-			controller: object) -> "FerrumNativeDocumentTab":
+			controller: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> "FerrumNativeDocumentTab":
 		"""Construct a tab with test-only owned-value collaborators."""
 		if type(title) is not str:
 			raise TypeError("Ferrum document tab fixture title must be a string")
 		tab = cls.__new__(cls)
 		PySide6.QtWidgets.QWidget.__init__(tab)
 		try:
-			view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(tab)
-			tab._initialize(title, session, view, controller)
+			view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(palette, tab)
+			tab._initialize(title, session, view, controller, palette)
 			tab._refresh_from_current_revision()
 		except Exception:
 			tab._dispose_partial_resources()
@@ -215,11 +236,15 @@ class FerrumNativeDocumentTab(
 		return tab
 	#============================================
 	def _initialize(self, title: str, session: object,
-			view: PySide6.QtWidgets.QGraphicsView, controller: object) -> None:
+			view: PySide6.QtWidgets.QGraphicsView,
+			controller: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
 		"""Install one ownership graph shared by production and fixture construction."""
 		self._title = title
 		self._view = view
 		self._controller = controller
+		self._initialize_document_display_palette(palette)
 		self._initialize_live_document_transaction_v1(session)
 		self._snapshot: object | None = None
 		self._document_observation: object | None = None
@@ -228,13 +253,15 @@ class FerrumNativeDocumentTab(
 		self._pending_snapshot: object | None = None
 		self._pending_durable_selection: tuple[str, ...] | None = None
 		self._pending_focus_atom_object_id: str | None = None
-		self._selection_scene: PySide6.QtWidgets.QGraphicsScene | None = None
 		self._file_path: pathlib.Path | None = None
-		self._initialize_local_cdml_origin()
+		self._initialize_local_document_origin()
 		self._disposed = False
+		self._scene_selection_source: PySide6.QtWidgets.QGraphicsScene | None = None
+		self._scene_selection_connection: PySide6.QtCore.QMetaObject.Connection | None = None
 		layout = PySide6.QtWidgets.QVBoxLayout(self)
 		layout.setContentsMargins(0, 0, 0, 0)
 		layout.addWidget(view)
+
 	#============================================
 	@property
 	def title(self) -> str:
@@ -671,7 +698,9 @@ class FerrumNativeDocumentTab(
 			return
 		self._require_live_smarts_invalidation_v1("tab_disposed")
 		self._disposed = True
+		self._retire_scene_selection_bridge()
 		self._controller.dispose()
+		self._dispose_document_display_refreshables()
 		self._view.setScene(None)
 		self._view.deleteLater()
 		self._render_observation = None
@@ -694,15 +723,47 @@ class FerrumNativeDocumentTab(
 		latch = ferrum_qt.canvas.ferrum_render_projection.RenderProjectionLatch(
 			snapshot.revision, snapshot.digest, self._controller.generation,
 		)
+		prior_scene_selection_source = self._scene_selection_source
+		prior_scene_selection_connection = self._scene_selection_connection
+		self._retire_scene_selection_bridge()
 		installed = self._install_published_render_plan_v1(
 			self._controller.replace, render_observation, latch, observation.presentation_plan,
 		)
-		if installed:
-			self._snapshot = snapshot
-			self._document_observation = render_observation.document
-			self._render_observation = render_observation
-			self._connect_current_selection_scene()
+		if not installed:
+			if prior_scene_selection_source is not None and prior_scene_selection_connection is not None:
+				self._scene_selection_source = prior_scene_selection_source
+				self._scene_selection_connection = prior_scene_selection_source.selectionChanged.connect(
+					self._on_scene_selection_changed,
+				)
+			return False
+		self._snapshot = snapshot
+		self._document_observation = render_observation.document
+		self._render_observation = render_observation
+		current_scene = self._view.scene()
+		if current_scene is None:
+			raise FerrumNativeDocumentTabError("Ferrum tab has no installed graphics scene")
+		self._scene_selection_source = current_scene
+		self._scene_selection_connection = current_scene.selectionChanged.connect(
+			self._on_scene_selection_changed,
+		)
 		return installed
+
+	#============================================
+	@PySide6.QtCore.Slot()
+	def _on_scene_selection_changed(self) -> None:
+		"""Forward current-scene selection only while this tab remains live."""
+		if not self._disposed:
+			self.selection_changed.emit()
+
+	#============================================
+	def _retire_scene_selection_bridge(self) -> None:
+		"""Disconnect and clear the tab-owned current scene selection bridge."""
+		source = getattr(self, "_scene_selection_source", None)
+		connection = getattr(self, "_scene_selection_connection", None)
+		if source is not None and connection is not None:
+			source.selectionChanged.disconnect(connection)
+		self._scene_selection_source = None
+		self._scene_selection_connection = None
 
 	#============================================
 	def _install_mutation_result(self, result: object,
@@ -761,24 +822,8 @@ class FerrumNativeDocumentTab(
 			return
 		self._require_projection().select_durable(tuple(
 			("document_object", object_id)
-			for object_id in self._pending_durable_selection
+		for object_id in self._pending_durable_selection
 		))
-
-	#============================================
-	def _connect_current_selection_scene(self) -> None:
-		"""Forward current disposable selection changes without retaining scene authority."""
-		scene = self._view.scene()
-		if scene is None or scene is self._selection_scene:
-			return
-		scene.selectionChanged.connect(self._forward_selection_changed)
-		self._selection_scene = scene
-		self.selection_changed.emit()
-
-	#============================================
-	@PySide6.QtCore.Slot()
-	def _forward_selection_changed(self) -> None:
-		"""Forward one scene selection event through a typed Qt slot."""
-		self.selection_changed.emit()
 
 	#============================================
 	def _selected_atom_identifier(self) -> str:
@@ -924,9 +969,12 @@ class FerrumNativeDocumentTab(
 		"""Dispose partial projection resources after construction failure."""
 		if getattr(self, "_session", None) is not None:
 			self._invalidate_live_smarts_query_v1("construction_failure")
+		self._retire_scene_selection_bridge()
 		controller = getattr(self, "_controller", None)
 		if controller is not None:
 			controller.dispose()
+		if getattr(self, "_document_display_refreshables", None) is not None:
+			self._dispose_document_display_refreshables()
 		view = getattr(self, "_view", None)
 		if view is not None:
 			view.setScene(None)

@@ -36,7 +36,7 @@ pub(crate) fn document_projection_from_snapshot_v1(
     let mut presentation_roots = Vec::new();
     let mut presentation_issues = Vec::new();
     let presentation_context =
-        crate::presentation_stack_projection_v1::PresentationProjectionContextV1::new(&document);
+        crate::presentation_stack_projection_v1::PresentationProjectionContextV1::new(&document)?;
     let version = document.root().attribute("version");
     for child in document.root().typed_children() {
         match child.record().class() {
@@ -115,13 +115,7 @@ pub(crate) fn document_projection_from_snapshot_v1(
 }
 
 fn direct_root_id(record: &TypedRecord) -> Result<DocumentObjectIdV1, ProjectionError> {
-    crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?.ok_or_else(
-        || ProjectionError::InvalidValue {
-            context: record.path().to_string(),
-            field: "document object identity",
-            value: "missing persisted identity".to_owned(),
-        },
-    )
+    crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)
 }
 
 fn validate_direct_root_payloads(
@@ -135,12 +129,11 @@ fn validate_direct_root_payloads(
         .map(|root| root.document_object_id().as_str())
         .collect::<BTreeSet<_>>();
     for molecule in molecules {
-        let id = molecule.id().ok_or_else(|| ProjectionError::InvalidValue {
-            context: "molecule projection".to_owned(),
-            field: "document object identity",
-            value: "missing persisted identity".to_owned(),
-        })?;
-        require_direct_root(&direct_ids, id, "molecule payload")?;
+        require_direct_root(
+            &direct_ids,
+            molecule.document_object_id(),
+            "molecule payload",
+        )?;
     }
     for root in presentation_roots {
         require_direct_root(
@@ -159,9 +152,9 @@ fn validate_direct_root_payloads(
     for root in direct_roots {
         let id = root.document_object_id();
         let has_payload = match root.kind() {
-            DocumentDirectRootKindV1::Molecule => {
-                molecules.iter().any(|molecule| molecule.id() == Some(id))
-            }
+            DocumentDirectRootKindV1::Molecule => molecules
+                .iter()
+                .any(|molecule| molecule.document_object_id() == id),
             DocumentDirectRootKindV1::Presentation(kind) => presentation_roots.iter().any(|root| {
                 root.target().document_object_id() == id && root.target().record_kind() == kind
             }),
@@ -269,15 +262,12 @@ fn endpoint_index(
     for child in record.typed_children() {
         let target_record = child.record();
         let target = match target_record.class() {
-            TypedClass::Atom => {
-                crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+            TypedClass::Atom => Some(EndpointTarget {
+                id: crate::projection_identity_v1::projection_document_object_id_from_record_v1(
                     target_record,
-                )?
-                .map(|id| EndpointTarget {
-                    id,
-                    kind: BondEndpointKindV1::Atom,
-                })
-            }
+                )?,
+                kind: BondEndpointKindV1::Atom,
+            }),
             TypedClass::CompactGroup => {
                 let group = compact_group(child)?;
                 target_record.attribute("id").map(|_| EndpointTarget {
@@ -285,24 +275,18 @@ fn endpoint_index(
                     kind: BondEndpointKindV1::Group,
                 })
             }
-            TypedClass::MoleculeText => {
-                crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+            TypedClass::MoleculeText => Some(EndpointTarget {
+                id: crate::projection_identity_v1::projection_document_object_id_from_record_v1(
                     target_record,
-                )?
-                .map(|id| EndpointTarget {
-                    id,
-                    kind: BondEndpointKindV1::MoleculeText,
-                })
-            }
-            TypedClass::Query => {
-                crate::projection_identity_v1::projection_document_object_id_from_record_v1(
+                )?,
+                kind: BondEndpointKindV1::MoleculeText,
+            }),
+            TypedClass::Query => Some(EndpointTarget {
+                id: crate::projection_identity_v1::projection_document_object_id_from_record_v1(
                     target_record,
-                )?
-                .map(|id| EndpointTarget {
-                    id,
-                    kind: BondEndpointKindV1::Query,
-                })
-            }
+                )?,
+                kind: BondEndpointKindV1::Query,
+            }),
             _ => None,
         };
         if let (Some(source_id), Some(target)) = (target_record.attribute("id"), target) {

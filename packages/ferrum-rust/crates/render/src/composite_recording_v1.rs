@@ -10,8 +10,8 @@ use crate::draw_stream_v1::{
     lower_document_render_composite_to_sink_v1,
 };
 use crate::{
-    BatchSpace, DocumentRenderCompositeV1, Paint, PositiveFinite, RenderPoint, RenderProvenance,
-    RenderTarget, RenderViewportV1, VectorFillRuleV1, VectorStrokeLineJoinV1,
+    BatchSpace, DocumentRenderCompositeV1, PositiveFinite, RenderPaintV3, RenderPoint,
+    RenderProvenance, RenderTarget, RenderViewportV1, VectorFillRuleV1, VectorStrokeLineJoinV1,
 };
 
 /// Caller-owned structural limits for one composite recording.
@@ -89,13 +89,13 @@ pub enum CompositeLineJoinV1 {
 /// Owned explicit fill profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompositeFillV1 {
-    paint: Paint,
+    paint: RenderPaintV3,
     rule: CompositeFillRuleV1,
 }
 
 impl CompositeFillV1 {
     #[must_use]
-    pub const fn paint(&self) -> &Paint {
+    pub const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     #[must_use]
@@ -107,7 +107,7 @@ impl CompositeFillV1 {
 /// Owned explicit stroke profile.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompositeStrokeV1 {
-    paint: Paint,
+    paint: RenderPaintV3,
     width: PositiveFinite,
     cap: CompositeLineCapV1,
     join: CompositeLineJoinV1,
@@ -116,7 +116,7 @@ pub struct CompositeStrokeV1 {
 
 impl CompositeStrokeV1 {
     #[must_use]
-    pub const fn paint(&self) -> &Paint {
+    pub const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     #[must_use]
@@ -184,7 +184,7 @@ pub enum CompositePaintKindV1 {
     DirectGlycosidicW1,
 }
 
-/// One owned lexical event. Paint primitives carry monotonic `paint_index`.
+/// One owned lexical event. RenderPaintV3 primitives carry monotonic `paint_index`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompositeRecordingEventV1 {
     PageBegin {
@@ -207,7 +207,7 @@ pub enum CompositeRecordingEventV1 {
     DocumentTextEnd,
     TextOperationBegin {
         z: i32,
-        paint: Paint,
+        paint: RenderPaintV3,
     },
     TextOperationEnd,
     Save,
@@ -219,7 +219,7 @@ pub enum CompositeRecordingEventV1 {
         origin: RenderPoint,
         width: PositiveFinite,
         height: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
         kind: CompositePaintKindV1,
         paint_index: u64,
     },
@@ -694,7 +694,7 @@ impl DrawSinkV1 for RecordingSink {
         self.document_text_open = false;
         self.push(CompositeRecordingEventV1::DocumentTextEnd)
     }
-    fn begin_text_operation(&mut self, z: i32, paint: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, z: i32, paint: &RenderPaintV3) -> Result<(), Self::Error> {
         if !self.root_open
             || (!self.document_text_open && !self.target_open)
             || self.text_operation_open
@@ -742,7 +742,7 @@ impl DrawSinkV1 for RecordingSink {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        paint: &Paint,
+        paint: &RenderPaintV3,
         metadata: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         self.require_paint_scope()?;

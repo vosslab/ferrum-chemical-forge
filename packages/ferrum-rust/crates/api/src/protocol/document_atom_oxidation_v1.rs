@@ -33,7 +33,7 @@ pub(super) fn execute_document_atom_oxidation_observe(
         .projection()
         .molecules()
         .iter()
-        .position(|molecule| molecule.id() == Some(&molecule_id))
+        .position(|molecule| molecule.document_object_id() == &molecule_id)
         .and_then(|position| u32::try_from(position).ok());
     let session_request = DocumentAtomOxidationObservationRequestV1::new(
         snapshot.observation().snapshot().revision(),

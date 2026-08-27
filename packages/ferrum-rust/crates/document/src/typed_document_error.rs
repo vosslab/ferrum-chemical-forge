@@ -1,6 +1,6 @@
 //! Concrete failures while projecting or mutating one retained typed document.
 
-use ferrum_document_projection::{DocumentLocationV1, DocumentObjectIdV1};
+use ferrum_document_projection::{DocumentLocationV1, DocumentObjectIdV1, ProjectionError};
 use thiserror::Error;
 
 use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
@@ -8,6 +8,9 @@ use super::{AtomMarkKindV1, IndexedDocumentError, PersistentId};
 /// Parse or typed-projection failure.
 #[derive(Debug, Error)]
 pub enum TypedDocumentError {
+    /// Typed projection rejected malformed persisted document facts.
+    #[error(transparent)]
+    Projection(#[from] ProjectionError),
     /// An addressable typed record did not carry its required source identifier.
     #[error("addressable typed record has no source identifier at {location:?}")]
     MissingStructuralSourceId { location: DocumentLocationV1 },

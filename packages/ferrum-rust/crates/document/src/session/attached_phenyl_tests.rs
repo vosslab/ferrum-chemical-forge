@@ -26,16 +26,29 @@ fn anchor(session: &DocumentSession) -> DocumentObjectIdV1 {
         .iter()
         .find(|atom| atom.source_id() == Some("a"))
         .expect("source anchor")
-        .id()
-        .expect("durable anchor")
+        .document_object_id()
         .clone()
+}
+
+fn target(session: &DocumentSession) -> AttachedCompactGroupTargetV1 {
+    let molecule_id = session
+        .document_observation()
+        .expect("observation")
+        .projection()
+        .molecules()
+        .iter()
+        .find(|molecule| molecule.source_id() == Some("m"))
+        .expect("source molecule")
+        .document_object_id()
+        .clone();
+    AttachedCompactGroupTargetV1::new(molecule_id, anchor(session))
 }
 
 fn attach_phenyl(session: &mut DocumentSession) -> AttachedCompactGroupCommitResultV1 {
     let mut pending = session
         .prepare_attach_compact_group_v1(
             fence(session),
-            anchor(session),
+            target(session),
             AttachCompactGroupV1::new(
                 CompactGroupCatalogKeyV1::Phenyl,
                 AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
@@ -69,7 +82,7 @@ fn assert_materialized_phenyl(
     let exterior = molecule
         .bonds()
         .iter()
-        .find(|bond| bond.id() == Some(exterior_bond_id))
+        .find(|bond| bond.document_object_id() == exterior_bond_id)
         .expect("retained exterior bond");
     assert_eq!(exterior.start().source_id(), Some("a"));
     assert_eq!(exterior.end().object_id(), Some(focus_atom_id));
@@ -89,7 +102,7 @@ fn attached_phenyl_materialization_uses_the_generic_history_safe_cycle_recipe() 
     let mut cancelled = session
         .prepare_attach_compact_group_v1(
             fence(&session),
-            anchor(&session),
+            target(&session),
             AttachCompactGroupV1::new(
                 CompactGroupCatalogKeyV1::Phenyl,
                 AttachedCompactGroupReleaseV1::new(20.0, 0.0).expect("release"),
@@ -118,13 +131,12 @@ fn attached_phenyl_materialization_uses_the_generic_history_safe_cycle_recipe() 
                 && bond.end().object_id() == Some(attached.compact_group_object_id())
         })
         .expect("directed anchor-to-group exterior bond")
-        .id()
-        .expect("exterior bond ID")
+        .document_object_id()
         .clone();
     let request = DocumentCompactGroupMaterializationRequestV1::new(
         attached_snapshot.revision(),
         *attached_snapshot.digest(),
-        molecule.id().expect("molecule ID").clone(),
+        molecule.document_object_id().clone(),
         attached.compact_group_object_id().clone(),
     );
     let mut pending = session
@@ -155,7 +167,7 @@ fn attached_phenyl_materialization_uses_the_generic_history_safe_cycle_recipe() 
             molecule
                 .atoms()
                 .iter()
-                .find(|atom| atom.id() == Some(outcome.focus_atom_id()))
+                .find(|atom| atom.document_object_id() == outcome.focus_atom_id())
         })
         .expect("committed result resolves the returned Phenyl carbon focus");
     assert_eq!(
@@ -235,7 +247,7 @@ fn materialize_authored_phenyl_cross_boundary_v1(anchor_is_start: bool) -> Cross
         .iter()
         .find(|molecule| molecule.source_id() == Some("m"))
         .expect("authored molecule");
-    let molecule_id = molecule.id().expect("authored molecule ID").clone();
+    let molecule_id = molecule.document_object_id().clone();
     let group_id = molecule
         .compact_groups()
         .iter()
@@ -248,8 +260,7 @@ fn materialize_authored_phenyl_cross_boundary_v1(anchor_is_start: bool) -> Cross
         .iter()
         .find(|bond| bond.source_id() == Some("outside"))
         .expect("authored exterior bond")
-        .id()
-        .expect("authored exterior bond ID")
+        .document_object_id()
         .clone();
     let snapshot = observation.snapshot();
     let request = DocumentCompactGroupMaterializationRequestV1::new(
@@ -291,12 +302,12 @@ fn assert_cross_boundary_exterior_v1(case: &CrossBoundaryPhenylV1) {
         .projection()
         .molecules()
         .iter()
-        .find(|molecule| molecule.id() == Some(&case.molecule_id))
+        .find(|molecule| molecule.document_object_id() == &case.molecule_id)
         .expect("materialized molecule remains addressed");
     let exterior = molecule
         .bonds()
         .iter()
-        .find(|bond| bond.id() == Some(&case.exterior_bond_id))
+        .find(|bond| bond.document_object_id() == &case.exterior_bond_id)
         .expect("materialized exterior bond retains its durable ID");
     assert_eq!(
         (exterior.order(), exterior.style()),
@@ -358,10 +369,10 @@ fn bond_from_role_v1(
                 && bond.style() == Some(&ferrum_core::BondStyle::Normal)
                 && (bond.start().object_id() == Some(role) || bond.end().object_id() == Some(role))
         })
-        .filter(|bond| !excluded.iter().any(|id| bond.id() == Some(id)))
+        .filter(|bond| !excluded.iter().any(|id| bond.document_object_id() == id))
         .expect("named Phenyl role has its required normal-order edge");
     (
-        bond.id().expect("named ring bond has a durable ID").clone(),
+        bond.document_object_id().clone(),
         other_endpoint_id_v1(bond, role),
     )
 }
@@ -376,7 +387,7 @@ fn assert_document_edge_v1(
     let bond = molecule
         .bonds()
         .iter()
-        .find(|bond| bond.id() == Some(bond_id))
+        .find(|bond| bond.document_object_id() == bond_id)
         .expect("named Phenyl edge remains durable");
     assert_eq!(bond.order(), Some(order));
     assert_eq!(bond.style(), Some(&ferrum_core::BondStyle::Normal));
@@ -503,7 +514,7 @@ fn assert_distinct_neutral_carbons_v1(
         let atom = molecule
             .atoms()
             .iter()
-            .find(|atom| atom.id() == Some(role))
+            .find(|atom| atom.document_object_id() == role)
             .expect("named ring role resolves to atom");
         assert_eq!((atom.element(), atom.formal_charge()), (Some("C"), None));
     }
@@ -649,7 +660,7 @@ fn attached_phenyl_normal_kekule_lowers_to_a_neutral_six_carbon_native_cycle_at_
             .projection()
             .molecules()
             .iter()
-            .find(|molecule| molecule.id() == Some(&case.molecule_id))
+            .find(|molecule| molecule.document_object_id() == &case.molecule_id)
             .expect("materialized molecule remains addressed");
         let roles = phenyl_ring_roles_v1(
             materialized_molecule,
@@ -672,7 +683,7 @@ fn attached_phenyl_normal_kekule_lowers_to_a_neutral_six_carbon_native_cycle_at_
             let source_id = materialized_molecule
                 .atoms()
                 .iter()
-                .find(|atom| atom.id() == Some(role))
+                .find(|atom| atom.document_object_id() == role)
                 .and_then(|atom| atom.source_id())
                 .expect("named materialized role retains source ID");
             molecule
@@ -765,7 +776,7 @@ fn materialized_phenyl_emits_normal_alternating_ring_draw_ops_for_both_exterior_
             .projection()
             .molecules()
             .iter()
-            .find(|molecule| molecule.id() == Some(&case.molecule_id))
+            .find(|molecule| molecule.document_object_id() == &case.molecule_id)
             .expect("materialized molecule remains addressed");
         let roles = phenyl_ring_roles_v1(
             materialized_molecule,

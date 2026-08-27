@@ -12,6 +12,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.line_tool_completion
 
@@ -104,7 +105,9 @@ def _open_window(qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 	"""Open a test CDML file through the product's public File/Open operation."""
 	path = tmp_path / "direct_bond.cdml"
 	path.write_text(cdml, encoding="utf-8")
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	window.show()
 	qapp.processEvents()
 	if not _wait_for_open_queue(window, lambda: window.open_file_path(str(path))):
@@ -213,7 +216,9 @@ def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 	finally:
 		_close_window(qapp, window)
 
-	blank = ferrum_qt.main_window.MainWindow(object())
+	blank = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	blank.show()
 	qapp.processEvents()
 	try:

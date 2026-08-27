@@ -21,6 +21,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.canvas.ferrum_render_target
 
 
@@ -86,7 +87,9 @@ def main() -> int:
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
 		app = PySide6.QtWidgets.QApplication([])
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(app),
+	)
 	try:
 		# This is a test-only file-dialog boundary. The Open and Save As commands
 		# themselves are activated by their product keyboard shortcuts below.
@@ -166,6 +169,7 @@ def main() -> int:
 			raise KeyboardWorkflowError("Save As shortcut did not publish the destination")
 		reopened = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 			args.output.read_text(encoding="utf-8"), args.output.name,
+			window._require_document_display_palette(),
 		)
 		try:
 			reopened_projection = reopened.current_document_observation().projection

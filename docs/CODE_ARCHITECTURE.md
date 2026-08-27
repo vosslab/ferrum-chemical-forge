@@ -67,7 +67,9 @@ losslessly. Qt File > Open immediately admits valid CML/CML2 into a clean native
 CDML tab. It does not export CML or adopt CML as an in-memory document format.
 
 Selected-molecule read-only work has two distinct contracts. The existing
-`document.molecule.report.v1` produces its multi-root report receipt. M4
+`document.molecule.report.v1` produces its multi-root report receipt through
+the generic protocol runner or the thin named positional document-command
+adapter. M4
 `document.molecule.diagnostics.v1` is narrower: `ferrum-domain` owns the
 closed source-representation finding classification, `ferrum-document` resolves
 the fenced selected direct roots, and `ferrum-api` owns deterministic bounded
@@ -199,6 +201,13 @@ Qt creates the disposable graphics-scene projection and manages graphics disposa
 `packages/ferrum-chem-qt.app/ferrum_qt/canvas/graphics_disposal.py`.
 Qt is therefore a presentation client, not a second CDML document model.
 
+Every persisted atom, bond, and molecule projection carries a required
+`DocumentObjectIdV1`. `ferrum-document` builds the authoritative
+`document_object_index` from those durable identities; consumers use it to
+resolve a current document target, treating an unknown ID as absent and invalid
+persisted identity metadata as a typed projection failure. Preview-local
+projection keys remain transient and cannot substitute for a persisted ID.
+
 The Qt authoring window has one per-window active-tool owner:
 `ferrum.window_mode_sync.FerrumWindowModeSync`. Each feature registers its exact
 registry-owned checkable `QAction`, feature-local normalized mode controller,
@@ -208,6 +217,12 @@ typed active-tool publication; menu and YAML ribbon clients remain passive
 clients of that exact action. Packaged menu and ribbon YAML load through the neutral
 `declarative_resource_loader` leaf and resolve together through the acyclic
 window-resource preflight before either visible surface is assembled.
+
+Selection-sensitive context menus use the same declarative action system.
+`edit.delete_selection` is one registered QAction shared by Delete, Backspace,
+and YAML context placement. The context client reuses that live action and owns
+only context invocation, keyboard entry, and focus recovery; it does not own
+chemistry, hit testing, selection mutation, or document mutation.
 
 The renderer-admission target is renderer-mints/document-redeems: `ferrum-render`
 mints an opaque proof for a candidate bound to a `ferrum-document` issuer and
@@ -336,6 +351,20 @@ prepared candidates opaque. Qt renders the Rust-projected choices and owns only
 the accessible chooser plus the one-release canvas capture; it does not derive
 recipes or availability.
 
+The public stateless route is `document.compact-group.attach.v1`, available
+through `ferrum protocol run` and the named document command. Its request carries
+fenced CDML, a document-owned molecule/anchor pair, a closed catalog key, and
+finite release coordinates. The protocol executor creates a short-lived
+`DocumentSession`, prepares and commits immediately, then returns a versioned
+receipt with committed CDML and a reusable next fence. Rust retains pair-local
+target authority, recipe and capacity admission, chemistry, geometry, renderer
+admission, durable IDs, and history. The API and CLI only load requests and
+present protocol envelopes; they do not recompute those facts.
+
+The successful receipt echoes source and target/catalog facts and includes the
+allocated compact-group ID. It deliberately excludes the release intent, pose,
+overlay values, and any pending/session capability.
+
 `CompactGroupRecipeAtomV1` carries an optional formal charge. The canonical
 nitro materialization recipe is `R-[N+](=O)[O-]`, and Rust preserves those atom
 charges through history and reopen. Rust tests establish the individual `+1`
@@ -348,8 +377,7 @@ asserts only the net formal charge.
   work tracked in
   [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
 - Extend local-runtime validation as native adapter contracts evolve.
-- Keep free placement limited to `Me` until its expanded contract is designed,
-  and deliver the planned generic attached compact-group CLI/protocol route.
+- Keep free placement limited to `Me` until its expanded contract is designed.
 ## Free compact-group placement
 
 `PlaceFreeCompactGroupV1` is the Rust-owned direct-root compact-group

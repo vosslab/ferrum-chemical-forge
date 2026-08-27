@@ -34,12 +34,12 @@ Save As, reopening, and complete-document artifact export. A successful protocol
 returns structurally preserved CDML, not byte-for-byte output. Use Save As when you want to
 inspect the resulting structural re-emission separately from the supplied source.
 
-File Open also accepts a closed CML/CML2 simple-molecule input through Rust. CML conversion
-always creates a clean new document and never replaces the current tab; its first Save writes
-CDML. File Open accepts a decoded local `.svg` only when it contains one canonical embedded
-CDML payload; the SVG wrapper is discarded. Ferrum refuses `.cdxml`, `.cdsvg`, `.svgz`, and
-compressed CDML names without changing the active document. Use the source application or a
-converter to produce an uncompressed supported `.cdml` drawing.
+File Open accepts closed CML/CML2 and bounded CDXML simple-molecule input through Rust. Each
+creates a clean new document and never replaces the current tab; its first Save writes CDML.
+File Open accepts a decoded local `.svg` only when it contains one canonical embedded CDML
+payload; the SVG wrapper is discarded. CDX, CDXML chemistry or presentation outside the bounded
+profile, namespaces, `.cdsvg`, `.svgz`, and compressed input leave the active document unchanged.
+See [FILE_FORMATS.md](FILE_FORMATS.md) for the exact format boundary.
 
 Use `File -> Recovery Export CDML...` only for a recovery copy of the current CDML. It does
 not replace Save or Save As and does not convert formats. Use `File -> Export...` to publish

@@ -1,11 +1,16 @@
-//! M2a's closed CML/CML2 interchange registry and transport foundations.
+//! Closed Rust-owned interchange registry and transport foundations.
 //!
 //! This module intentionally has no XML parser, document transaction, CLI
 //! command, PyO3 receipt, or Qt dependency.  It freezes the values those later
-//! layers must join rather than allowing each adapter to maintain its own CML
-//! table.
+//! layers must join rather than allowing each adapter to maintain its own
+//! format table.
 
-use ferrum_chemistry::{CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1, SDF_MAX_INPUT_BYTES};
+use ferrum_chemistry::{
+    CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_ID_V1 as CHEMISTRY_CDXML_FORMAT_ID_V1,
+    CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1,
+    CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1 as CHEMISTRY_CDXML_PROFILE_ID_V1,
+    CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1, SDF_MAX_INPUT_BYTES,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,10 +18,15 @@ use serde::{Deserialize, Serialize};
 pub const CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1: &str = CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1;
 /// Exact API format identifier selected by the static format descriptor.
 pub const CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1: &str = "cml_simple_molecule_import_v1";
+/// Exact API format identifier selected by the Rust-owned CDXML descriptor.
+pub const CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1: &str = CHEMISTRY_CDXML_FORMAT_ID_V1;
+/// Exact CDXML profile selected by the static format descriptor.
+pub const CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1: &str = CHEMISTRY_CDXML_PROFILE_ID_V1;
 /// Exact API format identifier selected by the SDF V1 descriptor.
 pub const SDF_IMPORT_FORMAT_V1: &str = "sdf_v1";
 /// Exact SDF profile selected by the static format descriptor.
 pub const SDF_IMPORT_PROFILE_V1: &str = "sdf_v1";
+/// API-owned source cap for the CML simple-molecule import profile.
 const CML_IMPORT_MAX_SOURCE_BYTES_V1: usize = 1_048_576;
 const INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1: usize = 1_048_576;
 
@@ -33,6 +43,7 @@ pub enum LocalDocumentIngressDecoderV1 {
     Cdml,
     DecodedCdsvg,
     CmlSimpleMolecule,
+    CdxmlSimpleMolecule,
 }
 
 /// Stable route identity issued to desktop adapters for an accepted source.
@@ -41,6 +52,7 @@ pub enum LocalDocumentIngressRouteV1 {
     Cdml,
     DecodedCdsvg,
     CmlSimpleMolecule,
+    CdxmlSimpleMolecule,
 }
 
 impl LocalDocumentIngressRouteV1 {
@@ -50,6 +62,7 @@ impl LocalDocumentIngressRouteV1 {
             Self::Cdml => "cdml",
             Self::DecodedCdsvg => "decoded_cdsvg",
             Self::CmlSimpleMolecule => "cml",
+            Self::CdxmlSimpleMolecule => "cdxml",
         }
     }
 }
@@ -113,11 +126,12 @@ impl LocalDocumentIngressRefusalV1 {
 const LOCAL_CDML_SUFFIXES_V1: [&str; 1] = [".cdml"];
 const LOCAL_CDSVG_SUFFIXES_V1: [&str; 1] = [".svg"];
 const LOCAL_CML_SUFFIXES_V1: [&str; 1] = [".cml"];
+const LOCAL_CDXML_SUFFIXES_V1: [&str; 1] = [".cdxml"];
 const LOCAL_REFUSAL_V1: LocalDocumentIngressRefusalV1 = LocalDocumentIngressRefusalV1 {
     category: "unsupported_local_document",
     recovery: "choose_supported_format",
 };
-const LOCAL_DOCUMENT_INGRESS_DESCRIPTORS_V1: [LocalDocumentIngressDescriptorV1; 3] = [
+const LOCAL_DOCUMENT_INGRESS_DESCRIPTORS_V1: [LocalDocumentIngressDescriptorV1; 4] = [
     LocalDocumentIngressDescriptorV1 {
         display_name: "Ferrum CDML",
         suffixes: &LOCAL_CDML_SUFFIXES_V1,
@@ -142,6 +156,14 @@ const LOCAL_DOCUMENT_INGRESS_DESCRIPTORS_V1: [LocalDocumentIngressDescriptorV1; 
         route: LocalDocumentIngressRouteV1::CmlSimpleMolecule,
         profile_id: CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
     },
+    LocalDocumentIngressDescriptorV1 {
+        display_name: "ChemDraw XML (CDXML)",
+        suffixes: &LOCAL_CDXML_SUFFIXES_V1,
+        direction: LocalDocumentIngressDirectionV1::NewDocumentOnly,
+        decoder: LocalDocumentIngressDecoderV1::CdxmlSimpleMolecule,
+        route: LocalDocumentIngressRouteV1::CdxmlSimpleMolecule,
+        profile_id: CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
+    },
 ];
 
 /// The sole API-owned product contract for local document ingress.
@@ -163,19 +185,22 @@ impl LocalDocumentIngressRegistryV1 {
     #[must_use]
     pub fn refusal_for_suffix(suffix: &str) -> Option<LocalDocumentIngressRefusalV1> {
         match suffix {
-            ".cdxml" | ".cdsvg" | ".svgz" | ".gz" | ".bz2" | ".xz" | ".zip" | ".zst" => {
-                Some(LOCAL_REFUSAL_V1)
-            }
+            ".cdsvg" | ".svgz" | ".gz" | ".bz2" | ".xz" | ".zip" | ".zst" => Some(LOCAL_REFUSAL_V1),
             _ => None,
         }
     }
 
     pub fn validate_exact_join() -> Result<(), InterchangeImportRefusalV1> {
         let cml = Self::lookup_suffix(".cml");
+        let cdxml = Self::lookup_suffix(".cdxml");
         if cml.is_some_and(|descriptor| {
             descriptor.decoder() == LocalDocumentIngressDecoderV1::CmlSimpleMolecule
                 && descriptor.direction() == LocalDocumentIngressDirectionV1::NewDocumentOnly
                 && descriptor.profile_id() == CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1
+        }) && cdxml.is_some_and(|descriptor| {
+            descriptor.decoder() == LocalDocumentIngressDecoderV1::CdxmlSimpleMolecule
+                && descriptor.direction() == LocalDocumentIngressDirectionV1::NewDocumentOnly
+                && descriptor.profile_id() == CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1
         }) {
             Ok(())
         } else {
@@ -186,11 +211,54 @@ impl LocalDocumentIngressRegistryV1 {
     }
 }
 
-/// Closed import direction advertised by a Ferrum interchange descriptor.
+/// Closed operations advertised by a Ferrum interchange descriptor.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum InterchangeDirectionV1 {
+pub enum InterchangeOperationV1 {
+    ChemistryConvert,
     DocumentImportNew,
+}
+
+/// Typed refusal issued when a known input does not admit one requested operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InterchangeOperationRefusalV1 {
+    requested_operation: InterchangeOperationV1,
+    supported_operations: &'static [InterchangeOperationV1],
+}
+
+impl InterchangeOperationRefusalV1 {
+    #[must_use]
+    pub const fn new(
+        requested_operation: InterchangeOperationV1,
+        supported_operations: &'static [InterchangeOperationV1],
+    ) -> Self {
+        Self {
+            requested_operation,
+            supported_operations,
+        }
+    }
+
+    #[must_use]
+    pub const fn requested_operation(self) -> InterchangeOperationV1 {
+        self.requested_operation
+    }
+
+    #[must_use]
+    pub const fn supported_operations(self) -> &'static [InterchangeOperationV1] {
+        self.supported_operations
+    }
+
+    #[must_use]
+    pub const fn recovery_message(self) -> &'static str {
+        match self.requested_operation {
+            InterchangeOperationV1::ChemistryConvert => {
+                "this source creates a new document; use ferrum open"
+            }
+            InterchangeOperationV1::DocumentImportNew => {
+                "this source is not available for opening a new document"
+            }
+        }
+    }
 }
 
 /// Closed compression policy.  interchange import never implicitly decompresses input.
@@ -215,6 +283,7 @@ pub enum InterchangeSemanticLossPolicyV1 {
 #[serde(rename_all = "snake_case")]
 pub enum InterchangeDecoderKeyV1 {
     CmlSimpleMolecule,
+    CdxmlSimpleMolecule,
     Sdf,
 }
 
@@ -327,7 +396,7 @@ impl InterchangeImportLimitsV1 {
     }
 }
 
-/// One static, import-only descriptor consumed by future CLI and Qt surfaces.
+/// One static descriptor consumed by CLI and Qt surfaces.
 #[derive(Debug, JsonSchema, Serialize)]
 pub struct InterchangeFormatDescriptorV1 {
     canonical_name: &'static str,
@@ -336,7 +405,7 @@ pub struct InterchangeFormatDescriptorV1 {
     profile_id: &'static str,
     input_aliases: &'static [&'static str],
     input_suffixes: &'static [&'static str],
-    directions: &'static [InterchangeDirectionV1],
+    operations: &'static [InterchangeOperationV1],
     output_suffixes: &'static [&'static str],
     compression: InterchangeCompressionPolicyV1,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1,
@@ -345,7 +414,7 @@ pub struct InterchangeFormatDescriptorV1 {
     #[schemars(skip)]
     graph_inspection_profile: Option<crate::InterchangeGraphInspectionProfileV1>,
     limits: InterchangeImportLimitsV1,
-    conversion_profile: ConversionInputProfileV1,
+    conversion_profile: Option<ConversionInputProfileV1>,
 }
 
 impl InterchangeFormatDescriptorV1 {
@@ -375,8 +444,12 @@ impl InterchangeFormatDescriptorV1 {
         self.input_suffixes
     }
     #[must_use]
-    pub const fn directions(&self) -> &'static [InterchangeDirectionV1] {
-        self.directions
+    pub const fn operations(&self) -> &'static [InterchangeOperationV1] {
+        self.operations
+    }
+    #[must_use]
+    pub fn supports_operation(&self, operation: InterchangeOperationV1) -> bool {
+        self.operations.contains(&operation)
     }
     #[must_use]
     pub const fn output_suffixes(&self) -> &'static [&'static str] {
@@ -406,15 +479,22 @@ impl InterchangeFormatDescriptorV1 {
         self.limits
     }
     #[must_use]
-    pub const fn conversion_profile(&self) -> ConversionInputProfileV1 {
+    pub const fn conversion_profile(&self) -> Option<ConversionInputProfileV1> {
         self.conversion_profile
     }
 }
 
 const CML_EXPECTED_INPUT_ALIASES_V1: [&str; 3] = ["cml", "cml1", "cml2"];
 const CML_EXPECTED_INPUT_SUFFIXES_V1: [&str; 1] = [".cml"];
-const CML_EXPECTED_OUTPUT_SUFFIXES_V1: [&str; 0] = [];
-const CML_DIRECTIONS_V1: [InterchangeDirectionV1; 1] = [InterchangeDirectionV1::DocumentImportNew];
+const CDXML_EXPECTED_INPUT_ALIASES_V1: [&str; 1] = ["cdxml"];
+const CDXML_EXPECTED_INPUT_SUFFIXES_V1: [&str; 1] = [".cdxml"];
+const NO_OUTPUT_SUFFIXES_V1: [&str; 0] = [];
+const DOCUMENT_IMPORT_NEW_OPERATIONS_V1: [InterchangeOperationV1; 1] =
+    [InterchangeOperationV1::DocumentImportNew];
+const DOCUMENT_IMPORT_AND_CHEMISTRY_CONVERT_OPERATIONS_V1: [InterchangeOperationV1; 2] = [
+    InterchangeOperationV1::DocumentImportNew,
+    InterchangeOperationV1::ChemistryConvert,
+];
 const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
     canonical_name: "cml",
     display_name: "Chemical Markup Language (CML/CML2)",
@@ -422,8 +502,8 @@ const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
     profile_id: CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
     input_aliases: &CML_EXPECTED_INPUT_ALIASES_V1,
     input_suffixes: &CML_EXPECTED_INPUT_SUFFIXES_V1,
-    directions: &CML_DIRECTIONS_V1,
-    output_suffixes: &CML_EXPECTED_OUTPUT_SUFFIXES_V1,
+    operations: &DOCUMENT_IMPORT_AND_CHEMISTRY_CONVERT_OPERATIONS_V1,
+    output_suffixes: &NO_OUTPUT_SUFFIXES_V1,
     compression: InterchangeCompressionPolicyV1::Forbidden,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
     decoder: InterchangeDecoderKeyV1::CmlSimpleMolecule,
@@ -432,10 +512,29 @@ const CML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
         CML_IMPORT_MAX_SOURCE_BYTES_V1,
         INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
     ),
-    conversion_profile: ConversionInputProfileV1::new(
+    conversion_profile: Some(ConversionInputProfileV1::new(
         CML_IMPORT_MAX_SOURCE_BYTES_V1,
         InterchangeRuntimeRequirementV1::RuntimeFree,
+    )),
+};
+const CDXML_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescriptorV1 {
+    canonical_name: "cdxml",
+    display_name: "ChemDraw XML (CDXML)",
+    format_id: CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1,
+    profile_id: CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
+    input_aliases: &CDXML_EXPECTED_INPUT_ALIASES_V1,
+    input_suffixes: &CDXML_EXPECTED_INPUT_SUFFIXES_V1,
+    operations: &DOCUMENT_IMPORT_NEW_OPERATIONS_V1,
+    output_suffixes: &NO_OUTPUT_SUFFIXES_V1,
+    compression: InterchangeCompressionPolicyV1::Forbidden,
+    semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
+    decoder: InterchangeDecoderKeyV1::CdxmlSimpleMolecule,
+    graph_inspection_profile: None,
+    limits: InterchangeImportLimitsV1::new(
+        CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1,
+        INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
     ),
+    conversion_profile: None,
 };
 const SDF_EXPECTED_INPUT_ALIASES_V1: [&str; 2] = ["sdf", "sd"];
 const SDF_EXPECTED_INPUT_SUFFIXES_V1: [&str; 2] = [".sdf", ".sd"];
@@ -446,8 +545,8 @@ const SDF_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
     profile_id: SDF_IMPORT_PROFILE_V1,
     input_aliases: &SDF_EXPECTED_INPUT_ALIASES_V1,
     input_suffixes: &SDF_EXPECTED_INPUT_SUFFIXES_V1,
-    directions: &CML_DIRECTIONS_V1,
-    output_suffixes: &CML_EXPECTED_OUTPUT_SUFFIXES_V1,
+    operations: &DOCUMENT_IMPORT_AND_CHEMISTRY_CONVERT_OPERATIONS_V1,
+    output_suffixes: &NO_OUTPUT_SUFFIXES_V1,
     compression: InterchangeCompressionPolicyV1::Forbidden,
     semantic_loss_policy: InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics,
     decoder: InterchangeDecoderKeyV1::Sdf,
@@ -456,20 +555,20 @@ const SDF_DESCRIPTOR_V1: InterchangeFormatDescriptorV1 = InterchangeFormatDescri
         SDF_MAX_INPUT_BYTES,
         INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1,
     ),
-    conversion_profile: ConversionInputProfileV1::new(
+    conversion_profile: Some(ConversionInputProfileV1::new(
         SDF_MAX_INPUT_BYTES,
         InterchangeRuntimeRequirementV1::RuntimeRequired,
-    ),
+    )),
 };
 
-/// The sole static API-owned interchange registry for M2a.
+/// The sole static API-owned interchange registry.
 pub struct InterchangeFormatRegistryV1;
 
 impl InterchangeFormatRegistryV1 {
     /// Return every enabled descriptor in deterministic API order.
     #[must_use]
     pub const fn descriptors() -> &'static [InterchangeFormatDescriptorV1] {
-        &[CML_DESCRIPTOR_V1, SDF_DESCRIPTOR_V1]
+        &[CML_DESCRIPTOR_V1, CDXML_DESCRIPTOR_V1, SDF_DESCRIPTOR_V1]
     }
 
     /// Resolve one exact lower-case input alias without guessing or suffix fallback.
@@ -502,46 +601,68 @@ impl InterchangeFormatRegistryV1 {
 
     /// Prove the API descriptor exactly joins the chemistry profile and document targets.
     pub fn validate_exact_join() -> Result<(), InterchangeImportRefusalV1> {
-        let directions = [InterchangeDirectionV1::DocumentImportNew];
+        let document_import_and_chemistry_convert = [
+            InterchangeOperationV1::DocumentImportNew,
+            InterchangeOperationV1::ChemistryConvert,
+        ];
+        let document_import_only = [InterchangeOperationV1::DocumentImportNew];
         if CML_DESCRIPTOR_V1.display_name == "Chemical Markup Language (CML/CML2)"
             && CML_DESCRIPTOR_V1.format_id == CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1
             && CML_DESCRIPTOR_V1.profile_id == CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1
             && CML_DESCRIPTOR_V1.input_aliases == CML_EXPECTED_INPUT_ALIASES_V1
             && CML_DESCRIPTOR_V1.input_suffixes == CML_EXPECTED_INPUT_SUFFIXES_V1
-            && CML_DESCRIPTOR_V1.directions == directions
-            && CML_DESCRIPTOR_V1.output_suffixes == CML_EXPECTED_OUTPUT_SUFFIXES_V1
+            && CML_DESCRIPTOR_V1.operations == document_import_and_chemistry_convert
+            && CML_DESCRIPTOR_V1.output_suffixes == NO_OUTPUT_SUFFIXES_V1
+            && CDXML_DESCRIPTOR_V1.display_name == "ChemDraw XML (CDXML)"
+            && CDXML_DESCRIPTOR_V1.format_id == CHEMISTRY_CDXML_FORMAT_ID_V1
+            && CDXML_DESCRIPTOR_V1.profile_id == CHEMISTRY_CDXML_PROFILE_ID_V1
+            && CDXML_DESCRIPTOR_V1.input_aliases == CDXML_EXPECTED_INPUT_ALIASES_V1
+            && CDXML_DESCRIPTOR_V1.input_suffixes == CDXML_EXPECTED_INPUT_SUFFIXES_V1
+            && CDXML_DESCRIPTOR_V1.operations == document_import_only
+            && CDXML_DESCRIPTOR_V1.output_suffixes == NO_OUTPUT_SUFFIXES_V1
             && SDF_DESCRIPTOR_V1.format_id == SDF_IMPORT_FORMAT_V1
             && SDF_DESCRIPTOR_V1.profile_id == SDF_IMPORT_PROFILE_V1
             && SDF_DESCRIPTOR_V1.input_aliases == SDF_EXPECTED_INPUT_ALIASES_V1
             && SDF_DESCRIPTOR_V1.input_suffixes == SDF_EXPECTED_INPUT_SUFFIXES_V1
-            && SDF_DESCRIPTOR_V1.directions == directions
-            && SDF_DESCRIPTOR_V1.output_suffixes == CML_EXPECTED_OUTPUT_SUFFIXES_V1
+            && SDF_DESCRIPTOR_V1.operations == document_import_and_chemistry_convert
+            && SDF_DESCRIPTOR_V1.output_suffixes == NO_OUTPUT_SUFFIXES_V1
             && CML_DESCRIPTOR_V1.compression == InterchangeCompressionPolicyV1::Forbidden
             && SDF_DESCRIPTOR_V1.compression == InterchangeCompressionPolicyV1::Forbidden
+            && CDXML_DESCRIPTOR_V1.compression == InterchangeCompressionPolicyV1::Forbidden
             && CML_DESCRIPTOR_V1.semantic_loss_policy
                 == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
             && SDF_DESCRIPTOR_V1.semantic_loss_policy
                 == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
+            && CDXML_DESCRIPTOR_V1.semantic_loss_policy
+                == InterchangeSemanticLossPolicyV1::RejectUnrepresentedSemantics
             && CML_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::CmlSimpleMolecule
+            && CDXML_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::CdxmlSimpleMolecule
             && SDF_DESCRIPTOR_V1.decoder == InterchangeDecoderKeyV1::Sdf
             && CML_DESCRIPTOR_V1.graph_inspection_profile
                 == Some(crate::InterchangeGraphInspectionProfileV1::CmlSimpleMolecule)
             && SDF_DESCRIPTOR_V1.graph_inspection_profile
                 == Some(crate::InterchangeGraphInspectionProfileV1::SdfNativeSemantic)
+            && CDXML_DESCRIPTOR_V1.graph_inspection_profile.is_none()
             && CML_DESCRIPTOR_V1.limits.max_source_bytes == CML_IMPORT_MAX_SOURCE_BYTES_V1
             && SDF_DESCRIPTOR_V1.limits.max_source_bytes == SDF_MAX_INPUT_BYTES
+            && CDXML_DESCRIPTOR_V1.limits.max_source_bytes
+                == CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1
             && CML_DESCRIPTOR_V1.limits.max_response_bytes
                 == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
             && SDF_DESCRIPTOR_V1.limits.max_response_bytes
                 == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
-            && CML_DESCRIPTOR_V1.conversion_profile.max_source_bytes
-                == CML_DESCRIPTOR_V1.limits.max_source_bytes
-            && CML_DESCRIPTOR_V1.conversion_profile.runtime_requirement
-                == InterchangeRuntimeRequirementV1::RuntimeFree
-            && SDF_DESCRIPTOR_V1.conversion_profile.max_source_bytes
-                == SDF_DESCRIPTOR_V1.limits.max_source_bytes
-            && SDF_DESCRIPTOR_V1.conversion_profile.runtime_requirement
-                == InterchangeRuntimeRequirementV1::RuntimeRequired
+            && CDXML_DESCRIPTOR_V1.limits.max_response_bytes
+                == INTERCHANGE_IMPORT_MAX_RESPONSE_BYTES_V1
+            && CML_DESCRIPTOR_V1.conversion_profile.is_some_and(|profile| {
+                profile.max_source_bytes == CML_DESCRIPTOR_V1.limits.max_source_bytes
+                    && profile.runtime_requirement == InterchangeRuntimeRequirementV1::RuntimeFree
+            })
+            && SDF_DESCRIPTOR_V1.conversion_profile.is_some_and(|profile| {
+                profile.max_source_bytes == SDF_DESCRIPTOR_V1.limits.max_source_bytes
+                    && profile.runtime_requirement
+                        == InterchangeRuntimeRequirementV1::RuntimeRequired
+            })
+            && CDXML_DESCRIPTOR_V1.conversion_profile.is_none()
         {
             Ok(())
         } else {
@@ -576,7 +697,7 @@ pub enum InterchangeImportRecoveryV1 {
     InstallChemistryRuntime,
 }
 
-/// Every M2a failure and resource reason, with no free-text variant.
+/// Every interchange failure and resource reason, with no free-text variant.
 #[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Serialize)]
 #[allow(clippy::enum_variant_names)]
 #[serde(rename_all = "snake_case")]
@@ -752,7 +873,7 @@ mod tests {
 
     #[test]
     fn registry_joins_the_owning_crates_and_refuses_unknown_aliases() {
-        InterchangeFormatRegistryV1::validate_exact_join().expect("exact M2a join");
+        InterchangeFormatRegistryV1::validate_exact_join().expect("exact interchange join");
         let descriptor =
             InterchangeFormatRegistryV1::lookup_input_alias("cml2").expect("CML2 alias");
         assert_eq!(
@@ -774,6 +895,16 @@ mod tests {
     }
 
     #[test]
+    fn cdxml_descriptor_uses_the_chemistry_source_byte_limit() {
+        let descriptor =
+            InterchangeFormatRegistryV1::lookup_input_alias("cdxml").expect("CDXML descriptor");
+        assert_eq!(
+            descriptor.limits().max_source_bytes(),
+            CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1
+        );
+    }
+
+    #[test]
     fn every_enabled_descriptor_has_one_closed_decoder_and_complete_transport_policy() {
         for descriptor in InterchangeFormatRegistryV1::descriptors() {
             assert!(!descriptor.input_aliases().is_empty());
@@ -783,7 +914,9 @@ mod tests {
             assert!(descriptor.limits().max_response_bytes() > 0);
             assert!(matches!(
                 descriptor.decoder(),
-                InterchangeDecoderKeyV1::CmlSimpleMolecule | InterchangeDecoderKeyV1::Sdf
+                InterchangeDecoderKeyV1::CmlSimpleMolecule
+                    | InterchangeDecoderKeyV1::CdxmlSimpleMolecule
+                    | InterchangeDecoderKeyV1::Sdf
             ));
         }
     }
@@ -811,9 +944,11 @@ mod tests {
                 .direction(),
             LocalDocumentIngressDirectionV1::NewDocumentOnly
         );
-        let refusal = LocalDocumentIngressRegistryV1::refusal_for_suffix(".cdxml")
-            .expect("CDXML has a typed refusal");
-        assert_eq!(refusal.category(), "unsupported_local_document");
-        assert!(LocalDocumentIngressRegistryV1::lookup_suffix(".cdxml").is_none());
+        let cdxml = LocalDocumentIngressRegistryV1::lookup_suffix(".cdxml").expect("CDXML route");
+        assert_eq!(
+            cdxml.decoder(),
+            LocalDocumentIngressDecoderV1::CdxmlSimpleMolecule
+        );
+        assert_eq!(cdxml.profile_id(), CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1);
     }
 }

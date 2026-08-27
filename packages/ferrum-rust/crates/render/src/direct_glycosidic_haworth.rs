@@ -8,7 +8,7 @@ use ferrum_domain::haworth::{
     DirectGlycosidicHaworthPositionV1, HaworthPoint,
 };
 
-use crate::{Paint, PositiveFinite, RenderError, RenderPoint, RenderProvenance};
+use crate::{PositiveFinite, RenderError, RenderPaintV3, RenderPoint, RenderProvenance};
 
 const MAX_TARGETS: usize = 14;
 const OVERLAP_RATIO: f64 = 0.25;
@@ -20,7 +20,7 @@ const CUBIC_ARC_LIMIT: f64 = std::f64::consts::FRAC_PI_2;
 pub struct DirectGlycosidicHaworthRenderRequestV1 {
     provenance: RenderProvenance,
     spec: DirectGlycosidicHaworthDepictionSpecV1,
-    paint: Paint,
+    paint: RenderPaintV3,
     line_width: PositiveFinite,
     wedge_width: PositiveFinite,
 }
@@ -31,7 +31,7 @@ impl DirectGlycosidicHaworthRenderRequestV1 {
     pub fn new(
         provenance: RenderProvenance,
         spec: DirectGlycosidicHaworthDepictionSpecV1,
-        paint: Paint,
+        paint: RenderPaintV3,
         line_width: PositiveFinite,
         wedge_width: PositiveFinite,
     ) -> Self {
@@ -57,7 +57,7 @@ impl DirectGlycosidicHaworthRenderRequestV1 {
     }
     /// Return the exact paint.
     #[must_use]
-    pub(crate) const fn paint(&self) -> &Paint {
+    pub(crate) const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     /// Return ordinary bond width.
@@ -121,14 +121,14 @@ pub(crate) enum DirectGlycosidicHaworthPathCommandV1 {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DirectGlycosidicHaworthRenderPlanV1 {
     provenance: RenderProvenance,
-    paint: Paint,
+    paint: RenderPaintV3,
     operations: Vec<DirectGlycosidicHaworthDrawOpV1>,
 }
 
 impl DirectGlycosidicHaworthRenderPlanV1 {
     /// Return the exact plan paint.
     #[must_use]
-    pub(crate) const fn paint(&self) -> &Paint {
+    pub(crate) const fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     /// Return operations in the closed direct-profile paint order.

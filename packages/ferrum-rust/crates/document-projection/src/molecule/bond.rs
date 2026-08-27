@@ -99,7 +99,7 @@ impl BondEndpointV1 {
 /// Immutable bond facts in source order.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BondProjectionV1 {
-    id: Option<DocumentObjectIdV1>,
+    id: DocumentObjectIdV1,
     projection_key: ProjectionLocalObjectKeyV1,
     source_id: Option<String>,
     source_order: u32,
@@ -124,7 +124,7 @@ impl BondProjectionV1 {
     )]
     #[must_use]
     pub fn new(
-        id: Option<DocumentObjectIdV1>,
+        id: DocumentObjectIdV1,
         projection_key: ProjectionLocalObjectKeyV1,
         source_id: Option<String>,
         source_order: u32,
@@ -158,22 +158,10 @@ impl BondProjectionV1 {
             color,
         }
     }
-    /// Return the stable object key.
-    #[must_use]
-    pub fn id(&self) -> Option<&DocumentObjectIdV1> {
-        self.id.as_ref()
-    }
-
     /// Return the exact durable document object ID for this retained bond.
-    ///
-    /// Typed document ingress assigns every retained structural record a
-    /// durable ID before projection. A projection without one is an invalid
-    /// internal test fixture, not a public observation state.
     #[must_use]
     pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
-        self.id
-            .as_ref()
-            .expect("retained bond projection must have a document object ID")
+        &self.id
     }
     /// Return the non-operation key unique within this projection.
     #[must_use]
@@ -250,7 +238,7 @@ impl BondProjectionV1 {
 /// One molecule and its source-ordered renderable children.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MoleculeProjectionV1 {
-    id: Option<DocumentObjectIdV1>,
+    id: DocumentObjectIdV1,
     projection_key: ProjectionLocalObjectKeyV1,
     source_id: Option<String>,
     name: Option<String>,
@@ -289,7 +277,7 @@ pub enum MoleculeProjectionV1Error {
 impl MoleculeProjectionV1 {
     /// Construct a validated molecule projection from immutable source-ordered children.
     pub fn try_new(
-        id: Option<DocumentObjectIdV1>,
+        id: DocumentObjectIdV1,
         projection_key: ProjectionLocalObjectKeyV1,
         source_id: Option<String>,
         name: Option<String>,
@@ -316,22 +304,10 @@ impl MoleculeProjectionV1 {
             stereo_depictions: Vec::new(),
         })
     }
-    /// Return the stable object key.
-    #[must_use]
-    pub fn id(&self) -> Option<&DocumentObjectIdV1> {
-        self.id.as_ref()
-    }
-
     /// Return the exact durable document object ID for this retained molecule.
-    ///
-    /// Typed document ingress assigns every retained structural record a
-    /// durable ID before projection. A projection without one is an invalid
-    /// internal test fixture, not a public observation state.
     #[must_use]
     pub fn document_object_id(&self) -> &DocumentObjectIdV1 {
-        self.id
-            .as_ref()
-            .expect("retained molecule projection must have a document object ID")
+        &self.id
     }
     /// Return the non-operation key unique within this projection.
     #[must_use]
@@ -439,11 +415,9 @@ fn validate_child_identities(
                 source_id: source_id.to_owned(),
             });
         }
-        if let Some(object_id) = child.object_id
-            && !object_ids.insert(object_id)
-        {
+        if !object_ids.insert(child.object_id) {
             return Err(MoleculeProjectionV1Error::DuplicateChildDocumentObjectId {
-                object_id: object_id.as_str().to_owned(),
+                object_id: child.object_id.as_str().to_owned(),
             });
         }
     }
@@ -454,7 +428,7 @@ struct MoleculeChildIdentityV1<'a> {
     source_order: u32,
     projection_key: &'a str,
     source_id: Option<&'a str>,
-    object_id: Option<&'a DocumentObjectIdV1>,
+    object_id: &'a DocumentObjectIdV1,
 }
 
 impl<'a> MoleculeChildIdentityV1<'a> {
@@ -463,7 +437,7 @@ impl<'a> MoleculeChildIdentityV1<'a> {
             source_order: atom.source_order(),
             projection_key: atom.projection_key().as_str(),
             source_id: atom.source_id(),
-            object_id: atom.id(),
+            object_id: atom.document_object_id(),
         }
     }
 
@@ -472,7 +446,7 @@ impl<'a> MoleculeChildIdentityV1<'a> {
             source_order: compact_group.source_order(),
             projection_key: compact_group.id().as_str(),
             source_id: None,
-            object_id: Some(compact_group.id()),
+            object_id: compact_group.id(),
         }
     }
 
@@ -481,7 +455,7 @@ impl<'a> MoleculeChildIdentityV1<'a> {
             source_order: bond.source_order(),
             projection_key: bond.projection_key().as_str(),
             source_id: bond.source_id(),
-            object_id: bond.id(),
+            object_id: bond.document_object_id(),
         }
     }
 }
@@ -496,11 +470,16 @@ mod tests {
     };
 
     fn atom(source_order: u32, path: &[u32], source_id: &str) -> AtomProjectionV1 {
-        atom_with_id(None, source_order, path, source_id)
+        atom_with_id(
+            DocumentObjectIdV1::from_entropy_bytes([source_order as u8; 16]),
+            source_order,
+            path,
+            source_id,
+        )
     }
 
     fn atom_with_id(
-        id: Option<DocumentObjectIdV1>,
+        id: DocumentObjectIdV1,
         source_order: u32,
         path: &[u32],
         source_id: &str,
@@ -547,7 +526,7 @@ mod tests {
         atoms: Vec<AtomProjectionV1>,
     ) -> Result<MoleculeProjectionV1, MoleculeProjectionV1Error> {
         MoleculeProjectionV1::try_new(
-            None,
+            DocumentObjectIdV1::from_entropy_bytes([0; 16]),
             ProjectionLocalObjectKeyV1::from_path_components(&[0])
                 .expect("nonempty test path is a projection key"),
             Some("molecule-1".to_owned()),
@@ -563,7 +542,7 @@ mod tests {
         let group_id = DocumentObjectIdV1::from_entropy_bytes([2; 16]);
         assert!(
             MoleculeProjectionV1::try_new(
-                None,
+                DocumentObjectIdV1::from_entropy_bytes([3; 16]),
                 ProjectionLocalObjectKeyV1::from_path_components(&[0])
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
@@ -577,17 +556,12 @@ mod tests {
 
         assert!(matches!(
             MoleculeProjectionV1::try_new(
-                None,
+                DocumentObjectIdV1::from_entropy_bytes([4; 16]),
                 ProjectionLocalObjectKeyV1::from_path_components(&[0])
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
                 None,
-                vec![atom_with_id(
-                    Some(group_id.clone()),
-                    1,
-                    &[0, 0],
-                    "atom-1",
-                )],
+                vec![atom_with_id(group_id.clone(), 1, &[0, 0], "atom-1")],
                 vec![compact_group(group_id.clone(), 2)],
                 Vec::new(),
             ),

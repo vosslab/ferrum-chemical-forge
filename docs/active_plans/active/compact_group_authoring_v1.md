@@ -40,6 +40,11 @@ establish these completed foundations:
   becoming a chemistry atom.
 - The ordinary attachment-capacity design defines the shared candidate-aware
   admission needed to keep Qt, CLI, and later fragment authoring aligned.
+- `document.compact-group.attach.v1` is the delivered public stateless
+  attached-group route. Its generic protocol and named document-command
+  transports use the same fenced request and typed envelope: an accepted
+  outcome and a typed refusal both exit `0`, while nonzero status reports
+  usage, input, transport, or output/publication failure.
 
 The complete-render-admission ownership failure exposed by the experiment is
 closed. [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
@@ -82,14 +87,21 @@ not a route for additional recipes or a legacy alias.
   one exterior compact-group bond. Refusals leave document, IDs, history,
   selection, and receipt ownership unchanged.
 
-### Delivered materialization namespace
+### Delivered compact-group operation namespaces
+
+- `document.compact-group.attach.v1` is the delivered public operation for one
+  attached closed-catalog group. Its request carries a fenced CDML snapshot, a
+  document-owned molecule/anchor pair, a closed catalog key, and finite release
+  coordinates. Rust owns authorization, mutation, and the reusable next fence;
+  generic protocol execution and the named document command are the two
+  transports for the same operation.
 
 - `document.compact-group.materialize.v1` is the delivered public operation for
   typed direct-root `Me`, `NO2`, `Et`, `OMe`, `CH2OH`, `Carboxyl`, `Cyano`,
   `AcylChloride`, and `Phenyl` groups. Its stateless envelope is
   request-owned and generic-dispatcher compatible.
-- Compact placement remains a separate planned capability; it does not broaden
-  the delivered materialization route.
+- Free compact-group placement remains the separately planned capability. It
+  does not broaden either delivered attached-group route.
 - Internal experiment methods are implementation evidence only; they are not
   aliases, alternate public contracts, CLI commands, or PyO3 entry points.
 - Publishing and installation are outside this plan. Local builds produce the
@@ -113,9 +125,9 @@ M0 delivered the immutable accepted-only render boundary, shared classifier,
 explicit nonvisual-root policy, removal of raw public candidate routes, and
 focused semantic no-bypass evidence. It also moved explicit-hydrogen
 materialization and catalog semantic migration through the generic transition.
-The remaining compact-group risk is delivery correctness: the typed
-replacement transaction must use that completed boundary and the later public
-route must preserve the same fenced, one-use mutation ownership.
+The remaining compact-group risk is delivery correctness: future free placement
+must use that completed boundary and preserve the same fenced mutation
+ownership as the delivered attachment route.
 
 ### M1. Lock the typed group representation and public contract
 
@@ -235,9 +247,9 @@ role-addressed native lowering, and target-addressed renderer semantics are
 proved without aromatic schema or compatibility logic; aromatic-input `kekulize`
 is not a gate. Final review, fresh build, installed public Qt workflow, binding
 8/8, and the repository suite are complete. This closes the compact-group recipe
-milestone only; full Rust/OASA/BKChem parity remains incomplete. The missing
-generic attached CLI/protocol command is the next bounded parity slice in
-[FULL_PARITY_RUST_FIRST.md](FULL_PARITY_RUST_FIRST.md#next-bounded-parity-slice).
+milestone only; full Rust/OASA/BKChem parity remains incomplete. The delivered
+generic attached CLI/protocol operation is recorded in
+[FULL_PARITY_RUST_FIRST.md](FULL_PARITY_RUST_FIRST.md#parity-m4a-generic-attached-compact-group-cliprotocol-delivered).
 
 Carboxyl has completed its current validation gate: a fresh build produced the
 local CLI, Qt application, and installed Python runtime; the attached binding
@@ -469,8 +481,8 @@ authored representation from the compact-group chemistry.
   already covered by its durable Rust semantics and existing public workflow evidence.
 - Keep user/API documentation aligned with the delivered nine-recipe
   materialization boundary, compact versus materialized behavior, and closed
-  Rust availability outcomes. The missing generic attached CLI/protocol route
-  remains a separately planned parity slice.
+  Rust availability outcomes. The generic attached CLI/protocol route remains
+  one operation with two transports, not a recipe-command family.
 
 ## Ownership boundaries
 
@@ -537,8 +549,9 @@ atomic; refusal semantics are shared and bounded; public semantic E2E evidence
 is green; the generic attached nine-key slice has passed its public Qt
 author-to-materialize evidence and independent review; and the documented local
 build and full validation suite pass. The compact-group recipe milestone is
-complete, while the generic attached CLI/protocol route and full parity remain
-pending.
+complete, while full parity remains pending. The delivered generic CLI/protocol
+operation retains one representative public route E2E while the nine-recipe
+semantic matrix stays in focused Rust tests.
 Broader group grammar, publishing, and installation remain separate work.
 ## Free methyl placement reference
 

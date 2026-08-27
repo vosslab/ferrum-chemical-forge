@@ -268,8 +268,8 @@ mod tests {
         DocumentMoleculeHydrogenMaterializationRequestV1::new(
             observation.snapshot().revision(),
             *observation.snapshot().digest(),
-            molecule.id().expect("durable molecule").clone(),
-            molecule.atoms()[0].id().expect("durable atom").clone(),
+            molecule.document_object_id().clone(),
+            molecule.atoms()[0].document_object_id().clone(),
         )
     }
 
@@ -280,8 +280,8 @@ mod tests {
         DocumentAtomOxidationObservationRequestV1::new(
             observation.snapshot().revision(),
             *observation.snapshot().digest(),
-            molecule.id().expect("durable molecule").clone(),
-            molecule.atoms()[0].id().expect("durable atom").clone(),
+            molecule.document_object_id().clone(),
+            molecule.atoms()[0].document_object_id().clone(),
         )
     }
 

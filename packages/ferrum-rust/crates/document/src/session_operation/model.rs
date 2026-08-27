@@ -232,6 +232,9 @@ impl SessionOperationV1 {
 /// Typed operation failure before an accepted state transition.
 #[derive(Debug, Error)]
 pub enum SessionOperationError {
+    /// A retained durable document identity was malformed or missing during lowering.
+    #[error("session operation could not resolve a retained document identity: {0}")]
+    Projection(#[from] crate::ProjectionError),
     /// Typed compact-group materialization was refused before a candidate transition.
     #[error(transparent)]
     CompactGroupMaterialization(#[from] DocumentCompactGroupMaterializationRefusalV1),
@@ -501,7 +504,7 @@ fn reaction_document_object_id(
     let source_id = PersistentId::new(reaction_id.to_owned())
         .map_err(|_| ReactionOperationRefusalV1::InvalidDefinition)?;
     document
-        .document_object_id_for_source_id_v1(&source_id)
+        .document_object_id_for_source_id_v1(&source_id)?
         .ok_or(ReactionOperationRefusalV1::InvalidDefinition.into())
 }
 

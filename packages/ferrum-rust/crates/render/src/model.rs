@@ -6,15 +6,15 @@ use ferrum_core::RecordKind;
 use serde::{Deserialize, Serialize};
 
 use crate::render_target::RenderPlanEntryContextV1;
-use crate::{RenderError, RenderIssue, RenderTarget};
+use crate::{RenderError, RenderIssue, RenderPaintV3, RenderTarget};
 
-const SCHEMA_V2: &str = "ferrum-render-plan-v2";
+const SCHEMA_V3: &str = "ferrum-render-plan-v3";
 
 /// The only schema accepted by the active native render-plan slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RenderSchemaVersion {
     /// Declarative Ferrum render-plan grammar with scene paths.
-    V2,
+    V3,
 }
 
 impl Serialize for RenderSchemaVersion {
@@ -22,7 +22,7 @@ impl Serialize for RenderSchemaVersion {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(SCHEMA_V2)
+        serializer.serialize_str(SCHEMA_V3)
     }
 }
 
@@ -32,8 +32,8 @@ impl<'de> Deserialize<'de> for RenderSchemaVersion {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        if value == SCHEMA_V2 {
-            Ok(Self::V2)
+        if value == SCHEMA_V3 {
+            Ok(Self::V3)
         } else {
             Err(serde::de::Error::custom("unknown render-plan schema"))
         }
@@ -191,62 +191,6 @@ impl<'de> Deserialize<'de> for PositiveFinite {
     }
 }
 
-/// A lowercase six-digit RGB color with no toolkit-specific interpretation.
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
-#[serde(transparent)]
-pub struct Rgb24(String);
-
-impl Rgb24 {
-    /// Construct a lowercase six-digit RGB value such as `"cc3366"`.
-    pub fn new(value: impl Into<String>) -> Result<Self, RenderError> {
-        let value = value.into();
-        if value.len() != 6
-            || !value
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
-            return Err(RenderError::InvalidRequest(
-                "RGB color must contain exactly six lowercase hexadecimal digits".to_owned(),
-            ));
-        }
-        Ok(Self(value))
-    }
-
-    /// Return the canonical RGB text.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl<'de> Deserialize<'de> for Rgb24 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Self::new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
-}
-
-/// An explicit RGB paint with no toolkit or document-semantic fallback.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct Paint(Rgb24);
-
-impl Paint {
-    /// Construct an explicit paint from a validated RGB value.
-    #[must_use]
-    pub const fn rgb24(value: Rgb24) -> Self {
-        Self(value)
-    }
-
-    /// Return the exact RGB value a renderer must paint.
-    #[must_use]
-    pub fn color(&self) -> &Rgb24 {
-        &self.0
-    }
-}
-
 /// The immutable identifier of the only face accepted by the V1 render grammar.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
@@ -377,7 +321,7 @@ pub struct TextOp {
     runs: Vec<TextRun>,
     face: FontFace,
     size: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 }
 
@@ -388,7 +332,7 @@ impl TextOp {
         runs: Vec<TextRun>,
         face: FontFace,
         size: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
         z: i32,
     ) -> Result<Self, RenderError> {
         if runs.is_empty() {
@@ -433,7 +377,7 @@ impl TextOp {
     }
     /// Return the explicit paint.
     #[must_use]
-    pub fn paint(&self) -> &Paint {
+    pub fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     /// Return deterministic z-order within the batch.
@@ -464,7 +408,7 @@ impl<'de> Deserialize<'de> for TextOp {
             runs: Vec<WireTextRun>,
             face: FontFace,
             size: PositiveFinite,
-            paint: Paint,
+            paint: RenderPaintV3,
             z: i32,
         }
         let wire = WireTextOp::deserialize(deserializer)?;
@@ -486,7 +430,7 @@ pub struct LineOp {
     start: RenderPoint,
     end: RenderPoint,
     width: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 }
 
@@ -497,7 +441,7 @@ pub struct MaskOp {
     origin: RenderPoint,
     width: PositiveFinite,
     height: PositiveFinite,
-    paint: Paint,
+    paint: RenderPaintV3,
     z: i32,
 }
 
@@ -507,7 +451,7 @@ impl MaskOp {
         origin: RenderPoint,
         width: PositiveFinite,
         height: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
         z: i32,
     ) -> Result<Self, RenderError> {
         Ok(Self {
@@ -536,7 +480,7 @@ impl MaskOp {
     }
     /// Return explicit mask paint.
     #[must_use]
-    pub fn paint(&self) -> &Paint {
+    pub fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     /// Return fixed molecule-plane z-order.
@@ -557,7 +501,7 @@ impl<'de> Deserialize<'de> for MaskOp {
             origin: RenderPoint,
             width: PositiveFinite,
             height: PositiveFinite,
-            paint: Paint,
+            paint: RenderPaintV3,
             z: i32,
         }
         let wire = WireMaskOp::deserialize(deserializer)?;
@@ -572,7 +516,7 @@ impl LineOp {
         start: RenderPoint,
         end: RenderPoint,
         width: PositiveFinite,
-        paint: Paint,
+        paint: RenderPaintV3,
         z: i32,
     ) -> Result<Self, RenderError> {
         if start == end {
@@ -606,7 +550,7 @@ impl LineOp {
     }
     /// Return the explicit paint.
     #[must_use]
-    pub fn paint(&self) -> &Paint {
+    pub fn paint(&self) -> &RenderPaintV3 {
         &self.paint
     }
     /// Return deterministic z-order within the batch.
@@ -627,7 +571,7 @@ impl<'de> Deserialize<'de> for LineOp {
             start: RenderPoint,
             end: RenderPoint,
             width: PositiveFinite,
-            paint: Paint,
+            paint: RenderPaintV3,
             z: i32,
         }
         let wire = WireLineOp::deserialize(deserializer)?;
@@ -654,7 +598,7 @@ pub enum RenderOp {
     /// An explicit atom-local outlined or filled ellipse.
     Ellipse(crate::EllipseOp),
     /// An explicit filled and/or stroked scene path.
-    Path(crate::PathOpV2),
+    Path(crate::PathOpV3),
     /// A stored E/Z carrier accent linked to its central double-bond provenance.
     DoubleBondCarrierMark(crate::DoubleBondCarrierMarkOp),
 }
@@ -930,7 +874,7 @@ impl MoleculeRenderPlan {
             previous_issue_paint_order = Some(issue.paint_order());
         }
         Ok(Self {
-            schema: RenderSchemaVersion::V2,
+            schema: RenderSchemaVersion::V3,
             provenance,
             batches,
             issues,
@@ -986,7 +930,7 @@ impl<'de> Deserialize<'de> for MoleculeRenderPlan {
             issues: Vec<RenderIssue>,
         }
         let wire = WirePlan::deserialize(deserializer)?;
-        if wire.schema != RenderSchemaVersion::V2 {
+        if wire.schema != RenderSchemaVersion::V3 {
             return Err(serde::de::Error::custom("unsupported render-plan schema"));
         }
         Self::new(wire.provenance, wire.batches, wire.issues).map_err(serde::de::Error::custom)

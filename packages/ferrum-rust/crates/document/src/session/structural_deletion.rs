@@ -143,7 +143,7 @@ impl DocumentSession {
     ) -> Result<(PersistentId, Vec<PersistentId>, Vec<PersistentId>), SessionOperationError> {
         let molecule_record = self
             .current_document_v1()
-            .resolve_document_object_id(molecule_object_id)
+            .resolve_document_object_id(molecule_object_id)?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(molecule_object_id.as_str().to_owned())
             })?;

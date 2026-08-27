@@ -15,6 +15,11 @@ impl DocumentSession {
         let document = self.current_document_v1();
         let molecule = document
             .resolve_document_object_id(molecule_object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidLiveChemicalTarget(
+                    molecule_object_id.as_str().to_owned(),
+                )
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(molecule_object_id.as_str().to_owned())
             })?;
@@ -28,6 +33,9 @@ impl DocumentSession {
         for object_id in object_ids {
             let record = document
                 .resolve_document_object_id(object_id)
+                .map_err(|_| {
+                    SessionOperationError::InvalidLiveChemicalTarget(object_id.as_str().to_owned())
+                })?
                 .ok_or_else(|| {
                     SessionOperationError::UnknownDocumentObject(object_id.as_str().to_owned())
                 })?;
@@ -65,6 +73,11 @@ impl DocumentSession {
         let molecule = self
             .current_document_v1()
             .resolve_document_object_id(molecule_object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidLiveChemicalTarget(
+                    molecule_object_id.as_str().to_owned(),
+                )
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(molecule_object_id.as_str().to_owned())
             })?;
@@ -80,6 +93,9 @@ impl DocumentSession {
         let record = self
             .current_document_v1()
             .resolve_document_object_id(object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidLiveChemicalTarget(object_id.as_str().to_owned())
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(object_id.as_str().to_owned())
             })?;
@@ -107,11 +123,19 @@ impl DocumentSession {
         let [left_object_id, right_object_id] = member_object_ids;
         let left = document
             .resolve_document_object_id(left_object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidLiveChemicalTarget(left_object_id.as_str().to_owned())
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(left_object_id.as_str().to_owned())
             })?;
         let right = document
             .resolve_document_object_id(right_object_id)
+            .map_err(|_| {
+                SessionOperationError::InvalidLiveChemicalTarget(
+                    right_object_id.as_str().to_owned(),
+                )
+            })?
             .ok_or_else(|| {
                 SessionOperationError::UnknownDocumentObject(right_object_id.as_str().to_owned())
             })?;
@@ -188,6 +212,7 @@ mod tests {
                 &PersistentId::new(source).expect("test source identifier"),
             )
             .expect("typed ingress persists the test record identity")
+            .expect("typed ingress resolves the persisted document object identity")
     }
 
     #[test]

@@ -12,6 +12,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _EDITABLE_CDML = """<cdml xmlns='urn:ferrum:cdml'>
@@ -119,7 +120,9 @@ def _open_window(qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 	"""Open a test CDML file through the product's public File/Open operation."""
 	path = tmp_path / "stereo_bond.cdml"
 	path.write_text(cdml, encoding="utf-8")
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	window.show()
 	qapp.processEvents()
 	if not _wait_for_open_queue(window, lambda: window.open_file_path(str(path))):
@@ -397,7 +400,9 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 		finally:
 			_close_window(qapp, window)
 
-		window = ferrum_qt.main_window.MainWindow(object())
+		window = ferrum_qt.main_window.MainWindow(
+			ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+		)
 		window.show()
 		qapp.processEvents()
 		try:

@@ -182,10 +182,12 @@ fn stereo_cdml_round_trip_v2_uses_one_generic_molecule_transition() {
         vec![],
     );
     let depictions = DocumentStereoDepictionReportV1::new(
-        vec![
-            DocumentDirectedBondDepictionV1::new(0, 0, 1, DocumentBondPresentationV1::SolidWedge)
-                .expect("matching wedge depiction"),
-        ],
+        vec![DocumentDirectedBondDepictionV1::new(
+            0,
+            0,
+            1,
+            DocumentBondPresentationV1::SolidWedge,
+        )],
         Vec::new(),
     );
     let prepared = PreparedDocumentMoleculeV2::with_stereo_reports(
@@ -212,9 +214,7 @@ fn stereo_cdml_round_trip_v2_uses_one_generic_molecule_transition() {
     let saved = session.snapshot().expect("saved snapshot");
     let reopened = DocumentSession::load(saved.cdml()).expect("canonical CDML reopens");
     let observation = reopened.observe(0).expect("reopened session observes");
-    let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("inserted molecule has one durable ID");
+    let molecule_id = observation.projection().molecules()[0].document_object_id();
     let typed = TypedDocument::parse(saved.cdml()).expect("saved CDML types");
     let semantics = typed
         .molecule_stereo_semantics_v1(molecule_id)
@@ -438,12 +438,9 @@ fn generic_ez_stereo_round_trip_preserves_typed_semantics_and_depiction() {
     let saved = session.snapshot().expect("saved snapshot");
     let reopened = DocumentSession::load(saved.cdml()).expect("canonical CDML reopens");
     let observation = reopened.observe(0).expect("reopened document observes");
-    let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("inserted molecule has one durable ID");
+    let molecule_id = observation.projection().molecules()[0].document_object_id();
     let carrier_bond_id = observation.projection().molecules()[0].bonds()[1]
-        .id()
-        .expect("E/Z carrier bond has one durable ID")
+        .document_object_id()
         .clone();
     let typed = TypedDocument::parse(saved.cdml()).expect("saved CDML types");
     assert_eq!(

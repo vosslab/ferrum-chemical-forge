@@ -5,8 +5,10 @@ use std::collections::HashSet;
 use thiserror::Error;
 use xot::{Node, Xot};
 
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
+
 use super::{
-    CDML_NAMESPACE, DocumentObjectIdV1, PersistentId, TypedClass, TypedDocument,
+    CDML_NAMESPACE, DocumentObjectIdV1, PersistentId, ProjectionError, TypedClass, TypedDocument,
     TypedDocumentError, element_name,
 };
 
@@ -84,6 +86,8 @@ pub enum DocumentExplicitFragmentErrorV1 {
     ResourceExhausted,
     #[error(transparent)]
     Document(#[from] TypedDocumentError),
+    #[error("explicit fragment observation requires a valid molecule identity: {0}")]
+    Projection(#[source] ProjectionError),
 }
 
 /// Fully checked detached candidate facts, before a session supplies an ID.
@@ -121,6 +125,7 @@ impl TypedDocument {
         }
         let molecule_record = self
             .resolve_document_object_id(molecule_id)
+            .map_err(DocumentExplicitFragmentErrorV1::Projection)?
             .filter(|record| {
                 record.class() == TypedClass::Molecule && record.path().components().len() == 1
             })
@@ -192,6 +197,7 @@ impl TypedDocument {
         let record = indexed.xml.tree.document_element(indexed.xml.document).ok();
         let source = self
             .resolve_document_object_id(candidate.molecule_id())
+            .map_err(DocumentExplicitFragmentErrorV1::Projection)?
             .and_then(|record| record.attribute("id"));
         let source = source.ok_or(DocumentExplicitFragmentErrorV1::InvalidMolecule)?;
         let molecule_id = PersistentId::new(source.to_owned())
@@ -214,13 +220,12 @@ impl ExplicitFragmentCandidateV1 {
 /// Observe only exact V1 records; all other retained fragment metadata is summarized.
 pub fn observe_explicit_fragments_v1(
     document: &TypedDocument,
-) -> DocumentExplicitFragmentObservationV1 {
+) -> Result<DocumentExplicitFragmentObservationV1, DocumentExplicitFragmentErrorV1> {
     let mut records = Vec::new();
     let mut retained = false;
     for molecule in document.root().children_of(TypedClass::Molecule) {
-        let Some(molecule_id) = crate::document_object_id_from_record_v1(molecule) else {
-            continue;
-        };
+        let molecule_id = projection_document_object_id_from_record_v1(molecule)
+            .map_err(DocumentExplicitFragmentErrorV1::Projection)?;
         for fragment in molecule.children_of(TypedClass::Fragment) {
             match exact_record(fragment, &molecule_id, document) {
                 Some(record) => records.push(record),
@@ -228,10 +233,10 @@ pub fn observe_explicit_fragments_v1(
             }
         }
     }
-    DocumentExplicitFragmentObservationV1 {
+    Ok(DocumentExplicitFragmentObservationV1 {
         records,
         has_retained_fragment_metadata: retained,
-    }
+    })
 }
 
 fn exact_record(

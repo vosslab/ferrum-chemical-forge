@@ -2,7 +2,6 @@
 
 # Standard Library
 import math
-import re
 
 # PIP3 modules
 import PySide6.QtCore
@@ -13,10 +12,11 @@ import PySide6.QtWidgets
 import ferrum_qt.canvas.ferrum_presentation_target
 import ferrum_qt.canvas.ferrum_telex
 import ferrum_qt.canvas.telex_glyph_outline
+from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
+import ferrum_qt.themes.document_display_palette
 
 
 _FACE = "ferrum-telex-regular-v1"
-_RGB24 = re.compile(r"^[0-9a-f]{6}$")
 _PADDING = 1.0
 
 
@@ -25,11 +25,13 @@ class FerrumTextItemError(ValueError):
 	"""A frozen Text render cannot be painted without frontend interpretation."""
 
 
-class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
+class FerrumTextItem(
+		PySide6.QtWidgets.QGraphicsObject, DisplayPaletteRefreshable):
 	"""Selectable direct-root Text painted from backend-issued Telex glyph facts."""
 
 	#============================================
 	def __init__(self, text_render: object, telex_resource: object,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Authenticate one extension-owned Text render and cache complete paths."""
 		super().__init__(parent)
@@ -39,12 +41,13 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 				"Text render must be engine.DocumentTextRenderV1",
 			)
 		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
-		self._initialize(text_render, extension, telex)
+		self._initialize(text_render, extension, telex, palette)
 
 	#============================================
 	@classmethod
 	def _from_observation(cls, text_render: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> "FerrumTextItem":
+			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> "FerrumTextItem":
 		"""Reuse a controller-authenticated Telex face for one exact runtime DTO."""
 		item = cls.__new__(cls)
 		PySide6.QtWidgets.QGraphicsObject.__init__(item)
@@ -55,12 +58,13 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 			)
 		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
 			raise FerrumTextItemError("Text render requires verified Telex bytes")
-		item._initialize(text_render, extension, telex)
+		item._initialize(text_render, extension, telex, palette)
 		return item
 
 	#============================================
 	def _initialize(self, text_render: object, extension: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex) -> None:
+			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Copy a verified Text render into immutable Qt-local paths and paints."""
 		self._target = _target(text_render.target, extension)
 		anchor = _point(text_render.anchor, extension, "Text anchor")
@@ -87,7 +91,10 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 			)
 		except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
 			raise FerrumTextItemError(str(exc)) from exc
-		self._foreground = PySide6.QtGui.QBrush(_color(operation.paint, "Text foreground"))
+		self._foreground_paint = operation.paint
+		self._background_paint = text_render.background
+		self._palette = palette
+		self._foreground = PySide6.QtGui.QBrush(_paint(palette, operation.paint, "Text foreground"))
 		bounds = text_render.bounds
 		if type(bounds) is not extension.PresentationTextBoundsV1:
 			raise FerrumTextItemError("Text bounds have the wrong DTO type")
@@ -102,7 +109,7 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 		if text_render.background is not None:
 			self._background_path.addRect(left, top, right - left, bottom - top)
 			self._background = PySide6.QtGui.QBrush(
-				_color(text_render.background, "Text background"),
+				_paint(palette, text_render.background, "Text background"),
 			)
 		self._interaction_path = PySide6.QtGui.QPainterPath(self._glyph_path)
 		self._interaction_path.addPath(self._background_path)
@@ -117,6 +124,18 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 		self.setFlag(
 			PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False,
 		)
+
+	#============================================
+	def refresh_display_palette(self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
+		"""Refresh text brushes from frozen paint DTOs without rebuilding glyph geometry."""
+		self._palette = palette
+		self._foreground = PySide6.QtGui.QBrush(_paint(palette, self._foreground_paint, "Text foreground"))
+		if self._background_paint is not None:
+			self._background = PySide6.QtGui.QBrush(
+				_paint(palette, self._background_paint, "Text background"),
+			)
+		self.update()
 
 	#============================================
 	@property
@@ -167,7 +186,9 @@ class FerrumTextItem(PySide6.QtWidgets.QGraphicsObject):
 		painter.setBrush(self._foreground)
 		painter.drawPath(self._glyph_path)
 		if option.state & PySide6.QtWidgets.QStyle.StateFlag.State_Selected:
-			color = PySide6.QtWidgets.QApplication.palette().highlight().color()
+			color = self._palette.color(
+				ferrum_qt.themes.document_display_palette.DocumentDisplayRoleV1.SELECTION_OUTLINE,
+			)
 			pen = PySide6.QtGui.QPen(color, 1.5)
 			pen.setCosmetic(False)
 			painter.setPen(pen)
@@ -204,11 +225,13 @@ def _point(value: object, extension: object,
 
 
 #============================================
-def _color(value: object, description: str) -> PySide6.QtGui.QColor:
-	"""Copy one explicit lowercase paint without a palette fallback."""
-	if type(value) is not str or _RGB24.fullmatch(value) is None:
-		raise FerrumTextItemError(f"{description} must be lowercase six-digit Rgb24")
-	return PySide6.QtGui.QColor(f"#{value}")
+def _paint(palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+		value: object, description: str) -> PySide6.QtGui.QColor:
+	"""Resolve one tagged paint through the document display palette."""
+	try:
+		return palette.resolve_render_paint(value)
+	except ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteError as error:
+		raise FerrumTextItemError(f"{description} is an invalid tagged render paint") from error
 
 
 #============================================

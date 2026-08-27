@@ -25,9 +25,7 @@ pub fn document_direct_root_paint_orders_v1(
         .try_reserve(projection.molecules().len())
         .map_err(|_| DocumentDirectRootIndexErrorV1::ResourceAllocation)?;
     for molecule in projection.molecules() {
-        let molecule_id = molecule
-            .id()
-            .ok_or(DocumentDirectRootIndexErrorV1::ProjectionMismatch)?;
+        let molecule_id = molecule.document_object_id();
         if molecule_ids.insert(molecule_id, ()).is_some() {
             return Err(DocumentDirectRootIndexErrorV1::ProjectionMismatch);
         }

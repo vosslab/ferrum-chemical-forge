@@ -96,5 +96,5 @@ class _LineGestureIntent:
 	direct_root_selection: object | None = None
 	direct_root_gesture: object | None = None
 	direct_root_preview: object | None = None
-	direct_root_preview_item: PySide6.QtWidgets.QGraphicsItemGroup | None = None
+	direct_root_preview_item: PySide6.QtWidgets.QGraphicsPathItem | None = None
 	direct_root_marquee: PySide6.QtWidgets.QGraphicsRectItem | None = None

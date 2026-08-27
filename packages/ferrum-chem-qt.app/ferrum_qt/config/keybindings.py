@@ -25,6 +25,7 @@ DEFAULT_KEYBINDINGS = {
 	"view.zoom_in": "Ctrl++",
 	"view.zoom_out": "Ctrl+-",
 	"view.zoom_100": "Ctrl+0",
+	"view.command_palette": "Ctrl+K",
 	"view.grid.visible": "Ctrl+G",
 	"view.grid.snap": "Ctrl+Shift+G",
 	"draw.atom_at_point": "Ctrl+8",
@@ -113,15 +114,83 @@ class KeybindingManager(PySide6.QtCore.QObject):
 	#============================================
 	def setup_shortcuts(self) -> None:
 		"""Apply each binding to its existing QAction client."""
-		self.validate_binding_map(self._bindings)
-		for action_id, text in self._bindings.items():
+		actions = self._validated_shortcut_targets(self._bindings)
+		self._apply_shortcuts(self._bindings, actions)
+
+	#============================================
+	def _validated_shortcut_targets(
+			self, bindings: dict[str, str],
+			) -> dict[str, PySide6.QtGui.QAction]:
+		"""Return all managed targets after validating their prospective live set."""
+		self.validate_binding_map(bindings)
+		actions = {}
+		for action_id in bindings:
 			action = self._registry.get_qt_action(action_id)
 			if action is None:
 				raise KeybindingRegistrationError(
 					f"No Ferrum action is registered for '{action_id}'.",
 				)
+			actions[action_id] = action
+		self._validate_prospective_live_shortcuts(bindings)
+		return actions
+
+	#============================================
+	def _validate_prospective_live_shortcuts(
+			self, bindings: dict[str, str],
+			) -> None:
+		"""Reject collisions in the full QAction set after a managed update."""
+		owners: dict[str, list[str]] = {}
+		for view in self._registry.live_action_views():
+			sequence = PySide6.QtGui.QKeySequence(
+				bindings.get(view.action_id, view.qt_action.shortcut()),
+			)
+			normalized = sequence.toString(
+				PySide6.QtGui.QKeySequence.SequenceFormat.PortableText,
+			)
+			if normalized:
+				owners.setdefault(normalized, []).append(view.action_id)
+		self._raise_live_shortcut_conflicts(owners)
+
+	#============================================
+	@staticmethod
+	def _raise_live_shortcut_conflicts(owners: dict[str, list[str]]) -> None:
+		"""Raise the typed error for duplicate PortableText shortcut owners."""
+		conflicts = {
+			sequence: action_ids
+			for sequence, action_ids in owners.items()
+			if len(action_ids) > 1
+		}
+		if conflicts:
+			details = "; ".join(
+				f"{sequence}: {', '.join(action_ids)}"
+				for sequence, action_ids in sorted(conflicts.items())
+			)
+			raise KeybindingConflictError(
+				f"Conflicting live Ferrum keyboard shortcuts: {details}",
+			)
+
+	#============================================
+	@staticmethod
+	def _apply_shortcuts(
+			bindings: dict[str, str], actions: dict[str, PySide6.QtGui.QAction],
+			) -> None:
+		"""Apply one already-validated shortcut map to its managed actions."""
+		for action_id, text in bindings.items():
+			action = actions[action_id]
 			action.setShortcut(PySide6.QtGui.QKeySequence(text))
 			action.setShortcutContext(PySide6.QtCore.Qt.ShortcutContext.WindowShortcut)
+
+	#============================================
+	def validate_live_shortcuts(self) -> None:
+		"""Reject a collision among the actual registered window QAction clients."""
+		owners: dict[str, list[str]] = {}
+		for view in self._registry.live_action_views():
+			normalized = view.qt_action.shortcut().toString(
+				PySide6.QtGui.QKeySequence.SequenceFormat.PortableText,
+			)
+			if normalized:
+				owners.setdefault(normalized, []).append(view.action_id)
+		self._raise_live_shortcut_conflicts(owners)
 
 	#============================================
 	def set_binding(self, action_id: str, text: str) -> None:
@@ -134,20 +203,22 @@ class KeybindingManager(PySide6.QtCore.QObject):
 			raise KeybindingRegistrationError("Ferrum shortcuts must be text.")
 		candidate = self.get_all_bindings()
 		candidate[action_id] = text
-		self.validate_binding_map(candidate)
-		self._bindings = candidate
+		actions = self._validated_shortcut_targets(candidate)
 		prefs = ferrum_qt.config.preferences.Preferences.instance()
 		prefs.set_value(_SETTINGS_PREFIX + action_id, text)
-		self.setup_shortcuts()
+		self._bindings = candidate
+		self._apply_shortcuts(candidate, actions)
 
 	#============================================
 	def reset_defaults(self) -> None:
 		"""Remove all saved overrides and restore Ferrum's shipped shortcuts."""
+		defaults = self.default_bindings()
+		actions = self._validated_shortcut_targets(defaults)
 		prefs = ferrum_qt.config.preferences.Preferences.instance()
 		for action_id in self._bindings:
 			prefs.remove_value(_SETTINGS_PREFIX + action_id)
-		self._bindings = self.default_bindings()
-		self.setup_shortcuts()
+		self._bindings = defaults
+		self._apply_shortcuts(defaults, actions)
 
 	#============================================
 	def get_binding(self, action_id: str) -> str:

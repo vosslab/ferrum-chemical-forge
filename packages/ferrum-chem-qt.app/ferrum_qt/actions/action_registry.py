@@ -35,6 +35,18 @@ class MenuAction:
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class LiveActionView:
+	"""One immutable palette-facing snapshot of a registered live QAction."""
+
+	action_id: str
+	label: str
+	help_text: str
+	qt_action: PySide6.QtGui.QAction
+	enabled: bool
+
+
+#============================================
 class ActionRegistry:
 	"""Store portable action declarations and their live Qt clients."""
 
@@ -207,6 +219,28 @@ class ActionRegistry:
 	def all_actions(self) -> dict[str, MenuAction]:
 		"""Return a shallow declaration snapshot."""
 		return dict(self._actions)
+
+	#============================================
+	def live_action_views(self) -> tuple[LiveActionView, ...]:
+		"""Return palette-ready live actions in stable user-facing order.
+
+		The frozen records retain the exact feature-owned QAction while recording
+		its current enabled state for presentation.  Callers must recheck that
+		live action immediately before invoking it because enablement is dynamic.
+		"""
+		views = tuple(
+			LiveActionView(
+				action_id=action_id,
+				label=self._actions[action_id].label,
+				help_text=self._actions[action_id].help_text,
+				qt_action=qt_action,
+				enabled=qt_action.isEnabled(),
+			)
+			for action_id, qt_action in self._qt_actions.items()
+		)
+		return tuple(sorted(
+			views, key=lambda view: (view.label.casefold(), view.action_id),
+		))
 
 	#============================================
 	def is_enabled(self, action_id: str, context: object) -> bool:

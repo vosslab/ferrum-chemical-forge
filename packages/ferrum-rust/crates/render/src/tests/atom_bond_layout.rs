@@ -34,8 +34,8 @@ fn atom_bond_font() -> AtomLabelFontProfile {
     AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000"))
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("test rgb"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test rgb"))
 }
 
 fn atom_bond_metrics() -> VerifiedTelexGlyphMetrics {
@@ -387,7 +387,7 @@ fn visible_atom_number_is_a_separate_explicit_text_operation() {
     };
     assert_eq!(number.origin(), point(8.0, -12.0));
     assert_eq!(number.size(), size(9.0));
-    assert_eq!(number.paint().color().as_str(), "0000c8");
+    assert_eq!(number.paint().export_rgb().as_str(), "0000c8");
     assert_eq!(number.z(), 40);
     assert_eq!(number.runs().len(), 1);
     assert_eq!(number.runs()[0].text(), "27");
@@ -464,7 +464,7 @@ fn normal_double_and_triple_bonds_emit_parallel_symmetric_bounded_lines() {
             assert!(line.end().x() <= 40.0);
             assert!(line.start().x() < line.end().x());
             assert_eq!(line.width(), size(1.0));
-            assert_eq!(line.paint().color().as_str(), "112233");
+            assert_eq!(line.paint().export_rgb().as_str(), "112233");
             assert_eq!(line.z(), 10 + i32::try_from(index).expect("small index"));
         }
     }
@@ -489,15 +489,15 @@ fn directed_stereo_bonds_widen_toward_the_authored_end() {
         })
         .expect("reversed solid wedge must lower to a filled scene path");
     let [
-        ScenePathCommandV2::MoveTo(forward_tip),
-        ScenePathCommandV2::LineTo(forward_base_a),
-        ScenePathCommandV2::LineTo(forward_base_b),
-        ScenePathCommandV2::Close,
+        ScenePathCommandV3::MoveTo(forward_tip),
+        ScenePathCommandV3::LineTo(forward_base_a),
+        ScenePathCommandV3::LineTo(forward_base_b),
+        ScenePathCommandV3::Close,
     ] = forward.commands()
     else {
         panic!("solid wedge must carry a closed directed outline");
     };
-    let [ScenePathCommandV2::MoveTo(reverse_tip), ..] = reverse.commands() else {
+    let [ScenePathCommandV3::MoveTo(reverse_tip), ..] = reverse.commands() else {
         panic!("reversed wedge must retain its source-order tip");
     };
     assert!(forward.fill().is_some() && forward_base_a.x() > forward_tip.x());
@@ -540,7 +540,7 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
     assert_eq!(q.display_layer(), RenderDisplayLayerV1::HaworthFrontStroke);
     assert!(matches!(q_path.stroke(), Some(stroke)
         if stroke.width() == size(6.0)
-            && stroke.paint().color().as_str() == "224466"
+            && stroke.paint().export_rgb().as_str() == "224466"
             && stroke.line_cap() == VectorStrokeLineCapV1::Round));
 
     let RenderOp::Path(w_path) = &w.operations()[0] else {
@@ -550,16 +550,16 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
         panic!("reversed w1/front must lower to a selectable scene path");
     };
     let [
-        ScenePathCommandV2::MoveTo(tip),
-        ScenePathCommandV2::LineTo(base),
+        ScenePathCommandV3::MoveTo(tip),
+        ScenePathCommandV3::LineTo(base),
         ..,
     ] = w_path.commands()
     else {
         panic!("w1/front must preserve the directed tip-to-base edge");
     };
     let [
-        ScenePathCommandV2::MoveTo(reversed_tip),
-        ScenePathCommandV2::LineTo(reversed_base),
+        ScenePathCommandV3::MoveTo(reversed_tip),
+        ScenePathCommandV3::LineTo(reversed_base),
         ..,
     ] = reversed_w_path.commands()
     else {
@@ -571,7 +571,7 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
             && w_path
                 .commands()
                 .iter()
-                .any(|command| matches!(command, ScenePathCommandV2::CubicTo { .. }))
+                .any(|command| matches!(command, ScenePathCommandV3::CubicTo { .. }))
             && tip.x() < base.x()
             && reversed_tip.x() > reversed_base.x()
     );
@@ -601,7 +601,7 @@ fn opaque_label_masks_have_explicit_paint_and_fixed_molecule_plane_order() {
     };
     assert_eq!(mask.z(), 20);
     assert_eq!(text.z(), 30);
-    assert_eq!(mask.paint().color().as_str(), "ffffff");
+    assert_eq!(mask.paint().export_rgb().as_str(), "ffffff");
 }
 
 #[test]

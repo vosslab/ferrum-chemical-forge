@@ -7,8 +7,10 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _CDML = "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
@@ -24,8 +26,10 @@ def test_plus_click_commits_a_durable_plus_and_undo_removes_it(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A user can place a Plus and undo the visible document change."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "plus.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "plus.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()

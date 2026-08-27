@@ -52,7 +52,7 @@ impl PyDocumentSession {
             .projection()
             .molecules()
             .iter()
-            .position(|molecule| molecule.id() == Some(&molecule_id))
+            .position(|molecule| molecule.document_object_id() == &molecule_id)
             .ok_or_else(|| {
                 PyValueError::new_err(
                     "selected molecule is absent from the current live projection",

@@ -19,8 +19,8 @@ use ferrum_document::{
     SessionOperationResultV1, TopLevelRootKindV1,
 };
 use ferrum_render::{
-    DocumentRenderContentV1, DocumentRenderOutcomeV1, PathOpV2, PresentationRenderPlanV1,
-    PresentationRenderRootV1, RenderOp, ScenePathCommandV2, compose_document_render_plan_v1,
+    DocumentRenderContentV1, DocumentRenderOutcomeV1, PathOpV3, PresentationRenderPlanV1,
+    PresentationRenderRootV1, RenderOp, ScenePathCommandV3, compose_document_render_plan_v1,
     measure_molecule_render_plan_bounds_v1, render_presentation_stack_v1,
 };
 use thiserror::Error;

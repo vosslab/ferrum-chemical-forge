@@ -12,6 +12,7 @@ import pytest
 ferrum_chem = pytest.importorskip("ferrum_chem")
 
 # local repo modules
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.canvas.items.ferrum_plus_item
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.plus_properties
@@ -47,7 +48,7 @@ def test_native_plus_edit_updates_rust_and_retains_durable_selection(
 		'<cdml xmlns="urn:ferrum:cdml"><plus id="p" font_size="14" color="#000">'
 		'<point x="10" y="20"/></plus></cdml>',
 		"plus.cdml",
-	)
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		_select_plus(tab)
 		assert tab.has_one_selected_plus()

@@ -13,6 +13,8 @@ use crate::cli::commands::NamedDocumentCommand;
 
 pub(crate) mod commands;
 pub(crate) mod engine_bundle;
+#[cfg(test)]
+mod formats_tests;
 pub(crate) mod protocol;
 pub(crate) mod verbs;
 
@@ -350,8 +352,7 @@ mod tests {
         let session = ferrum_document::DocumentSession::load(CDML).expect("fixture loads");
         let observation = session.observe(0).expect("fixture observes");
         let selected_molecule_id = observation.projection().molecules()[0]
-            .id()
-            .expect("fixture molecule has a durable identity")
+            .document_object_id()
             .as_str()
             .to_owned();
         let snapshot = observation.snapshot();
@@ -374,71 +375,6 @@ mod tests {
             serde_json::from_slice(&stdout).expect("inspection report should be JSON");
         assert_eq!(report["schema"], "ferrum-cdml-inspection-v1");
         assert!(stderr.is_empty());
-    }
-
-    #[test]
-    fn formats_json_routes_through_production_without_runtime_or_input() {
-        let cli =
-            Cli::try_parse_from(["ferrum", "formats", "--json"]).expect("formats arguments parse");
-        let mut stdin = [].as_slice();
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        run(cli, &mut stdin, &mut stdout, &mut stderr).expect("formats completes");
-        let catalog: serde_json::Value =
-            serde_json::from_slice(&stdout).expect("formats output is JSON");
-        assert_eq!(catalog["schema"], "ferrum-interchange-capabilities-v1");
-        for (alias, runtime_requirement) in [
-            ("smiles", "runtime_required"),
-            ("cml", "runtime_free"),
-            ("sdf", "runtime_required"),
-        ] {
-            let capability = catalog["capabilities"]
-                .as_array()
-                .expect("catalog capabilities")
-                .iter()
-                .find(|candidate| {
-                    candidate["input"]["aliases"]
-                        .as_array()
-                        .is_some_and(|aliases| aliases.iter().any(|value| value == alias))
-                })
-                .expect("representative capability");
-            assert_eq!(
-                capability["input"]["runtime_requirement"],
-                runtime_requirement
-            );
-        }
-        assert!(stderr.is_empty());
-    }
-
-    #[test]
-    fn formats_default_text_projects_the_catalog_for_humans() {
-        let (json_stdout, json_stderr) = run_from_stdin(&["ferrum", "formats", "--json"]);
-        let (text_stdout, text_stderr) = run_from_stdin(&["ferrum", "formats"]);
-        let json_catalog: serde_json::Value =
-            serde_json::from_slice(&json_stdout).expect("JSON catalog");
-        let text = String::from_utf8(text_stdout).expect("human-readable text");
-        assert!(text.lines().any(|line| {
-            line.contains("input canonical=cml")
-                && line.contains("output canonical=cml")
-                && line.contains("runtime=runtime_free")
-        }));
-        assert!(text.lines().any(|line| {
-            line.contains("input canonical=sdf")
-                && line.contains("output canonical=sdf_v2000")
-                && line.contains("runtime=runtime_required")
-        }));
-        assert!(
-            json_catalog["capabilities"]
-                .as_array()
-                .is_some_and(|capabilities| {
-                    capabilities.iter().any(|capability| {
-                        capability["input"]["canonical_name"] == "cml"
-                            && capability["output"]["canonical_name"] == "cml"
-                    })
-                })
-        );
-        assert!(json_stderr.is_empty());
-        assert!(text_stderr.is_empty());
     }
 
     #[test]

@@ -20,6 +20,8 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
+import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _CDML = """<cdml xmlns="urn:ferrum:cdml" version='26.08'>
@@ -55,8 +57,11 @@ def _view_point(tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 def main() -> int:
 	"""Run selection, marquee, move, nudge, undo, save, and Rust reopen."""
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
-	window = ferrum_qt.ferrum.main_window.FerrumNativeMainWindow()
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "p0-selection.cdml")
+	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(app)
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		_CDML, "p0-selection.cdml", window._require_document_display_palette(),
+	)
 	window._register_native_tab(tab, activate=True)
 	window.show()
 	app.processEvents()

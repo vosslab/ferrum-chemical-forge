@@ -311,7 +311,10 @@ impl DocumentSession {
             })?;
         let document_object_id = document
             .document_object_id_for_source_id_v1(&identifier)
-            .expect("newly authored presentation root has a document-owned identity");
+            .map_err(DocumentSessionError::Projection)?
+            .ok_or(DocumentSessionError::Operation(
+                crate::SessionOperationError::PresentationCreateRequiresTransitionCore,
+            ))?;
         let revision = self
             .next_revision_v1()
             .ok_or(DocumentSessionError::RevisionExhausted)?;

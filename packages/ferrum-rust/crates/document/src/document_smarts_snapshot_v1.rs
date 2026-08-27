@@ -83,10 +83,7 @@ pub(crate) fn prepare_smarts_snapshot_v1(
         if targets.len() == MAX_SMARTS_TARGETS_V1 {
             return Err(DocumentSmartsSnapshotErrorV1::TargetLimitExceeded);
         }
-        let selector = root
-            .id()
-            .cloned()
-            .ok_or(DocumentSmartsSnapshotErrorV1::UnsupportedDocument)?;
+        let selector = root.document_object_id().clone();
         let molecule = document
             .core_molecule(&selector)
             .map_err(|_| DocumentSmartsSnapshotErrorV1::UnsupportedDocument)?
@@ -107,6 +104,7 @@ pub(crate) fn prepare_smarts_snapshot_v1(
                     .map_err(|_| DocumentSmartsSnapshotErrorV1::UnsupportedDocument)?;
                 document
                     .document_object_id_for_source_id_v1(&source_id)
+                    .map_err(|_| DocumentSmartsSnapshotErrorV1::UnsupportedDocument)?
                     .ok_or(DocumentSmartsSnapshotErrorV1::UnsupportedDocument)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -147,7 +145,8 @@ mod tests {
                 .document_object_id_for_source_id_v1(
                     &PersistentId::new(source_id).expect("source ID"),
                 )
-                .expect("durable atom identity")
+                .expect("durable atom identity lookup succeeds")
+                .expect("durable atom identity is present")
         });
 
         assert_eq!(

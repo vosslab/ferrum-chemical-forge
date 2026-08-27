@@ -16,7 +16,8 @@ use crate::draw_stream_v1::{
     DrawStreamErrorV1, DrawStyleV1, lower_document_plan_to_sink_v1,
 };
 use crate::{
-    DocumentRenderArtifactV1, DocumentRenderPlanV1, Paint, RenderPoint, RenderViewportV1, Rgb24,
+    DocumentRenderArtifactV1, DocumentRenderPlanV1, RenderPaintV3, RenderPoint, RenderViewportV1,
+    Rgb24,
 };
 
 /// Exact caller-selected dimensions for a PNG artifact.
@@ -326,7 +327,7 @@ impl DrawSinkV1 for PngSinkV1 {
     fn end_document_text(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
-    fn begin_text_operation(&mut self, _: i32, _: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, _: i32, _: &RenderPaintV3) -> Result<(), Self::Error> {
         Ok(())
     }
     fn end_text_operation(&mut self) -> Result<(), Self::Error> {
@@ -354,7 +355,7 @@ impl DrawSinkV1 for PngSinkV1 {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        fill: &Paint,
+        fill: &RenderPaintV3,
         _: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         let rect = tiny_skia::Rect::from_xywh(
@@ -443,9 +444,9 @@ fn to_color(color: &Rgb24) -> Result<tiny_skia::Color, PngRenderError> {
         255,
     ))
 }
-fn paint(paint: &Paint) -> Result<tiny_skia::Paint<'static>, PngRenderError> {
+fn paint(paint: &RenderPaintV3) -> Result<tiny_skia::Paint<'static>, PngRenderError> {
     Ok(tiny_skia::Paint {
-        shader: tiny_skia::Shader::SolidColor(to_color(paint.color())?),
+        shader: tiny_skia::Shader::SolidColor(to_color(&paint.export_rgb())?),
         blend_mode: tiny_skia::BlendMode::SourceOver,
         anti_alias: true,
         colorspace: tiny_skia::ColorSpace::Linear,
@@ -525,7 +526,7 @@ mod tests {
     }
 
     fn painted_plan() -> DocumentRenderPlanV1 {
-        let paint = Paint::rgb24(Rgb24::new("112233").expect("paint"));
+        let paint = RenderPaintV3::authored_rgb24(Rgb24::new("112233").expect("paint"));
         let ellipse = crate::DocumentVectorOpV1::ellipse(
             RenderPoint::new(5.0, 5.0).expect("center"),
             crate::PositiveFinite::new(2.0).expect("radius"),
@@ -556,7 +557,9 @@ mod tests {
             crate::PositiveFinite::new(0.5).expect("radius"),
             crate::PositiveFinite::new(0.5).expect("radius"),
             None,
-            Some(Paint::rgb24(Rgb24::new("112233").expect("paint"))),
+            Some(RenderPaintV3::authored_rgb24(
+                Rgb24::new("112233").expect("paint"),
+            )),
         )
         .expect("ellipse");
         DocumentRenderPlanV1::new(

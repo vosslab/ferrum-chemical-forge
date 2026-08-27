@@ -49,7 +49,7 @@ impl DocumentSession {
             let object_key = object_id.as_str().to_owned();
             let record = self
                 .current_document_v1()
-                .resolve_document_object_id(&object_id)
+                .resolve_document_object_id(&object_id)?
                 .ok_or_else(|| SessionOperationError::UnknownDocumentObject(object_key.clone()))?;
             if record.class() != TypedClass::Molecule {
                 return Err(

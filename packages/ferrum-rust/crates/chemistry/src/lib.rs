@@ -6,6 +6,7 @@
 
 mod adapter;
 mod adapter_contract;
+mod cdxml_decoder;
 mod cml;
 mod codec;
 mod composition;
@@ -19,6 +20,10 @@ mod oxidation_state_v1;
 mod sdf;
 
 pub use crate::adapter::{ExplicitAdapterError, load_explicit_adapter};
+pub use crate::cdxml_decoder::{
+    CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1, CdxmlDecodedDocumentV1, CdxmlDecodedRecordV1,
+    CdxmlDecoderErrorV1, CdxmlLossCategoryV1, CdxmlRefusalReasonV1, decode_cdxml_bytes_v1,
+};
 pub use crate::cml::{
     CmlDecodedDocumentV1, CmlDecodedRecordV1, CmlDecoderErrorV1, CmlEncoderErrorV1,
     CmlEncoderRefusalReasonV1, CmlRefusalReasonV1, CmlSourceAtomV1, CmlSourceBondV1,
@@ -36,6 +41,7 @@ pub use crate::codec::{
     smarts_from_smiles,
 };
 pub use crate::interchange::{
+    CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_ID_V1, CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1,
     CML_SIMPLE_MOLECULE_IMPORT_PROFILE_ID_V1, INTERCHANGE_MAX_TEXT_BYTES_V1,
     InterchangeCodecErrorV1, InterchangeFormatV1, InterchangePropertyV1, InterchangeRecordV1,
     decode_non_cdml_interchange_v1, encode_non_cdml_interchange_v1,
@@ -53,7 +59,7 @@ pub use crate::engine::{
 };
 pub use crate::model::{
     AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, Coordinates, MolAtom,
-    MolBond, MolGraph, MolGraphError, Point2, SmilesMolecule,
+    MolBond, MolBondDirectionError, MolGraph, MolGraphError, Point2, SmilesMolecule,
 };
 pub use crate::native_engine::{
     INCHI_MAX_INPUT_BYTES, MOLBLOCK_MAX_INPUT_BYTES, NATIVE_SMILES_MAX_INPUT_BYTES,

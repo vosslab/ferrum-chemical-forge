@@ -6,10 +6,12 @@ import PySide6.QtTest
 import PySide6.QtWidgets
 import pytest
 
+import ferrum_qt.themes.theme_loader
 import ferrum_qt.dialogs.rich_text_dialog
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 _CDML = "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
@@ -69,8 +71,10 @@ def test_text_dialog_escape_rejects_without_exporting_draft(
 def test_text_click_commits_exact_runs_selects_and_remains_movable(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
 	"""Text uses one opaque Rust preview/commit and later P0.2 translation."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		refusals = []
 		monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))
@@ -106,8 +110,10 @@ def test_text_click_commits_exact_runs_selects_and_remains_movable(
 def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
 	"""Dialog cancellation and any backend failure cancel transient state only."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-cancel.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-cancel.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		monkeypatch.setattr(window, "_show_edit_refusal", lambda _request: None)
 		window._register_native_tab(tab, activate=True)
@@ -139,8 +145,10 @@ def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""Escape, settled focus loss, and tool changes cancel visible Text state."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-lifecycle.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-lifecycle.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -172,8 +180,10 @@ def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 def test_text_popup_focus_handoff_retains_the_same_armed_intent(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A transient popup FocusOut cannot disarm a viewport that regains focus."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-focus-handoff.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-focus-handoff.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -198,8 +208,10 @@ def test_text_popup_focus_handoff_retains_the_same_armed_intent(
 def test_text_stale_focus_callback_cannot_cancel_a_replacement_intent(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
 	"""A queued focus-loss callback is fenced to the intent that created it."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-focus.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-focus.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -224,8 +236,10 @@ def test_text_stale_focus_callback_cannot_cancel_a_replacement_intent(
 def test_text_stale_focus_restoration_cannot_touch_a_replacement_intent(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
 	"""A stale popup-restoration turn cannot reclaim focus from a new tool."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-restore.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-stale-restore.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
 		window.show()
@@ -253,8 +267,10 @@ def test_text_stale_focus_restoration_cannot_touch_a_replacement_intent(
 def test_text_commit_selection_failure_reports_recovery_after_rust_acceptance(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: object) -> None:
 	"""Lost durable selection cannot be presented as ordinary selectable success."""
-	window = ferrum_qt.main_window.MainWindow(object())
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-recovery.cdml")
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(_CDML, "text-recovery.cdml", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		refusals = []
 		monkeypatch.setattr(window, "_show_edit_refusal", lambda request: refusals.append(request))

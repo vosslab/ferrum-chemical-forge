@@ -24,6 +24,16 @@ class _Snapshot:
 
 
 #============================================
+class _SelectedMoleculeAtomAddress:
+	"""Represent the pair-local selection used by compact-group authoring."""
+
+	def __init__(self, atom_id: str) -> None:
+		"""Keep the selected molecule fixed while the selected atom may change."""
+		self.molecule_id = "molecule-a"
+		self.atom_id = atom_id
+
+
+#============================================
 class _ChoiceFact:
 	"""Represent the one Rust-projected choice observation used in this case."""
 
@@ -53,9 +63,9 @@ class _Tab:
 		self.current_snapshot = _Snapshot(7, "fence-seven")
 		self.mutation_attempts = 0
 
-	def _selected_atom_identifier(self) -> str:
-		"""Expose the current durable selection through the tab's normal seam."""
-		return self.selected_atom
+	def selected_molecule_atom_address(self) -> _SelectedMoleculeAtomAddress:
+		"""Expose the current pair-local selection through the tab's normal seam."""
+		return _SelectedMoleculeAtomAddress(self.selected_atom)
 
 	def attached_compact_group_choices(self) -> tuple[object, ...]:
 		"""Return the one Rust-reviewed presentation choice for this inline tab."""
@@ -64,9 +74,11 @@ class _Tab:
 		)
 		return (choice,)
 
-	def attach_compact_group_availability(self, anchor_object_id: str,
-			catalog_key: str) -> object:
+	def attach_compact_group_availability(self, molecule_object_id: str,
+			anchor_object_id: str, catalog_key: str) -> object:
 		"""Reject a stale-choice query so fence ordering remains behaviorally visible."""
+		if molecule_object_id != "molecule-a":
+			raise AssertionError("unexpected selected molecule")
 		if anchor_object_id != "atom-a":
 			raise AssertionError("stale selection reached choice-specific availability")
 		if catalog_key != "methyl":

@@ -62,7 +62,7 @@ def test_live_repair_target_failures_preserve_current_snapshot() -> None:
     with pytest.raises(ferrum_chem.UnknownDocumentObjectError) as caught:
         session.repair_live_document_geometry_v1(
             before.revision, before.digest,
-            ("ferrum-document-object-v1/00000000000000000000000000000000",), kind, 1.0,
+            ("ferrum-document-object-v1/0123456789abcdef0123456789abcdef",), kind, 1.0,
         )
     assert str(caught.value)
     after = session.snapshot()

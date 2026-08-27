@@ -10,8 +10,8 @@ use crate::draw_stream_v1::{
     DrawSinkV1, DrawStreamErrorV1, DrawStrokeV1, DrawStyleV1, scoped_translate,
 };
 use crate::{
-    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlan, PathOpV2, RenderOp,
-    ScenePathCommandV2, VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
+    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlan, PathOpV3, RenderOp,
+    ScenePathCommandV3, VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
 
 /// Lower one molecule plan through the common private draw stream.
@@ -67,16 +67,16 @@ fn lower_molecule_operations<S: DrawSinkV1>(
 }
 
 fn lower_path<S: DrawSinkV1>(
-    path: &PathOpV2,
+    path: &PathOpV3,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
     let commands = path
         .commands()
         .iter()
         .map(|command| match command {
-            ScenePathCommandV2::MoveTo(point) => DrawPathCommandV1::MoveTo(*point),
-            ScenePathCommandV2::LineTo(point) => DrawPathCommandV1::LineTo(*point),
-            ScenePathCommandV2::CubicTo {
+            ScenePathCommandV3::MoveTo(point) => DrawPathCommandV1::MoveTo(*point),
+            ScenePathCommandV3::LineTo(point) => DrawPathCommandV1::LineTo(*point),
+            ScenePathCommandV3::CubicTo {
                 control_1,
                 control_2,
                 end,
@@ -85,7 +85,7 @@ fn lower_path<S: DrawSinkV1>(
                 control_2: *control_2,
                 end: *end,
             },
-            ScenePathCommandV2::Close => DrawPathCommandV1::Close,
+            ScenePathCommandV3::Close => DrawPathCommandV1::Close,
         })
         .collect();
     sink.draw_path(

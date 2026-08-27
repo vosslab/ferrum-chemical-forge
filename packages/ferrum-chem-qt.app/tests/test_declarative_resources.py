@@ -16,7 +16,14 @@ def _menu(items: list[dict]) -> dict:
 		"help_key": "Canvas authoring commands",
 		"items": items,
 	}
-	return {"menus": [menu]}
+	return {
+		"contexts": [{
+			"id": "selected_structure",
+			"accessible_name": "Selected structure actions",
+			"groups": [{"id": "actions", "actions": ["draw.bond"]}],
+		}],
+		"menus": [menu],
+	}
 
 
 #============================================
@@ -74,7 +81,7 @@ def test_recursive_menu_schema_rejects_unresolved_static_action() -> None:
 			match="action",
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset(),
+			data, frozenset({"draw.bond"}),
 		)
 
 
@@ -87,7 +94,7 @@ def test_recursive_menu_schema_rejects_unregistered_dynamic_menu() -> None:
 			match="dynamic menu",
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset(), dynamic_menu_ids=frozenset(),
+			data, frozenset({"draw.bond"}), dynamic_menu_ids=frozenset(),
 		)
 
 
@@ -121,7 +128,7 @@ def test_recursive_menu_schema_rejects_duplicate_sibling_dynamic_menu_placements
 			match="Duplicate declared dynamic menu ID",
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset(), dynamic_menu_ids=frozenset({"file.recent"}),
+			data, frozenset({"draw.bond"}), dynamic_menu_ids=frozenset({"file.recent"}),
 		)
 
 
@@ -140,5 +147,5 @@ def test_recursive_menu_schema_rejects_duplicate_nested_dynamic_menu_placements(
 			match="Duplicate declared dynamic menu ID",
 		):
 		ferrum_qt.declarative_resources._validate_menu_declarations(
-			data, frozenset(), dynamic_menu_ids=frozenset({"file.recent"}),
+			data, frozenset({"draw.bond"}), dynamic_menu_ids=frozenset({"file.recent"}),
 		)

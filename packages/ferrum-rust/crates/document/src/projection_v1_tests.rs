@@ -21,12 +21,8 @@ fn direct_roots_preserve_interleaved_targets_and_sparse_positions() {
         "<arrow id=\"rejected\" type=\"normal\"><point x=\"0\" y=\"0\"/></arrow></cdml>",
     ));
     let roots = projection.direct_roots();
-    let first = projection.molecules()[0]
-        .id()
-        .expect("projected molecule has a durable target");
-    let second = projection.molecules()[1]
-        .id()
-        .expect("projected molecule has a durable target");
+    let first = projection.molecules()[0].document_object_id();
+    let second = projection.molecules()[1].document_object_id();
     let presentation_roots = projection.presentation_stack().entries();
     let plus = presentation_roots[0].root().target();
     let arrow = presentation_roots[1].root().target();

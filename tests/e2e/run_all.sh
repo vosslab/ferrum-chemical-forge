@@ -48,12 +48,18 @@ run_e2e "Ferrum CLI verb E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ferrum_verb_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum CLI operation protocol E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_ferrum_protocol_v1.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum CLI molecule report E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_document_molecule_report_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum CLI compact-group materialization E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_materialization_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum CLI compact-group attachment E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_compact_group_attachment_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum CLI template catalog E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum document SDF export E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_document_export_sdf_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum CLI CDXML open E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_cdxml_open_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum Qt SDF import E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_sdf_import.py"
 run_e2e "Ferrum Qt peptide sequence import E2E" \

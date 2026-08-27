@@ -5,8 +5,10 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 use xot::Node;
 
+use crate::projection_identity_v1::projection_document_object_id_from_record_v1;
+
 use super::{
-    DocumentObjectIdV1, PersistentId, TopLevelRootKindV1, TopLevelRootSelectorV1,
+    DocumentObjectIdV1, PersistentId, ProjectionError, TopLevelRootKindV1, TopLevelRootSelectorV1,
     TopLevelTransformModeV1, TopLevelTransformV1, TypedClass, TypedDocument, TypedDocumentError,
     UnrecognizedNode, XmlInputBudgetV1, XmlSerializationError,
 };
@@ -122,6 +124,9 @@ pub enum DocumentClipboardPasteErrorV1 {
     /// A generated root identity could not be re-resolved after remapping.
     #[error("clipboard Paste generated root identity did not resolve")]
     IdentityInvariant,
+    /// A generated root did not retain a valid required durable document identity.
+    #[error("clipboard Paste generated root has an invalid durable document identity: {0}")]
+    Projection(#[source] ProjectionError),
     /// The translated root selector could not be constructed.
     #[error("clipboard Paste could not construct its translated root selection: {0}")]
     TransformRequest(#[from] super::TopLevelTransformV1Error),
@@ -242,8 +247,8 @@ pub(super) fn compose_clipboard_paste_candidate_v1(
             .map(|child| child.record())
             .find(|record| record.attribute("id") == Some(generated.as_str()))
             .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
-        let object_id = crate::document_object_id_from_record_v1(record)
-            .ok_or(DocumentClipboardPasteErrorV1::IdentityInvariant)?;
+        let object_id = projection_document_object_id_from_record_v1(record)
+            .map_err(DocumentClipboardPasteErrorV1::Projection)?;
         selectors.push(TopLevelRootSelectorV1::new(object_id.clone(), root.kind));
         inserted_roots.push(DocumentClipboardPastedRootV1 {
             object_id,

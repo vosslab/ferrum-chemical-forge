@@ -11,8 +11,8 @@ use pyo3::types::PyTuple;
 use super::binding::document_result;
 use super::document_session_binding::{PyDocumentSession, hex_digest};
 use super::render_binding::{
-    PyDocumentPlusRenderV1, PyRenderPointV1, PyRenderTargetV1, RenderDepictionError,
-    RenderProvenanceError,
+    PyDocumentPlusRenderV1, PyRenderPaintV3, PyRenderPointV1, PyRenderTargetV1,
+    RenderDepictionError, RenderProvenanceError, paint_from,
 };
 
 /// Renderer-calculated finite painted scene bounds for one presentation root.
@@ -94,7 +94,7 @@ impl From<&PathCommandV1> for PyPresentationPathCommandV1 {
 #[derive(Clone)]
 pub(crate) struct PyPresentationRenderStrokeV1 {
     #[pyo3(get)]
-    paint: String,
+    paint: PyRenderPaintV3,
     #[pyo3(get)]
     width: f64,
     #[pyo3(get)]
@@ -121,7 +121,7 @@ pub(crate) struct PyPresentationVectorOperationV1 {
     #[pyo3(get)]
     stroke: Option<PyPresentationRenderStrokeV1>,
     #[pyo3(get)]
-    fill: Option<String>,
+    fill: Option<PyRenderPaintV3>,
 }
 
 #[pymethods]
@@ -281,13 +281,13 @@ fn root_from(value: &PresentationRenderRootV1) -> PyPresentationRenderRootV1 {
 
 pub(crate) fn vector_operation(value: &DocumentVectorOpV1) -> PyPresentationVectorOperationV1 {
     let stroke = value.stroke().map(|stroke| PyPresentationRenderStrokeV1 {
-        paint: stroke.paint().color().as_str().to_owned(),
+        paint: paint_from(stroke.paint()),
         width: stroke.width().get(),
         line_cap: "butt".to_owned(),
         line_join: "miter".to_owned(),
         miter_limit: stroke.miter_limit(),
     });
-    let fill = value.fill().map(|paint| paint.color().as_str().to_owned());
+    let fill = value.fill().map(paint_from);
     match value {
         DocumentVectorOpV1::Path { commands, .. } => PyPresentationVectorOperationV1 {
             kind: "path".to_owned(),

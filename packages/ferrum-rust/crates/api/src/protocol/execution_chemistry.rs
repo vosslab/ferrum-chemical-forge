@@ -205,7 +205,8 @@ pub(super) fn map_runtime_conversion_error(error: ChemistryRuntimeErrorV1) -> Ex
 
 pub(super) fn map_conversion_error(error: InterchangeCodecErrorV1) -> ExecutionFailureV1 {
     match error {
-        InterchangeCodecErrorV1::MultiRecordUnsupported { .. }
+        InterchangeCodecErrorV1::DocumentImportOnly
+        | InterchangeCodecErrorV1::MultiRecordUnsupported { .. }
         | InterchangeCodecErrorV1::NonMolecularCdml
         | InterchangeCodecErrorV1::CdmlCoordinatesRequired { .. }
         | InterchangeCodecErrorV1::CdmlUnsupportedBond { .. }

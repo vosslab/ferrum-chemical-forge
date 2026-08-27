@@ -17,8 +17,7 @@ fn molecule_id(session: &DocumentSession, revision: u64, index: usize) -> Docume
         .expect("fixture observation must project")
         .projection()
         .molecules()[index]
-        .id()
-        .expect("fixture molecule has a durable ID")
+        .document_object_id()
         .clone()
 }
 
@@ -100,8 +99,7 @@ fn wrong_kind_foreign_and_invalid_name_leave_state_unchanged() {
         .projection()
         .molecules()[0]
         .atoms()[0]
-        .id()
-        .expect("atom is durable")
+        .document_object_id()
         .clone();
     let foreign = DocumentObjectIdV1::from_entropy_bytes([0; 16]);
     for operation in [set_name(atom_id, Some("x")), set_name(foreign, Some("x"))] {

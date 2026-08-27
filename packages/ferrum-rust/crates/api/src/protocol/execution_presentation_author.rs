@@ -361,8 +361,7 @@ fn direct_bond_endpoint(
                 .iter()
                 .flat_map(|molecule| molecule.atoms())
                 .find(|atom| atom.source_id() == Some(atom_id.as_str()))
-                .and_then(|atom| atom.id())
-                .cloned();
+                .map(|atom| atom.document_object_id().clone());
             atom.map(|atom| DirectBondEndpointIntent::ExistingAtom { atom })
                 .ok_or_else(|| {
                     refusal(

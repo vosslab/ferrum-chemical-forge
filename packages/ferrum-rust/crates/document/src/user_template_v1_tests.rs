@@ -118,6 +118,7 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
         session
             .current_document_v1()
             .resolve_document_object_id(&inserted_object_id)
+            .expect("inserted object ID resolves without an identity failure")
             .is_some(),
         "the insertion receipt must identify the installed molecule"
     );
@@ -128,6 +129,7 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
         session
             .current_document_v1()
             .resolve_document_object_id(&inserted_object_id)
+            .expect("inserted object ID resolves without an identity failure")
             .is_none(),
         "undo must remove the inserted molecule from the current document"
     );
@@ -137,6 +139,7 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
         session
             .current_document_v1()
             .resolve_document_object_id(&inserted_object_id)
+            .expect("inserted object ID resolves without an identity failure")
             .is_some(),
         "redo must restore the receipt's durable object ID"
     );
@@ -145,6 +148,7 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
         reopened
             .current_document_v1()
             .resolve_document_object_id(&inserted_object_id)
+            .expect("inserted object ID resolves without an identity failure")
             .is_some(),
         "reopened insertion must retain the receipt's durable object ID"
     );

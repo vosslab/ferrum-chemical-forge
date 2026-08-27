@@ -274,7 +274,11 @@ impl DrawSinkV1 for ContentBoundsSinkV1 {
         Ok(())
     }
 
-    fn begin_text_operation(&mut self, _: i32, _: &crate::Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(
+        &mut self,
+        _: i32,
+        _: &crate::RenderPaintV3,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -307,7 +311,7 @@ impl DrawSinkV1 for ContentBoundsSinkV1 {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        _: &crate::Paint,
+        _: &crate::RenderPaintV3,
         _: DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         let origin = self.translated(rect.origin)?;
@@ -405,8 +409,8 @@ mod tests {
     fn size(value: f64) -> PositiveFinite {
         PositiveFinite::new(value).expect("positive extent")
     }
-    fn paint(value: &str) -> Paint {
-        Paint::rgb24(Rgb24::new(value).expect("paint"))
+    fn paint(value: &str) -> RenderPaintV3 {
+        RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("paint"))
     }
     fn target(id: u8) -> RenderTarget {
         RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
@@ -493,16 +497,16 @@ mod tests {
                     3,
                     BatchSpace::Scene,
                     vec![RenderOp::Path(
-                        PathOpV2::new(
+                        PathOpV3::new(
                             vec![
-                                ScenePathCommandV2::MoveTo(point(0.0, 50.0)),
-                                ScenePathCommandV2::CubicTo {
+                                ScenePathCommandV3::MoveTo(point(0.0, 50.0)),
+                                ScenePathCommandV3::CubicTo {
                                     control_1: point(10.0, 70.0),
                                     control_2: point(20.0, 30.0),
                                     end: point(30.0, 50.0),
                                 },
                             ],
-                            Some(ScenePathStrokeV2::new(paint("112233"), size(2.0))),
+                            Some(ScenePathStrokeV3::new(paint("112233"), size(2.0))),
                             None,
                             1,
                         )

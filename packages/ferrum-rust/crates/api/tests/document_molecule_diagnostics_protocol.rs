@@ -49,13 +49,7 @@ fn molecule_ids(document: &str) -> Vec<String> {
         .projection()
         .molecules()
         .iter()
-        .map(|molecule| {
-            molecule
-                .id()
-                .expect("direct root has a durable identifier")
-                .as_str()
-                .to_owned()
-        })
+        .map(|molecule| molecule.document_object_id().as_str().to_owned())
         .collect()
 }
 
@@ -66,8 +60,7 @@ fn first_atom_id(document: &str) -> String {
         .projection()
         .molecules()[0]
         .atoms()[0]
-        .id()
-        .expect("direct-root atom has a durable identifier")
+        .document_object_id()
         .as_str()
         .to_owned()
 }

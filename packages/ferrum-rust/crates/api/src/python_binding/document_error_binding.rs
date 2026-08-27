@@ -422,6 +422,7 @@ fn operation_error(py: Python<'_>, error: SessionOperationError) -> PyResult<PyE
         | SessionOperationError::FragmentImportIdentifierExhausted => {
             closed_operation_validation_error(py, "invalid_input", "document")
         }
+        SessionOperationError::Projection(error) => projection_error(py, error),
         SessionOperationError::Candidate(error) => typed_document_error(py, error),
         SessionOperationError::Serialize(_) => {
             closed_operation_validation_error(py, "operation", "candidate")

@@ -53,12 +53,13 @@ pub use interchange_capability_v1::{
     InterchangeGraphInspectionProfileV1, NativeConversionInputDescriptorV1,
 };
 pub use interchange_import_v1::{
+    CDXML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, CDXML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
     CML_SIMPLE_MOLECULE_IMPORT_FORMAT_V1, CML_SIMPLE_MOLECULE_IMPORT_PROFILE_V1,
     ConversionExecutionProfileV1, ConversionInputProfileV1, InterchangeCompressionPolicyV1,
-    InterchangeDecoderKeyV1, InterchangeDirectionV1, InterchangeFormatDescriptorV1,
-    InterchangeFormatRegistryV1, InterchangeImportLimitsV1, InterchangeImportRecoveryV1,
-    InterchangeImportRefusalCategoryV1, InterchangeImportRefusalReasonV1,
-    InterchangeImportRefusalV1, InterchangeRuntimeRequirementV1, InterchangeSemanticLossPolicyV1,
+    InterchangeDecoderKeyV1, InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1,
+    InterchangeImportLimitsV1, InterchangeImportRecoveryV1, InterchangeImportRefusalCategoryV1,
+    InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1, InterchangeOperationRefusalV1,
+    InterchangeOperationV1, InterchangeRuntimeRequirementV1, InterchangeSemanticLossPolicyV1,
     LocalDocumentIngressDecoderV1, LocalDocumentIngressDescriptorV1,
     LocalDocumentIngressDirectionV1, LocalDocumentIngressRefusalV1, LocalDocumentIngressRegistryV1,
     LocalDocumentIngressRouteV1, SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,

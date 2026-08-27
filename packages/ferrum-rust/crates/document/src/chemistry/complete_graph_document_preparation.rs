@@ -43,7 +43,8 @@ pub fn prepare_complete_graph_for_document_v2<E: ChemEngine + ?Sized>(
     validate_resolved_aromaticity_v2(&resolved)?;
     validate_document_atom_facts_v2(&resolved)?;
 
-    let (tetrahedral, directed_depictions) = admit_tetrahedral_stereo_v2(&resolved)?;
+    let tetrahedral = admit_tetrahedral_stereo_v2(&resolved)?;
+    let directed_depictions = admit_directed_bond_depictions_v2(&resolved)?;
     let (double_bonds, double_bond_carrier_marks) = admit_double_bond_stereo_v2(&resolved)?;
     validate_native_stereo_directions_v2(
         &resolved,
@@ -103,15 +104,8 @@ fn unsupported_document_atom_fact_v2(
 
 fn admit_tetrahedral_stereo_v2(
     graph: &MolGraph,
-) -> Result<
-    (
-        Vec<DocumentTetrahedralStereoV1>,
-        Vec<DocumentDirectedBondDepictionV1>,
-    ),
-    DocumentMoleculePreparationErrorV2,
-> {
+) -> Result<Vec<DocumentTetrahedralStereoV1>, DocumentMoleculePreparationErrorV2> {
     let mut tetrahedral = Vec::new();
-    let mut directed_depictions = Vec::new();
     for (center, atom) in graph.atoms().iter().enumerate() {
         let parity = match atom.chirality() {
             AtomChirality::Unspecified => continue,
@@ -149,31 +143,35 @@ fn admit_tetrahedral_stereo_v2(
             DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { center }
         })?;
         let descriptor = DocumentTetrahedralStereoV1::new(center, ligands, parity)?;
-        let depiction = graph
-            .bonds()
-            .iter()
-            .enumerate()
-            .filter_map(|(bond_index, bond)| {
-                ((bond.start() == center || bond.end() == center)
-                    && matches!(
-                        bond.direction(),
-                        BondDirection::BeginWedge | BondDirection::BeginDash
-                    ))
-                .then_some((
-                    bond_index,
-                    bond.start(),
-                    bond.end(),
-                    bond.order(),
-                    bond.direction(),
-                ))
-            })
-            .collect::<Vec<_>>();
         tetrahedral.push(descriptor);
-        if let Some(depiction) = admit_tetrahedral_depiction_v2(center, &depiction)? {
-            directed_depictions.push(depiction);
-        }
     }
-    Ok((tetrahedral, directed_depictions))
+    Ok(tetrahedral)
+}
+
+fn admit_directed_bond_depictions_v2(
+    graph: &MolGraph,
+) -> Result<Vec<DocumentDirectedBondDepictionV1>, DocumentMoleculePreparationErrorV2> {
+    let depictions = graph
+        .bonds()
+        .iter()
+        .enumerate()
+        .filter_map(|(bond_index, bond)| {
+            matches!(
+                bond.direction(),
+                BondDirection::BeginWedge | BondDirection::BeginDash
+            )
+            .then_some((bond_index, bond))
+        })
+        .map(|(bond_index, bond)| {
+            let presentation = match bond.direction() {
+                BondDirection::BeginWedge => DocumentBondPresentationV1::SolidWedge,
+                BondDirection::BeginDash => DocumentBondPresentationV1::HashedWedge,
+                _ => unreachable!("the enclosing filter admits only authored directed depictions"),
+            };
+            DocumentDirectedBondDepictionV1::new(bond_index, bond.start(), bond.end(), presentation)
+        })
+        .collect();
+    Ok(depictions)
 }
 
 fn admit_double_bond_stereo_v2(
@@ -291,29 +289,6 @@ fn require_double_bond_carrier_marks_v2(
         );
     }
     Ok(marks)
-}
-
-fn admit_tetrahedral_depiction_v2(
-    center: usize,
-    depictions: &[(usize, usize, usize, BondOrder, BondDirection)],
-) -> Result<Option<DocumentDirectedBondDepictionV1>, DocumentMoleculePreparationErrorV2> {
-    match depictions {
-        [] => Ok(None),
-        [(bond_index, start, end, order, direction)] => {
-            if *order != BondOrder::Single {
-                return Err(
-                    DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { center },
-                );
-            }
-            let presentation = match direction {
-                BondDirection::BeginWedge => DocumentBondPresentationV1::SolidWedge,
-                BondDirection::BeginDash => DocumentBondPresentationV1::HashedWedge,
-                _ => unreachable!("the caller selects only directed tetrahedral depictions"),
-            };
-            DocumentDirectedBondDepictionV1::new(*bond_index, *start, *end, presentation).map(Some)
-        }
-        _ => Err(DocumentMoleculePreparationErrorV2::UnrepresentableTetrahedral { center }),
-    }
 }
 
 fn native_ez_direction_is_carrier_v2(direction: BondDirection) -> bool {
@@ -504,7 +479,7 @@ pub enum DocumentMoleculePreparationErrorV2 {
     /// A prepared descriptor does not match the resulting document graph.
     #[error("prepared stereo semantics do not match the document graph")]
     InvalidStereoSemantics,
-    /// A tetrahedral source fact or supplied directed depiction cannot be represented exactly.
+    /// A tetrahedral source fact cannot be represented exactly.
     #[error("tetrahedral stereo at atom {center} cannot be represented")]
     UnrepresentableTetrahedral { center: usize },
     /// An E/Z source fact lacks an exact durable double-bond descriptor.

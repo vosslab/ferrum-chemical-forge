@@ -6,8 +6,8 @@ use std::path::Path;
 use ferrum_domain::haworth::build_direct_haworth_from_text_smiles_v1;
 use ferrum_geometry::{MoleculePlacementV1, Point2};
 use ferrum_render::{
-    DirectGlycosidicHaworthRenderRequestV1, Paint, PositiveFinite, RenderProvenance,
-    RenderRevision, Rgb24, SvgViewportV1, lower_direct_glycosidic_haworth_v1,
+    DirectGlycosidicHaworthRenderRequestV1, PositiveFinite, RenderPaintV3, RenderProvenance,
+    RenderRevision, SvgViewportV1, lower_direct_glycosidic_haworth_v1,
     render_direct_glycosidic_haworth_to_svg_v1,
 };
 
@@ -41,7 +41,7 @@ pub(crate) fn run(
             [0; 32],
         ),
         prepared.receipt().source_spec().clone(),
-        Paint::rgb24(Rgb24::new("000000").expect("fixed paint is valid")),
+        RenderPaintV3::document_foreground(),
         PositiveFinite::new(1.0).expect("fixed line width is valid"),
         PositiveFinite::new(5.0).expect("fixed wedge width is valid"),
     );

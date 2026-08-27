@@ -8,6 +8,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 
 
 def _action(window: PySide6.QtWidgets.QMainWindow, text: str) -> PySide6.QtGui.QAction:
@@ -25,11 +26,16 @@ def test_polyline_clicks_commit_on_enter_and_undo_removes_it(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
 	"""A user can finish a Polyline with Enter and undo the document change."""
-	window = ferrum_qt.main_window.MainWindow(object())
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 	try:
 		window.show()
 		qapp.processEvents()
+		_action(window, "New").trigger()
+		qapp.processEvents()
 		tab = window.centralWidget().currentWidget()
+		assert tab is not None
 		_action(window, "Draw Polyline").trigger()
 		for x, y in ((20.0, 20.0), (60.0, 40.0)):
 			PySide6.QtTest.QTest.mouseClick(

@@ -13,8 +13,8 @@ fn size(value: f64) -> PositiveFinite {
     PositiveFinite::new(value).expect("test extent is positive")
 }
 
-fn paint(value: &str) -> Paint {
-    Paint::rgb24(Rgb24::new(value).expect("test paint is valid"))
+fn paint(value: &str) -> RenderPaintV3 {
+    RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test paint is valid"))
 }
 
 fn target(id: u8) -> RenderTarget {
@@ -281,14 +281,14 @@ fn svg_backend_rejects_a_nonfinite_or_nonpositive_viewport_before_emitting() {
 
 #[test]
 fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
-    let path = PathOpV2::new(
+    let path = PathOpV3::new(
         vec![
-            ScenePathCommandV2::MoveTo(point(2.0, 2.0)),
-            ScenePathCommandV2::LineTo(point(12.0, 2.0)),
-            ScenePathCommandV2::LineTo(point(7.0, 10.0)),
-            ScenePathCommandV2::Close,
+            ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
+            ScenePathCommandV3::LineTo(point(12.0, 2.0)),
+            ScenePathCommandV3::LineTo(point(7.0, 10.0)),
+            ScenePathCommandV3::Close,
         ],
-        Some(ScenePathStrokeV2::new(paint("112233"), size(1.0))),
+        Some(ScenePathStrokeV3::new(paint("112233"), size(1.0))),
         Some(paint("aabbcc")),
         0,
     )

@@ -19,7 +19,7 @@ use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyp
 use crate::{
     DocumentRenderArtifactV1, DocumentRenderContentV1, DocumentRenderOutcomeV1,
     DocumentRenderPlanV1, DocumentRenderReportV1, DocumentTextLayoutV1, DocumentVectorOpV1,
-    FerrumFontEnvironmentV1, FerrumFontId, Paint, RenderOp, RenderPoint, RenderViewportV1,
+    FerrumFontEnvironmentV1, FerrumFontId, RenderOp, RenderPaintV3, RenderPoint, RenderViewportV1,
 };
 
 const CATALOG_REFERENCE: i32 = 1;
@@ -568,7 +568,7 @@ impl PdfSinkV1 {
         Ok(self.content.finish().into_vec())
     }
 
-    fn set_fill(&mut self, paint: &Paint) -> Result<(), PdfSinkError> {
+    fn set_fill(&mut self, paint: &RenderPaintV3) -> Result<(), PdfSinkError> {
         let [red, green, blue] = color_components(paint)?;
         self.content.set_fill_rgb(red, green, blue);
         Ok(())
@@ -749,7 +749,7 @@ impl DrawSinkV1 for PdfSinkV1 {
         Ok(())
     }
 
-    fn begin_text_operation(&mut self, _z: i32, _paint: &Paint) -> Result<(), Self::Error> {
+    fn begin_text_operation(&mut self, _z: i32, _paint: &RenderPaintV3) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -776,7 +776,7 @@ impl DrawSinkV1 for PdfSinkV1 {
     fn fill_rect(
         &mut self,
         rect: DrawRectV1,
-        paint: &Paint,
+        paint: &RenderPaintV3,
         _metadata: crate::draw_stream_v1::DrawMetadataV1,
     ) -> Result<(), Self::Error> {
         self.set_fill(paint)?;
@@ -815,8 +815,9 @@ impl DrawSinkV1 for PdfSinkV1 {
     }
 }
 
-fn color_components(paint: &Paint) -> Result<[f32; 3], PdfSinkError> {
-    let value = paint.color().as_str();
+fn color_components(paint: &RenderPaintV3) -> Result<[f32; 3], PdfSinkError> {
+    let rgb = paint.export_rgb();
+    let value = rgb.as_str();
     let component = |range| {
         u8::from_str_radix(&value[range], 16)
             .map(|component| f32::from(component) / 255.0)

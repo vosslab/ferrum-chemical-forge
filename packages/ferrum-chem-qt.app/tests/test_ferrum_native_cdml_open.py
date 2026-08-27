@@ -18,12 +18,10 @@ import ferrum_qt.app
 import ferrum_qt.config.preferences
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
+import ferrum_qt.themes.theme_manager
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.recent_files
 import ferrum_qt.ferrum.window_refusals
-from ferrum_qt.ferrum.local_document_open_types import (
-	_current_tab_replacement_source_kind_for_path,
-)
 
 
 _EMPTY_CDML = '<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
@@ -35,6 +33,16 @@ _SIMPLE_CML = (
 	'<atomArray><atom id="cml-carbon" elementType="C" x2="0" y2="0"/>'
 	'</atomArray></molecule></cml>'
 )
+_SIMPLE_CDXML = (
+	'<CDXML><page><fragment id="fragment-1"><n id="carbon" p="0 0"/>'
+	'<n id="oxygen" p="20 0" Element="8"/><b B="carbon" E="oxygen"/>'
+	'</fragment></page></CDXML>'
+)
+_UNSUPPORTED_CDXML = (
+	'<CDXML><page><fragment id="fragment-1"><n id="carbon" p="0 0"/>'
+	'<n id="oxygen" p="20 0" Element="8"/><b B="carbon" E="oxygen" Order="4"/>'
+	'</fragment></page></CDXML>'
+)
 
 
 #============================================
@@ -42,8 +50,9 @@ def _make_window(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> ferrum_qt.main_window.MainWindow:
 	"""Create the ordinary Ferrum product window."""
-	del qapp
-	return ferrum_qt.main_window.MainWindow(object())
+	return ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
 
 
 #============================================
@@ -174,7 +183,7 @@ def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""Visible File actions pass Rust interchange or CDML/CDSVG-only filters."""
+	"""Visible File actions distinguish new-document and replacement inputs."""
 	window = _make_window(qapp)
 	captured_filters: list[str] = []
 
@@ -191,24 +200,38 @@ def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		_visible_action(window, "Open in Current Tab...").trigger()
 		assert len(captured_filters) == 2
 		new_document_filter, current_tab_filter = captured_filters
-		ingress_descriptors = window._local_ingress_registry.local_document_open_descriptors
-		ingress_suffixes = {
-		suffix
-		for descriptor in ingress_descriptors
-		for suffix in descriptor.suffixes
-	}
-		assert {".cdml", ".svg", ".cml"} == ingress_suffixes
-		assert all("*" + suffix in new_document_filter for suffix in ingress_suffixes)
-		assert "*.cml" not in current_tab_filter
-		assert _current_tab_replacement_source_kind_for_path(
-		"molecule.cdml", ingress_descriptors,
-	) is not None
-		assert _current_tab_replacement_source_kind_for_path(
-		"drawing.svg", ingress_descriptors,
-	) is not None
-		assert _current_tab_replacement_source_kind_for_path(
-		"molecule.cml", ingress_descriptors,
-	) is None
+		assert "*.cdxml" in new_document_filter
+		assert "*.cdxml" not in current_tab_filter
+	finally:
+		window.close()
+
+
+#============================================
+def test_cdxml_open_installs_a_new_tab_with_durable_molecule_facts(
+		qapp: PySide6.QtWidgets.QApplication,
+		tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Visible File/Open routes producer-style CDXML through the Rust descriptor."""
+	source = tmp_path / "producer.cdxml"
+	source.write_text(_SIMPLE_CDXML, encoding="utf-8")
+	window = _make_window(qapp)
+	bootstrap = _current_native_tab(window)
+	monkeypatch.setattr(
+		PySide6.QtWidgets.QFileDialog, "getOpenFileName",
+		lambda *_args: (str(source), "ChemDraw XML (*.cdxml)"),
+	)
+	try:
+		assert _wait_for_open_queue(window, _open_action(window).trigger)
+		tab = _current_native_tab(window)
+		molecule = tab.current_document_observation().projection.molecules[0]
+		assert (
+			tab is not bootstrap
+			and not bootstrap.is_disposed
+			and tab.file_path is None
+			and tuple(atom.element for atom in molecule.atoms) == ("C", "O")
+			and len(molecule.bonds) == 1
+		)
 	finally:
 		window.close()
 
@@ -219,24 +242,25 @@ def test_cdxml_open_refusal_preserves_the_active_native_document(
 		tmp_path: pathlib.Path,
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A dropped ChemDraw XML request gives recovery guidance without mutation."""
+	"""Unsupported CDXML returns the typed refusal without installing a new tab."""
+	source = tmp_path / "unsupported.cdxml"
+	source.write_text(_UNSUPPORTED_CDXML, encoding="utf-8")
 	window = _make_window(qapp)
 	tab = _current_native_tab(window)
 	before = tab.current_snapshot
 	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
-	monkeypatch.setattr(
-		window, "_show_edit_refusal",
-		lambda request: warnings.append(request),
-	)
+	monkeypatch.setattr(window, "_show_edit_refusal", warnings.append)
 	try:
-		assert not window.open_file_path(str(tmp_path / "drawing.cdxml"))
-		assert (
-			_current_native_tab(window) is tab
-			and tab.current_snapshot is before
-			and warnings
-			and warnings[-1].outcome.value == "unavailable_operation"
-			and warnings[-1].context.value == "edit_document"
-		)
+		assert not _wait_for_open_queue(window, lambda: window.open_file_path(str(source)))
+		assert _current_native_tab(window) is tab
+		assert tab.current_snapshot is before
+		assert len(warnings) == 1
+		refusal = warnings[-1]
+		assert refusal.outcome.value == "invalid_document"
+		assert refusal.context.value == "open_document"
+		assert str(source) not in ferrum_qt.dialogs.refusal_presenter.present_refusal(
+			refusal,
+		).ordinary_text()
 	finally:
 		window.close()
 
@@ -298,24 +322,13 @@ def test_cml_open_keeps_import_provenance_and_saves_authoritative_cdml(
 			not bootstrap.is_disposed
 			and tab is not bootstrap
 			and tab.file_path is None
-			and tab._local_document_source_path == source
-			and tab._local_document_source_kind == "cml"
-			and tab.local_cdml_origin_token is not None
-			and tab.local_document_source_description == (
-				"Opened from imported.cml; imported CML document. Save writes CDML."
-			)
 		)
 		assert window.save_active_to_path(str(destination))
-		assert (
-			tab.file_path == destination
-			and "saved as imported.cdml" in (tab.local_document_source_description or "")
-		)
+		assert tab.file_path == destination
 		reopened, _observation, _origin, source_kind = (
 			ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(destination)).take_admission_v1()
 		)
 		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
-		with pytest.raises(ValueError, match="unknown source kind"):
-			tab._adopt_local_document_origin(source, "unknown", object())
 	finally:
 		window.close()
 

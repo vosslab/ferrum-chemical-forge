@@ -27,14 +27,17 @@ artifact-export routes remain distinct native workflows rather than general conv
 
 ## Which formats work now?
 
-The `ferrum` CLI accepts a JSON protocol request containing CDML text; it does not
-offer direct file-format subcommands. The native Qt route opens uncompressed `.cdml`
-or decoded `.svg` with exactly one canonical embedded CDML payload. It imports closed-profile
-uncompressed `.cml` as a clean new document with reallocated IDs. It refuses CDXML,
-`.cdsvg`, `.svgz`, and compressed input before document mutation.
+The `ferrum` CLI includes descriptor-driven file commands. `ferrum open` and the native Qt
+route accept uncompressed `.cdml`, decoded `.svg` with one canonical embedded CDML payload,
+closed-profile `.cml`, and bounded input-only `.cdxml` simple-molecule input. CML and CDXML
+create clean new documents with reallocated IDs; their first Save writes CDML. CDX, unsupported
+CDXML chemistry or presentation, namespaces, `.cdsvg`, `.svgz`, and compressed input refuse
+without document mutation. `ferrum convert` refuses CDXML before reading it because the format
+is eligible only for a new-document Open operation.
 
 Ferrum preserves parsed CDML structure rather than promising byte-for-byte output.
-For the precise protocol and desktop boundaries, read [USAGE.md](USAGE.md).
+For the precise protocol and desktop boundaries, read [FILE_FORMATS.md](FILE_FORMATS.md) and
+[USAGE.md](USAGE.md).
 
 ## Can I use every chemistry tool?
 

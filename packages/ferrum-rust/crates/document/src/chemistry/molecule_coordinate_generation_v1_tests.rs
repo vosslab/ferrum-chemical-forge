@@ -70,8 +70,7 @@ fn generated_coordinates_preserve_existing_centroid_scale_and_z_in_one_history_e
     let mut session = DocumentSession::load(&source("N", "n1")).expect("source must load");
     let observation = session.observe(0).expect("source must project");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let update = build_molecule_coordinate_update_v1(&engine, &observation, &molecule_id)
         .expect("ordinary molecule must prepare");
@@ -117,8 +116,7 @@ fn prepared_coordinates_cannot_cross_same_revision_documents() {
     let source_session = DocumentSession::load(&source("N", "n1")).expect("source must load");
     let observation = source_session.observe(0).expect("source must project");
     let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule")
+        .document_object_id()
         .clone();
     let update = build_molecule_coordinate_update_v1(&engine, &observation, &molecule_id)
         .expect("source must prepare");
@@ -141,9 +139,7 @@ fn unsupported_drawing_bond_style_is_not_silently_dropped() {
     let engine = engine(&[(0.0, 0.0), (2.0, 0.0)]);
     let session = DocumentSession::load(&source("N", "w1")).expect("source must load");
     let observation = session.observe(0).expect("source must project");
-    let molecule_id = observation.projection().molecules()[0]
-        .id()
-        .expect("durable molecule");
+    let molecule_id = observation.projection().molecules()[0].document_object_id();
     assert!(matches!(
         build_molecule_coordinate_update_v1(&engine, &observation, molecule_id),
         Err(MoleculeCoordinateBuildError::UnsupportedBondStyle { bond_index: 0 })

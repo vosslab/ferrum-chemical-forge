@@ -124,8 +124,8 @@ mod tests {
                     "expected_revision": snapshot.revision(),
                     "expected_digest_hex": digest,
                 },
-                "molecule_id": molecule.id().expect("durable molecule").as_str(),
-                "anchor_atom_id": molecule.atoms()[0].id().expect("durable atom").as_str(),
+                "molecule_id": molecule.document_object_id().as_str(),
+                "anchor_atom_id": molecule.atoms()[0].document_object_id().as_str(),
             },
         })
         .to_string()
@@ -226,7 +226,7 @@ mod tests {
             let request = json!({
                 "expected_revision": snapshot.revision(),
                 "expected_digest_hex": snapshot.digest().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
-                "molecule_object_id": molecule.id().expect("durable molecule").as_str(),
+                "molecule_object_id": molecule.document_object_id().as_str(),
                 "compact_group_object_id": molecule.compact_groups()[0].id().as_str(),
             })
             .to_string();

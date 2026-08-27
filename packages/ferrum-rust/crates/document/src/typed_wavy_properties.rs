@@ -15,7 +15,7 @@ impl TypedDocument {
         &self,
         patch: &WavyPropertiesPatchV1,
     ) -> Result<Option<Self>, TypedDocumentError> {
-        let Some(record) = self.resolve_document_object_id(patch.wavy_id()) else {
+        let Some(record) = self.resolve_document_object_id(patch.wavy_id())? else {
             return Ok(None);
         };
         if record.class() != TypedClass::Polyline || record.attribute("style") != Some("wavy") {

@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 
 use super::binding::PyDocumentSession;
 use super::presentation_creation_gesture_binding::digest;
+use super::render_binding::{PyRenderPaintV3, paint_from};
 
 create_exception!(
     ferrum_chem,
@@ -122,11 +123,11 @@ pub(crate) struct PyPresentationVectorOverlayV1 {
     #[pyo3(get)]
     pub bottom: f64,
     #[pyo3(get)]
-    pub stroke_color: String,
+    pub stroke_paint: PyRenderPaintV3,
     #[pyo3(get)]
     pub stroke_width: f64,
     #[pyo3(get)]
-    pub fill_color: Option<String>,
+    pub fill_paint: Option<PyRenderPaintV3>,
 }
 
 #[pyclass(
@@ -234,12 +235,12 @@ fn preview_to_python(
             *bottom,
         ),
     };
-    let (stroke_color, stroke_width, fill_color) = {
+    let (stroke_paint, stroke_width, fill_paint) = {
         let appearance = preview.overlay().appearance();
         (
-            appearance.stroke_color().to_owned(),
+            paint_from(appearance.stroke_paint()),
             appearance.stroke_width(),
-            appearance.fill_color().map(str::to_owned),
+            appearance.fill_paint().map(paint_from),
         )
     };
     PyPresentationVectorPreviewV1 {
@@ -256,9 +257,9 @@ fn preview_to_python(
                 top,
                 right,
                 bottom,
-                stroke_color,
+                stroke_paint,
                 stroke_width,
-                fill_color,
+                fill_paint,
             },
         )
         .expect("overlay allocates"),

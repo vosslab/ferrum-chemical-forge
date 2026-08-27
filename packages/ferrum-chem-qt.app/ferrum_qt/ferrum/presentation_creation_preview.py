@@ -6,6 +6,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_presentation_render_plan
+import ferrum_qt.ferrum.document_display_refresh
 
 
 #============================================
@@ -15,7 +16,7 @@ def create_presentation_preview(tab: object, plan: object) -> PySide6.QtWidgets.
 	if scene is None:
 		raise RuntimeError("Ferrum presentation preview requires an installed scene")
 	replay = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_preview_render_plan(
-		plan, tab._controller._telex_resource,
+		plan, tab._controller._telex_resource, tab.document_display_palette,
 	)
 	if len(replay.roots) != 1:
 		replay.dispose_detached()
@@ -24,6 +25,12 @@ def create_presentation_preview(tab: object, plan: object) -> PySide6.QtWidgets.
 	scene.addItem(item)
 	item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 	item.setZValue(1_000_000.0)
+	refreshable = ferrum_qt.ferrum.document_display_refresh.DocumentDisplayDelegatingRefreshableV1(
+		item,
+	)
+	ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable(
+		tab, item, refreshable,
+	)
 	return item
 
 

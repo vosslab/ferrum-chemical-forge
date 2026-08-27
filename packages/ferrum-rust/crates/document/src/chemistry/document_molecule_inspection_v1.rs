@@ -259,7 +259,7 @@ pub fn direct_projection_molecule_v1<'a>(
     let mut roots = projection
         .molecules()
         .iter()
-        .filter(|root| root.id() == Some(molecule_id));
+        .filter(|root| root.document_object_id() == molecule_id);
     let root = match roots.next() {
         Some(root) => root,
         None => return Err(unknown_direct_molecule(molecule_id)?),

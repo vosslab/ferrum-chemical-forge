@@ -293,6 +293,11 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
                 request,
             )
         }
+        OperationProtocolOperationV1::DocumentCompactGroupAttach(request) => {
+            super::document_compact_group_attachment_v1::execute_document_compact_group_attach(
+                request,
+            )
+        }
         OperationProtocolOperationV1::DocumentMoleculeInterchangeImport(request) => {
             return execute_document_molecule_interchange_import_envelope(
                 &request_id,
@@ -346,6 +351,7 @@ const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> b
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
             | ProtocolOperationKindV1::DocumentMoleculeHydrogenMaterialize
             | ProtocolOperationKindV1::DocumentCompactGroupMaterialize
+            | ProtocolOperationKindV1::DocumentCompactGroupAttach
             | ProtocolOperationKindV1::InspectInterchangeGraph
     )
 }
@@ -393,6 +399,7 @@ fn response_size_exceeded_error(
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         },
     })
 }
@@ -426,6 +433,7 @@ fn error_response(
             catalog_placement_refusal: None,
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
         },
     })
 }
@@ -447,6 +455,7 @@ pub(crate) fn operation_error_response(
             catalog_placement_refusal: failure.catalog_placement_refusal,
             reaction_refusal: failure.reaction_refusal,
             compact_group_materialization_refusal: failure.compact_group_materialization_refusal,
+            compact_group_attachment_refusal: failure.compact_group_attachment_refusal,
         },
     })
 }

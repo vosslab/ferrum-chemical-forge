@@ -1,36 +1,47 @@
 """Private local-source identity, provenance, and bootstrap state for Ferrum Open."""
 
 # Standard Library
+import enum
 import pathlib
 
 
 #============================================
-class FerrumNativeLocalCdmlOriginTabMixin:
+class _LocalDocumentOriginKind(enum.Enum):
+	"""Closed Rust receipt values that determine local source ownership."""
+
+	CDML = "cdml"
+	DECODED_CDSVG = "decoded_cdsvg"
+	CML = "cml"
+	CDXML = "cdxml"
+
+
+#============================================
+class FerrumNativeLocalDocumentOriginTabMixin:
 	"""Retain Qt-local source facts that never enter Rust documents or CDML."""
 
 	#============================================
-	def _initialize_local_cdml_origin(self) -> None:
+	def _initialize_local_document_origin(self) -> None:
 		"""Start with no admitted-file identity and no replacement eligibility."""
-		self._local_cdml_origin_token: object | None = None
+		self._local_document_origin_token: object | None = None
 		self._local_document_source_path: pathlib.Path | None = None
-		self._local_document_source_kind: str | None = None
+		self._local_document_source_kind: _LocalDocumentOriginKind | None = None
 		self._is_initial_placeholder = False
 
 	#============================================
 	@property
-	def local_cdml_origin_token(self) -> object | None:
+	def local_document_origin_token(self) -> object | None:
 		"""Return the opaque Rust-issued identity for one admitted local source."""
-		return self._local_cdml_origin_token
+		return self._local_document_origin_token
 
 	#============================================
-	def _adopt_local_cdml_origin_token(self, token: object) -> None:
+	def _adopt_local_document_origin_token(self, token: object) -> None:
 		"""Retain one private Rust receipt fact for live-tab identity matching."""
 		self._require_live()
 		if token is None:
-			raise TypeError("Ferrum local CDML origin requires a Rust identity token")
-		if self._local_cdml_origin_token is not None:
-			raise ValueError("Ferrum tab already has a local CDML origin identity")
-		self._local_cdml_origin_token = token
+			raise TypeError("Ferrum local document origin requires a Rust identity token")
+		if self._local_document_origin_token is not None:
+			raise ValueError("Ferrum tab already has a local document origin identity")
+		self._local_document_origin_token = token
 
 	#============================================
 	def _adopt_local_document_origin(
@@ -38,25 +49,27 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 			) -> None:
 		"""Retain one admitted source without conflating it with CDML publication.
 
-		Decoded CD-SVG and imported CML are conversion-only sources, so they
-		intentionally have no ``file_path`` save baseline.  The descriptor token
-		remains independent of a later CDML Save As destination.
+		Decoded CD-SVG plus imported CML and CDXML are conversion-only sources, so
+		they intentionally have no ``file_path`` save baseline.  The descriptor
+		token remains independent of a later CDML Save As destination.
 		"""
 		self._require_live()
 		origin = pathlib.Path(path)
 		if not origin.is_absolute():
 			raise ValueError("Ferrum document origins must be absolute paths")
-		if source_kind not in {"cdml", "decoded_cdsvg", "cml"}:
-			raise ValueError("Ferrum document origin has an unknown source kind")
+		try:
+			origin_kind = _LocalDocumentOriginKind(source_kind)
+		except ValueError as exc:
+			raise ValueError("Ferrum document origin has an unknown source kind") from exc
 		if self._local_document_source_path is not None:
 			raise ValueError("Ferrum tab already has local document source provenance")
-		self._adopt_local_cdml_origin_token(token)
+		self._adopt_local_document_origin_token(token)
 		self._local_document_source_path = origin
-		self._local_document_source_kind = source_kind
-		if source_kind == "cdml":
+		self._local_document_source_kind = origin_kind
+		if origin_kind is _LocalDocumentOriginKind.CDML:
 			self._adopt_loaded_origin_path(origin)
 			return
-		if source_kind == "decoded_cdsvg" and origin.suffix.lower() != ".svg":
+		if origin_kind is _LocalDocumentOriginKind.DECODED_CDSVG and origin.suffix.lower() != ".svg":
 			raise ValueError("decoded CD-SVG sources must use the .svg extension")
 		self._title = origin.name
 		self.setToolTip(self.local_document_source_description or "")
@@ -75,15 +88,19 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 	@property
 	def local_document_source_description(self) -> str | None:
 		"""Return tab-entry guidance for a conversion-only local source."""
-		if self._local_document_source_kind not in {"decoded_cdsvg", "cml"}:
+		if self._local_document_source_kind not in {
+			_LocalDocumentOriginKind.DECODED_CDSVG,
+			_LocalDocumentOriginKind.CML,
+			_LocalDocumentOriginKind.CDXML,
+		}:
 			return None
 		if self._local_document_source_path is None:
 			return None
-		document_kind = (
-			"embedded CDML document"
-			if self._local_document_source_kind == "decoded_cdsvg"
-			else "imported CML document"
-		)
+		document_kind = {
+			_LocalDocumentOriginKind.DECODED_CDSVG: "embedded CDML document",
+			_LocalDocumentOriginKind.CML: "imported CML document",
+			_LocalDocumentOriginKind.CDXML: "imported ChemDraw XML document",
+		}[self._local_document_source_kind]
 		if self.file_path is None:
 			return (
 				f"Opened from {self._local_document_source_path.name}; {document_kind}. "
@@ -108,7 +125,7 @@ class FerrumNativeLocalCdmlOriginTabMixin:
 		return (
 			not self._disposed
 			and self._is_initial_placeholder
-			and self._local_cdml_origin_token is None
+			and self._local_document_origin_token is None
 			and self.file_path is None
 			and not self.is_dirty
 			and not self.requires_refresh

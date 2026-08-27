@@ -171,12 +171,14 @@ fn overlay_targets_from_document(
         .map(|atom| {
             document
                 .document_object_id_for_source_id_v1(atom)
+                .map_err(|_| DocumentSessionError::RendererAdmission)?
                 .map(ferrum_render::AcceptedRenderOverlayTargetV1::atom)
                 .ok_or(DocumentSessionError::RendererAdmission)
         })
         .chain(bonds.iter().map(|bond| {
             document
                 .document_object_id_for_source_id_v1(bond)
+                .map_err(|_| DocumentSessionError::RendererAdmission)?
                 .map(ferrum_render::AcceptedRenderOverlayTargetV1::bond)
                 .ok_or(DocumentSessionError::RendererAdmission)
         }))

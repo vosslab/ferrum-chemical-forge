@@ -115,8 +115,7 @@ mod tests {
             .projection()
             .molecules()[0]
             .atoms()[atom_index]
-            .id()
-            .expect("source atom has durable identity")
+            .document_object_id()
             .clone();
         DirectBondPointerProbe::new(
             0.0,

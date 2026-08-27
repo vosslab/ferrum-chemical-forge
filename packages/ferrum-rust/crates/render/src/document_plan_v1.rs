@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::ops::Deref;
 
 use crate::{
-    DocumentVectorRootV1, GlyphBounds, MoleculeMemberDepictionIssueV1, MoleculeRenderPlan, Paint,
-    PresentationTextOp, RenderError, RenderPoint, RenderProvenance, TextOp,
+    DocumentVectorRootV1, GlyphBounds, MoleculeMemberDepictionIssueV1, MoleculeRenderPlan,
+    PresentationTextOp, RenderError, RenderPaintV3, RenderPoint, RenderProvenance, TextOp,
 };
 
 /// Paintable molecule batches plus diagnostics owned by its direct-root molecule.
@@ -106,7 +106,7 @@ pub struct DocumentTextOpV1 {
     anchor: RenderPoint,
     operation: DocumentTextLayoutV1,
     bounds: GlyphBounds,
-    background: Option<Paint>,
+    background: Option<RenderPaintV3>,
 }
 
 impl DocumentTextOpV1 {
@@ -115,7 +115,7 @@ impl DocumentTextOpV1 {
         anchor: RenderPoint,
         operation: TextOp,
         bounds: GlyphBounds,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     ) -> Result<Self, RenderError> {
         Self::with_layout(
             anchor,
@@ -130,7 +130,7 @@ impl DocumentTextOpV1 {
         anchor: RenderPoint,
         operation: PresentationTextOp,
         bounds: GlyphBounds,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     ) -> Result<Self, RenderError> {
         Self::with_layout(
             anchor,
@@ -144,7 +144,7 @@ impl DocumentTextOpV1 {
         anchor: RenderPoint,
         operation: DocumentTextLayoutV1,
         bounds: GlyphBounds,
-        background: Option<Paint>,
+        background: Option<RenderPaintV3>,
     ) -> Result<Self, RenderError> {
         let edges = [
             bounds.min_x(),
@@ -185,7 +185,7 @@ impl DocumentTextOpV1 {
     }
     /// Return the optional explicit background paint.
     #[must_use]
-    pub fn background(&self) -> Option<&Paint> {
+    pub fn background(&self) -> Option<&RenderPaintV3> {
         self.background.as_ref()
     }
 }

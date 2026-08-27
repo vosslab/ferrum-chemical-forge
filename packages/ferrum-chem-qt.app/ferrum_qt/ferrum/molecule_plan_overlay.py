@@ -22,7 +22,7 @@ def create_plan_overlay(
 	group = PySide6.QtWidgets.QGraphicsItemGroup()
 	for index in range(len(plan.batches)):
 		item = ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem(
-			plan, index, tab._controller._telex_resource,
+			plan, index, tab._controller._telex_resource, tab.document_display_palette,
 		)
 		item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 		if batch_z_order:
