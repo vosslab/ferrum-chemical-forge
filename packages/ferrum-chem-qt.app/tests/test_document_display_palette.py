@@ -26,7 +26,9 @@ class _Paint:
 
 
 @dataclasses.dataclass
-class _Refreshable:
+class _Refreshable(
+		ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1,
+		):
 	"""Record one palette delivery through the public refresh contract."""
 
 	palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1 | None = None
@@ -37,6 +39,17 @@ class _Refreshable:
 			) -> None:
 		"""Retain the exact delivered palette for this narrow lifecycle test."""
 		self.palette = palette
+
+
+#============================================
+class _StructuralRefreshableLookAlike:
+	"""Provide the method shape without membership in the nominal contract."""
+
+	def refresh_document_display_palette(
+			self,
+			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
+			) -> None:
+		"""Accept a palette only to model the rejected structural shape."""
 
 
 #============================================
@@ -174,6 +187,35 @@ def test_graphics_view_requires_and_uses_one_explicit_document_palette(
 
 
 #============================================
+def test_document_display_delegating_refreshable_forwards_shipped_palette() -> None:
+	"""The delegating retained root forwards an exact palette through the registry."""
+	class _RendererItem:
+		"""Record the public renderer material refresh call."""
+
+		def __init__(self) -> None:
+			"""Start before the registry has delivered a palette."""
+			self.palette: object | None = None
+
+		def refresh_display_palette(self, palette: object) -> None:
+			"""Retain the received palette for this isolated adapter proof."""
+			self.palette = palette
+
+	item = _RendererItem()
+	refreshable = (
+		ferrum_qt.ferrum.document_display_refresh.
+		DocumentDisplayDelegatingRefreshableV1(item)
+	)
+	registry = (
+		ferrum_qt.ferrum.document_display_refresh.
+		DocumentDisplayPaletteRefreshRegistryV1()
+	)
+	palette = ferrum_qt.themes.theme_loader.get_document_display_palette("dark")
+	registry.register(refreshable)
+	registry.refresh(palette)
+	assert item.palette is palette
+
+
+#============================================
 def test_document_display_refresh_registry_releases_detached_objects() -> None:
 	"""A tab-scoped registry refreshes attached objects and releases detached ones."""
 	registry = (
@@ -188,3 +230,14 @@ def test_document_display_refresh_registry_releases_detached_objects() -> None:
 	registry.unregister(refreshable)
 	registry.refresh(dark)
 	assert refreshable.palette is light
+
+
+#============================================
+def test_document_display_refresh_registry_refuses_structural_lookalike() -> None:
+	"""The registry requires nominal membership before accepting a refresh method."""
+	registry = (
+		ferrum_qt.ferrum.document_display_refresh.
+		DocumentDisplayPaletteRefreshRegistryV1()
+	)
+	with pytest.raises(TypeError):
+		registry.register(_StructuralRefreshableLookAlike())

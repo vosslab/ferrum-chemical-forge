@@ -2,6 +2,7 @@
 
 # Standard Library
 import dataclasses
+import functools
 import re
 
 # PIP3 modules
@@ -47,6 +48,16 @@ class LiveActionView:
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class _QtActionBinding:
+	"""Retain one live Qt client and its guarded retirement ownership."""
+
+	qt_action: PySide6.QtGui.QAction
+	binding_token: int
+	declaration_owned_by_binding: bool
+
+
+#============================================
 class ActionRegistry:
 	"""Store portable action declarations and their live Qt clients."""
 
@@ -54,8 +65,9 @@ class ActionRegistry:
 	def __init__(self) -> None:
 		"""Create an empty registry."""
 		self._actions: dict[str, MenuAction] = {}
-		self._qt_actions: dict[str, PySide6.QtGui.QAction] = {}
+		self._qt_actions: dict[str, _QtActionBinding] = {}
 		self._action_ids_by_identity: dict[int, str] = {}
+		self._next_binding_token = 1
 		self._dynamic_lifecycles: dict[str, str] = {}
 		self._dynamic_menus: dict[str, PySide6.QtWidgets.QMenu] = {}
 		self._dynamic_menu_ids_by_identity: dict[int, str] = {}
@@ -71,6 +83,7 @@ class ActionRegistry:
 	#============================================
 	def _bind_existing_action(
 			self, action_id: str, qt_action: PySide6.QtGui.QAction,
+			*, declaration_owned_by_binding: bool,
 			) -> None:
 		"""Bind an existing action without changing any feature-owned Qt state."""
 		if not isinstance(qt_action, PySide6.QtGui.QAction):
@@ -83,8 +96,32 @@ class ActionRegistry:
 			raise ValueError(
 				f"QAction identity is already registered as '{existing_id}'.",
 			)
-		self._qt_actions[action_id] = qt_action
+		binding_token = self._next_binding_token
+		self._next_binding_token += 1
+		self._qt_actions[action_id] = _QtActionBinding(
+			qt_action, binding_token, declaration_owned_by_binding,
+		)
 		self._action_ids_by_identity[identity] = action_id
+		# Capture only immutable ID/token data so a late callback cannot retire a
+		# replacement binding that later reuses this stable action ID.
+		qt_action.destroyed.connect(functools.partial(
+			self._retire_destroyed_qt_action, action_id, binding_token,
+		))
+
+	#============================================
+	def _retire_destroyed_qt_action(
+			self, action_id: str, binding_token: int, *_signal_args: object,
+			) -> None:
+		"""Remove exactly the binding whose feature-owned QObject was destroyed."""
+		binding = self._qt_actions.get(action_id)
+		if binding is None or binding.binding_token != binding_token:
+			return
+		self._qt_actions.pop(action_id)
+		identity = id(binding.qt_action)
+		if self._action_ids_by_identity.get(identity) == action_id:
+			self._action_ids_by_identity.pop(identity)
+		if binding.declaration_owned_by_binding:
+			self._actions.pop(action_id, None)
 
 	#============================================
 	def register(self, action: MenuAction) -> None:
@@ -131,7 +168,9 @@ class ActionRegistry:
 			action_id, label, help_text, accelerator or None, qt_action.trigger,
 			qt_action.isEnabled, shortcut_exemption_reason, lifecycle,
 		)
-		self._bind_existing_action(action_id, qt_action)
+		self._bind_existing_action(
+			action_id, qt_action, declaration_owned_by_binding=True,
+		)
 		self._actions[action_id] = declaration
 
 	#============================================
@@ -141,7 +180,9 @@ class ActionRegistry:
 		"""Bind a predeclared ID to an existing action without changing Qt state."""
 		if action_id not in self._actions:
 			raise KeyError(action_id)
-		self._bind_existing_action(action_id, qt_action)
+		self._bind_existing_action(
+			action_id, qt_action, declaration_owned_by_binding=False,
+		)
 
 	#============================================
 	def declare_dynamic_lifecycle(self, owner_id: str, reason: str) -> None:
@@ -208,7 +249,8 @@ class ActionRegistry:
 	#============================================
 	def get_qt_action(self, action_id: str) -> PySide6.QtGui.QAction | None:
 		"""Return the live Qt client for an ID when the window supplies one."""
-		return self._qt_actions.get(action_id)
+		binding = self._qt_actions.get(action_id)
+		return binding.qt_action if binding is not None else None
 
 	#============================================
 	def __contains__(self, action_id: str) -> bool:
@@ -236,7 +278,8 @@ class ActionRegistry:
 				qt_action=qt_action,
 				enabled=qt_action.isEnabled(),
 			)
-			for action_id, qt_action in self._qt_actions.items()
+			for action_id, binding in self._qt_actions.items()
+			for qt_action in (binding.qt_action,)
 		)
 		return tuple(sorted(
 			views, key=lambda view: (view.label.casefold(), view.action_id),

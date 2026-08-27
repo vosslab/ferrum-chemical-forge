@@ -7,13 +7,19 @@ read-only BKChem/OASA reference.  The 2026-08-19 inventories identify 23 absent
 Qt workflows and reopened backend gaps in interchange, graph coverage, editor
 grammar, chemistry operations, reactions, catalogs, and optional integrations.
 
-This is the sole canonical status ledger and forward roadmap for complete usable
-Ferrum and Rust-first OASA/BKChem parity. Its milestones use the `PARITY-M*`
+This is the canonical full-parity scope, dependency, and acceptance ledger for
+complete usable Ferrum and Rust-first OASA/BKChem parity. Its milestones use the `PARITY-M*`
 namespace. [ferrum-plan-v3.md](../ferrum-plan-v3.md) is a subordinate historical
 implementation record; its `V3-M*` milestones retain only their completed local
 scope and must not be used to sequence or close full parity. This ledger neither
 claims parity already exists nor restores Python OASA, a Python document model,
 or reference code as a runtime dependency. `OTHER_REPOS/` remains read-only.
+
+[ROADMAP.md](../../ROADMAP.md) records the current delivery checkpoint. Its
+`ActionRegistry` lifecycle reconciliation is complete. Reconcile broader
+historical milestone and receipt status into this ledger before approving or
+closing the next parity milestone; dated receipts below prove only the slices
+and runs they name.
 
 ## Objectives
 
@@ -869,6 +875,26 @@ planned reaction-specific palette E2E was rejected as redundant: registered
 reaction E2E and focused Qt tests already own its durable semantics. Native
 shortcut dispatch and accessibility remain one-time real 16:10 desktop evidence,
 not a pixel, timing, or reaction-fixture gate.
+
+Current delivery checkpoint: the independently accepted `ActionRegistry`
+token/identity-guarded destruction-retirement repair closes the stale-QAction
+defect, and the nominal `DocumentDisplayRefreshableV1` ABC boundary is also
+delivered and independently accepted at code level. Permanent lifecycle
+regressions cover feature-owned `register_existing()` stable-ID reuse/successor
+palette dispatch and portable `register()` plus `bind_qt_action()` destruction,
+declaration retention, successor rebinding, and dispatch. The display-refresh
+evidence covers nominal membership, structural-look-alike rejection, and direct
+delegating-adapter forwarding.
+
+The last automated 13-scene capture completed, but human visual review rejected
+eight frames. GUI capture-driver/catalog repairs and command-palette
+hierarchy/relevance repairs are implemented with focused evidence, but each is
+pending independent final review and neither has been recaptured. Resume with
+independent review of both patches; focused recapture and the complete 13-scene
+capture; human review; the guidance-format gate plus full build/all-test/E2E/
+PyO3/Qt validation; the post-fix audit; broader parity-ledger reconciliation;
+and a separate M5A decision. This checkpoint does not approve M5A or advance
+full parity.
 
 This completes one bounded M6 discoverability slice. It does not prove a full
 M6 usability program, real desktop visual acceptance, or complete Ferrum parity.

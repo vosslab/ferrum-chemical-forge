@@ -24,7 +24,6 @@ import ferrum_qt.modes.base_mode
 import ferrum_qt.modes.controllers
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
-import ferrum_qt.widgets.zoom_controls
 
 
 #============================================
@@ -119,22 +118,43 @@ def test_disposed_document_reports_typed_unavailable_properties(
 
 
 #============================================
-def test_ordinary_window_uses_shared_declarative_clients(
+def test_ordinary_window_exposes_native_status_bar_view_controls(
 		qapp: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		) -> None:
-	"""The running product reuses shared actions in its mode, property, and zoom UI."""
+	"""The running product exposes one visible status-bar client for View actions."""
 	window = ferrum_qt.main_window.MainWindow(theme_manager)
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "shared-seams.cdml",
 	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
 	try:
 		window._register_native_tab(tab, activate=True)
+		window.resize(1440, 900)
+		window.show()
 		qapp.processEvents()
 		assert window._window_mode_sync.active_state.mode_id is None
 		assert isinstance(window._native_property_dock, ferrum_qt.widgets.property_dock.PropertyDock)
 		assert isinstance(window.statusBar(), ferrum_qt.widgets.status_bar.StatusBar)
-		assert isinstance(window._shared_zoom_controls, ferrum_qt.widgets.zoom_controls.ZoomControls)
+		controls = window._native_view_status_controls
+		assert controls.isVisible()
+		assert controls.width() >= controls.minimumSizeHint().width()
+		assert not hasattr(window, "_shared_zoom_controls")
+		reset = next(
+			button for button in controls.findChildren(PySide6.QtWidgets.QToolButton)
+			if button.accessibleName() == "Reset zoom to 100%"
+		)
+		content = next(
+			button for button in controls.findChildren(PySide6.QtWidgets.QToolButton)
+			if button.accessibleName() == "Zoom to Content"
+		)
+		slider = controls.findChild(PySide6.QtWidgets.QSlider, "")
+		assert reset.isVisible() and content.isVisible()
+		assert slider is not None and slider.isVisible()
+		triggered: list[bool] = []
+		window._zoom_100_action.triggered.connect(lambda: triggered.append(True))
+		PySide6.QtTest.QTest.mouseClick(reset, PySide6.QtCore.Qt.MouseButton.LeftButton)
+		qapp.processEvents()
+		assert triggered == [True]
 		action = window._action_registry.get_qt_action("draw.bond")
 		assert action is window._draw_bond_action
 		draw_group = next(

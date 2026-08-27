@@ -62,7 +62,8 @@ def create_overlay(tab: object, overlay: object) -> PySide6.QtWidgets.QGraphicsI
 
 
 #============================================
-class _DirectBondOverlayRefreshable:
+class _DirectBondOverlayRefreshable(
+		ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1):
 	"""Refresh immutable precommit paint facts without replaying overlay geometry."""
 
 	def __init__(self,

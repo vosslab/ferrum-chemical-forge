@@ -2,6 +2,7 @@
 
 # Standard Library
 import collections.abc
+import types
 
 # PIP3 modules
 import PySide6.QtGui
@@ -12,6 +13,7 @@ import ferrum_qt.declarative_resource_loader
 
 
 _MENU_RESOURCE = "menus.yaml"
+_RIBBON_RESOURCE = "ribbon_layout.yaml"
 _CONTEXT_MENU_ID = "selected_structure"
 
 
@@ -26,6 +28,18 @@ def load_menu_declarations() -> dict:
 	if type(data) is not dict:
 		raise DeclarativeResourceError("Ferrum resource 'menus.yaml' must contain a YAML mapping.")
 	return data
+
+
+#============================================
+def load_action_placement_projection(registry: object) -> collections.abc.Mapping[str, tuple[str, ...]]:
+	"""Return immutable primary action breadcrumbs derived from Ferrum YAML."""
+	action_ids = _registry_action_ids(registry)
+	dynamic_menu_ids = _registry_dynamic_menu_ids(registry)
+	menu_data = load_menu_declarations()
+	ribbon_data = ferrum_qt.declarative_resource_loader.load_packaged_yaml(_RIBBON_RESOURCE)
+	return _build_action_placement_projection(
+		menu_data, ribbon_data, action_ids, dynamic_menu_ids,
+	)
 
 
 #============================================
@@ -199,6 +213,110 @@ def _validate_context_declarations(data: dict, action_ids: frozenset[str]) -> No
 						f"{action_location} references unresolved action '{action_id}'.",
 					)
 				declared_action_ids.add(action_id)
+
+
+#============================================
+def _build_action_placement_projection(
+		menu_data: dict, ribbon_data: object, action_ids: frozenset[str],
+		dynamic_menu_ids: frozenset[str] = frozenset(),
+		) -> collections.abc.Mapping[str, tuple[str, ...]]:
+	"""Validate declarations and derive one primary breadcrumb per action ID."""
+	_validate_menu_declarations(menu_data, action_ids, dynamic_menu_ids)
+	_validate_ribbon_declarations(ribbon_data, action_ids)
+	placements = _menu_action_breadcrumbs(menu_data)
+	for action_id, breadcrumb in _ribbon_action_breadcrumbs(ribbon_data).items():
+		placements.setdefault(action_id, breadcrumb)
+	return types.MappingProxyType(placements)
+
+
+#============================================
+def _menu_action_breadcrumbs(data: dict) -> dict[str, tuple[str, ...]]:
+	"""Return the ordinary-menu breadcrumb for each action in declared order."""
+	placements: dict[str, tuple[str, ...]] = {}
+
+	def visit(items: list, path: tuple[str, ...]) -> None:
+		"""Collect menu paths without assigning context-menu-only paths."""
+		for item in items:
+			if "action" in item:
+				placements[item["action"]] = path
+			elif "section" in item:
+				section = item["section"]
+				label = section.get("label_key")
+				section_path = path + ((label,) if label is not None else ())
+				visit(section["items"], section_path)
+			elif "submenu" in item:
+				submenu = item["submenu"]
+				visit(submenu["items"], path + (submenu["label_key"],))
+
+	for menu in data["menus"]:
+		visit(menu["items"], (menu["label_key"],))
+	return placements
+
+
+#============================================
+def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> None:
+	"""Validate ribbon placements without resolving live Qt action clients."""
+	if type(data) is not dict or set(data) != {"tabs"}:
+		raise DeclarativeResourceError(
+			"ribbon_layout.yaml must contain exactly a 'tabs' mapping key.",
+		)
+	tabs = data["tabs"]
+	if type(tabs) is not list or not tabs:
+		raise DeclarativeResourceError("ribbon_layout.yaml.tabs must be a nonempty list.")
+	seen_tab_ids: set[str] = set()
+	for tab_index, tab in enumerate(tabs):
+		tab_location = f"ribbon_layout.yaml.tabs[{tab_index}]"
+		tab = _require_mapping(tab, tab_location)
+		_require_keys(tab, {"id", "label_key", "groups"}, tab_location)
+		tab_id = _require_string(tab["id"], f"{tab_location}.id")
+		if tab_id in seen_tab_ids:
+			raise DeclarativeResourceError(f"Duplicate ribbon tab ID: '{tab_id}'.")
+		seen_tab_ids.add(tab_id)
+		_require_string(tab["label_key"], f"{tab_location}.label_key")
+		groups = tab["groups"]
+		if type(groups) is not list or not groups:
+			raise DeclarativeResourceError(f"{tab_location}.groups must be a nonempty list.")
+		seen_group_ids: set[str] = set()
+		seen_action_ids: set[str] = set()
+		for group_index, group in enumerate(groups):
+			group_location = f"{tab_location}.groups[{group_index}]"
+			group = _require_mapping(group, group_location)
+			_require_keys(group, {"id", "label_key", "overflow_label_key", "entries"}, group_location)
+			group_id = _require_string(group["id"], f"{group_location}.id")
+			if group_id in seen_group_ids:
+				raise DeclarativeResourceError(f"Duplicate ribbon group ID: '{group_id}'.")
+			seen_group_ids.add(group_id)
+			_require_string(group["label_key"], f"{group_location}.label_key")
+			_require_string(group["overflow_label_key"], f"{group_location}.overflow_label_key")
+			entries = group["entries"]
+			if type(entries) is not list or not entries:
+				raise DeclarativeResourceError(f"{group_location}.entries must be a nonempty list.")
+			for entry_index, entry in enumerate(entries):
+				entry_location = f"{group_location}.entries[{entry_index}]"
+				entry = _require_mapping(entry, entry_location)
+				_require_keys(entry, {"action", "role", "priority"}, entry_location)
+				action_id = _require_string(entry["action"], f"{entry_location}.action")
+				if action_id in seen_action_ids:
+					raise DeclarativeResourceError(
+						f"Duplicate ribbon action '{action_id}' in {group_location}.",
+					)
+				seen_action_ids.add(action_id)
+				if action_id not in action_ids:
+					raise DeclarativeResourceError(
+						f"{entry_location}.action references unresolved action '{action_id}'.",
+					)
+
+
+#============================================
+def _ribbon_action_breadcrumbs(data: dict) -> dict[str, tuple[str, ...]]:
+	"""Return first-declared ribbon breadcrumbs for actions lacking menu placement."""
+	placements: dict[str, tuple[str, ...]] = {}
+	for tab in data["tabs"]:
+		for group in tab["groups"]:
+			breadcrumb = (tab["label_key"], group["label_key"])
+			for entry in group["entries"]:
+				placements.setdefault(entry["action"], breadcrumb)
+	return placements
 
 
 #============================================

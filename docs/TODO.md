@@ -1,28 +1,36 @@
 # TODO
 
-Ferrum has one Rust-owned document/runtime route and no live OASA Python
-backend. The following gates remain before the migration and supported-product
-work are complete.
+Ferrum is paused at a documented delivery-stabilization checkpoint. The current
+Rust-owned application, delivered contract evidence, remaining gates, and next parity package
+are tracked in [ROADMAP.md](ROADMAP.md) and the canonical
+[FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md) ledger.
 
-## Desktop convergence
+## Resume first
 
-- Finish portable menu, mode, context-menu, platform-menu, widget, and dialog
-  declarations that drive the running application.
-- Record every asynchronous Qt worker's cancellation, result, GUI-thread
-  commit, and revision/digest fencing contract; consolidate only where that
-  evidence supports a shared helper.
-- Complete the keyboard-only drawing E2E and the structural accessibility
-  inventory for every interactive widget and dialog.
-- Port the remaining reviewed frontend interaction changes without importing
-  Python chemistry or document authority.
+- Independently review the implemented GUI capture-driver/catalog repair and
+  command-palette hierarchy/relevance repair. Their focused evidence passed, but
+  neither patch has final independent acceptance.
+- Run focused recaptures, then a complete 13-scene 1440x900 capture. The last
+  automated full run completed, but human review rejected eight frames; later
+  repairs have not been recaptured.
+- Complete human review of the new full-window images and publish only an
+  accepted 13-image artifact group.
+- Run the new guidance-document format gate, then `./build.sh`, `./all_test.sh`,
+  registered E2E, installed PyO3 and Qt suites, and the post-fix audit against
+  one fresh local runtime.
+- Reconcile broader historical milestone and receipt status in the canonical
+  parity ledger. `ActionRegistry` lifecycle retirement and the nominal
+  `DocumentDisplayRefreshableV1` contract are delivered and independently
+  accepted at code level; full parity remains open.
 
-## Backend
+## Next parity decision
 
-- Finish the geometry migration inventory and move remaining authoritative
-  computations to their assigned Rust crates; the disposable hex grid stays in
-  Python.
-- Build the chemistry extension with its packaged, replaceable adapter closure
-  and run the complete Qt suite without a modal adapter failure.
-
-Track milestone status and acceptance evidence in
-[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+- Make the separate `PARITY-M5.A` catalog contract/dependency decision before
+  dispatching implementation. M5A is not approved.
+- If approved, freeze one Rust-authoritative immutable template-catalog manifest
+  with stable opaque keys, content identity, provenance, limits, and typed
+  admission/refusal.
+- Project an approved Rust manifest through PyO3 and route the existing searchable
+  Qt palette through the current fenced placement transition.
+- Select a different dependency-ready package when the M5A decision does not
+  establish a safe independent boundary.

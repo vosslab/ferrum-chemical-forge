@@ -34,7 +34,7 @@ _NORMAL_MOLECULE_CDML = """\
 """
 
 
-class _Refreshable:
+class _Refreshable(ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1):
 	"""Capture one tab-owned display refresh delivery."""
 
 	def __init__(self) -> None:

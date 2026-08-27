@@ -79,6 +79,56 @@ def _catalog_key(qtbot: object,
 
 
 #============================================
+def test_registered_insert_template_action_exposes_rust_catalog_provenance(
+		qapp: PySide6.QtWidgets.QApplication, qtbot: object,
+		) -> None:
+	"""The live Insert Template action presents one binding-provided catalog entry."""
+	window = ferrum_qt.main_window.MainWindow(
+		ferrum_qt.themes.theme_manager.ThemeManager(qapp),
+	)
+	qtbot.addWidget(window)
+	window.show()
+	observed = []
+
+	def inspect_palette() -> None:
+		"""Inspect the action-owned dialog through its ordinary visible controls."""
+		palette = next(
+			widget for widget in qapp.topLevelWidgets()
+			if isinstance(widget, ferrum_qt.ferrum.catalog_palette.FerrumCatalogPalette)
+			and widget.isVisible()
+		)
+		search = next(
+			widget for widget in palette.findChildren(PySide6.QtWidgets.QLineEdit)
+			if widget.accessibleName() == "Search templates"
+		)
+		results = next(
+			widget for widget in palette.findChildren(PySide6.QtWidgets.QListWidget)
+			if widget.accessibleName() == "Ferrum template results"
+		)
+		search.setText("benzene")
+		item = results.currentItem()
+		assert item is not None
+		key = item.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
+		assert type(key) is str and key
+		detail_text = next(
+			label.text() for label in palette.findChildren(PySide6.QtWidgets.QLabel)
+			if label.text().startswith(key + " | ")
+		)
+		assert key in detail_text
+		assert "provenance:" in item.toolTip()
+		observed.append(True)
+		palette.reject()
+
+	try:
+		PySide6.QtCore.QTimer.singleShot(0, inspect_palette)
+		_action(window, "Insert Template...").trigger()
+		assert observed == [True]
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
 def test_catalog_placement_receipt_enables_the_next_canvas_interaction(
 		qapp: PySide6.QtWidgets.QApplication, qtbot: object,
 		) -> None:

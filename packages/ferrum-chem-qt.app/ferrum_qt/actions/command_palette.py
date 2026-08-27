@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.declarative_resources
 from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 
@@ -28,24 +29,49 @@ def _is_subsequence(query: str, candidate: str) -> bool:
 
 
 #============================================
-def _matches(query: str, view: ferrum_qt.actions.action_registry.LiveActionView) -> bool:
-	"""Match label, help, and action ID with deterministic substring/subsequence rules."""
+def _relevance_tier(
+		query: str, view: ferrum_qt.actions.action_registry.LiveActionView,
+		) -> int | None:
+	"""Classify one matching view by user-visible query relevance."""
 	normalized_query = _normalized_search_text(query)
 	if not normalized_query:
-		return True
-	if " " in normalized_query:
-		return any(
-			normalized_query in _normalized_search_text(value)
-			for value in (view.label, view.help_text, view.action_id)
-		)
+		return 0
+	label_and_id = tuple(_normalized_search_text(value)
+		for value in (view.label, view.action_id))
+	if any(normalized_query == value for value in label_and_id):
+		return 0
+	if any(normalized_query in value.split() for value in label_and_id):
+		return 0
+	if any(any(word.startswith(normalized_query) for word in value.split())
+			for value in label_and_id):
+		return 1
+	if any(normalized_query in value for value in label_and_id):
+		return 2
+	if normalized_query in _normalized_search_text(view.help_text):
+		return 3
 	compact_query = normalized_query.replace(" ", "")
 	for value in (view.label, view.help_text, view.action_id):
 		normalized_value = _normalized_search_text(value)
-		if normalized_query in normalized_value:
-			return True
 		if _is_subsequence(compact_query, normalized_value.replace(" ", "")):
-			return True
-	return False
+			return 4
+	return None
+
+
+#============================================
+def ranked_matching_views(
+		query: str, views: collections.abc.Iterable[
+			ferrum_qt.actions.action_registry.LiveActionView,
+		],
+		) -> tuple[ferrum_qt.actions.action_registry.LiveActionView, ...]:
+	"""Rank matching views without disturbing their registry-provided tie order."""
+	ranked = tuple(
+		(tier, view)
+		for view in views
+		if (tier := _relevance_tier(query, view)) is not None
+	)
+	return tuple(view for _tier, view in sorted(
+		ranked, key=lambda item: (item[0], not item[1].enabled),
+	))
 
 
 #============================================
@@ -153,12 +179,14 @@ class CommandPaletteController:
 	def __init__(
 			self, parent: PySide6.QtWidgets.QWidget,
 			registry: ferrum_qt.actions.action_registry.ActionRegistry,
+			action_placements: collections.abc.Mapping[str, tuple[str, ...]] | None = None,
 			) -> None:
 		"""Create one reusable palette client for the supplied live registry."""
 		self.parent = parent
 		self._registry = registry
 		self._invoking_focus: PySide6.QtWidgets.QWidget | None = None
 		self._results: tuple[ferrum_qt.actions.action_registry.LiveActionView, ...] = ()
+		self._action_placements = action_placements
 		self.dialog = CommandPaletteDialog(self)
 
 	#============================================
@@ -184,15 +212,21 @@ class CommandPaletteController:
 		"""Refresh visible results from the one current registry projection."""
 		del _query
 		query = self.dialog.search_field.text()
-		self._results = tuple(
-			view for view in self._registry.live_action_views()
-			if _matches(query, view)
-		)
+		if self._action_placements is None:
+			self._action_placements = (
+				ferrum_qt.declarative_resources.load_action_placement_projection(
+					self._registry,
+				)
+			)
+		self._results = ranked_matching_views(query, self._registry.live_action_views())
 		self.dialog.result_list.clear()
 		for view in self._results:
-			text = view.label if view.enabled else self.dialog.tr(
-				"{0} - Unavailable",
-			).format(view.label)
+			breadcrumb = self._action_placements.get(view.action_id, ())
+			text = view.label
+			if breadcrumb:
+				text = self.dialog.tr("{0} - {1}").format(text, " > ".join(breadcrumb))
+			if not view.enabled:
+				text = self.dialog.tr("{0} - Unavailable").format(text)
 			item = PySide6.QtWidgets.QListWidgetItem(text)
 			item.setToolTip(view.help_text)
 			item.setData(

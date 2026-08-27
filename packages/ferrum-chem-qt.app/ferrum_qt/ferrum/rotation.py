@@ -187,7 +187,8 @@ def create_rotation_preview(tab: object,
 
 
 #============================================
-class _RotationDisplayRefreshable:
+class _RotationDisplayRefreshable(
+		ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1):
 	"""Replace only the material of one retained rotation skeleton."""
 
 	def __init__(self, preview: FerrumNativeRotationPreview) -> None:

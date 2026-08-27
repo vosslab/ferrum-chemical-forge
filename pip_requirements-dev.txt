@@ -4,6 +4,7 @@ defusedxml  # hardened direct-source XML checks in the CDML E2E comparison
 packaging  # version parsing/comparison helpers used by tooling/tests
 pyflakes  # static analysis lint checks
 pytest  # automated test runner
+pytest-qt  # PySide6 Qt lifecycle fixtures used by the test suite
 rich  # formatted terminal output in developer tools
 lxml  # package-test XML assertions
 maturin  # build the Ferrum-Chem PyO3 native wheel

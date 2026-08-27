@@ -1,12 +1,15 @@
 """Focused tests for Ferrum's action registry and declarative menu builder."""
 
 # PIP3 modules
+import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtWidgets
 import pytest
+import pytestqt.qtbot
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.command_palette
 import ferrum_qt.actions.menu_builder
 import ferrum_qt.actions.platform_menu
 import ferrum_qt.config.keybindings
@@ -168,6 +171,97 @@ def test_registry_requires_explicit_feature_binding_without_window_discovery(
 	)
 	assert registry.get_qt_action("draw.bond") is legacy_candidate
 	window.deleteLater()
+
+
+#============================================
+def test_registry_retires_destroyed_qaction_before_action_id_is_reused(
+		qapp: PySide6.QtWidgets.QApplication,
+		qtbot: pytestqt.qtbot.QtBot,
+		) -> None:
+	"""A successor window sees only its own live command after owner retirement."""
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	first_window = PySide6.QtWidgets.QMainWindow()
+	qtbot.addWidget(first_window)
+	first_calls: list[bool] = []
+	first_action = PySide6.QtGui.QAction("First command", first_window)
+	first_action.setToolTip("Run the first window command")
+	first_action.triggered.connect(lambda: first_calls.append(True))
+	registry.register_existing(
+		"view.window_command", first_action,
+		shortcut_exemption_reason="The command is reachable by its labelled menu.",
+	)
+	first_window.deleteLater()
+	PySide6.QtCore.QCoreApplication.sendPostedEvents(
+		None, PySide6.QtCore.QEvent.Type.DeferredDelete,
+	)
+	qapp.processEvents()
+	assert registry.get_qt_action("view.window_command") is None
+	assert all(
+		view.action_id != "view.window_command"
+		for view in registry.live_action_views()
+	)
+
+	second_window = PySide6.QtWidgets.QMainWindow()
+	qtbot.addWidget(second_window)
+	second_calls: list[bool] = []
+	second_action = PySide6.QtGui.QAction("Second command", second_window)
+	second_action.setToolTip("Run the successor window command")
+	second_action.triggered.connect(lambda: second_calls.append(True))
+	registry.register_existing(
+		"view.window_command", second_action,
+		shortcut_exemption_reason="The command is reachable by its labelled menu.",
+	)
+	palette = ferrum_qt.actions.command_palette.CommandPaletteController(
+		second_window, registry,
+	)
+	qtbot.addWidget(palette.dialog)
+	palette.open()
+	palette.activate_selected()
+	assert first_calls == [] and second_calls == [True]
+
+
+#============================================
+def test_registry_rebinds_portable_declaration_after_qaction_retirement(
+		qapp: PySide6.QtWidgets.QApplication,
+		qtbot: pytestqt.qtbot.QtBot,
+		) -> None:
+	"""A portable declaration survives retirement and dispatches its successor."""
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	portable_calls: list[bool] = []
+	registry.register(ferrum_qt.actions.action_registry.MenuAction(
+		"view.portable_command", "Portable command", "Run the portable command",
+		None, lambda: portable_calls.append(True), None,
+		"The command is reachable by its labelled menu.",
+	))
+	first_window = PySide6.QtWidgets.QMainWindow()
+	qtbot.addWidget(first_window)
+	first_action = PySide6.QtGui.QAction("First portable command", first_window)
+	registry.bind_qt_action("view.portable_command", first_action)
+	first_window.deleteLater()
+	PySide6.QtCore.QCoreApplication.sendPostedEvents(
+		None, PySide6.QtCore.QEvent.Type.DeferredDelete,
+	)
+	qapp.processEvents()
+	assert "view.portable_command" in registry
+	assert registry.get_qt_action("view.portable_command") is None
+	assert all(
+		view.action_id != "view.portable_command"
+		for view in registry.live_action_views()
+	)
+
+	second_window = PySide6.QtWidgets.QMainWindow()
+	qtbot.addWidget(second_window)
+	second_calls: list[bool] = []
+	second_action = PySide6.QtGui.QAction("Second portable command", second_window)
+	second_action.triggered.connect(lambda: second_calls.append(True))
+	registry.bind_qt_action("view.portable_command", second_action)
+	view = next(
+		view for view in registry.live_action_views()
+		if view.action_id == "view.portable_command"
+	)
+	assert view.qt_action is second_action
+	view.qt_action.trigger()
+	assert portable_calls == [] and second_calls == [True]
 
 
 #============================================

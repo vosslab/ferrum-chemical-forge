@@ -1,7 +1,7 @@
 """Own typed refresh lifetimes for retained document-display materials."""
 
 # Standard Library
-import typing
+import abc
 
 # PIP3 modules
 import PySide6.QtCore
@@ -11,10 +11,10 @@ import PySide6.QtGui
 import ferrum_qt.themes.document_display_palette
 
 
-@typing.runtime_checkable
-class DocumentDisplayRefreshableV1(typing.Protocol):
+class DocumentDisplayRefreshableV1(abc.ABC):
 	"""Replace only retained Qt material from one immutable display palette."""
 
+	@abc.abstractmethod
 	def refresh_document_display_palette(
 			self,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
@@ -70,7 +70,7 @@ class DocumentDisplayPaletteRefreshRegistryV1:
 
 
 #============================================
-class DocumentDisplayRoleMaterialRefreshableV1:
+class DocumentDisplayRoleMaterialRefreshableV1(DocumentDisplayRefreshableV1):
 	"""Refresh retained Qt item material from named document-display roles."""
 
 	def __init__(self, items: tuple[object, ...], outline_role: object,
@@ -117,7 +117,7 @@ class DocumentDisplayRoleMaterialRefreshableV1:
 
 
 #============================================
-class DocumentDisplayDelegatingRefreshableV1:
+class DocumentDisplayDelegatingRefreshableV1(DocumentDisplayRefreshableV1):
 	"""Adapt one retained renderer-owned item to the tab refresh protocol."""
 
 	def __init__(self, item: object) -> None:

@@ -45,7 +45,8 @@ def create_overlay(tab: object, overlay: object) -> PySide6.QtWidgets.QGraphicsP
 
 
 #============================================
-class _VectorDisplayRefreshable:
+class _VectorDisplayRefreshable(
+		ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1):
 	"""Replace a vector preview's tagged material while retaining its exact path."""
 
 	def __init__(self, item: object, overlay: object) -> None:

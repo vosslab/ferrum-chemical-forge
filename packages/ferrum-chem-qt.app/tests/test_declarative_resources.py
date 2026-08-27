@@ -149,3 +149,68 @@ def test_recursive_menu_schema_rejects_duplicate_nested_dynamic_menu_placements(
 		ferrum_qt.declarative_resources._validate_menu_declarations(
 			data, frozenset({"draw.bond"}), dynamic_menu_ids=frozenset({"file.recent"}),
 		)
+
+
+#============================================
+def test_action_placement_projection_prefers_declared_menu_breadcrumb() -> None:
+	"""Ordinary menus take precedence over a supplemental ribbon placement."""
+	menu_data = _menu([{"section": {
+		"id": "reactions", "label_key": "Reactions",
+		"items": [{"action": "chemistry.reaction.create"}],
+	}}])
+	ribbon_data = {"tabs": [{
+		"id": "reactions", "label_key": "Reactions",
+		"groups": [{
+			"id": "structure", "label_key": "Reaction structure",
+			"overflow_label_key": "More reaction commands",
+			"entries": [{
+				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+			}],
+		}],
+	}]}
+	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
+		menu_data, ribbon_data, frozenset({"chemistry.reaction.create", "draw.bond"}),
+	)
+	assert projection["chemistry.reaction.create"] == ("Draw", "Reactions")
+
+
+#============================================
+def test_action_placement_projection_uses_ribbon_fallback_and_omits_unplaced_actions() -> None:
+	"""Ribbon-only actions retain their declared path while absent actions stay absent."""
+	ribbon_data = {"tabs": [{
+		"id": "reactions", "label_key": "Reactions",
+		"groups": [{
+			"id": "structure", "label_key": "Reaction structure",
+			"overflow_label_key": "More reaction commands",
+			"entries": [{
+				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+			}],
+		}],
+	}]}
+	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
+		_menu([{"action": "draw.bond"}]), ribbon_data,
+		frozenset({"chemistry.reaction.create", "draw.bond", "draw.unplaced"}),
+	)
+	assert projection["chemistry.reaction.create"] == ("Reactions", "Reaction structure")
+	assert projection.get("draw.unplaced", ()) == ()
+
+
+#============================================
+def test_action_placement_projection_refuses_unresolved_ribbon_action() -> None:
+	"""A ribbon reference without an action declaration cannot become a breadcrumb."""
+	ribbon_data = {"tabs": [{
+		"id": "draw", "label_key": "Draw",
+		"groups": [{
+			"id": "tools", "label_key": "Tools", "overflow_label_key": "More tools",
+			"entries": [{
+				"action": "draw.unbound", "role": "primary", "priority": "required",
+			}],
+		}],
+	}]}
+	with pytest.raises(
+			ferrum_qt.declarative_resources.DeclarativeResourceError,
+			match=r"ribbon_layout\.yaml\.tabs\[0\]\.groups\[0\]\.entries\[0\]\.action references unresolved action 'draw\.unbound'\.",
+		):
+		ferrum_qt.declarative_resources._build_action_placement_projection(
+			_menu([{"action": "draw.bond"}]), ribbon_data, frozenset({"draw.bond"}),
+		)

@@ -32,9 +32,23 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   16:10 outer-window screenshot and keyboard/accessibility walkthrough remain
   release evidence rather than pixel or timing assertions.
 
-- Extended bounded native CDXML with C2 `Charge` and `Isotope` atom facts: canonical ASCII charge in `-128..=127` and nonnegative isotope mass in `0..=32767`, zero normalization, durable CDML lowering, and typed `InvalidScalar` refusal. It adds no client route, source-provenance store, or CDXML writer.
+- Extended bounded native CDXML with C2 `Charge` and `Isotope` atom facts:
+  canonical ASCII charge in `-128..=127` and nonnegative isotope mass in
+  `0..=32767`, zero normalization, durable CDML lowering, and typed
+  `InvalidScalar` refusal. It adds no client route, source-provenance store, or
+  CDXML writer.
 
 ### Behavior or Interface Changes
+
+- Command Palette results now show a validated YAML-derived primary placement
+  breadcrumb, prefer ordinary menu paths over ribbon fallbacks, and rank direct
+  label/action-ID intent ahead of help-text or subsequence-only matches while
+  preserving stable live-action ties and visible unavailable commands.
+
+- Delivered the approved nominal `DocumentDisplayRefreshableV1` `abc.ABC`
+  contract. Production registrants and valid test helpers declare membership,
+  structural look-alikes are rejected, and retained refreshables use direct
+  modern annotations without importing `typing`.
 
 - Command palette search preserves focus, uses bare Up/Down for result
   selection, Return for exact live-action invocation, and Escape for invoking
@@ -45,6 +59,46 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   preferences, manager bindings, or QAction shortcuts change.
 
 ### Fixes and Maintenance
+
+- Repaired the real GUI-tour driver to use the public Rust-backed **Insert
+  Template...** palette, visible family/category/search/result/detail provenance,
+  and theme-owned document colors. Scene-specific preparation now preserves the
+  intended Add Atom and selected-nitrogen states, stages attached cyclohexane on
+  a visible host pair, and uses the normal blank-canvas selection path to retire
+  presentation feedback before arrow/vector capture.
+
+- Repaired command-palette placement projection validation for the declared
+  `file.recent` dynamic menu. The public lazy loader now carries the
+  `ActionRegistry`'s registered dynamic-menu IDs through YAML validation, so a
+  standard `MainWindow` palette can construct and refresh against the current
+  menu and ribbon resources while unresolved dynamic-menu references remain
+  strict failures. Focused regressions also protect ribbon-only breadcrumbs and
+  honestly unplaced commands.
+
+- Repaired `ActionRegistry` QAction lifecycle ownership. Every live binding now
+  receives an opaque retirement token from its feature-owned QObject's
+  `destroyed` signal, so destroyed-window actions retire their exact Qt and
+  reverse-identity entries without letting late callbacks remove a successor
+  binding that reuses the stable ID. Feature-owned declarations retire with
+  their QAction; portable declarations remain available for a later binding.
+  Focused regressions now prove both the retired public live-action projection
+  and portable declaration rebinding/dispatch behavior, and `pytest-qt` is
+  declared as the direct development dependency for those lifecycle fixtures.
+
+- Repaired permanent status-bar View controls at ordinary 1440x900 window size.
+  The shared seam no longer hides the Ferrum-owned action client or installs a
+  duplicate legacy zoom widget, so Reset zoom, Zoom to Content, minus/plus,
+  slider, and the observed zoom value remain visibly exposed through their
+  existing actions and YAML-owned command surfaces.
+
+- Repaired the real CDXML GUI screenshot assertion to treat the Rust-issued
+  local-document origin token as opaque identity. The staged File/Open route now
+  retains token presence while proving ChemDraw provenance through the public
+  converted-source description and the editable projected C-O document.
+
+- Repaired the real GUI screenshot driver to bootstrap one application-owned
+  `ThemeManager` and pass it explicitly to every disposable `MainWindow`, matching
+  production theme initialization while preserving the 13-scene staged capture flow.
 
 - Repaired the document-tab scene-selection bridge lifecycle. The tab now owns
   its exact scene connection, retires it before projection or view disposal,
@@ -116,15 +170,77 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 
 ### Developer Tests and Notes
 
+- The complete approved document-display focused suite passed: `28 passed` for
+  the palette and Qt theme-toggle files, including direct public-registry proof
+  that `DocumentDisplayDelegatingRefreshableV1` forwards one shipped palette to
+  its renderer item. The structural look-alike boundary asserts only the
+  approved `TypeError` class, not diagnostic prose. Ten exact typing, pyflakes,
+  indentation, import-requirements, and source-line nodes cover
+  `document_display_refresh.py` and `test_document_display_palette.py`.
+
+- Reconciled the paused delivery checkpoint. `ActionRegistry` lifecycle
+  retirement and the nominal document-display refresh boundary are delivered
+  and independently accepted at code level. Exact lifecycle receipts remain:
+  initial action-registry/command-palette validation `17 passed` plus 8 targeted
+  hygiene checks; review-fix validation `18 passed` plus 9 targeted checks; and
+  final independent lifecycle review `2 passed, 11 deselected in 0.12s`.
+  Document-display focused evidence remains `28 passed` plus 10 exact hygiene
+  nodes. The last automated 13-scene run completed, but human visual review
+  rejected eight frames; later capture-driver/catalog and command-palette
+  hierarchy/relevance repairs have not been recaptured or independently finally
+  reviewed. The command-palette repair recorded `21 passed` and `2996 passed`
+  focused receipts. The next aggregate run includes the new guidance-document
+  format gate. Aggregate green, visual acceptance, post-fix audit, broader
+  parity-ledger reconciliation, separate M5A approval, and full parity remain
+  open.
+
+- Focused action-registry/keybinding and command-palette Qt validation passed
+  after the lifecycle repair, including a deterministic two-window successor
+  action-ID reuse regression, public live-view retirement, and portable
+  declaration successor rebinding/dispatch. Targeted typing, indentation,
+  pyflakes, source-line, and import-requirements checks passed for the changed
+  files.
+
+- Paused the stabilization audit after documenting its non-acceptance result in
+  [TODO.md](TODO.md) and [ROADMAP.md](ROADMAP.md). Resume with explicit
+  `ActionRegistry` destruction retirement, one successor-window command-palette
+  regression, the remaining typing-lint repair, the full 13-scene capture, and
+  the complete build/test/audit gate. Reconcile the canonical parity ledger's
+  status receipts before approving another milestone.
+
+- Completed a six-pass independent stabilization audit covering plan conformance,
+  permanent-test policy, implementation style, documentation, dead code, and
+  readability. All passes converged on the missing `ActionRegistry` destruction
+  lifecycle and successor-window regression as the high-impact blocker. The
+  audit also corrected two overclaims: proposed M5A work now requires a canonical
+  dependency/contract decision before dispatch, and GUI capture documentation now
+  distinguishes all-scenes staging from sequential publication. The action
+  lifecycle repair, clean aggregate gate, full 13-scene capture, and post-fix
+  audit remain open.
+
+- Pre-repair receipt: paused after the delivery-stabilization checkpoint with the
+  exact remaining evidence gap recorded in [ROADMAP.md](ROADMAP.md),
+  [TODO.md](TODO.md), and [GUI_TOUR.md](GUI_TOUR.md). The fresh
+  local build, 283 installed PyO3 tests, 283 Qt tests with one intentional skip,
+  and registered E2E suite passed. The close-out aggregate run recorded 7,922
+  passes and two failures: one prohibited `import typing` and one premature tour
+  embed for an unrecorded focused screenshot; the embed was removed after the
+  receipt. Eleven 1440x900 GUI images exist locally, while the complete 13-scene
+  run remains blocked because a later command-palette window enumerates a
+  `QAction` destroyed with an earlier window. The later lifecycle entry resolves
+  that specific blocker. Full parity and the next M5A catalog package remain
+  open.
+
 - Command-palette focused Qt/keybinding evidence: `32 passed in 1.56s`.
   This bounded evidence does not claim aggregate `all_test.sh` success, GUI
   screenshot proof, full M6 usability, or complete feature parity.
 
-- Registered the existing CDXML CLI E2E in the permanent E2E runner. Corrected current
-  product guidance and the capability ledger to describe bounded input-only CDXML Open,
-  CDML output/save behavior, descriptor operation eligibility, canonical loss ordering, and
-  remaining refusal boundaries. Historical migration reports now identify their dated CDXML
-  refusal state and link to the current decision and capability ledger.
+- Registered the existing CDXML CLI E2E in the permanent E2E runner. Corrected
+  current product guidance and the capability ledger to describe bounded
+  input-only CDXML Open, CDML output/save behavior, descriptor operation
+  eligibility, canonical loss ordering, and remaining refusal boundaries.
+  Historical migration reports now identify their dated CDXML refusal state and
+  link to the current decision and capability ledger.
 
 - Recorded final bounded-CDXML receipts: post-audit `./build.sh` exited 0;
   the registered `tests/e2e/run_all.sh` exited 0, including CDXML; staged

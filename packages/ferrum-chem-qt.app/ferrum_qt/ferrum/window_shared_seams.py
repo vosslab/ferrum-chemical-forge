@@ -10,7 +10,6 @@ import ferrum_qt.ferrum.property_observation
 import ferrum_qt.ferrum.window_mode_sync
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
-import ferrum_qt.widgets.zoom_controls
 
 
 #============================================
@@ -31,14 +30,7 @@ def install_shared_window_seams(window: object, registry: object) -> None:
 	window._native_property_dock = shared_dock
 
 	shared_status = window.statusBar()
-	old_zoom = getattr(window, "_native_view_status_controls", None)
-	if old_zoom is not None:
-		old_zoom.hide()
-	zoom = ferrum_qt.widgets.zoom_controls.ZoomControls(registry, shared_status)
-	zoom.zoom_percent_requested.connect(window._set_active_view_zoom_percent)
-	shared_status.addPermanentWidget(zoom)
 	window._shared_status_bar = shared_status
-	window._shared_zoom_controls = zoom
 	window._window_mode_sync.subscribe(
 		lambda state: shared_status.update_mode(state.status_label),
 	)
@@ -53,22 +45,17 @@ def refresh_shared_window_seams(window: object,
 				| None = None) -> None:
 	"""Refresh shared view-only clients from the current Rust observation."""
 	status = getattr(window, "_shared_status_bar", None)
-	zoom = getattr(window, "_shared_zoom_controls", None)
 	dock = getattr(window, "_native_property_dock", None)
 	tab = window._active_native_tab()
 	resolved = _resolve_live_property_observation(window) if resolved is None else resolved
 	if not isinstance(
 			resolved, ferrum_qt.ferrum.property_observation.FerrumLivePropertyObservationAvailable,
 		):
-		_clear_shared_window_clients(window, tab, dock, zoom, status)
+		_clear_shared_window_clients(window, tab, dock, status)
 		return
 	observation = resolved.observation
 	if dock is not None:
 		dock.refresh(observation)
-	view = window._active_native_view()
-	percent = ferrum_qt.ferrum.graphics_view.effective_zoom_percent(view)
-	if zoom is not None:
-		zoom.update_zoom_display(percent)
 	if status is not None:
 		status.update_mode(window._window_mode_sync.active_state.status_label)
 
@@ -114,12 +101,10 @@ def _recover_live_property_observation(tab: object) -> (
 
 #============================================
 def _clear_shared_window_clients(window: object, tab: object | None,
-		dock: object | None, zoom: object | None, status: object | None) -> None:
+		dock: object | None, status: object | None) -> None:
 	"""Clear every passive client state together when no current observation is available."""
 	window._window_mode_sync.cancel()
 	if dock is not None:
 		dock.refresh(None)
-	if zoom is not None:
-		zoom.update_zoom_display(None)
 	if status is not None:
 		status.update_mode("None")

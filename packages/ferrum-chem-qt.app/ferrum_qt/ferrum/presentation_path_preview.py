@@ -31,7 +31,8 @@ def create_overlay(tab: object, overlay: object) -> object:
 
 
 #============================================
-class _PathDisplayRefreshable:
+class _PathDisplayRefreshable(
+		ferrum_qt.ferrum.document_display_refresh.DocumentDisplayRefreshableV1):
 	"""Replace a path preview's retained tagged material without rebuilding its path."""
 
 	def __init__(self, item: object, overlay: object) -> None:

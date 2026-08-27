@@ -9,6 +9,8 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.actions.action_registry
 import ferrum_qt.actions.command_palette
+import ferrum_qt.declarative_resources
+import ferrum_qt.main_window
 
 
 #============================================
@@ -29,6 +31,38 @@ def _action(
 
 
 #============================================
+def _reaction_placements() -> dict[str, tuple[str, ...]]:
+	"""Return one parsed miniature declaration projection for palette coverage."""
+	menu_data = {
+		"contexts": [{
+			"id": "selected_structure", "accessible_name": "Selected structure actions",
+			"groups": [{"id": "actions", "actions": ["chemistry.reaction.create"]}],
+		}],
+		"menus": [{
+			"id": "chemistry", "label_key": "Chemistry", "help_key": "Chemistry commands",
+			"items": [{"section": {
+				"id": "reactions", "label_key": "Reactions",
+				"items": [{"action": "chemistry.reaction.create"}],
+			}}],
+		}],
+	}
+	ribbon_data = {"tabs": [{
+		"id": "reactions", "label_key": "Reactions",
+		"groups": [{
+			"id": "structure", "label_key": "Reaction structure",
+			"overflow_label_key": "More reaction commands",
+			"entries": [{
+				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+			}],
+		}],
+	}]}
+	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
+		menu_data, ribbon_data, frozenset({"chemistry.reaction.create"}),
+	)
+	return dict(projection)
+
+
+#============================================
 def test_palette_searches_live_label_help_and_action_id_deterministically(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
@@ -45,7 +79,9 @@ def test_palette_searches_live_label_help_and_action_id_deterministically(
 	)
 	views = registry.live_action_views()
 	assert tuple(view.qt_action for view in views) == (create, inspector)
-	controller = ferrum_qt.actions.command_palette.CommandPaletteController(window, registry)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements={},
+	)
 	try:
 		window.show()
 		controller.open()
@@ -75,7 +111,9 @@ def test_disabled_palette_command_remains_visible_and_never_triggers(
 	)
 	triggered: list[bool] = []
 	action.triggered.connect(lambda: triggered.append(True))
-	controller = ferrum_qt.actions.command_palette.CommandPaletteController(window, registry)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements={},
+	)
 	try:
 		window.show()
 		controller.open()
@@ -114,7 +152,9 @@ def test_keyboard_activation_closes_palette_and_triggers_registered_action_once(
 	triggered: list[bool] = []
 	create.triggered.connect(lambda: triggered.append(False))
 	inspect.triggered.connect(lambda: triggered.append(True))
-	controller = ferrum_qt.actions.command_palette.CommandPaletteController(window, registry)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements={},
+	)
 	try:
 		window.show()
 		window.setFocus()
@@ -169,7 +209,9 @@ def test_palette_rechecks_an_action_disabled_before_keyboard_activation(
 	)
 	triggered: list[bool] = []
 	action.triggered.connect(lambda: triggered.append(True))
-	controller = ferrum_qt.actions.command_palette.CommandPaletteController(window, registry)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements={},
+	)
 	try:
 		window.show()
 		controller.open()
@@ -201,7 +243,9 @@ def test_escape_restores_focus_to_the_actual_invoking_child(
 	invoking_child = PySide6.QtWidgets.QLineEdit(window)
 	window.setCentralWidget(invoking_child)
 	registry = ferrum_qt.actions.action_registry.ActionRegistry()
-	controller = ferrum_qt.actions.command_palette.CommandPaletteController(window, registry)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements={},
+	)
 	try:
 		window.show()
 		invoking_child.setFocus()
@@ -219,3 +263,77 @@ def test_escape_restores_focus_to_the_actual_invoking_child(
 		controller.dialog.close()
 		window.close()
 		window.deleteLater()
+
+
+#============================================
+def test_palette_ranks_direct_reaction_matches_and_preserves_stable_ties(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Direct label and ID matches lead incidental help text in registry tie order."""
+	del qapp
+	window = PySide6.QtWidgets.QMainWindow()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	create = _action(
+		registry, window, "chemistry.reaction.create", "Create", "Create a molecule",
+	)
+	inspect = _action(
+		registry, window, "chemistry.reaction.inspect", "Inspect", "Inspect a molecule",
+	)
+	about = _action(
+		registry, window, "help.about", "About Ferrum", "Read about reaction tools",
+	)
+	try:
+		ranked = ferrum_qt.actions.command_palette.ranked_matching_views(
+			"reaction", registry.live_action_views(),
+		)
+		assert tuple(view.qt_action for view in ranked) == (create, inspect, about)
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_palette_renders_declared_reaction_breadcrumb_for_visible_accessibility(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""A parsed primary menu location remains visible and accessible per result."""
+	window = PySide6.QtWidgets.QMainWindow()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	_action(
+		registry, window, "chemistry.reaction.create", "Create Reaction...",
+		"Create a reaction from selected molecular roots",
+	)
+	controller = ferrum_qt.actions.command_palette.CommandPaletteController(
+		window, registry, action_placements=_reaction_placements(),
+	)
+	try:
+		window.show()
+		controller.open()
+		qapp.processEvents()
+		item = controller.dialog.result_list.currentItem()
+		assert "Chemistry > Reactions" in item.text()
+		assert "Chemistry > Reactions" in item.data(
+			PySide6.QtCore.Qt.ItemDataRole.AccessibleTextRole,
+		)
+	finally:
+		controller.dialog.close()
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_palette_refreshes_with_current_resources_and_registered_dynamic_menu(
+		qapp: PySide6.QtWidgets.QApplication,
+		main_window: ferrum_qt.main_window.MainWindow,
+		) -> None:
+	"""The public projection accepts the ordinary window's live recent-files menu."""
+	controller = main_window._command_palette_controller
+	assert "file.recent" in main_window._action_registry.dynamic_menu_ids()
+	try:
+		main_window.show()
+		controller.open()
+		qapp.processEvents()
+		controller.refresh()
+		assert controller.dialog.isVisible()
+	finally:
+		controller.dialog.close()
