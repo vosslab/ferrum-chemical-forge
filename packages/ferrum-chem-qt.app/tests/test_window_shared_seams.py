@@ -135,6 +135,19 @@ def test_ordinary_window_exposes_native_status_bar_view_controls(
 		assert window._window_mode_sync.active_state.mode_id is None
 		assert isinstance(window._native_property_dock, ferrum_qt.widgets.property_dock.PropertyDock)
 		assert isinstance(window.statusBar(), ferrum_qt.widgets.status_bar.StatusBar)
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()
+		properties_toggle = window._action_registry.get_qt_action(
+			"view.properties.toggle",
+		)
+		assert properties_toggle is window._property_dock_toggle_action
+		assert properties_toggle.isChecked()
+		properties_toggle.trigger()
+		qapp.processEvents()
+		assert not window._native_property_dock.isVisible()
+		properties_toggle.trigger()
+		qapp.processEvents()
+		assert window._native_property_dock.isVisible()
 		controls = window._native_view_status_controls
 		assert controls.isVisible()
 		assert controls.width() >= controls.minimumSizeHint().width()

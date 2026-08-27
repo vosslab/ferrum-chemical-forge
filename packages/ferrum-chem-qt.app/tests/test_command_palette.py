@@ -326,11 +326,16 @@ def test_palette_refreshes_with_current_resources_and_registered_dynamic_menu(
 		qapp: PySide6.QtWidgets.QApplication,
 		main_window: ferrum_qt.main_window.MainWindow,
 		) -> None:
-	"""The public projection accepts the ordinary window's live recent-files menu."""
+	"""Deferred dock retirement leaves every ordinary menu action resolvable."""
 	controller = main_window._command_palette_controller
 	assert "file.recent" in main_window._action_registry.dynamic_menu_ids()
 	try:
 		main_window.show()
+		qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+		qapp.processEvents()
+		assert main_window._action_registry.get_qt_action(
+			"view.properties.toggle",
+		) is main_window._property_dock_toggle_action
 		controller.open()
 		qapp.processEvents()
 		controller.refresh()

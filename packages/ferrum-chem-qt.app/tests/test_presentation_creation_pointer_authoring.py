@@ -51,6 +51,11 @@ def test_arrow_drag_commits_a_durable_arrow_and_undo_removes_it(
 			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end)
 		qapp.processEvents()
 		assert "<arrow" in tab.current_snapshot.cdml
+		assert window._render_interaction_selection is not None
+		_action(window, "Select Structure").trigger()
+		qapp.processEvents()
+		assert window._render_interaction_selection is None
+		assert window._render_interaction_selection_item is None
 		_action(window, "Undo").trigger()
 		qapp.processEvents()
 		assert "<arrow" not in tab.current_snapshot.cdml

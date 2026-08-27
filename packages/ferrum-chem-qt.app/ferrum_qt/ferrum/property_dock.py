@@ -250,15 +250,32 @@ class FerrumNativePropertyDock(PySide6.QtWidgets.QDockWidget):
 
 
 #============================================
+def _set_current_property_dock_visibility(
+		window: PySide6.QtWidgets.QMainWindow, visible: bool,
+		) -> None:
+	"""Route one stable View action to the window's current dock client."""
+	dock = getattr(window, "_native_property_dock", None)
+	if isinstance(dock, PySide6.QtWidgets.QDockWidget) and dock.isVisible() != visible:
+		dock.setVisible(visible)
+
+
+#============================================
 def install_native_property_dock(window: PySide6.QtWidgets.QMainWindow,
 		atom_action: PySide6.QtGui.QAction,
 		bond_action: PySide6.QtGui.QAction) -> FerrumNativePropertyDock:
-	"""Install one right-side inspector and register its View action."""
+	"""Install one right-side inspector and one window-owned View action."""
 	dock = FerrumNativePropertyDock(atom_action, bond_action, window)
 	window.addDockWidget(PySide6.QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
-	toggle = dock.toggleViewAction()
+	toggle = PySide6.QtGui.QAction(window.tr("Properties"), window)
+	toggle.setCheckable(True)
+	toggle.setChecked(dock.isVisible())
 	toggle.setText(window.tr("Properties"))
 	toggle.setToolTip(window.tr("Show or hide the current document properties"))
+	toggle.toggled.connect(
+		lambda visible: _set_current_property_dock_visibility(window, visible),
+	)
+	dock.visibilityChanged.connect(toggle.setChecked)
 	window._register_action("view.properties.toggle", toggle,
 		lifecycle="stateful-visibility")
+	window._property_dock_toggle_action = toggle
 	return dock

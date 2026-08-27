@@ -2,6 +2,7 @@
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
@@ -28,6 +29,11 @@ def install_shared_window_seams(window: object, registry: object) -> None:
 	shared_dock = ferrum_qt.widgets.property_dock.PropertyDock(registry, window)
 	window.addDockWidget(PySide6.QtCore.Qt.DockWidgetArea.RightDockWidgetArea, shared_dock)
 	window._native_property_dock = shared_dock
+	toggle = registry.get_qt_action("view.properties.toggle")
+	if not isinstance(toggle, PySide6.QtGui.QAction):
+		raise RuntimeError("Ferrum shared properties require the stable View action.")
+	shared_dock.visibilityChanged.connect(toggle.setChecked)
+	toggle.setChecked(shared_dock.isVisible())
 
 	shared_status = window.statusBar()
 	window._shared_status_bar = shared_status

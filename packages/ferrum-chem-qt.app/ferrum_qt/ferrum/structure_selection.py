@@ -106,6 +106,7 @@ class FerrumNativeStructureSelectionMixin:
 		if tab is None or tab.requires_refresh:
 			self._cancel_structure_selection()
 			return False
+		self._replace_render_interaction_selection(None, tab)
 		self._structure_tab = tab
 		tab.view.viewport().setFocus()
 		self.statusBar().showMessage(self.tr(
