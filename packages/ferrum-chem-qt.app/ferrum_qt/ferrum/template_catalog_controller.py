@@ -28,7 +28,6 @@ class _TemplateCatalogPlacement:
 	"""Payload held by the controller while one lease owns canvas input."""
 
 	lease: object
-	tab: object
 	viewport: PySide6.QtWidgets.QWidget
 	revision: int
 	digest: str
@@ -36,6 +35,8 @@ class _TemplateCatalogPlacement:
 	document_snapshot: object
 	key: str
 	mouse_tracking: bool
+	had_explicit_cursor: bool
+	cursor: PySide6.QtGui.QCursor
 
 
 #============================================
@@ -233,11 +234,16 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 			self._capability, tab=tab,
 			close_policy=ClosePolicy.CANCEL_AND_BLOCK_TAB_CLOSE,
 		)
+		tab = lease.tab()
 		snapshot = tab.current_snapshot
 		viewport = tab.view.viewport()
 		placement = _TemplateCatalogPlacement(
-			lease, tab, viewport, snapshot.revision, snapshot.digest, catalog_snapshot,
+			lease, viewport, snapshot.revision, snapshot.digest, catalog_snapshot,
 			snapshot, key, viewport.hasMouseTracking(),
+			viewport.testAttribute(
+				PySide6.QtCore.Qt.WidgetAttribute.WA_SetCursor,
+			),
+			PySide6.QtGui.QCursor(viewport.cursor()),
 		)
 		self._placements[lease.lease_id] = placement
 		viewport.setMouseTracking(True)
@@ -256,18 +262,18 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 		placement = self._placement_for_viewport(watched)
 		if placement is None:
 			return super().eventFilter(watched, event)
-		if event.type() is PySide6.QtCore.QEvent.Type.KeyPress:
-			if event.key() is PySide6.QtCore.Qt.Key.Key_Escape:
+		if event.type() == PySide6.QtCore.QEvent.Type.KeyPress:
+			if event.key() == PySide6.QtCore.Qt.Key.Key_Escape:
 				self.cancel_active(reopen=True)
 				return True
-		if event.type() is PySide6.QtCore.QEvent.Type.FocusOut:
+		if event.type() == PySide6.QtCore.QEvent.Type.FocusOut:
 			self.cancel_active(reopen=True)
 			return False
-		if event.type() is not PySide6.QtCore.QEvent.Type.MouseButtonPress:
+		if event.type() != PySide6.QtCore.QEvent.Type.MouseButtonPress:
 			return False
-		if event.button() is PySide6.QtCore.Qt.MouseButton.RightButton:
+		if event.button() == PySide6.QtCore.Qt.MouseButton.RightButton:
 			self.cancel_active(reopen=True)
-		elif event.button() is PySide6.QtCore.Qt.MouseButton.LeftButton:
+		elif event.button() == PySide6.QtCore.Qt.MouseButton.LeftButton:
 			self._commit(placement, event)
 		else:
 			return False
@@ -289,8 +295,9 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 				"The document changed. Choose the template again; no change was made.",
 			))
 			return
-		point = placement.tab.view.snap_authored_scene_point(
-			placement.tab.view.mapToScene(event.position().toPoint()),
+		tab = placement.lease.tab()
+		point = tab.view.snap_authored_scene_point(
+			tab.view.mapToScene(event.position().toPoint()),
 		)
 		if not math.isfinite(point.x()) or not math.isfinite(point.y()):
 			self._cancel_placement(placement, reopen=True, message=self.tr(
@@ -299,7 +306,7 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 			return
 		self._deactivate_pointer(placement)
 		try:
-			commit = placement.tab.place_template_catalog_entry(
+			commit = tab.place_template_catalog_entry(
 				placement.catalog_snapshot, placement.key, placement.document_snapshot,
 				float(point.x()), float(point.y()),
 			)
@@ -320,7 +327,7 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 		self._host.refresh_actions()
 		target = commit.result.observation.snapshot
 		self._host.publish_installation(
-			placement.tab, "catalog_template", placement.revision, placement.digest,
+			tab, "catalog_template", placement.revision, placement.digest,
 			target.revision, target.digest, 1,
 		)
 
@@ -328,13 +335,14 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 			error: object) -> None:
 		"""Recover a committed native placement whose display install failed."""
 		commit = error.accepted_receipt
-		if placement.tab.refresh_authoritative():
+		tab = placement.lease.tab()
+		if tab.refresh_authoritative():
 			self._host.parent.statusBar().showMessage(self.tr(
 				"Template was placed; Ferrum refreshed the authoritative Rust display.",
 			), 5000)
 			target = commit.result.observation.snapshot
 			self._host.publish_installation(
-				placement.tab, "catalog_template", placement.revision, placement.digest,
+				tab, "catalog_template", placement.revision, placement.digest,
 				target.revision, target.digest, 1,
 			)
 			return
@@ -343,14 +351,15 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 
 	def _placement_current(self, placement: _TemplateCatalogPlacement) -> bool:
 		"""Require the exact registered current tab and original native fence."""
-		if self._host.active_tab() is not placement.tab:
+		tab = placement.lease.tab()
+		if self._host.active_tab() is not tab:
 			return False
-		if not self._host.tab_is_registered(placement.tab):
+		if not self._host.tab_is_registered(tab):
 			return False
-		if placement.tab.is_disposed:
+		if tab.is_disposed:
 			return False
 		try:
-			snapshot = placement.tab.current_snapshot
+			snapshot = tab.current_snapshot
 		except FerrumNativeDocumentTabError:
 			return False
 		return snapshot.revision == placement.revision and snapshot.digest == placement.digest
@@ -371,7 +380,7 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 			raise TypeError("Ferrum catalog cancellation requires a nonempty reason")
 		cancelled = False
 		for placement in tuple(self._placements.values()):
-			if placement.tab is tab:
+			if placement.lease.tab() is tab:
 				self._cancel_placement(placement, reopen=False, reason=reason)
 				cancelled = True
 		return cancelled
@@ -390,7 +399,10 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 		"""Remove controller-only viewport capture without retiring lifecycle payload."""
 		placement.viewport.removeEventFilter(self)
 		placement.viewport.setMouseTracking(placement.mouse_tracking)
-		placement.viewport.unsetCursor()
+		if placement.had_explicit_cursor:
+			placement.viewport.setCursor(placement.cursor)
+		else:
+			placement.viewport.unsetCursor()
 
 	def _retire_payload(self, placement: _TemplateCatalogPlacement) -> None:
 		"""Forget a payload only after its lease has reached a terminal state."""
@@ -407,11 +419,23 @@ class TemplateCatalogController(PySide6.QtCore.QObject):
 		dialog.activateWindow()
 		dialog.search.setFocus()
 
+	def _record_recovery_without_focus(self, message: str) -> None:
+		"""Retain stale-placement recovery without interrupting the current author."""
+		dialog = self._dialog
+		if dialog is not None:
+			dialog.announce(message)
+		self._host.parent.statusBar().showMessage(message, 5000)
+
 	def refresh_action(self, active: bool, pending: bool, other_busy: bool) -> None:
 		"""Refresh catalog eligibility from registry state and ordinary compatibility."""
 		for placement in tuple(self._placements.values()):
 			if not self._placement_current(placement):
-				self._cancel_placement(placement, reopen=True, message=self.tr(
+				message = self.tr(
 					"The document changed. Choose the template again; no change was made.",
-				))
+				)
+				if self._host.active_tab() is placement.lease.tab():
+					self._cancel_placement(placement, reopen=True, message=message)
+				else:
+					self._cancel_placement(placement, reopen=False)
+					self._record_recovery_without_focus(message)
 		self.action.setEnabled(active and not pending and not other_busy)

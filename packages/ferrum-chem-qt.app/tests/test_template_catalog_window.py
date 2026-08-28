@@ -222,6 +222,36 @@ def test_catalog_pointer_cancellation_restores_the_dialog_without_mutation(
 		window.close()
 
 
+@pytest.mark.parametrize("cause", ("escape", "right_click", "focus_loss"))
+def test_catalog_cancellation_restores_the_exact_viewport_cursor_and_tracking(
+		qapp: PySide6.QtWidgets.QApplication, cause: str,
+		) -> None:
+	"""Pointer cancellation gives a canvas back its prior explicit interaction state."""
+	window, controller, _registry = _armed_controller(qapp)
+	viewport = window.tab.view.viewport()
+	previous_cursor = PySide6.QtGui.QCursor(PySide6.QtCore.Qt.CursorShape.SizeAllCursor)
+	try:
+		controller.cancel_active(reopen=False)
+		viewport.setMouseTracking(False)
+		viewport.setCursor(previous_cursor)
+		assert controller.start_placement(object(), "opaque-key")
+		if cause == "escape":
+			event = PySide6.QtGui.QKeyEvent(
+				PySide6.QtCore.QEvent.Type.KeyPress,
+				PySide6.QtCore.Qt.Key.Key_Escape,
+				PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+			)
+		elif cause == "right_click":
+			event = _mouse_press(PySide6.QtCore.Qt.MouseButton.RightButton)
+		else:
+			event = PySide6.QtCore.QEvent(PySide6.QtCore.QEvent.Type.FocusOut)
+		controller.eventFilter(viewport, event)
+		assert not viewport.hasMouseTracking()
+		assert viewport.cursor().shape() is previous_cursor.shape()
+	finally:
+		window.close()
+
+
 #============================================
 def test_tool_replacement_releases_the_catalog_lifecycle_lease(
 		qapp: PySide6.QtWidgets.QApplication,
@@ -237,6 +267,28 @@ def test_tool_replacement_releases_the_catalog_lifecycle_lease(
 			window.tab,
 		)
 		assert window.tab.calls == 0
+	finally:
+		window.close()
+
+
+#============================================
+def test_tool_replacement_restores_the_exact_viewport_cursor_and_tracking(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""Choosing another tool restores the canvas state held before catalog placement."""
+	window, controller, _registry = _armed_controller(qapp)
+	viewport = window.tab.view.viewport()
+	previous_cursor = PySide6.QtGui.QCursor(PySide6.QtCore.Qt.CursorShape.SizeAllCursor)
+	try:
+		controller.cancel_active(reopen=False)
+		viewport.setMouseTracking(False)
+		viewport.setCursor(previous_cursor)
+		assert controller.start_placement(object(), "opaque-key")
+		controller.wire_tool_replacement()
+		window._draw_bond_action.setChecked(True)
+		qapp.processEvents()
+		assert not viewport.hasMouseTracking()
+		assert viewport.cursor().shape() is previous_cursor.shape()
 	finally:
 		window.close()
 

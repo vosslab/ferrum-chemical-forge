@@ -60,10 +60,27 @@ ferrum-chemical-forge/
   presentation, and view-control modules that implement the Ferrum desktop
   route.
 - [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_dialog.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_dialog.py),
-  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_tab.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_tab.py),
-  and [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_window.py)
-  form the Template Catalog vertical slice: accessible snapshot projection,
-  session placement adapter, and window lifecycle respectively.
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_controller.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_controller.py),
+  and [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/operation_leases.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/operation_leases.py)
+  form the implemented Template Catalog Patch 1 slice: dialog presentation;
+  controller-owned dialog, pointer, and payload context; and pure Qt
+  registered-tab lifecycle identity/state. The explicit native placement port
+  is [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/document_tab.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/document_tab.py).
+- [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_contract.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_contract.py),
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_composition.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_composition.py),
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_controller.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_controller.py),
+  and [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_delivery.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/local_document_open_delivery.py)
+  form the Local Document Open Patch 2 boundary. They own immutable facts,
+  host callbacks, and publication/commit receipts; concrete window composition;
+  request, queue, action, lease, startup, and terminal orchestration; then
+  per-intent staged worker facts, named queued receiver, fence checks,
+  candidate construction, receipt validation, and presentation. The lifecycle
+  module is the sole host-publication and registered replacement-commit owner:
+  it returns a receipt before separate post-commit display work. Rust remains
+  local admission authority. The deleted `local_document_open.py` mixin and
+  unused `native_app.py` have no replacement compatibility module;
+  [../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/main_window.py)
+  is the sole product startup composition.
 - [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/)
   contains the Rust-observation projections and Qt graphics lifetime helpers.
 - [../packages/ferrum-chem-qt.app/ferrum_qt/dialogs/](../packages/ferrum-chem-qt.app/ferrum_qt/dialogs/),
@@ -84,20 +101,51 @@ modules. This is deliberate while parity work continues: the Rust workspace,
 PyO3 extension boundary, Qt support subpackages, action registry, and YAML
 declarations are already meaningful ownership boundaries.
 
-The next foundation milestone is not a mass move of those modules. It will
-replace the ordered mixin composition in the main-window and document-tab hosts
-with explicit feature controllers and a single `OperationLeaseRegistry` for
-busy, close, cancellation, and action-refresh ownership. Each migration must
-move one tested feature family atomically and delete its former mixin chain.
-The target may introduce `application/`, `documents/`, and feature-family
-folders only as each concrete migration needs them. It must not retain
-compatibility modules, create a general event bus, or duplicate state during
-the transition. This is planned architecture, not current implementation.
+Patch 1 replaced the Template Catalog's ordered mixin pair with an explicit
+controller and a single `OperationLeaseRegistry` for busy, close, cancellation,
+and action-refresh ownership. The lifecycle mixin owns one explicit close
+adapter shared by both window hosts, while `tests/e2e/ferrum_qt_e2e.py` owns
+the common `close_e2e_main_window` explicit-DISCARD teardown. Patch 2 applies
+the same atomic replacement to Local Document Open: the contract,
+composition, controller, and delivery modules replace the mixin without a
+compatibility alias. Keep this flat
+feature-module structure while parity work continues. Do not create speculative
+`application/` or `documents/` folders: the established Rust workspace, PyO3,
+Qt support packages, action registry, and YAML declarations already express the
+current durable boundaries. Each later migration must still move one tested
+family atomically without a general event bus or duplicated state.
+
+Within that slice, the lifecycle boundary is intentionally narrower than the
+delivery boundary. It owns registered-tab publication, exact replacement commit,
+and `LocalOpenNewTabPublicationReceipt` or `LocalOpenReplacementCommitReceipt`
+issuance. Delivery retains its candidate until it validates that receipt, then
+uses the separate finish callback for optional activation and display. This
+prevents presentation exceptions from making the committed owner ambiguous.
+
+The lifecycle module also owns the completed Patch 1 registered replacement
+repair for pristine Local Open. Phase 1 fully integrates and binds the new tab
+before publication. Phase 2 can restore the exact old registration after typed
+old-unregister/disposal refusal, while a failed provisional tab is completely
+retired, unbound, disposed, and stripped of product hooks. Phase 3 commits the
+irreversibly disposed old tab without fictional rollback. Shutdown settles the
+catalog and retires clean tabs via ordinary registry-aware close; dirty user
+close is a presented refusal and deterministic tests discard their own tabs.
+Queued presentation callbacks are context-bound to their owning Qt window. This
+is the historical Patch 1 lifecycle boundary; Patch 2 separately owns Local
+Document Open admission and source-tab lease state.
 
 ### `tests/` and `docs/`
 
 - [../tests/e2e/](../tests/e2e/) contains corpus inputs and cross-package
   scenarios.
+- `test_local_document_open_controller.py`,
+  `test_local_document_open_delivery.py`,
+  `test_local_document_open_terminal_replacement.py`, and
+  `test_registered_native_tab_lifecycle.py` are the focused Local Document Open
+  test owners.
+- `e2e_local_document_open_lifecycle.py` is the registered terminal Local
+  Document Open E2E in
+  [../tests/e2e/run_all.sh](../tests/e2e/run_all.sh).
 - [../tests/e2e/reference/](../tests/e2e/reference/) is an optional Python RDKit
   environment for one-time maintainer measurements only.
 - [../tests/](../tests/) also contains repository policy and documentation checks.
@@ -137,8 +185,9 @@ the transition. This is planned architecture, not current implementation.
   overview.
 - [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) describes ownership boundaries and
   the Rust-to-Qt data flow.
-- [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md) tracks
-  migration milestones and accepted evidence.
+- [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md)
+  is the canonical Rust-first parity ledger. [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md)
+  retains historical implementation milestones and accepted evidence.
 - [PROVENANCE.md](PROVENANCE.md) records component lineage and licensing scope.
 - [CHANGELOG.md](CHANGELOG.md) records changes for human review.
 

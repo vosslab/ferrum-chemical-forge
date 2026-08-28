@@ -303,16 +303,23 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		return True
 
 	#============================================
-	def _register_native_tab(
+	def _finish_native_tab_registration(
 			self,
 			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			*, activate: bool = True,
-			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-		"""Keep the common host's activation default for Ferrum callers."""
-		registered = super()._register_native_tab(tab, activate=activate)
-		registered.apply_theme_change(self._document_theme_change)
-		registered.view.viewport().installEventFilter(self)
-		return registered
+			) -> None:
+		"""Apply product tab integrations at the shared registration boundary."""
+		super()._finish_native_tab_registration(tab)
+		tab.apply_theme_change(self._document_theme_change)
+		tab.view.viewport().installEventFilter(self)
+
+	#============================================
+	def _remove_provisional_native_tab_integrations(
+			self,
+			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			) -> None:
+		"""Remove the product viewport hook after lifecycle disposes a failed tab."""
+		tab.view.viewport().removeEventFilter(self)
+		super()._remove_provisional_native_tab_integrations(tab)
 
 	#============================================
 	def _save_native_tab_to_path(
@@ -325,13 +332,6 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		if saved and tab.file_path is not None:
 			self._native_recent_files.record_confirmed_path(tab.file_path)
 		return saved
-
-	#============================================
-	def _close_native_tab_at(self, index: int,
-			decision: ferrum_qt.ferrum.close_decision.CloseDecision,
-			) -> ferrum_qt.ferrum.close_decision.CloseResult:
-		"""Apply one explicit close decision to the specified Ferrum page."""
-		return self._close_tab_at_with_decision(index, decision)
 
 	#============================================
 	def _refresh_actions(self, *_unused: object) -> None:
@@ -388,32 +388,22 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 
 	#============================================
 	def prepare_application_shutdown(self) -> bool:
-		"""Close clean Ferrum pages before the generic QObject finalizer runs."""
+		"""Persist workspace only after the lifecycle owns a complete shutdown."""
 		if self._shutdown_prepared:
 			return True
-		if self._cancel_local_document_open_for_close():
+		if not self._prepare_native_window_shutdown():
 			return False
-		if self._cancel_molecule_imports_for_close():
-			return False
-		if any(tab.requires_refresh or tab.is_dirty for tab in self._native_tabs_by_page.values()):
-			return False
-		for tab in tuple(self._native_tabs_by_page.values()):
-			index = self._tab_widget.indexOf(tab)
-			if index >= 0:
-				self._close_tab_at(index)
-		self._shutdown_prepared = not self._native_tabs_by_page
-		if self._shutdown_prepared:
-			if ferrum_qt.ferrum.preferences \
-					.remembered_workspace_preference(self._prefs):
-				self._prefs.set_value(
-					ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
-					self.saveGeometry(),
-				)
-				self._prefs.set_value(
-					ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE,
-					self.saveState(1),
-				)
-		return self._shutdown_prepared
+		self._shutdown_prepared = True
+		if ferrum_qt.ferrum.preferences.remembered_workspace_preference(self._prefs):
+			self._prefs.set_value(
+				ferrum_qt.config.preferences.Preferences.KEY_WINDOW_GEOMETRY,
+				self.saveGeometry(),
+			)
+			self._prefs.set_value(
+				ferrum_qt.config.preferences.Preferences.KEY_WINDOW_STATE,
+				self.saveState(1),
+			)
+		return True
 
 	#============================================
 	def restore_workspace(self) -> None:

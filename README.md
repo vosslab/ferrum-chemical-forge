@@ -1,70 +1,110 @@
 # Ferrum Chemical Forge
 
-Ferrum is a Rust chemical-document tool for inspecting, validating, rewriting, rendering,
-converting, and drawing durable CDML records.
+A pre-production chemical-document workspace for chemists and developers, with one
+Rust-owned CDML model serving both a command-line tool and a PySide6 drawing editor.
 
-> Status: pre-production. `./build.sh` creates the local Rust CLI and PySide6 desktop
-> application together with their private native runtime.
+> Status: Ferrum runs from this checkout on macOS arm64. Its bounded Rust and Qt
+> workflows are actively developed; it is not release-ready and does not yet claim
+> complete BKChem or OASA feature parity.
+
+## One document model, two routes
+
+Ferrum makes the document rather than the interface the source of truth. Rust owns
+the CDML record, validation, document history, chemistry boundaries, and rendering
+plans. The `ferrum` CLI and the `ferrum-qt` editor use that same native model, so a
+validated document can move between scripted inspection and interactive authoring
+without a second chemistry implementation.
+
+- Inspect, validate, rewrite, render, convert, and run versioned document operations
+  from the local Rust CLI.
+- Open and author the supported CDML drawing slice in the PySide6 editor, including
+  save, Undo/Redo, and Rust-produced SVG, PDF, and PNG artifacts.
+- Preserve structural CDML content and persistent identity through the supported
+  document path; successful rewrite is structural, not byte-for-byte, preservation.
+- Refuse unsupported files and document features with typed outcomes rather than
+  silently changing the active document.
+
+## Ferrum in the workspace
+
+The desktop application is a chemical drawing workspace, not a separate file-format
+viewer. The screenshot set below records the current bounded editor routes; the
+following capture pass maintains its files, captions, and alt text.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
-![Ferrum workspace showing an authored carbonyl fragment](docs/screenshots/workspace.png)
-![Ferrum canvas after cyclohexane insertion](docs/screenshots/inserted_cyclohexane.png)
-![Ferrum SMARTS query dock showing a completed carbon match](docs/screenshots/smarts_result.png)
 <!-- screenshots:end -->
 
-## Start with a document
+## Quick start
 
-Rust 1.97.1 or newer is required. Build the local application, then inspect an
-authored CDML document:
+Ferrum's current local route requires Rust 1.97.1 or newer, Python 3.12, and a
+macOS arm64 host. From a checkout, build the CLI, native runtime, and Qt launcher:
 
 ```bash
 ./build.sh
-build/bin/ferrum inspect drawing.cdml
+build/bin/ferrum --version
+build/bin/ferrum formats
 ```
 
-`build/bin/ferrum render drawing.cdml --to svg --output drawing.svg` writes a
-local SVG artifact.
+The last command is a useful first result: it prints the declared input/output
+format catalog and whether each route needs the local chemistry runtime. The
+launchers stay below `build/`; they do not install Ferrum globally or discover a
+per-user engine.
 
-## Convert a molecule
-
-The local runtime assembled by `build.sh` supplies the native chemistry adapter:
+To launch the desktop application after the same build:
 
 ```bash
-build/bin/ferrum convert aspirin.smi --to sdf_v2000 --output aspirin.sdf
+build/bin/ferrum-qt
 ```
 
-The local launchers select their runtime below `build/` rather than a global
-installation. [docs/USAGE.md](docs/USAGE.md) explains the six verbs, stream use, desktop workflow,
-and the engine lifecycle.
+For the full local setup, test route, and runtime layout, use
+[docs/INSTALL.md](docs/INSTALL.md).
 
-## Draw a CDML record
+## A small CLI transformation
 
-Run `ferrum-qt` for the bounded native drawing route. Open a CDML document, use the Atom and Draw
-Bond commands to author, use Undo to reverse a change, and Save As to publish CDML. The keyboard
-workflow, supported editing slice, and current desktop limits are in [docs/USAGE.md](docs/USAGE.md).
+Ferrum's conversion route accepts a closed set of declared formats. This example
+turns a SMILES record into a V2000 molfile on standard output:
 
-## What Ferrum preserves
+```bash
+printf 'CCO\n' | build/bin/ferrum convert - --from smiles --to molblock_v2000
+```
 
-Ferrum keeps unknown XML and persistent document identity through its structural CDML path.
-Rewriting promises structural preservation, not byte-for-byte identity. Rendering produces complete
-SVG, PDF, or transparent PNG artifacts for supported documents. The file profile and desktop import
-rules are in [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
+The output begins with a three-atom, two-bond V2000 record. Add `--output ethanol.mol`
+to publish the result as a file. See [docs/USAGE.md](docs/USAGE.md) before using
+interchange paths in a workflow: CML/CML2, CDXML, CD-SVG, and document artifacts
+each have deliberately bounded admission and publication rules.
 
-## Contract and architecture
+## What is supported today
 
-The six human verbs construct versioned, stateless operation requests. The full envelope schema,
-operation payloads, result shapes, error categories, Python boundary, and exclusions are in
-[docs/FERRUM_API_CONTRACT.md](docs/FERRUM_API_CONTRACT.md). Architecture and ownership boundaries
-are described in [docs/CODE_ARCHITECTURE.md](docs/CODE_ARCHITECTURE.md).
+CDML is Ferrum's sole document, session, history, and Qt-local format. The current
+desktop route supports decoded local CDML, bounded CD-SVG and CDXML ingress, and
+closed CML/CML2 simple-molecule input. It can save CDML and export complete supported
+documents as SVG, PDF, or transparent PNG.
 
-## Local build status
+This is an active migration, not a general-purpose chemistry format converter or a
+finished desktop replacement. Legacy BKChem and OASA material is reference evidence
+outside the product runtime; the current scope, format refusals, and remaining parity
+work are explicit in the documents below.
 
-Ferrum is pre-production and currently runs from this checkout. See
-[docs/INSTALL.md](docs/INSTALL.md) for the local build path and
-[docs/PROVENANCE.md](docs/PROVENANCE.md) for concise source lineage and license provenance.
+## Documentation routes
 
-## License
+Start here for the task at hand:
 
-Ferrum is [AGPL-3.0-only](LICENSE.AGPL-3.0). Ferrum-Chem is
-[LGPL-3.0-only](LICENSE.LGPL-3.0). See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the
-license boundary and required notices.
+- [docs/INSTALL.md](docs/INSTALL.md) - requirements, local build, and verification.
+- [docs/USAGE.md](docs/USAGE.md) - CLI verbs, editing workflows, and protocol examples.
+- [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md) - admitted files, conversion limits,
+  and artifact publication rules.
+- [docs/FERRUM_API_CONTRACT.md](docs/FERRUM_API_CONTRACT.md) - versioned operation
+  envelopes, results, and typed failures.
+- [docs/CODE_ARCHITECTURE.md](docs/CODE_ARCHITECTURE.md) - Rust, PyO3, and Qt ownership
+  boundaries and data flow.
+- [docs/FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md) - repository map and where each kind
+  of work belongs.
+- [docs/QT_CONTRACT.md](docs/QT_CONTRACT.md) - the desktop integration contract and
+  supported interaction boundaries.
+- [FULL_PARITY_RUST_FIRST.md](docs/active_plans/active/FULL_PARITY_RUST_FIRST.md).
+  Authoritative migration and parity ledger.
+
+## Provenance and license
+
+Ferrum is the AGPL-3.0-only PySide6 application; Ferrum-Chem is the LGPL-3.0-only
+Rust workspace. [docs/PROVENANCE.md](docs/PROVENANCE.md) records their boundary,
+lineage, notices, and the limits of the current pre-production claim.

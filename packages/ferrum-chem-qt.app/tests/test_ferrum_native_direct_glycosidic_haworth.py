@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 
 import ferrum_chem
 import ferrum_qt.canvas.graphics_disposal
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.themes.theme_loader
 import ferrum_qt.themes.theme_manager
@@ -19,6 +20,23 @@ import ferrum_qt.ferrum.document_tab
 
 
 SMILES = "O1CCCC1OC2CCCCO2"
+
+
+def _close_test_window(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.main_window.MainWindow,
+		) -> None:
+	"""Discard owned tabs before ordinary window shutdown can present a prompt."""
+	for tab in tuple(window._native_tabs_by_page.values()):
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert not window._native_tabs_by_page
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
 
 
 def _is_direct_glycosidic_profile(molecule: object) -> bool:
@@ -161,9 +179,7 @@ def test_direct_glycosidic_action_arms_a_real_dialog_and_commits_on_empty_page(
 			for molecule in tab.current_document_observation().projection.molecules
 		)
 	finally:
-		window.close()
-		window.deleteLater()
-		qapp.processEvents()
+		_close_test_window(qapp, window)
 
 
 def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
@@ -187,9 +203,7 @@ def test_direct_glycosidic_escape_preserves_the_uncommitted_document(
 		assert window._direct_glycosidic_haworth_intent is None
 		assert tab.current_snapshot == before
 	finally:
-		window.close()
-		window.deleteLater()
-		qapp.processEvents()
+		_close_test_window(qapp, window)
 
 
 def test_direct_glycosidic_preview_releases_palette_before_graphics_disposal(
@@ -267,6 +281,4 @@ def test_direct_glycosidic_preview_releases_palette_before_graphics_disposal(
 		tab.apply_theme_change(ferrum_qt.themes.theme_manager.ThemeChangeV1("dark", dark))
 		assert refreshes == []
 	finally:
-		window.close()
-		window.deleteLater()
-		qapp.processEvents()
+		_close_test_window(qapp, window)

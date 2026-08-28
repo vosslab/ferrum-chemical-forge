@@ -90,8 +90,11 @@ def test_later_registered_tab_receives_the_current_theme_change_palette(
 			CANVAS_SURROUND,
 		)
 	finally:
-		if not tab.is_disposed:
-			tab.dispose()
+		assert window._close_native_tab_at(
+			window._tab_widget.indexOf(tab),
+			ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		) is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+		assert tab.is_disposed and tab not in window._native_tabs_by_page
 		window.close()
 		window.deleteLater()
 
@@ -192,8 +195,11 @@ def test_ordinary_window_exposes_native_status_bar_view_controls(
 	finally:
 		window._cancel_atom_insertion()
 		window._cancel_line_gesture()
-		if not tab.is_disposed:
-			tab.dispose()
+		assert window._close_native_tab_at(
+			window._tab_widget.indexOf(tab),
+			ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		) is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+		assert tab.is_disposed and tab not in window._native_tabs_by_page
 		window.close()
 
 
@@ -673,6 +679,109 @@ def test_typed_catalog_cleanup_failure_preserves_the_tab(
 
 
 #============================================
+def test_ordinary_catalog_close_failure_presents_one_author_recovery(
+		main_window: object, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""The ordinary close-button route explains an exact cleanup refusal safely."""
+	window = main_window
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "catalog-close-recovery.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	window._register_native_tab(tab, activate=True)
+	refusals: list[object] = []
+
+	def refuse_cleanup(_tab: object, _reason: str) -> bool:
+		raise ferrum_qt.ferrum.operation_leases.OperationLeaseError("forced cleanup error")
+
+	def capture_one_refusal(request: object) -> None:
+		if refusals:
+			raise AssertionError("ordinary close presented duplicate recovery")
+		refusals.append(request)
+
+	monkeypatch.setattr(window._template_catalog_controller, "cancel_for_tab", refuse_cleanup)
+	monkeypatch.setattr(window, "_show_edit_refusal", capture_one_refusal)
+	try:
+		window._close_tab_at(window._tab_widget.indexOf(tab))
+	finally:
+		monkeypatch.undo()
+	assert tab in window._native_tabs_by_page and not tab.is_disposed
+	request = refusals[0]
+	assert request.context.value == "close_document"
+	assert request.outcome.value == "busy_close"
+	assert "keep this tab open" in request.technical_details.lower()
+	assert "retry" in request.technical_details.lower()
+
+
+#============================================
+def test_catalog_tab_close_restores_canvas_state_before_disposal(
+		main_window: object, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""The ordinary close route removes catalog capture before it disposes its canvas."""
+	window = main_window
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "catalog-close-canvas-state.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	window._register_native_tab(tab, activate=True)
+	viewport = tab.view.viewport()
+	previous_cursor = PySide6.QtGui.QCursor(PySide6.QtCore.Qt.CursorShape.SizeAllCursor)
+	viewport.setMouseTracking(False)
+	viewport.setCursor(previous_cursor)
+	assert window._template_catalog_controller.start_placement(object(), "opaque-key")
+	dispose = tab.dispose
+
+	def observe_disposal() -> None:
+		assert not viewport.hasMouseTracking()
+		assert viewport.cursor().shape() is previous_cursor.shape()
+		dispose()
+
+	monkeypatch.setattr(tab, "dispose", observe_disposal)
+	result = window._close_native_tab_at(
+		window._tab_widget.indexOf(tab),
+		ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+	)
+	assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+
+
+#============================================
+def test_queued_operation_presentation_is_dropped_when_its_window_is_deleted(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A queued receipt cannot outlive the QObject that owns its deferred callback."""
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "queued-presentation-lifetime.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	published: list[bool] = []
+	receipts: list[object] = []
+	original_publish = window._publish_operation_presentation_v1
+
+	def record_publish(*args: object) -> bool:
+		published.append(True)
+		return original_publish(*args)
+
+	monkeypatch.setattr(window, "_publish_operation_presentation_v1", record_publish)
+	window.operation_presentation_completed.connect(receipts.append)
+	window._register_native_tab(tab, activate=True)
+	snapshot = tab.current_snapshot
+	window._queue_operation_presentation_v1(
+		tab, "atom_oxidation", "succeeded", "unchanged",
+		snapshot.revision, snapshot.digest,
+	)
+	assert window._close_native_tab_at(
+		window._tab_widget.indexOf(tab),
+		ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+	) is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	window.close()
+	window.deleteLater()
+	qapp.sendPostedEvents(None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+	qapp.processEvents()
+	assert not published
+	assert not receipts
+
+
+#============================================
 def test_programmatic_tool_transitions_dispatch_to_newly_active_selection_feature(
 		qapp: PySide6.QtWidgets.QApplication, main_window: object,
 		) -> None:
@@ -713,24 +822,20 @@ def test_line_dispatch_rejects_mismatched_normalized_tool_without_mutation(
 	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
 		"<cdml xmlns='urn:ferrum:cdml'/>", "mismatched-line-intent.cdml",
 	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
-	try:
-		window._register_native_tab(tab, activate=True)
-		bond_action = window._action_registry.get_qt_action("draw.bond")
-		bond_action.trigger()
-		qapp.processEvents()
-		before_revision = tab.current_snapshot.revision
-		context = ferrum_qt.modes.base_mode.ModeContext(None, tab)
-		intent = ferrum_qt.modes.base_mode.ModeIntent(
-			"line.draw_arrow.press", (ferrum_qt.modes.base_mode.ScenePoint(10.0, 10.0),),
-		)
-		with pytest.raises(RuntimeError, match="different active tool"):
-			window._window_mode_sync._dispatch_intent(context, intent)
-		assert tab.current_snapshot.revision == before_revision
-		assert window._window_mode_sync.active_state.mode_id == "draw"
-		assert bond_action.isChecked()
-		assert window._window_mode_sync.cancel()
-		assert window._window_mode_sync.active_state.mode_id is None
-		assert not bond_action.isChecked()
-	finally:
-		if not tab.is_disposed:
-			tab.dispose()
+	window._register_native_tab(tab, activate=True)
+	bond_action = window._action_registry.get_qt_action("draw.bond")
+	bond_action.trigger()
+	qapp.processEvents()
+	before_revision = tab.current_snapshot.revision
+	context = ferrum_qt.modes.base_mode.ModeContext(None, tab)
+	intent = ferrum_qt.modes.base_mode.ModeIntent(
+		"line.draw_arrow.press", (ferrum_qt.modes.base_mode.ScenePoint(10.0, 10.0),),
+	)
+	with pytest.raises(RuntimeError, match="different active tool"):
+		window._window_mode_sync._dispatch_intent(context, intent)
+	assert tab.current_snapshot.revision == before_revision
+	assert window._window_mode_sync.active_state.mode_id == "draw"
+	assert bond_action.isChecked()
+	assert window._window_mode_sync.cancel()
+	assert window._window_mode_sync.active_state.mode_id is None
+	assert not bond_action.isChecked()

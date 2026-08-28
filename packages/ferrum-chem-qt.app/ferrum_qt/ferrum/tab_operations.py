@@ -22,6 +22,18 @@ def tab_has_active_native_operation(window: object, tab: object) -> bool:
 
 
 #============================================
+def tab_has_active_native_operation_except_lease(
+		window: object, tab: object, lease: object,
+		) -> bool:
+	"""Keep every conflict except the controller's exact retained lease."""
+	return any(active.lease_id != lease.lease_id
+		for active in window._operation_leases.active_for_tab(tab)) or any(
+		_tab_owned_by_intent(getattr(window, name, None)) is tab
+		for name in _TAB_OPERATION_INTENTS
+	)
+
+
+#============================================
 def _tab_owned_by_intent(intent: object) -> object | None:
 	"""Return the exact tab retained by one established Ferrum intent shape."""
 	tab = getattr(intent, "tab", None)

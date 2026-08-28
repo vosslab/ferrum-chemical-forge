@@ -15,6 +15,22 @@ source source_me.sh && python3 -B -m pytest
 the repository's unbuffered-output and no-bytecode defaults. Use the
 repository's Python 3.12 environment. It must be sourced, not executed.
 
+### `source_me.sh` says that the local runtime is unavailable
+
+The development shell deliberately refuses to import a global or stale
+`ferrum_chem` extension. If it reports either `Ferrum local runtime is
+unavailable` message, rebuild the sealed local program, then source the shell
+setup again:
+
+```bash
+./build.sh
+source source_me.sh && python3 -B -m pytest
+```
+
+Do not prepend a globally installed Ferrum package to `PYTHONPATH` to work
+around the error. The supported order is source Qt code, then the extension
+under `build/runtime/python`, then retained caller entries.
+
 ### `__pycache__` directories appear
 
 `source_me.sh` exports `PYTHONDONTWRITEBYTECODE`, but that applies only to
@@ -47,6 +63,69 @@ it from the repository root:
 closure. The test entry point confirms that the PyO3 and Qt suites use that
 local runtime rather than a globally installed extension. Other platforms are
 not yet qualified.
+
+### `all_test.sh` reports a missing, stale, or modified local runtime
+
+`all_test.sh` validates a receipt for the local extension, adapter, and
+launchers before it runs the CLI, E2E, PyO3, and Qt suites. Its
+`complete local Ferrum runtime is missing` or `local Ferrum runtime is stale or
+has been modified` error means that the local build must be replaced as one
+unit:
+
+```bash
+./build.sh
+./all_test.sh
+```
+
+Do not copy a dylib, extension, or launcher into `build/runtime` by hand. The
+stable `build/bin` and `build/runtime` paths resolve through one atomically
+promoted program root.
+
+### `./build.sh` says another build owns the local build
+
+Only one `./build.sh` invocation may promote the shared local runtime. If the
+command says `another ./build.sh invocation owns the local build; wait for it
+to finish`, wait for that invocation and rerun your command. Do not delete or
+edit `build/.build.lock`: the operating-system lock, not lock-file contents,
+determines ownership.
+
+### `./build.sh` exceeds the 20 GiB checkout budget
+
+The build removes only its known compiler and staging paths. When it reports
+that the checkout exceeds the 20 GiB build budget, inspect the categories it
+lists and unrelated large checkout content; then rerun the build. Do not use a
+recursive cleanup against the checkout as a build recovery step.
+
+### Rust tooling is unavailable
+
+`./check_rust.sh` checks for Cargo, `rustc`, `rustfmt`, and Clippy before it
+uses the workspaces. Install the Rust toolchain required by
+[INSTALL.md](INSTALL.md). For an absent formatting or lint component, use the
+exact recovery commands reported by the checker:
+
+```bash
+rustup component add rustfmt
+rustup component add clippy
+```
+
+Then rerun `./check_rust.sh`. This Rust gate does not build the local Python
+extension or run Qt tests; use `./build.sh` and `./all_test.sh` for that route.
+
+## Run Qt tests without a display
+
+### Qt tests need a headless platform
+
+Ferrum's permanent Qt tests and registered E2Es use Qt's offscreen platform.
+For a focused Qt pytest run, use the same environment:
+
+```bash
+source source_me.sh
+QT_QPA_PLATFORM=offscreen python3 -B -m pytest packages/ferrum-chem-qt.app/tests/ -q -W error
+```
+
+Use `QT_QPA_PLATFORM=offscreen` for tests, not as evidence that the desktop
+application has been visually accepted. Start `build/bin/ferrum-qt` in a macOS
+desktop session for a one-time visual and accessibility review.
 
 ## Run the operation protocol
 

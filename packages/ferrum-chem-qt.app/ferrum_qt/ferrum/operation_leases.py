@@ -103,6 +103,16 @@ class OperationLease:
 
 
 #============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class PreparedTerminalReplacement:
+	"""Carry one registry-validated terminal replacement to its closed commit."""
+
+	lease_id: OperationLeaseId
+	tab_identity: TabLeaseIdentity
+	_token: object = dataclasses.field(repr=False, compare=False)
+
+
+#============================================
 @dataclasses.dataclass(slots=True)
 class _BoundTab:
 	"""Keep the exact tab object paired with its opaque registration identity."""
@@ -134,8 +144,9 @@ class OperationLeaseRegistry:
 		self._capabilities: dict[OperationFamily, LeaseOwnerCapability] = {}
 		self._leases: dict[OperationLeaseId, _LeaseRecord] = {}
 		self._active_by_family_tab: dict[
-			tuple[OperationFamily, TabLeaseIdentity], OperationLeaseId,
+				 tuple[OperationFamily, TabLeaseIdentity], OperationLeaseId,
 		] = {}
+		self._prepared_terminal_replacements: dict[object, _LeaseRecord] = {}
 		self._next_tab_sequence = 1
 		self._next_lease_sequence = 1
 
@@ -270,12 +281,81 @@ class OperationLeaseRegistry:
 		self._bound_tabs.remove(bound)
 
 	#============================================
+	def prepare_terminal_replacement(
+			self, capability: LeaseOwnerCapability, lease: OperationLease,
+			source_tab: object,
+			) -> PreparedTerminalReplacement:
+		"""Validate and detach one source before irreversible tab disposal."""
+		record = self._record_for_capability(capability, lease)
+		if record.tab is not source_tab or record.state is not LeaseState.ACTIVE:
+			raise OperationLeaseError("Ferrum replacement requires its active exact source lease")
+		bound = self._bound_tab_for(source_tab)
+		if bound is None or bound.identity != record.tab_identity:
+			raise OperationLeaseError("Ferrum replacement source is not bound to its lease")
+		self._bound_tabs.remove(bound)
+		token = object()
+		self._prepared_terminal_replacements[token] = record
+		prepared = PreparedTerminalReplacement(record.lease_id, bound.identity, token)
+		return prepared
+
+	#============================================
+	def restore_prepared_terminal_replacement(
+			self, prepared: PreparedTerminalReplacement, source_tab: object,
+			) -> None:
+		"""Restore one refused terminal replacement before source disposal."""
+		record = self._prepared_record(prepared)
+		if record.tab is not source_tab:
+			raise OperationLeaseError("Ferrum replacement cannot restore another source lease")
+		if self._bound_tab_for(source_tab) is not None:
+			raise OperationLeaseError("Ferrum replacement source is already bound")
+		self._bound_tabs.append(_BoundTab(record.tab_identity, source_tab))
+		del self._prepared_terminal_replacements[prepared._token]
+
+	#============================================
+	def complete_prepared_terminal_replacement(
+			self, prepared: PreparedTerminalReplacement,
+			) -> OperationLease:
+		"""Close one prepared replacement through the registry's private mutation."""
+		record = self._prepared_terminal_replacements.pop(prepared._token)
+		record.state = LeaseState.COMPLETED
+		active_key = (record.lease_id.family, record.tab_identity)
+		del self._active_by_family_tab[active_key]
+		settled = self._lease_snapshot(record)
+		del self._leases[record.lease_id]
+		return settled
+
+	#============================================
+	def restore_detached_source_for_terminal_replacement(
+			self, capability: LeaseOwnerCapability, lease: OperationLease,
+			old_tab: object, identity: TabLeaseIdentity,
+			) -> None:
+		"""Restore a failed replacement source with its original tab identity."""
+		record = self._record_for_capability(capability, lease)
+		if record.tab is not old_tab or record.tab_identity != identity:
+			raise OperationLeaseError("Ferrum replacement cannot restore another source lease")
+		if self._bound_tab_for(old_tab) is not None:
+			raise OperationLeaseError("Ferrum replacement source is already bound")
+		self._bound_tabs.append(_BoundTab(identity, old_tab))
+
+	#============================================
 	def _bound_tab_for(self, tab: object) -> _BoundTab | None:
 		"""Find a registration by exact object identity, never equality or tab title."""
 		for bound in self._bound_tabs:
 			if bound.tab is tab:
 				return bound
 		return None
+
+	#============================================
+	def _prepared_record(self, prepared: PreparedTerminalReplacement) -> _LeaseRecord:
+		"""Validate one opaque prepared replacement before recoverable rollback."""
+		if type(prepared) is not PreparedTerminalReplacement:
+			raise OperationLeaseError("Ferrum replacement requires a prepared terminal token")
+		record = self._prepared_terminal_replacements.get(prepared._token)
+		if record is None:
+			raise OperationLeaseError("Ferrum replacement terminal token is no longer active")
+		if record.lease_id != prepared.lease_id or record.tab_identity != prepared.tab_identity:
+			raise OperationLeaseError("Ferrum replacement terminal token does not match its lease")
+		return record
 
 	#============================================
 	def _tab_is_disposed(self, tab: object) -> bool:

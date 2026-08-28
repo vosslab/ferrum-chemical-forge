@@ -15,6 +15,7 @@ import pytest
 # local repo modules
 import ferrum_qt.themes.theme_loader
 import ferrum_qt.themes.theme_manager
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molblock_import
@@ -53,6 +54,25 @@ def _finish_worker(qapp: PySide6.QtWidgets.QApplication,
 	for _iteration in range(3):
 		qapp.processEvents()
 	assert window._molblock_import_intent is None
+
+
+#============================================
+def _close_test_window(qapp: PySide6.QtWidgets.QApplication,
+		window: object) -> None:
+	"""Discard every registered test tab before ordinary window shutdown."""
+	for tab in tuple(window._native_tabs_by_page.values()):
+		before = window._tab_widget.count()
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+		assert window._tab_widget.count() < before
+	assert not window._native_tabs_by_page
+	assert not window._tab_widget.count()
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
 
 
 #============================================
@@ -99,8 +119,7 @@ def test_invalid_utf8_file_fails_without_document_mutation(
 
 	assert tab.current_snapshot.revision == 0 and not tab.is_dirty
 	assert warnings[-1].outcome.value == "unavailable_operation"
-	tab.dispose()
-	window.deleteLater()
+	_close_test_window(qapp, window)
 
 
 #============================================
@@ -134,5 +153,4 @@ def test_public_molfile_action_commits_and_saves_rust_owned_chemistry(
 	reopened = ferrum_chem.DocumentSession.load(destination.read_text(encoding="utf-8"))
 	reopened_molecule = reopened.observe_render(0).document.projection.molecules[0]
 	assert tuple(atom.element for atom in reopened_molecule.atoms) == ("C", "C", "O")
-	window.close()
-	window.deleteLater()
+	_close_test_window(qapp, window)

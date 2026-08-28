@@ -7,6 +7,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.themes.theme_loader
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.engine
 
@@ -129,5 +130,13 @@ def test_live_window_commits_roles_only_through_the_rust_reaction_bridge(
 		main_window._reaction_composer.close()
 		tab_widget = main_window.centralWidget()
 		assert isinstance(tab_widget, PySide6.QtWidgets.QTabWidget)
-		tab_widget.removeTab(tab_widget.indexOf(tab))
-		tab.dispose()
+		index = tab_widget.indexOf(tab)
+		assert index >= 0
+		before = tab_widget.count()
+		result = main_window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+		assert tab_widget.count() == before - 1
+		assert tab_widget.indexOf(tab) == -1
+		assert main_window._operation_leases.active_for_tab(tab) == ()

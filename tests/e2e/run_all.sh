@@ -97,6 +97,8 @@ run_e2e "Ferrum Qt template catalog authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_authoring.py"
 run_e2e "Ferrum Qt SMARTS partial-result warning E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_smarts_partial_result_warning.py"
+run_e2e "Ferrum Qt Local Document Open terminal lifecycle E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_local_document_open_lifecycle.py"
 printf '%s\n' \
 	"<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>" \
 	> "${KEYBOARD_E2E_DIR}/keyboard-workflow.cdml"

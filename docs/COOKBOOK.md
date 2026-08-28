@@ -1,50 +1,67 @@
 # Ferrum cookbook
 
-These scenarios combine the current protocol and desktop workflows. They do not extend
-Ferrum's pre-alpha feature set.
+These end-to-end recipes use the repository-local build. Build first with
+`./build.sh`; the runnable programs are `build/bin/ferrum` and
+`build/bin/ferrum-qt`. They complement the command reference in
+[USAGE.md](USAGE.md) and the admitted-file contract in
+[FILE_FORMATS.md](FILE_FORMATS.md).
 
-## Review a CDML record
+## Review and render CDML
 
-Use this sequence when a collaborator supplies a CDML file and you need to assess its
-structure and native rendering before deciding whether to save a structural re-emission.
-It leaves the input unchanged until you deliberately use a Qt save action.
+Use this sequence to inspect an existing CDML drawing, produce a separate
+review artifact, and then open the original in Ferrum. It does not save from
+the desktop application or rewrite the input.
 
-1. Inspect the generated protocol schema.
+```bash
+./build.sh
+build/bin/ferrum validate supplied.cdml --level typed
+build/bin/ferrum inspect supplied.cdml --json
+build/bin/ferrum render supplied.cdml --output supplied.svg
+build/bin/ferrum-qt supplied.cdml
+```
 
-   ```bash
-   ferrum protocol schema
-   ```
+`validate` and `inspect` report on the supplied document. `render` publishes a
+new artifact only after Ferrum completes the supported render operation. Choose
+`supplied.pdf` or `supplied.png` instead when that review format is needed.
 
-2. Create one `ferrum-operation-request-v1` JSON request with the supplied CDML text
-   and run it.
+In the window, make edits deliberately, then use Save As to choose a CDML
+destination. Ferrum structurally re-emits admitted CDML; it does not promise a
+byte-for-byte rewrite. See [FILE_FORMATS.md](FILE_FORMATS.md) for the exact
+CDML persistence boundary.
 
-   ```bash
-   ferrum protocol run request.json
-   ```
+## Import an external molecule
 
-3. Open the same document in the ordinary Ferrum window.
+Use `formats` before choosing an interchange path, then create a new CDML
+document from one declared source. This example uses the bounded CDXML import
+profile; a source with a declared CML or SDF capability follows the same flow.
 
-   ```bash
-   ferrum-qt supplied.cdml
-   ```
+```bash
+build/bin/ferrum formats
+build/bin/ferrum open molecule.cdxml --format cdxml --output molecule.cdml
+build/bin/ferrum-qt molecule.cdml
+```
 
-Ferrum is the sole desktop product window. It opens the supplied uncompressed `.cdml`
-through Rust, and its native document actions include ordinary editing, Undo/Redo, Save,
-Save As, reopening, and complete-document artifact export. A successful protocol rewrite
-returns structurally preserved CDML, not byte-for-byte output. Use Save As when you want to
-inspect the resulting structural re-emission separately from the supplied source.
+`open` treats the external source as input only and publishes the requested
+CDML destination after a successful Rust-owned import. The desktop app opens
+the derived CDML document; use its normal Save or Save As workflow for later
+CDML persistence. Capability-specific limits, accepted suffixes, and declared
+losses are defined by [FILE_FORMATS.md](FILE_FORMATS.md), not inferred from an
+extension.
 
-File Open accepts closed CML/CML2 and bounded CDXML simple-molecule input through Rust. Each
-creates a clean new document and never replaces the current tab; its first Save writes CDML.
-File Open accepts a decoded local `.svg` only when it contains one canonical embedded CDML
-payload; the SVG wrapper is discarded. CDX, CDXML chemistry or presentation outside the bounded
-profile, namespaces, `.cdsvg`, `.svgz`, and compressed input leave the active document unchanged.
-See [FILE_FORMATS.md](FILE_FORMATS.md) for the exact format boundary.
+## Automate a protocol request
 
-Use `File -> Recovery Export CDML...` only for a recovery copy of the current CDML. It does
-not replace Save or Save As and does not convert formats. Use `File -> Export...` to publish
-the complete supported document as SVG, PDF, or transparent PNG; this is not CD-SVG export or
-a wrapper round-trip.
+Use the generated schema as the contract for an integration, then exchange one
+JSON request and one JSON response through the frozen protocol route.
 
-For command arguments and failure behavior, see [USAGE.md](USAGE.md). For Ferrum
-installation and platform limits, see [INSTALL.md](INSTALL.md).
+```bash
+build/bin/ferrum protocol schema > ferrum-operation-v1.schema.json
+build/bin/ferrum protocol run request.json --output response.json
+```
+
+`request.json` must be a UTF-8 `ferrum-operation-request-v1` envelope accepted
+by the generated schema. `protocol run` publishes the response destination
+safely and keeps successful JSON output distinct from diagnostics. Use a named
+`document` command only when the integration needs that command's single,
+versioned operation route; the generic protocol route remains the complete
+automation surface. See [USAGE.md](USAGE.md) for supported named document
+commands and [INSTALL.md](INSTALL.md) for the local runtime boundary.

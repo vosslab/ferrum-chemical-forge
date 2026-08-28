@@ -53,7 +53,7 @@ def main() -> None:
 			raise RuntimeError("structural delete save/reopen changed Rust state")
 		print('{"schema":"ferrum-p0-structure-delete-e2e-v1","status":"ok"}')
 	finally:
-		tab.dispose(); window.deleteLater()
+		ferrum_qt_e2e.close_e2e_main_window(window, app)
 
 if __name__ == "__main__":
 	raise SystemExit(main())

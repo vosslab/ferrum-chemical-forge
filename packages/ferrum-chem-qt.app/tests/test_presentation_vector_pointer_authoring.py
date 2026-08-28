@@ -8,6 +8,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.themes.theme_loader
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
@@ -20,6 +21,24 @@ def _action(window: PySide6.QtWidgets.QMainWindow, text: str) -> PySide6.QtGui.Q
 	"""Return one visible action by its user-facing label."""
 	return next(action for action in window.findChildren(PySide6.QtGui.QAction)
 		if action.text() == text)
+
+
+def _close_window(window: ferrum_qt.main_window.MainWindow,
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Discard exact test tabs before ordinary window shutdown can prompt."""
+	window.cancel_active_pointer_authoring()
+	for tab in tuple(window._native_tabs_by_page.values()):
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert not window._native_tabs_by_page
+	window.close()
+	window.deleteLater()
+	PySide6.QtCore.QCoreApplication.sendPostedEvents(
+		None, PySide6.QtCore.QEvent.Type.DeferredDelete)
+	qapp.processEvents()
 
 
 def _point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
@@ -53,5 +72,4 @@ def test_rectangle_drag_commits_the_document_style_and_undo_removes_it(
 		qapp.processEvents()
 		assert "<rect" not in tab.current_snapshot.cdml
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_window(window, qapp)

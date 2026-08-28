@@ -48,6 +48,25 @@ def _finish_window_worker(
 
 
 #============================================
+def _close_test_window(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.ferrum.main_window.FerrumNativeMainWindow,
+		) -> None:
+	"""Discard every exact test tab before ordinary shutdown can prompt."""
+	for tab in tuple(window._native_tabs_by_page.values()):
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert window._tab_widget.count() == 0
+	assert window._native_tabs_by_page == {}
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
+
+
+#============================================
 def test_worker_prepares_one_frozen_native_cco_value_off_the_qt_thread(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:
@@ -110,8 +129,7 @@ def test_cancel_after_native_completion_still_drops_queued_document_delivery(
 
 	assert tab.current_snapshot.revision == 0 and not tab.is_dirty
 	assert window._smiles_import_intent is None
-	tab.dispose()
-	window.deleteLater()
+	_close_test_window(qapp, window)
 
 
 #============================================
@@ -157,8 +175,7 @@ def test_public_native_action_imports_renders_and_round_trips_cco(
 	assert tuple(
 		atom.element for atom in reopened_projection.molecules[0].atoms
 	) == ("C", "C", "O")
-	window.close()
-	window.deleteLater()
+	_close_test_window(qapp, window)
 
 
 #============================================
@@ -190,5 +207,7 @@ def test_post_commit_render_failure_retains_pending_rust_authority(
 	assert not window._import_smiles_action.isEnabled()
 	assert window._refresh_action.isEnabled()
 	window._cancel_smiles_import()
-	tab.dispose()
-	window.deleteLater()
+	monkeypatch.undo()
+	assert tab.refresh_authoritative()
+	assert not tab.requires_refresh
+	_close_test_window(qapp, window)

@@ -1,8 +1,14 @@
 # Changelog
 
-Earlier history is in [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md). Its archive navigation
-continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
-[CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
+Earlier history is in [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md), continuing through
+[CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
+
+## 2026-08-28
+
+### Fixes and Maintenance
+
+- Corrected Template Catalog documentation: dialog, explicit controller, and `OperationLeaseRegistry`
+  own Qt work; `FerrumNativeDocumentTab` is the Rust mutation port; native human acceptance and M5.A stay open.
 
 ## 2026-08-27
 
@@ -22,7 +28,6 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 - Added the bounded M6 command-palette V1: portable `Ctrl+K` (`Cmd+K` on native
   macOS) and YAML-owned **View > Commands > Command Palette...** provide a
   registry-derived search over live action labels, help text, and stable IDs.
-
 - Delivered the bounded M2 CDXML simple-molecule input profile through the
   Rust decoder, interchange registry, generic CLI/PyO3 ingress, and existing
   Qt File/Open worker. The profile accepts the exact current vendor external
@@ -31,30 +36,25 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   before publication, and remains input-only with CDML as the local save
   format. The added decision records the exact grammar, security/resource
   boundary, provenance, exclusions, and permanent versus one-time evidence.
-
 - Added Ferrum-owned CDXML E2E guidance. The permanent CLI and Qt gates cover
   public semantic import/refusal behavior with inline temporary inputs; a real
   16:10 outer-window screenshot and keyboard/accessibility walkthrough remain
   release evidence rather than pixel or timing assertions.
-
 - Extended bounded native CDXML with C2 `Charge` and `Isotope` atom facts:
   canonical ASCII charge in `-128..=127` and nonnegative isotope mass in
   `0..=32767`, zero normalization, durable CDML lowering, and typed
   `InvalidScalar` refusal. It adds no client route, source-provenance store, or
   CDXML writer.
-
 ### Behavior or Interface Changes
 
 - Added Rust-issued `MoleculeContentBoundsV1` to each frozen molecule render
   entry at the PyO3 boundary. Qt now uses a dedicated noninteractive molecule
   ownership root for content fitting and disposal, while atom and bond render
   items remain ordinary independently selectable children.
-
 - Command Palette results now show a validated YAML-derived primary placement
   breadcrumb, prefer ordinary menu paths over ribbon fallbacks, and rank direct
   label/action-ID intent ahead of help-text or subsequence-only matches while
   preserving stable live-action ties and visible unavailable commands.
-
 - Delivered the approved nominal `DocumentDisplayRefreshableV1` `abc.ABC`
   contract. Production registrants and valid test helpers declare membership,
   structural look-alikes are rejected, and retained refreshables use direct
@@ -70,15 +70,18 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 
 ### Fixes and Maintenance
 
-- Repaired format-neutral interchange placement in Rust. Shared CML, CDXML, and
-  SDF preparation now observes the session paper and centers imported records on
-  that page instead of scaling them around a hard-coded scene origin.
-
-- Repaired molecule projection ownership without a `QGraphicsItemGroup` or
-  Qt-side geometry authority. The completed detached hierarchy is installed only
-  after validation, root bounds come from Rust's lowered draw stream, and member
-  selection is no longer swallowed by a grouping item. Removed the unused legacy
-  overlay module that still constructed the superseded parallel group projection.
+- Reworked Template Catalog Patch 1 as a pure Qt registry/controller with a shared lifecycle close
+  adapter and three-phase pristine replacement, removing the catalog mixins. `FerrumNativeDocumentTab`
+  remains the Rust mutation port; M5.A and native human acceptance stay open.
+- Reworked Local Document Open into contract, composition, controller, and delivery modules with a named
+  queued relay, transactional cleanup, QWidget-owned dirty-dialog rechecks, and distinct failed versus
+  post-commit completed outcomes. The old mixin and unused `native_app.py` are removed; Rust, PyO3, YAML,
+  and local-open types are unchanged. Publication-ownership review and current full-gate evidence remain pending.
+- Repaired format-neutral interchange placement in Rust: shared CML, CDXML, and SDF preparation
+  observes the session paper and centers imported records there rather than at a hard-coded scene origin.
+- Repaired molecule projection ownership without a `QGraphicsItemGroup` or Qt-side geometry authority.
+  The completed detached hierarchy installs after validation, Rust owns root bounds, and member selection
+  is preserved. Removed the unused legacy overlay that constructed the superseded parallel projection.
 
 - Scoped PyO3 extension-only link mode to the production extension build instead
   of the workspace dependency graph. Rust binaries and tests now link normally on
@@ -276,28 +279,18 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   pyflakes, source-line, and import-requirements checks passed for the changed
   files.
 
-- Paused the stabilization audit after documenting its non-acceptance result in
-  [TODO.md](TODO.md) and [ROADMAP.md](ROADMAP.md). Resume with explicit
-  `ActionRegistry` destruction retirement, one successor-window command-palette
-  regression, remaining lint repair, capture, and full gate; reconcile parity-ledger receipts.
+- Paused the stabilization audit after documenting non-acceptance in [TODO.md](TODO.md) and
+  [ROADMAP.md](ROADMAP.md); resume with the recorded repairs, capture, and full gate.
 
 - Completed a six-pass independent stabilization audit; its actionable findings are resolved
-  above. The approved in-progress M5.A
-  [Template Catalog V1](active_plans/decisions/m5_template_catalog_v1.md) replaces
-  Qt filename-derived authority with a bounded immutable Rust snapshot, native
-  snapshot-fenced placement, and Rust publication receipt without expanding M2/M4.
-  Its next foundation prerequisite is the approved
-  [Qt Operation Lease Registry](active_plans/decisions/qt_operation_lease_registry.md): Patch 1
-  atomically replaces catalog mixins with a controller and pure Qt lifecycle registry, then Patch 2
-  proves Local Open source retention and truthful delivery cancellation. Neither patch changes
-  Rust/PyO3 in Patch 1 or closes M5.A, M5, native accessibility/visual acceptance, or full parity.
-  The registry decision records the fixed ownership, scope, and verification boundary.
+  above. The in-progress M5.A [Template Catalog V1](active_plans/decisions/m5_template_catalog_v1.md)
+  replaces Qt filename authority with a bounded Rust snapshot and fenced placement without
+  expanding M2/M4. M5.A, M5, native accessibility/visual acceptance, and full parity remain open.
 
-- Pre-repair receipt: paused after the delivery-stabilization checkpoint with the
-  exact remaining evidence gap recorded in [ROADMAP.md](ROADMAP.md),
-  [TODO.md](TODO.md), and [GUI_TOUR.md](GUI_TOUR.md). The fresh
-  local build, 283 installed PyO3 tests, 283 Qt tests with one intentional skip,
-  and registered E2E suite passed. The close-out aggregate run recorded 7,922
+- Pre-repair receipt: paused after the delivery-stabilization checkpoint with the exact remaining
+  evidence gap in [ROADMAP.md](ROADMAP.md), [TODO.md](TODO.md), and [GUI_TOUR.md](GUI_TOUR.md).
+  The fresh local build, 283 installed PyO3 tests, 283 Qt tests with one intentional skip, and
+  registered E2E suite passed. The close-out aggregate run recorded 7,922
   passes and two failures: one prohibited `import typing` and one premature tour
   embed for an unrecorded focused screenshot; the embed was removed after the
   receipt. Eleven 1440x900 GUI images exist locally, while the complete 13-scene

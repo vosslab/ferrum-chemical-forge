@@ -122,9 +122,10 @@ exactly `(tab, viewport, expected_document_snapshot, snapshot, key)`.
 
 Rust owns a prepared user-template publication capability and receipt. Qt supplies presentation
 only: it cannot retain CDML, re-admit a saved template, scan the directory, or surface raw OS
-errors. The modeless task is split among `template_catalog_dialog.py`, `template_catalog_tab.py`,
-and `template_catalog_window.py`; it is one accessible, reusable catalog surface rather than a
-palette compatibility layer.
+errors. This decision's former dialog/tab/window mixin split is superseded by the later
+[Qt Operation Lease Registry](qt_operation_lease_registry.md): dialog presentation,
+an explicit controller, pure Qt lifecycle registry, and the `document_tab.py` native placement
+port now own their distinct responsibilities without compatibility modules.
 
 The task must preserve useful healthy entries beside malformed neighbours; distinguish empty,
 no-match, loading, partial-failure, unavailable, save-refusal, stale, and accepted-display

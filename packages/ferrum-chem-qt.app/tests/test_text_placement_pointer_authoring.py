@@ -8,6 +8,7 @@ import pytest
 
 import ferrum_qt.themes.theme_loader
 import ferrum_qt.dialogs.rich_text_dialog
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.main_window
@@ -15,6 +16,25 @@ import ferrum_qt.themes.theme_manager
 
 
 _CDML = "<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>"
+
+
+#============================================
+def _close_test_window(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.main_window.MainWindow,
+		) -> None:
+	"""Discard owned tabs before ordinary window shutdown can prompt."""
+	window.cancel_active_pointer_authoring()
+	for tab in tuple(window._native_tabs_by_page.values()):
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert not window._native_tabs_by_page
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
 
 
 def _point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
@@ -103,8 +123,7 @@ def test_text_click_commits_exact_runs_selects_and_remains_movable(
 		tab.undo()
 		assert tab.current_snapshot.cdml == created
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
@@ -138,8 +157,7 @@ def test_text_cancel_and_preview_failure_leave_cdml_unchanged(
 		assert tab.current_snapshot.revision == before
 		assert window._line_gesture_intent is None
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
@@ -172,8 +190,7 @@ def test_text_escape_focus_loss_and_tool_change_cancel_coherently(
 		assert window._line_gesture_intent is None and not window._draw_plus_action.isChecked()
 		assert tab.current_snapshot.revision == before
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -200,8 +217,7 @@ def test_text_popup_focus_handoff_retains_the_same_armed_intent(
 		assert window._line_gesture_intent is intent
 		assert window._insert_text_action.isChecked()
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -229,8 +245,7 @@ def test_text_stale_focus_callback_cannot_cancel_a_replacement_intent(
 		assert window._line_gesture_intent is not None
 		assert window._draw_plus_action.isChecked()
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 def test_text_stale_focus_restoration_cannot_touch_a_replacement_intent(
@@ -260,8 +275,7 @@ def test_text_stale_focus_restoration_cannot_touch_a_replacement_intent(
 		assert window._line_gesture_intent is replacement and window._draw_plus_action.isChecked()
 		assert not tab.view.viewport().hasFocus()
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 def test_text_commit_selection_failure_reports_recovery_after_rust_acceptance(
@@ -291,8 +305,7 @@ def test_text_commit_selection_failure_reports_recovery_after_rust_acceptance(
 		assert "text was added" in refusals[-1].technical_details.lower()
 		assert "select it again before moving" in refusals[-1].technical_details.lower()
 	finally:
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 def test_text_dialog_tab_order_and_enter_save_are_accessible(

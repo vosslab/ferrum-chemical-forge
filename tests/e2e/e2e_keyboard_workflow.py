@@ -20,7 +20,6 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab
-import ferrum_qt.ferrum.close_decision
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
 
@@ -243,12 +242,7 @@ def main() -> int:
 	finally:
 		PySide6.QtWidgets.QFileDialog.getOpenFileName = original_open
 		PySide6.QtWidgets.QFileDialog.getSaveFileName = original_save
-		while window._tab_widget.count():
-			window._close_native_tab_at(
-				0, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
-			)
-		window.close()
-		window.deleteLater()
+		ferrum_qt_e2e.close_e2e_main_window(window, app)
 
 
 if __name__ == "__main__":

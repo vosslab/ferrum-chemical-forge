@@ -11,6 +11,7 @@ import ferrum_qt.ferrum.engine
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
+import ferrum_qt.ferrum.close_decision
 
 
 #============================================
@@ -30,6 +31,27 @@ def _ring_atom(tab: object) -> PySide6.QtCore.QPoint:
 			if tab.durable_atom_at_viewport_point(point) is not None:
 				return point
 	raise AssertionError("Ferrum ring atom was not available to the public pointer")
+
+
+#============================================
+def _close_test_window(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.main_window.MainWindow,
+		) -> None:
+	"""Discard test-owned native tabs before ordinary window shutdown can prompt."""
+	window.cancel_active_pointer_authoring()
+	for tab in tuple(window._native_tabs_by_page.values()):
+		before = window._tab_widget.count()
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+		assert window._tab_widget.count() < before
+	assert not window._native_tabs_by_page
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
 
 
 #============================================
@@ -60,9 +82,7 @@ def test_regular_ring_chooser_actions_commit_each_admitted_size(
 			assert tab.current_snapshot.revision == before_revision + 1
 			assert len(tab.current_document_observation().projection.molecules[-1].atoms) == size
 	finally:
-		window.cancel_active_pointer_authoring()
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -108,9 +128,9 @@ def test_regular_ring_accepted_commit_with_unavailable_display_cancels_authoring
 			"recovery; refresh before saving or editing."
 		)
 	finally:
-		window.cancel_active_pointer_authoring()
-		window.close()
-		window.deleteLater()
+		monkeypatch.undo()
+		assert tab.refresh_authoritative()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -140,9 +160,7 @@ def test_regular_ring_escape_is_mutation_free_and_disarms(
 		assert window._line_gesture_intent is None
 		assert not action.isChecked()
 	finally:
-		window.cancel_active_pointer_authoring()
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -182,6 +200,4 @@ def test_regular_ring_occupied_click_keeps_authoring_armed_for_empty_retry(
 		qapp.processEvents()
 		assert tab.current_snapshot.revision == before_revision + 1
 	finally:
-		window.cancel_active_pointer_authoring()
-		window.close()
-		window.deleteLater()
+		_close_test_window(qapp, window)

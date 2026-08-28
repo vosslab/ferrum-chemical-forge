@@ -19,7 +19,7 @@ class CloseResult(enum.Enum):
 
 	CLOSED = "closed"
 	NO_TAB = "no_tab"
-	REPLACEMENT_CANCELLED = "replacement_cancelled"
+	LOCAL_DOCUMENT_OPEN_CANCELLATION_REQUESTED = "local_document_open_cancellation_requested"
 	MOLECULE_IMPORT_BLOCKED = "molecule_import_blocked"
 	MOLECULE_EXPORT_BLOCKED = "molecule_export_blocked"
 	SNAPSHOT_EXPORT_BLOCKED = "snapshot_export_blocked"
@@ -28,7 +28,6 @@ class CloseResult(enum.Enum):
 	ATOM_OXIDATION_BLOCKED = "atom_oxidation_blocked"
 	CLIPBOARD_OPERATION_BLOCKED = "clipboard_operation_blocked"
 	COORDINATE_GENERATION_BLOCKED = "coordinate_generation_blocked"
-	USER_TEMPLATE_PLACEMENT_BLOCKED = "user_template_placement_blocked"
 	OPERATION_CANCELLATION_FAILED = "operation_cancellation_failed"
 	REFRESH_REQUIRED = "refresh_required"
 	DIRTY_REQUIRES_DECISION = "dirty_requires_decision"

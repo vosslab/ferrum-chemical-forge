@@ -450,7 +450,7 @@ class _MoleculeReportObserver(PySide6.QtCore.QObject):
 		if self.observed_text:
 			self.completion_loop.quit()
 			if self.dialog is not None:
-				PySide6.QtCore.QTimer.singleShot(0, self.dialog.accept)
+				self.dialog.accept()
 
 	def await_completed_details(self) -> str:
 		"""Return public details, with a deadlock guard for this asynchronous phase."""
@@ -576,8 +576,7 @@ def main() -> int:
 		}))
 		return 0
 	finally:
-		window.close()
-		window.deleteLater()
+		ferrum_qt_e2e.close_e2e_main_window(window, app)
 
 
 if __name__ == "__main__":

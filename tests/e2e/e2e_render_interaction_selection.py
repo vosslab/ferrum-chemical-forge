@@ -164,11 +164,7 @@ def main() -> int:
 		print(json.dumps({"schema": "ferrum-p0-selection-e2e-v1", "status": "ok"}))
 		return 0
 	finally:
-		window._window_mode_sync.cancel()
-		if not tab.is_disposed:
-			tab.dispose()
-		window.deleteLater()
-		app.processEvents()
+		ferrum_qt_e2e.close_e2e_main_window(window, app)
 
 
 if __name__ == "__main__":

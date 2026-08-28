@@ -12,6 +12,11 @@ class FerrumQtE2ECallbackFailure(RuntimeError):
 
 
 #============================================
+class FerrumQtE2ECleanupError(RuntimeError):
+	"""Raise when E2E-owned Qt window teardown violates its lifecycle contract."""
+
+
+#============================================
 class _QtCallbackFailureState:
 	"""Keep the process-local callback failure and nested-loop ownership."""
 
@@ -175,3 +180,30 @@ def select_offscreen_qt_platform() -> None:
 	"""Select the test-owned Qt backend before any PySide6 import."""
 	os.environ["QT_QPA_PLATFORM"] = "offscreen"
 	_install_callback_failure_gate()
+
+
+#============================================
+def close_e2e_main_window(window: object, app: object) -> None:
+	"""Discard E2E-owned native tabs before ordinary Qt window teardown."""
+	from PySide6.QtCore import QCoreApplication, QEvent
+	from ferrum_qt.ferrum.close_decision import CloseDecision, CloseResult
+
+	while window._tab_widget.count():
+		before = window._tab_widget.count()
+		result = window._close_native_tab_at(0, CloseDecision.DISCARD)
+		if result is not CloseResult.CLOSED:
+			raise FerrumQtE2ECleanupError(
+				"E2E teardown could not discard its native tab: " + result.value,
+			)
+		if window._tab_widget.count() >= before:
+			raise FerrumQtE2ECleanupError(
+				"E2E teardown reported a closed native tab without tab-host progress",
+			)
+	if window._native_tabs_by_page:
+		raise FerrumQtE2ECleanupError(
+			"E2E teardown left registered native tabs after explicit discard",
+		)
+	window.close()
+	window.deleteLater()
+	QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+	app.processEvents()

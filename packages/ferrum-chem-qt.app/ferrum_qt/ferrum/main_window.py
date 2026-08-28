@@ -26,7 +26,8 @@ import ferrum_qt.ferrum.atom_number
 import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.bond_properties
 import ferrum_qt.ferrum.clipboard
-import ferrum_qt.ferrum.local_document_open
+import ferrum_qt.ferrum.local_document_open_controller
+import ferrum_qt.ferrum.local_document_open_composition
 import ferrum_qt.ferrum.local_document_open_types
 import ferrum_qt.ferrum.coordinate_generation
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
@@ -101,7 +102,6 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.view_controls.FerrumNativeViewControlsMixin,
 		ferrum_qt.ferrum.selection_svg.FerrumNativeSelectionSvgWindowMixin,
 		ferrum_qt.ferrum.clipboard.FerrumNativeClipboardWindowMixin,
-		ferrum_qt.ferrum.local_document_open.FerrumNativeLocalDocumentOpenMixin,
 		ferrum_qt.ferrum.document_save.FerrumNativeDocumentSaveMixin,
 		ferrum_qt.ferrum.recovery_export.FerrumNativeRecoveryExportWindowMixin,
 		ferrum_qt.ferrum.snapshot_export.FerrumNativeSnapshotExportWindowMixin,
@@ -145,6 +145,7 @@ class FerrumNativeMainWindow(
 			) -> None:
 		"""Build the small Ferrum document host and its reachable file actions."""
 		super().__init__(parent)
+		self._shutdown_prepared = False
 		self._action_registry = ferrum_qt.actions.action_registry.ActionRegistry()
 		self._window_mode_sync = ferrum_qt.ferrum.window_mode_sync.FerrumWindowModeSync(
 			self._action_registry,
@@ -186,7 +187,13 @@ class FerrumNativeMainWindow(
 			ferrum_qt.ferrum.local_document_open_types.
 			FerrumNativeLocalDocumentOpenCatalogV2.from_rust()
 		)
-		self._initialize_local_document_open()
+		self._local_document_open_controller = (
+			ferrum_qt.ferrum.local_document_open_controller.LocalDocumentOpenController(
+				ferrum_qt.ferrum.local_document_open_composition.
+				compose_local_document_open_host(self),
+				self._local_document_open_catalog, self._operation_leases,
+			)
+		)
 		self._initialize_view_controls()
 		self._atom_insertion_intent: ferrum_qt.ferrum.atom_mode.AtomInsertionIntent | None = None
 		self._initialize_line_tools()
@@ -241,7 +248,7 @@ class FerrumNativeMainWindow(
 			terminal_kind: str, document_effect: str, source_revision: int,
 			source_digest_hex: str) -> None:
 		"""Publish after a modeless operation outcome receives one Qt event turn."""
-		PySide6.QtCore.QTimer.singleShot(0, functools.partial(
+		PySide6.QtCore.QTimer.singleShot(0, self, functools.partial(
 			self._publish_operation_presentation_v1,
 			tab, operation_kind, terminal_kind, document_effect,
 			source_revision, source_digest_hex,
@@ -327,13 +334,47 @@ class FerrumNativeMainWindow(
 		self.document_installation_completed.emit(receipt)
 		return True
 
+	def open_file_path(self, file_path: str, replace_current: bool = False, *,
+			interactive: bool = False, force_new_tab: bool = False,
+			recent_request: bool = False) -> bool:
+		"""Delegate local document admission to its explicit controller."""
+		return self._local_document_open_controller.open_file_path(
+			file_path, replace_current, interactive=interactive,
+			force_new_tab=force_new_tab, recent_request=recent_request,
+		)
+
+	def open_in_current_tab_path(self, file_path: str) -> bool:
+		"""Delegate deliberate current-tab replacement to the Open controller."""
+		return self._local_document_open_controller.open_in_current_tab_path(file_path)
+
+	def open_recent_native_document_path(self, file_path: str) -> bool:
+		"""Delegate a recent-file selection to the Open controller."""
+		return self._local_document_open_controller.open_recent_native_document_path(file_path)
+
+	def has_pending_local_document_open(self) -> bool:
+		"""Return whether the Open controller still owns admission work."""
+		return self._local_document_open_controller.has_pending_local_document_open()
+
+	def _refresh_local_document_open_action(self) -> None:
+		"""Refresh controller-owned File/Open actions from the window lifecycle."""
+		self._local_document_open_controller._refresh_local_document_open_action()
+
+	def _cancel_local_document_open_for_close(self) -> bool:
+		"""Request cancellation before a window close can proceed."""
+		return self._local_document_open_controller.request_close_cancellation(None)
+
+	def _cancel_explicit_replacement_for_target_close(self, tab: object) -> bool:
+		"""Request cancellation when the exact Open source tab is closing."""
+		if type(tab) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
+			return False
+		return self._local_document_open_controller.request_close_cancellation(tab)
+
 	def _build_actions(self) -> None:
 		"""Create Ferrum file and bounded Rust edit actions."""
-		self._open_action = PySide6.QtGui.QAction(self.tr("Open"), self)
-		self._open_action.triggered.connect(self._on_open)
-		self._build_open_in_current_tab_action()
-		self._build_local_document_open_action()
-		self._register_action("file.open", self._open_action)
+		self._local_document_open_controller.build_actions()
+		self._open_action = self._local_document_open_controller.open_action
+		self._open_in_current_tab_action = self._local_document_open_controller.open_in_current_tab_action
+		self._cancel_open_action = self._local_document_open_controller.cancel_open_action
 		getattr(self, "_install_native_recent_files_menu", lambda: None)()
 		self._save_action = PySide6.QtGui.QAction(self.tr("Save"), self)
 		self._save_action.triggered.connect(self._on_save)
@@ -627,7 +668,7 @@ class FerrumNativeMainWindow(
 			or self._compact_group_materialization_intent is not None
 			or self._compact_group_authoring_intent is not None
 			or self._snapshot_export_busy()
-			or self._local_document_open_intent is not None
+			or self._local_document_open_controller.has_pending_local_document_open()
 		)
 
 	def _template_catalog_replacement_actions(self) -> tuple[PySide6.QtGui.QAction, ...]:

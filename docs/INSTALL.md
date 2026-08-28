@@ -1,54 +1,66 @@
-# Run Ferrum from a checkout
+# Install
 
-Ferrum is pre-production and currently runs from this repository's local build.
-The supported contributor path creates no global Ferrum installation and no
-published wheel. [`build.sh`](../build.sh) stages the local CLI and Qt launcher
-under `build/`; [`all_test.sh`](../all_test.sh) verifies that local runtime.
+Ferrum is a pre-production local-build project. A successful build creates the
+Rust CLI, PySide6 desktop launcher, and private native runtime below `build/`;
+it does not publish or globally install a Ferrum package.
 
 ## Requirements
 
-- A checkout of this repository.
-- Rust 1.97.1 or newer and Cargo. The workspace records this minimum in
+- A checkout of this repository on the current macOS arm64 development route.
+- Rust 1.97.1 or newer with Cargo, as declared in
   [`packages/ferrum-rust/Cargo.toml`](../packages/ferrum-rust/Cargo.toml).
-- Python 3.12 and the dependencies in [`pip_requirements-dev.txt`](../pip_requirements-dev.txt).
-- A macOS arm64 host for the current native and Qt route.
+- Homebrew's Python 3.12 and the Python dependencies in
+  [`pip_requirements-dev.txt`](../pip_requirements-dev.txt).
+- The Homebrew tools declared in [`Brewfile`](../Brewfile), including CMake,
+  LLVM, and Rustup.
 
-Set up the Python test dependencies once:
+## Install dependencies
+
+From the repository root, install the declared macOS tools and Python
+dependencies:
 
 ```bash
-source source_me.sh && python3 -m pip install -r pip_requirements-dev.txt
+brew bundle
+python3 -m pip install -r pip_requirements-dev.txt
 ```
 
-## Build and run locally
+Do not source `source_me.sh` before the first build: it deliberately refuses
+to load until the checkout has a matching staged native extension. After a
+successful build, use `source source_me.sh && python3` for repository Python
+commands.
 
-From the repository root, build the local application:
+## Build the local program
 
 ```bash
 ./build.sh
 ```
 
-Run the resulting applications directly from `build/`:
+The build produces these local launchers:
 
-```bash
-build/bin/ferrum --version
-build/bin/ferrum-qt
-```
+- `build/bin/ferrum` for the Rust CLI.
+- `build/bin/ferrum-qt` for the PySide6 desktop application.
+- `build/runtime/python/` for the checkout-private Python extension and its
+  dependent libraries.
 
-`build/bin/ferrum-qt drawing.cdml` opens one local CDML drawing. The local
-launchers select the ABI-specific extension at
-`build/runtime/python/ferrum_chem<Python ABI suffix>` and its adjacent
-`.dylibs/` closure. The CLI derives its validated chemistry closure only from
-its sibling `build/runtime/engine-v1` directory. These local programs do not
-use a globally installed Ferrum package or a per-user engine installation.
+The launchers resolve only their sibling runtime under `build/`; neither looks
+for a globally installed Ferrum package or chemistry engine.
 
-## Verify the local build
+## Verify install
 
 ```bash
 ./build.sh
 ./all_test.sh
+```
+
+`all_test.sh` verifies repository hygiene, the staged runtime and launchers,
+registered CLI E2E checks, PyO3 bindings, and offscreen Qt tests. Run the
+complete Rust-only gate when changing Rust code:
+
+```bash
 ./check_rust.sh
 ```
 
-`all_test.sh` starts with repository hygiene checks and then runs the PyO3 and
-Qt suites against the local extension. It is the normal developer and CI test
-entry point.
+## Known gaps
+
+- Verify a supported cross-platform consumer installation before documenting
+  operating systems beyond the current macOS arm64 development route.

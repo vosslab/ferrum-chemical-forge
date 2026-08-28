@@ -198,8 +198,7 @@ def main() -> int:
 		print(json.dumps({"schema": "ferrum-smarts-partial-result-warning-e2e-v1", "status": "ok"}))
 		return 0
 	finally:
-		window.close()
-		window.deleteLater()
+		ferrum_qt_e2e.close_e2e_main_window(window, app)
 
 
 if __name__ == "__main__":

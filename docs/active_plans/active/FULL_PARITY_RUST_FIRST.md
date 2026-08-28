@@ -651,9 +651,10 @@ explicit entry/candidate/refusal/file/total-byte limits, bounded lexical admissi
 refusal occurrences, descriptor-relative user-directory admission, and typed refusal. PyO3
 projects that contract read-only and accepts a native-issued expected document snapshot for the
 placement fence. Rust also owns prepared user-template publication capability and receipt. Qt's
-modeless task is split among dialog, tab, and window owners; it exposes only
-`chemistry.template.catalog`, keeps no scanner, plan, payload, re-admission, or raw OS errors,
-and forwards only fenced native authority. Implementation and all acceptance gates remain open.
+modeless task retains its dialog, explicit `TemplateCatalogController`, and `OperationLeaseRegistry`; the controller owns Qt interaction/lifecycle and the document tab is the sole Rust mutation port.
+It exposes only `chemistry.template.catalog`, with no scanner, plan, payload, re-admission, or raw
+OS-error authority. Its automated evidence is accepted green; M5.A remains open for native human
+accessibility/visual acceptance and broader milestone work.
 
 The automated M5.A receipt is green: `./build.sh` produced CLI and GUI; focused catalog, API,
 PyO3, and Qt suites passed 13, 164, 8, and 18 tests; the public authoring E2E schema
@@ -663,20 +664,26 @@ installed PyO3, and 344 Qt tests. Three independent final reviews found no P1/P2
 native accessibility/contrast/focus review and a fresh real-dialog screenshot with human acceptance
 remain open, so M5.A, M5, and full parity do not advance to complete.
 
-Before more high-coupling concurrent Qt tools, execute the approved
-[Qt Operation Lease Registry](../decisions/qt_operation_lease_registry.md) in two dependent
-patches. Patch 1 migrates Template Catalog placement to an explicit controller and a pure Qt
-lifecycle registry, deletes both catalog mixins and `CATALOG_PLACEMENT_BLOCKED`, continues the same
-close attempt after synchronous cancellation, and changes neither Rust nor PyO3. Patch 2 begins
-only after Patch 1 review and full Qt/E2E acceptance; it migrates Local Document Open and proves
-source-retaining `CANCELLATION_REQUESTED` plus truthful delivery cancellation. Both patches delete
-their old family state atomically and add no aliases, event bus, service locator, or wholesale move.
-
-The shipped `catalog.list.v1` / `catalog.insert.v1` protocol contract and its
-lease-backed public E2E are completed prerequisites for this milestone. They
-establish bounded catalog discovery, fenced insertion, and typed stale refusal;
-they do not complete M5's palette, reaction, provenance, corpus, or user-workflow
-parity work.
+Before more high-coupling concurrent Qt tools, preserve accepted [Patch 1](../decisions/qt_operation_lease_registry.md),
+which migrates Template Catalog placement to an explicit controller/pure Qt lifecycle registry,
+deletes both catalog mixins and `CATALOG_PLACEMENT_BLOCKED`, and changes neither Rust nor PyO3.
+Architecture/Qt-HCI/tests-docs review found no P1-P3; fresh build, E2E, and aggregate evidence passed.
+Patch 2 replaces Local Document Open's mixin with four modules: immutable contract facts,
+callback-only composition, source-tab controller, and per-intent delivery with a named queued relay.
+`LOCAL_DOCUMENT_OPEN` uses `BLOCK_UNTIL_SETTLED`; cancellation waits for worker finish, stale sources
+refuse without reanchoring, and completion cannot steal focus. Delivery owns worker staging, QWidget-owned
+dirty-dialog rechecks, transactional startup/terminal cleanup, and exact replacement identity. Invalid
+worker protocol/invariant failures settle `FAILED` after cleanup and propagate; typed post-commit
+presentation failure retains truthful `COMPLETED` after irreversible commit. Rust, PyO3, YAML, and
+`local_document_open_types.py` are unchanged; the old mixin and `native_app.py` are deleted. Final evidence:
+43 focused; build/E2E exit 0 including `ferrum-local-document-open-lifecycle-e2e-v1`; all-test exits 0
+(8,097 hygiene, registered E2Es, 294 PyO3, 395 Qt); architecture audit ACCEPT has no P1-P3. Public
+open/save/reopen, nested dirty-dialog, and post-commit recovery are E2E; focused pytest keeps contracts.
+Patch 1's pristine replacement repair and shared close adapter remain separate. Human visual, VoiceOver,
+contrast/focus, remote CI, release, M5.A, and parity stay open.
+The shipped `catalog.list.v1` / `catalog.insert.v1` contract and lease-backed E2E
+are completed prerequisites: bounded discovery, fenced insertion, and typed stale refusal;
+they do not complete M5's palette, reaction, provenance, corpus, or user-workflow parity.
 
 Deliver a versioned provenance-bearing template manifest; system and biomolecule
 palettes; user-template toolbar; reaction roots/import/export/templates;

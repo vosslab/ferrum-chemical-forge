@@ -19,7 +19,9 @@ import ferrum_qt.config.preferences
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.operation_leases
 import ferrum_qt.ferrum.recent_files
 import ferrum_qt.ferrum.window_refusals
 
@@ -172,6 +174,24 @@ def _current_native_tab(
 
 
 #============================================
+def _close_test_window(
+		qapp: PySide6.QtWidgets.QApplication,
+		window: ferrum_qt.main_window.MainWindow,
+		) -> None:
+	"""Discard every exact test tab before ordinary window shutdown can prompt."""
+	for tab in tuple(window._native_tabs_by_page.values()):
+		index = window._tab_widget.indexOf(tab)
+		result = window._close_native_tab_at(
+			index, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		)
+		assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert not window._native_tabs_by_page
+	window.close()
+	window.deleteLater()
+	qapp.processEvents()
+
+
+#============================================
 def _wait_for_open_queue(
 		window: ferrum_qt.main_window.MainWindow,
 		start: collections.abc.Callable[[], object],
@@ -231,7 +251,7 @@ def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		assert all(suffix in new_document_filter for suffix in ("*.cdxml", "*.sdf", "*.sd"))
 		assert all(suffix not in current_tab_filter for suffix in ("*.cdxml", "*.sdf", "*.sd"))
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -270,7 +290,7 @@ def test_cdxml_open_installs_a_new_tab_with_durable_molecule_facts(
 			and all(item.parentItem() is root for item in projection.items)
 		)
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -299,42 +319,7 @@ def test_cdxml_open_refusal_preserves_the_active_native_document(
 			refusal,
 		).ordinary_text()
 	finally:
-		window.close()
-
-
-#============================================
-def test_public_open_action_loads_saves_and_reopens_through_rust(
-		qapp: PySide6.QtWidgets.QApplication,
-		tmp_path: pathlib.Path,
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""The visible Open action installs a clean Ferrum tab with a durable origin."""
-	source = tmp_path / "ordinary-open.cdml"
-	destination = tmp_path / "ordinary-open-copy.cdml"
-	source.write_text(_EMPTY_CDML, encoding="utf-8")
-	window = _make_window(qapp)
-	initial_tab = _current_native_tab(window)
-	monkeypatch.setattr(
-		PySide6.QtWidgets.QFileDialog,
-		"getOpenFileName",
-		lambda *_args: (str(source), "Ferrum CDML (*.cdml)"),
-	)
-	try:
-		completed = _wait_for_open_queue(window, _open_action(window).trigger)
-		tab = _current_native_tab(window)
-		assert (
-			completed
-			and tab.file_path == source
-			and initial_tab.is_disposed
-		)
-		assert not tab.current_snapshot.is_dirty and window.save_active_to_path(str(destination))
-		prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
-			str(destination), _local_open_handle(".cdml"),
-		)
-		reopened, observation, _origin, _source_kind, _summary = prepared.take_admission_v2()
-		assert observation.document.snapshot.digest == reopened.snapshot().digest
-	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -371,7 +356,7 @@ def test_cml_open_keeps_import_provenance_and_saves_authoritative_cdml(
 		)
 		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -406,7 +391,7 @@ def test_sdf_file_open_creates_one_new_tab_with_source_order_and_durable_cdml(
 		)
 		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -427,7 +412,7 @@ def test_sdf_file_open_refusal_preserves_the_active_document(
 		assert not _wait_for_open_queue(window, lambda: window.open_file_path(str(source)))
 		assert _current_native_tab(window) is tab and tab.current_snapshot is before and warnings
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -459,7 +444,7 @@ def test_programmatic_open_queues_multiple_launch_documents(
 		assert completed and origins == {first, second}
 		assert not initial_tab.is_disposed and initial_tab.file_path is None
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -479,7 +464,7 @@ def test_hard_link_alias_activates_the_existing_native_tab(
 		assert _wait_for_open_queue(window, lambda: window.open_file_path(str(alias)))
 		assert _current_native_tab(window) is opened and opened.file_path == source
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -511,7 +496,7 @@ def test_interactive_open_preserves_a_loaded_document_in_a_new_tab(
 		assert not loaded.is_disposed
 		assert _current_native_tab(window).file_path == second
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -554,7 +539,7 @@ def test_interactive_open_cancels_an_armed_bootstrap_canvas_gesture(
 		)
 		assert not _visible_action(window, "Cancel Tool").isEnabled()
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -604,7 +589,7 @@ def test_open_in_current_tab_recovers_after_an_armed_ring_preview(
 		assert _wait_for_open_queue(window, current_tab_open.trigger)
 		assert _current_native_tab(window).file_path == source
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -632,7 +617,7 @@ def test_cancel_open_action_invalidates_delivery_without_replacing_the_tab(
 		assert initial_tab.current_snapshot == initial_snapshot
 		assert _open_action(window).isEnabled() and not _cancel_open_action(window).isEnabled()
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -667,7 +652,7 @@ def test_symlink_rejection_leaves_the_current_document_unchanged(
 		assert presentation.technical_details is not None
 		assert "non-symlink" in presentation.technical_details.lower()
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 
 
 #============================================
@@ -694,7 +679,7 @@ def test_confirmed_native_open_and_save_promote_personal_recent_paths(
 			and not tab.current_snapshot.is_dirty
 		)
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 		_restore_recent_paths(previous)
 
 
@@ -721,7 +706,7 @@ def test_recent_model_promotes_normalized_paths_with_injected_capacity(
 		model.record_confirmed_path(third)
 		assert _recent_paths() == (str(third), str(first))
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 		_restore_recent_paths(previous)
 
 
@@ -763,7 +748,7 @@ def test_recent_file_action_uses_native_new_tab_route_and_origin_identity(
 			and not bootstrap.is_disposed
 		)
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 		_restore_recent_paths(previous)
 
 
@@ -800,7 +785,7 @@ def test_recent_menu_disambiguates_names_and_clear_keeps_document_state(
 		clear.trigger()
 		assert _recent_paths() == () and _current_native_tab(window).current_snapshot.cdml == baseline
 	finally:
-		window.close()
+		_close_test_window(qapp, window)
 		_restore_recent_paths(previous)
 
 
