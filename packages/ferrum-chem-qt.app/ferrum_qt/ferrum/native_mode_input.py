@@ -56,12 +56,19 @@ def dispatch_native_mode_input(owner: object, watched: PySide6.QtCore.QObject,
 	controller = owner._window_mode_sync
 	if controller.active_state.mode_id is None:
 		return False
-	if isinstance(event, PySide6.QtGui.QKeyEvent):
+	if (
+		isinstance(event, PySide6.QtGui.QKeyEvent)
+		and event.type() == PySide6.QtCore.QEvent.Type.KeyPress
+	):
 		key = event.key()
 		key_names = {
 			PySide6.QtCore.Qt.Key.Key_Escape: "Escape",
 			PySide6.QtCore.Qt.Key.Key_Return: "Return",
 			PySide6.QtCore.Qt.Key.Key_Enter: "Enter",
+			PySide6.QtCore.Qt.Key.Key_Left: "Left",
+			PySide6.QtCore.Qt.Key.Key_Right: "Right",
+			PySide6.QtCore.Qt.Key.Key_Up: "Up",
+			PySide6.QtCore.Qt.Key.Key_Down: "Down",
 			PySide6.QtCore.Qt.Key.Key_Delete: "Delete",
 			PySide6.QtCore.Qt.Key.Key_Backspace: "Backspace",
 		}

@@ -87,10 +87,9 @@ def normalize_element(value: object) -> str | None:
 #============================================
 def _periodic_spellings_by_casefold() -> dict[str, str]:
 	"""Read conventional picker spelling from the authoritative Rust display list."""
-	import ferrum_qt.ferrum.engine as engine
 	return {
 		entry.symbol.casefold(): entry.symbol
-		for entry in engine.periodic_display_entries_v1()
+		for entry in periodic_display_entries()
 	}
 
 
@@ -167,5 +166,11 @@ class FerrumNativeDrawingParameters(PySide6.QtCore.QObject):
 #============================================
 def common_elements() -> tuple[str, ...]:
 	"""Return the authoritative periodic picker suggestions for Ferrum drawing."""
+	return tuple(entry.symbol for entry in periodic_display_entries())
+
+
+#============================================
+def periodic_display_entries() -> tuple[object, ...]:
+	"""Return the immutable Rust-issued display catalog for all drawing clients."""
 	import ferrum_qt.ferrum.engine as engine
-	return tuple(entry.symbol for entry in engine.periodic_display_entries_v1())
+	return engine.periodic_display_entries_v1()

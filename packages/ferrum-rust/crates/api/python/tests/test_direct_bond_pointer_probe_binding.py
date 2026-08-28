@@ -366,10 +366,15 @@ def test_direct_bond_directed_wedge_is_undoable_and_durable(
 	redone = session.redo(undone.revision).observation.snapshot
 	path = tmp_path / "directed-wedge.cdml"
 	session.save_atomic(path, redone.revision)
-	prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(
-		str(path),
+	cdml_handle = next(
+		descriptor.route_handle
+		for descriptor in ferrum_chem.DocumentSession.local_document_open_descriptors_v2()
+		if ".cdml" in descriptor.suffixes
 	)
-	reopened, _observation, _origin, _source_kind = prepared.take_admission_v1()
+	prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+		str(path), cdml_handle,
+	)
+	reopened, _observation, _origin, _source_kind, _summary = prepared.take_admission_v2()
 	redone_bond = _projected_bond(session.observe(redone.revision), facts.bond_document_object_id)
 	reopened_bond = _projected_bond(reopened.observe(0), facts.bond_document_object_id)
 

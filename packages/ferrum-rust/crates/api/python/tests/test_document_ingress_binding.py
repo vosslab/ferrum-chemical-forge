@@ -16,6 +16,25 @@ CDSVG = (
 	b'<cdml xmlns="urn:ferrum:cdml" version="1.0"/>'
 	b'</svg>'
 )
+TWO_RECORD_SDF = """ethanol
+  Ferrum
+
+  3  2  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  1  0
+M  END
+$$$$
+water
+  Ferrum
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+M  END
+$$$$
+"""
 
 
 def budget(byte_limit: int = 10_000) -> ferrum_chem.XmlInputBudgetV1:
@@ -38,6 +57,14 @@ def assert_input_error_shape(
 	assert error.limit == limit
 	assert error.actual == actual
 	assert error.observed_at_least == observed_at_least
+
+
+def local_open_handle(suffix: str) -> object:
+	"""Return the one opaque V2 File/Open handle issued for ``suffix``."""
+	for descriptor in ferrum_chem.DocumentSession.local_document_open_descriptors_v2():
+		if suffix in descriptor.suffixes:
+			return descriptor.route_handle
+	raise AssertionError(f"Ferrum did not issue a V2 File/Open route for {suffix}")
 
 
 def test_budget_is_frozen_exact_and_extension_owned() -> None:
@@ -185,10 +212,11 @@ def test_local_profile_prepares_one_worker_safe_session(
 	alias = tmp_path / "product-open-alias.cdml"
 	source.write_bytes(CDML)
 	alias.hardlink_to(source)
-	prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(source))
-	alias_prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(alias))
-	session, observation, origin, source_kind = prepared.take_admission_v1()
-	_alias_session, _alias_observation, alias_origin, _alias_kind = alias_prepared.take_admission_v1()
+	handle = local_open_handle(".cdml")
+	prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(str(source), handle)
+	alias_prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(str(alias), handle)
+	session, observation, origin, source_kind, _summary = prepared.take_admission_v2()
+	_alias_session, _alias_observation, alias_origin, _alias_kind, _alias_summary = alias_prepared.take_admission_v2()
 	assert session.snapshot().revision == 0 and not session.snapshot().is_dirty
 	assert (
 		observation.document.snapshot.digest == session.snapshot().digest
@@ -196,7 +224,24 @@ def test_local_profile_prepares_one_worker_safe_session(
 		and source_kind == "cdml"
 	)
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
-		prepared.take_admission_v1()
+		prepared.take_admission_v2()
+
+
+def test_generic_v2_sdf_open_preserves_two_records_and_refuses_suffix_mismatch(
+		tmp_path: Path,
+		) -> None:
+	"""The catalog-owned SDF route admits one ordered new document only."""
+	path = tmp_path / "records.sd"
+	path.write_text(TWO_RECORD_SDF, encoding="utf-8")
+	prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+		str(path), local_open_handle(".sd"),
+	)
+	_session, _observation, _origin, source_kind, summary = prepared.take_admission_v2()
+	assert source_kind == "interchange" and summary.imported_record_count == 2
+	with pytest.raises(ferrum_chem.DocumentInputError):
+		ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+			str(path), local_open_handle(".cml"),
+		)
 
 
 def test_decoded_cdsvg_profile_prepares_canonical_payload_with_one_use_identity(
@@ -207,10 +252,11 @@ def test_decoded_cdsvg_profile_prepares_canonical_payload_with_one_use_identity(
 	alias = tmp_path / "product-open-alias.svg"
 	source.write_bytes(CDSVG)
 	alias.hardlink_to(source)
-	prepared = ferrum_chem.DocumentSession.prepare_local_decoded_cdsvg_file_v1(str(source))
-	alias_prepared = ferrum_chem.DocumentSession.prepare_local_decoded_cdsvg_file_v1(str(alias))
-	session, observation, origin, source_kind = prepared.take_admission_v1()
-	_alias_session, _alias_observation, alias_origin, _alias_kind = alias_prepared.take_admission_v1()
+	handle = local_open_handle(".svg")
+	prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(str(source), handle)
+	alias_prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(str(alias), handle)
+	session, observation, origin, source_kind, _summary = prepared.take_admission_v2()
+	_alias_session, _alias_observation, alias_origin, _alias_kind, _alias_summary = alias_prepared.take_admission_v2()
 	assert (
 		session.snapshot().revision == 0
 		and "<svg" not in session.snapshot().cdml
@@ -219,7 +265,7 @@ def test_decoded_cdsvg_profile_prepares_canonical_payload_with_one_use_identity(
 		and source_kind == "decoded_cdsvg"
 	)
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
-		prepared.take_admission_v1()
+		prepared.take_admission_v2()
 
 
 @pytest.mark.parametrize(
@@ -242,7 +288,9 @@ def test_decoded_cdsvg_profile_refuses_invalid_containers_before_receipt(
 	path = tmp_path / "rejected.svg"
 	path.write_bytes(source)
 	with pytest.raises(ferrum_chem.DocumentInputError):
-		ferrum_chem.DocumentSession.prepare_local_decoded_cdsvg_file_v1(str(path))
+		ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+			str(path), local_open_handle(".svg"),
+		)
 
 
 def test_local_profile_rejects_symlink_before_preparing_a_session(tmp_path: Path) -> None:
@@ -252,7 +300,9 @@ def test_local_profile_rejects_symlink_before_preparing_a_session(tmp_path: Path
 	link = tmp_path / "product-open-link.cdml"
 	link.symlink_to(source)
 	with pytest.raises(ferrum_chem.DocumentInputError) as link_error:
-		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(link))
+		ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+			str(link), local_open_handle(".cdml"),
+		)
 	assert link_error.value.origin == "file" and link_error.value.stage == "source_policy"
 
 
@@ -260,7 +310,9 @@ def test_local_profile_maps_unpaired_surrogate_to_typed_path_error() -> None:
 	"""Python text encoding failure cannot bypass the product input taxonomy."""
 	invalid_path = "\ud800"
 	with pytest.raises(ferrum_chem.DocumentInputError) as path_error:
-		ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(invalid_path)
+		ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+			invalid_path, local_open_handle(".cdml"),
+		)
 	assert path_error.value.origin == "file" and path_error.value.stage == "path"
 
 

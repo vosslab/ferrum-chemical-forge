@@ -508,6 +508,10 @@ pub struct StructureInteractionSelectionV1 {
 }
 impl StructureInteractionSelectionV1 {
     #[must_use]
+    pub const fn fence(&self) -> DocumentFenceV1 {
+        self.fence
+    }
+    #[must_use]
     pub fn targets(&self) -> &[StructureInteractionTargetV1] {
         &self.targets
     }

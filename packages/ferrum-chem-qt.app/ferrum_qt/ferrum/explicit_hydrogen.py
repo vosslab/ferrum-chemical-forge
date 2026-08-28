@@ -48,6 +48,12 @@ class FerrumNativeExplicitHydrogenWindowMixin:
 		tab = self._active_native_tab()
 		if tab is None or self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed:
 			return False
+		try:
+			address = tab.selected_molecule_atom_address()
+		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			self._refresh_actions()
+			return False
 		if self._atom_insertion_intent is not None:
 			self._cancel_atom_insertion()
 		if self._line_gesture_intent is not None:
@@ -55,7 +61,6 @@ class FerrumNativeExplicitHydrogenWindowMixin:
 		if self._structure_tab is tab:
 			self._cancel_structure_selection()
 		try:
-			address = tab.selected_molecule_atom_address()
 			result = tab._session.materialize_live_molecule_hydrogens_v1(
 				address.revision, address.digest, address.molecule_id, address.atom_id,
 			)

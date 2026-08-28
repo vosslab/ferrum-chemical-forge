@@ -356,7 +356,7 @@ pub(crate) fn digest(value: &str) -> PyResult<[u8; 32]> {
         ));
     }
     let mut result = [0; 32];
-    for (i, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (i, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         result[i] = (hex(pair[0]) << 4) | hex(pair[1])
     }
     Ok(result)

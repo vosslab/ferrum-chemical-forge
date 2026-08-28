@@ -11,6 +11,7 @@ import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.main_window
 import ferrum_qt.ferrum.molecule_diagnostics
 import ferrum_qt.main_window
+import ferrum_qt.modes.base_mode
 
 
 _CDML = """\
@@ -116,3 +117,126 @@ def test_check_structure_worker_calls_controlled_owned_snapshot_executor(
 	assert calls == [("<cdml/>", 7, "digest", ("root",))]
 	assert received == [receipt]
 	del qapp
+
+
+#============================================
+def test_admitted_check_structure_receipt_survives_selection_change_after_busy_refresh(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Read-only work preserves selection, and later selection change cannot lose its receipt."""
+	module = ferrum_qt.ferrum.molecule_diagnostics
+	window, tab, molecule_id = _window_with_selected_root(qapp)
+	monkeypatch.setattr(module.FerrumNativeMoleculeDiagnosticsWorker, "start", lambda worker: None)
+	try:
+		assert window._start_molecule_diagnostics()
+		intent = window._molecule_diagnostics_intent
+		assert intent is not None
+		assert window._selected_molecule_diagnostics_address(tab) is not None
+		tab.view.scene().clearSelection()
+		window._refresh_actions()
+		window._on_document_molecule_diagnosed(intent.worker, _receipt(tab, molecule_id))
+		dialog = window._molecule_diagnostics_dialog
+		assert dialog is not None
+		window._refresh_actions()
+		assert dialog._stale.isVisible() and not dialog._rerun.isEnabled()
+	finally:
+		if window._molecule_diagnostics_intent is not None:
+			window._on_document_molecule_diagnostics_finished(
+				window._molecule_diagnostics_intent.worker,
+			)
+		_dispose_window_and_tab(window, tab)
+		del qapp
+
+
+#============================================
+def test_diagnostics_keeps_structure_navigation_but_disables_selection_deletion(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Read-only diagnostics keeps the Rust selection while withholding its mutation action."""
+	module = ferrum_qt.ferrum.molecule_diagnostics
+	window, tab, _molecule_id = _window_with_selected_root(qapp)
+	monkeypatch.setattr(module.FerrumNativeMoleculeDiagnosticsWorker, "start", lambda worker: None)
+	try:
+		assert window._window_mode_sync.select_action(window._select_structure_action)
+		window._select_structure_at(
+			ferrum_qt.modes.base_mode.ScenePoint(0.0, 0.0),
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+		)
+		selection = window._structure_selection
+		assert selection is not None and selection.targets
+		assert window._delete_structure_selection_action.isEnabled()
+		assert window._start_molecule_diagnostics()
+		intent = window._molecule_diagnostics_intent
+		assert intent is not None
+		assert window._select_structure_action.isEnabled()
+		assert window._structure_selection is selection
+		assert not window._delete_structure_selection_action.isEnabled()
+		window._on_document_molecule_diagnostics_finished(intent.worker)
+		assert window._delete_structure_selection_action.isEnabled()
+	finally:
+		window._window_mode_sync.cancel()
+		if window._molecule_diagnostics_intent is not None:
+			window._on_document_molecule_diagnostics_finished(
+				window._molecule_diagnostics_intent.worker,
+			)
+		_dispose_window_and_tab(window, tab)
+		del qapp
+
+
+#============================================
+def test_queued_selection_deletion_refuses_when_diagnostics_starts_first(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""A queued deletion rechecks its mutation capability immediately before commit."""
+	module = ferrum_qt.ferrum.molecule_diagnostics
+	window, tab, _molecule_id = _window_with_selected_root(qapp)
+	monkeypatch.setattr(module.FerrumNativeMoleculeDiagnosticsWorker, "start", lambda worker: None)
+	try:
+		assert window._window_mode_sync.select_action(window._select_structure_action)
+		window._select_structure_at(
+			ferrum_qt.modes.base_mode.ScenePoint(0.0, 0.0),
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
+		)
+		assert window._delete_structure_selection_action.isEnabled()
+		before_revision = tab.current_snapshot.revision
+		before_undo = tab.can_undo()
+		window._request_structure_deletion()
+		assert window._start_molecule_diagnostics()
+		intent = window._molecule_diagnostics_intent
+		assert intent is not None
+		qapp.processEvents()
+		assert (tab.current_snapshot.revision, tab.can_undo()) == (before_revision, before_undo)
+		assert not window._delete_structure_selection_action.isEnabled()
+		window._on_document_molecule_diagnostics_finished(intent.worker)
+		assert window._delete_structure_selection_action.isEnabled()
+	finally:
+		window._window_mode_sync.cancel()
+		if window._molecule_diagnostics_intent is not None:
+			window._on_document_molecule_diagnostics_finished(
+				window._molecule_diagnostics_intent.worker,
+			)
+		_dispose_window_and_tab(window, tab)
+		del qapp
+
+
+#============================================
+def test_check_structure_drops_receipt_with_a_changed_document_fence(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+	"""A receipt with a mismatched source revision cannot publish to the current tab."""
+	module = ferrum_qt.ferrum.molecule_diagnostics
+	window, tab, molecule_id = _window_with_selected_root(qapp)
+	monkeypatch.setattr(module.FerrumNativeMoleculeDiagnosticsWorker, "start", lambda worker: None)
+	try:
+		receipt = _receipt(tab, molecule_id)
+		assert window._start_molecule_diagnostics()
+		intent = window._molecule_diagnostics_intent
+		assert intent is not None
+		window._molecule_diagnostics_intent = module._Intent(
+			intent.tab, intent.revision + 1, intent.digest, intent.molecule_id, intent.worker,
+		)
+		window._on_document_molecule_diagnosed(intent.worker, receipt)
+		assert window._molecule_diagnostics_dialog is None
+	finally:
+		if window._molecule_diagnostics_intent is not None:
+			window._on_document_molecule_diagnostics_finished(
+				window._molecule_diagnostics_intent.worker,
+			)
+		_dispose_window_and_tab(window, tab)
+		del qapp

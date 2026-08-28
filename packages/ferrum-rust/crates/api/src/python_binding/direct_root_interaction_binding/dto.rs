@@ -233,6 +233,10 @@ impl PyStructureObservation {
 pub(super) struct PyStructureSelection {
     pub(super) value: StructureInteractionSelectionV1,
     pub(super) targets: Vec<Py<PyStructureTarget>>,
+    #[pyo3(get)]
+    pub(super) revision: u64,
+    #[pyo3(get)]
+    pub(super) digest: String,
 }
 #[pymethods]
 impl PyStructureSelection {

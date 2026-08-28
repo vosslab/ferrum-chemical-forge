@@ -85,6 +85,7 @@ mod session_operation_result_binding;
 mod session_publication_binding;
 mod smiles_insertion_binding;
 mod standalone_haworth_binding;
+mod template_catalog_binding;
 mod text_placement_gesture_binding;
 mod text_properties_binding;
 mod top_level_transform_binding;

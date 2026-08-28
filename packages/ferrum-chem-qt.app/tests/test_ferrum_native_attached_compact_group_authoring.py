@@ -8,9 +8,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # PIP3 modules
 import PySide6.QtWidgets
+import pytest
 
 # local repo modules
 import ferrum_qt.ferrum.compact_group_authoring
+import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+from ferrum_qt.ferrum.interaction_action_handoff import FerrumInteractionActionHandoffRefusal
 
 
 #============================================
@@ -42,14 +45,14 @@ class _ChoiceFact:
 
 		unknown_anchor = object()
 
-	def __init__(self, anchor_object_id: str) -> None:
+	def __init__(self, anchor_object_id: str, available: bool) -> None:
 		"""Create a current available fact for the initial selected atom only."""
 		self.revision = 7
 		self.digest = "fence-seven"
 		self.anchor_object_id = anchor_object_id
 		self.catalog_key = "methyl"
 		self.category = self._Category()
-		self.available = True
+		self.available = available
 
 
 #============================================
@@ -59,12 +62,17 @@ class _Tab:
 	def __init__(self) -> None:
 		"""Start with the atom whose chooser was opened."""
 		self.is_disposed = False
+		self.requires_refresh = False
 		self.selected_atom = "atom-a"
+		self.reject_selection_reads = False
+		self.anchor_available = True
 		self.current_snapshot = _Snapshot(7, "fence-seven")
 		self.mutation_attempts = 0
 
 	def selected_molecule_atom_address(self) -> _SelectedMoleculeAtomAddress:
 		"""Expose the current pair-local selection through the tab's normal seam."""
+		if self.reject_selection_reads:
+			raise AssertionError("selection was read after compact-group admission")
 		return _SelectedMoleculeAtomAddress(self.selected_atom)
 
 	def attached_compact_group_choices(self) -> tuple[object, ...]:
@@ -83,7 +91,7 @@ class _Tab:
 			raise AssertionError("stale selection reached choice-specific availability")
 		if catalog_key != "methyl":
 			raise AssertionError("unexpected compact-group choice")
-		return _ChoiceFact(anchor_object_id)
+		return _ChoiceFact(anchor_object_id, self.anchor_available)
 
 	def begin_attached_compact_group(self, *unused: object) -> object:
 		"""Record any mutation attempt that would violate the stale-intent contract."""
@@ -123,24 +131,93 @@ class _Window(PySide6.QtWidgets.QMainWindow,
 
 
 #============================================
-def test_changed_selection_after_chooser_acceptance_refuses_without_mutation(
+def test_changed_selection_after_admission_does_not_requery_selection(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""A changed durable selection rejects the accepted chooser before native mutation."""
+	"""Acceptance fence uses captured atom facts, never a later live selection."""
+	del qapp
 	tab = _Tab()
 	window = _Window(tab)
 	try:
-		window._choose_compact_group_to_attach()
-		dialog = window.findChild(PySide6.QtWidgets.QDialog)
-		if dialog is None:
-			raise AssertionError("Attach Compact Group chooser did not open")
+		command = window._prepare_compact_group_to_attach(False)
+		assert command is not None
 		tab.selected_atom = "atom-b"
-		dialog.accept()
-		qapp.processEvents()
+		tab.reject_selection_reads = True
+		choice = ferrum_qt.ferrum.compact_group_authoring._AttachedCompactGroupChoice(
+			"methyl", "Me",
+		)
+		window._require_admitted_attach_compact_group_target(
+			tab, 7, "fence-seven", "molecule-a", "atom-a", (choice,), choice,
+		)
 
 		assert tab.mutation_attempts == 0
-		assert window.refusals == [(
-			"The selected atom changed; choose Attach Compact Group again.", None,
-		)]
+		assert window.refusals == []
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_admitted_compact_group_refuses_a_changed_document_fence(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""A revision change invalidates the captured capability without selection access."""
+	del qapp
+	tab = _Tab()
+	window = _Window(tab)
+	try:
+		choice = ferrum_qt.ferrum.compact_group_authoring._AttachedCompactGroupChoice(
+			"methyl", "Me",
+		)
+		tab.current_snapshot = _Snapshot(8, "fence-eight")
+		with pytest.raises(
+			native_document_tab_errors.FerrumNativeDocumentTabError,
+			match="document or admitted atom changed",
+		):
+			window._require_admitted_attach_compact_group_target(
+				tab, 7, "fence-seven", "molecule-a", "atom-a", (choice,), choice,
+			)
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_admitted_compact_group_refuses_unavailable_captured_anchor(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Rust availability can invalidate the admitted anchor before release."""
+	del qapp
+	tab = _Tab()
+	window = _Window(tab)
+	try:
+		choice = ferrum_qt.ferrum.compact_group_authoring._AttachedCompactGroupChoice(
+			"methyl", "Me",
+		)
+		tab.anchor_available = False
+		with pytest.raises(
+			ferrum_qt.ferrum.compact_group_authoring._AttachCompactGroupUnavailableError,
+		):
+			window._require_admitted_attach_compact_group_target(
+				tab, 7, "fence-seven", "molecule-a", "atom-a", (choice,), choice,
+			)
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
+def test_unavailable_attach_admission_preserves_feature_refusal_payload(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Admission retains the exact learner recovery request for an unavailable atom."""
+	del qapp
+	tab = _Tab()
+	tab.anchor_available = False
+	window = _Window(tab)
+	try:
+		with pytest.raises(FerrumInteractionActionHandoffRefusal) as raised:
+			window._prepare_compact_group_to_attach(False)
+		assert raised.value.payload == (
+			"Rust refused Me attachment for the selected atom.",
+			"Me cannot attach to the selected atom. Select another atom and try again.",
+		)
 	finally:
 		window.close()
 		window.deleteLater()

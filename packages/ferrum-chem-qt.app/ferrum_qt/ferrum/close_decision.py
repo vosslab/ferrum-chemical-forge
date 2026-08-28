@@ -29,7 +29,7 @@ class CloseResult(enum.Enum):
 	CLIPBOARD_OPERATION_BLOCKED = "clipboard_operation_blocked"
 	COORDINATE_GENERATION_BLOCKED = "coordinate_generation_blocked"
 	USER_TEMPLATE_PLACEMENT_BLOCKED = "user_template_placement_blocked"
-	CATALOG_PLACEMENT_BLOCKED = "catalog_placement_blocked"
+	OPERATION_CANCELLATION_FAILED = "operation_cancellation_failed"
 	REFRESH_REQUIRED = "refresh_required"
 	DIRTY_REQUIRES_DECISION = "dirty_requires_decision"
 	SAVE_FAILED = "save_failed"

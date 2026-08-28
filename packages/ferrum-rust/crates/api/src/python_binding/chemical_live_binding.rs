@@ -60,6 +60,7 @@ impl PyDocumentSession {
     }
 
     /// Assign one fenced durable atom number owned by a live molecule.
+    #[allow(clippy::too_many_arguments)]
     fn set_atom_number_v1(
         &mut self,
         py: Python<'_>,
@@ -121,6 +122,7 @@ impl PyDocumentSession {
     }
 
     /// Apply one fenced durable atom mark owned by a live molecule.
+    #[allow(clippy::too_many_arguments)]
     fn apply_atom_mark_v1(
         &mut self,
         py: Python<'_>,
@@ -184,6 +186,7 @@ impl PyDocumentSession {
     }
 
     /// Replace one fenced durable atom's finite Cartesian point.
+    #[allow(clippy::too_many_arguments)]
     fn set_atom_position_v1(
         &mut self,
         py: Python<'_>,
@@ -342,16 +345,22 @@ impl PyDocumentSession {
         bond_object_id: String,
         changes: &Bound<'_, PyTuple>,
     ) -> PyResult<PySessionOperationResultV1> {
-        let bond_id = fenced_molecule_member_source_id(
+        require_live_fence(py, &self.session, expected_revision, &expected_digest_hex)?;
+        let molecule_object_id = document_object_id(py, molecule_object_id)?;
+        let bond_object_id = document_object_id(py, bond_object_id)?;
+        let mut bond_ids = document_result(
             py,
-            &self.session,
-            expected_revision,
-            &expected_digest_hex,
-            molecule_object_id,
-            bond_object_id,
-            TypedClass::Bond,
-            "bond",
+            self.session
+                .lower_live_chemical_members_v1(
+                    &molecule_object_id,
+                    std::slice::from_ref(&bond_object_id),
+                    TypedClass::Bond,
+                )
+                .map_err(ferrum_document::DocumentSessionError::Operation),
         )?;
+        let bond_id = bond_ids
+            .pop()
+            .ok_or_else(|| PyValueError::new_err("live bond target lowering returned no target"))?;
         let operation = super::document_operation_binding::bond_properties_operation(
             py,
             bond_id.as_str().to_owned(),
@@ -416,34 +425,6 @@ fn presentation_source_id(
             .lower_live_chemical_presentation_target_v1(&object_id, target)
             .map_err(ferrum_document::DocumentSessionError::Operation),
     )
-}
-
-fn fenced_molecule_member_source_id(
-    py: Python<'_>,
-    session: &ferrum_document::DocumentSession,
-    expected_revision: u64,
-    expected_digest_hex: &str,
-    molecule_object_id: String,
-    object_id: String,
-    expected_class: TypedClass,
-    label: &str,
-) -> PyResult<PersistentId> {
-    require_live_fence(py, session, expected_revision, expected_digest_hex)?;
-    let molecule_object_id = document_object_id(py, molecule_object_id)?;
-    let object_id = document_object_id(py, object_id)?;
-    let mut object_ids = document_result(
-        py,
-        session
-            .lower_live_chemical_members_v1(
-                &molecule_object_id,
-                std::slice::from_ref(&object_id),
-                expected_class,
-            )
-            .map_err(ferrum_document::DocumentSessionError::Operation),
-    )?;
-    object_ids.pop().ok_or_else(|| {
-        PyValueError::new_err(format!("live {label} target lowering returned no target"))
-    })
 }
 
 fn fenced_live_atom_source_address(

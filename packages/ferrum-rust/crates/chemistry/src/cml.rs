@@ -73,7 +73,6 @@ impl CmlSourceBondV1 {
         self.direction
     }
     /// Lower this closed CML source bond into the existing chemistry model.
-    #[must_use]
     pub fn to_mol_bond(&self) -> std::result::Result<MolBond, MolBondDirectionError> {
         match self.direction {
             Some(direction) => {

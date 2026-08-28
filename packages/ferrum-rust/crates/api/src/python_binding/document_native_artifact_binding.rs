@@ -18,7 +18,7 @@ use pyo3::types::PyString;
 
 use super::binding::FerrumError;
 use super::document_error_binding::publication_error;
-use super::document_ingress_binding::PyLocalDocumentOriginTokenV1;
+use super::document_ingress_binding::PyLocalDocumentOriginTokenV2;
 use super::projection_binding::PySessionDocumentObservationV1;
 
 create_exception!(ferrum_chem, DocumentNativeArtifactError, FerrumError);
@@ -136,7 +136,7 @@ fn publish_prepared_document_native_artifact_v1(
     py: Python<'_>,
     mut receipt: PyRefMut<'_, PyPreparedDocumentNativeArtifactV1>,
     destination: PathBuf,
-    origin: Option<PyRef<'_, PyLocalDocumentOriginTokenV1>>,
+    origin: Option<PyRef<'_, PyLocalDocumentOriginTokenV2>>,
 ) -> PyResult<PyDocumentNativeArtifactPublicationV1> {
     let retained_source = match origin {
         Some(origin) => Some(match origin.try_clone_source() {
@@ -201,7 +201,7 @@ fn parse_digest(py: Python<'_>, value: &str) -> PyResult<[u8; 32]> {
         ));
     }
     let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         digest[index] = (hex_value(pair[0]) << 4) | hex_value(pair[1]);
     }
     Ok(digest)

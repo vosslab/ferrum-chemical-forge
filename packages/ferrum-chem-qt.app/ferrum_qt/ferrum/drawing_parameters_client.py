@@ -8,6 +8,7 @@ from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
 # local repo modules
 import ferrum_qt.ferrum.drawing_parameters
+import ferrum_qt.widgets.periodic_table
 
 
 #============================================
@@ -49,6 +50,20 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 			"Element used by Add Atom and by a Draw Bond drag ending in empty space. "
 			"Enter letters for a valid atom or pseudo-atom name.",
 		))
+		self.periodic_table_button = PySide6.QtWidgets.QPushButton(
+			self.tr("Periodic table..."), self,
+		)
+		# The chooser is a nonterminal branch of Next Drawing.  Qt otherwise
+		# promotes QPushButtons in dialogs to auto-default candidates, allowing
+		# Return from the editable atom field to open a nested modal unexpectedly.
+		self.periodic_table_button.setAutoDefault(False)
+		self.periodic_table_button.setDefault(False)
+		self.periodic_table_button.setObjectName("periodic-table-button")
+		self.periodic_table_button.setAccessibleName(self.tr("Periodic table"))
+		self.periodic_table_button.setAccessibleDescription(self.tr(
+			"Choose the next atom element from the Rust-issued periodic table.",
+		))
+		self.periodic_table_button.clicked.connect(self._choose_periodic_table_element)
 		self._element_editor = self.element_combo.lineEdit()
 		validator = PySide6.QtGui.QRegularExpressionValidator(
 			PySide6.QtCore.QRegularExpression("[A-Za-z]+"), self.element_combo,
@@ -70,12 +85,18 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 		order_label.setBuddy(self.order_combo)
 		self.order_combo.setAccessibleName(self.tr("Next bond"))
 		self.order_combo.currentIndexChanged.connect(self._commit_order)
+		element_client = PySide6.QtWidgets.QWidget(self)
+		element_layout = PySide6.QtWidgets.QHBoxLayout(element_client)
+		element_layout.setContentsMargins(0, 0, 0, 0)
+		element_layout.setSpacing(3)
+		element_layout.addWidget(self.element_combo)
+		element_layout.addWidget(self.periodic_table_button)
 		if compact:
-			layout.addRow(element_label, self.element_combo)
+			layout.addRow(element_label, element_client)
 			layout.addRow(order_label, self.order_combo)
 		else:
 			layout.addWidget(element_label)
-			layout.addWidget(self.element_combo)
+			layout.addWidget(element_client)
 			layout.addWidget(order_label)
 			layout.addWidget(self.order_combo)
 		self._drawing_parameters.changed.connect(self._project_parameters)
@@ -109,6 +130,15 @@ class FerrumNativeDrawingParametersClient(PySide6.QtWidgets.QWidget):
 			"Use letters for an atom or pseudo-atom name; the previous valid value remains active.",
 		))
 		self._restore_element(clear_feedback=False)
+
+	#============================================
+	def _choose_periodic_table_element(self) -> None:
+		"""Store a selected Rust-issued symbol through the shared preference model."""
+		selected = ferrum_qt.widgets.periodic_table.PeriodicTablePopup.pick_element(
+			ferrum_qt.ferrum.drawing_parameters.periodic_display_entries(), self,
+		)
+		if selected:
+			self._drawing_parameters.set_element(selected)
 
 	#============================================
 	def _restore_element(self, clear_feedback: bool = True) -> None:

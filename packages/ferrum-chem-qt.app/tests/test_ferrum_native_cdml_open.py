@@ -43,6 +43,25 @@ _UNSUPPORTED_CDXML = (
 	'<n id="oxygen" p="20 0" Element="8"/><b B="carbon" E="oxygen" Order="4"/>'
 	'</fragment></page></CDXML>'
 )
+_TWO_RECORD_SDF = """ethanol
+  Ferrum
+
+  3  2  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  1  0
+M  END
+$$$$
+water
+  Ferrum
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+M  END
+$$$$
+"""
 
 
 #============================================
@@ -129,6 +148,15 @@ def _restore_recent_paths(value: object) -> None:
 
 
 #============================================
+def _local_open_handle(suffix: str) -> object:
+	"""Return the extension-issued File/Open handle accepting ``suffix``."""
+	for descriptor in ferrum_chem.DocumentSession.local_document_open_descriptors_v2():
+		if suffix in descriptor.suffixes:
+			return descriptor.route_handle
+	raise AssertionError(f"Ferrum did not publish a File/Open route for {suffix}")
+
+
+#============================================
 #============================================
 def _current_native_tab(
 		window: PySide6.QtWidgets.QMainWindow,
@@ -200,8 +228,8 @@ def test_visible_open_actions_pass_distinct_interchange_and_current_tab_filters(
 		_visible_action(window, "Open in Current Tab...").trigger()
 		assert len(captured_filters) == 2
 		new_document_filter, current_tab_filter = captured_filters
-		assert "*.cdxml" in new_document_filter
-		assert "*.cdxml" not in current_tab_filter
+		assert all(suffix in new_document_filter for suffix in ("*.cdxml", "*.sdf", "*.sd"))
+		assert all(suffix not in current_tab_filter for suffix in ("*.cdxml", "*.sdf", "*.sd"))
 	finally:
 		window.close()
 
@@ -225,12 +253,21 @@ def test_cdxml_open_installs_a_new_tab_with_durable_molecule_facts(
 		assert _wait_for_open_queue(window, _open_action(window).trigger)
 		tab = _current_native_tab(window)
 		molecule = tab.current_document_observation().projection.molecules[0]
+		projection = tab._require_projection()
 		assert (
 			tab is not bootstrap
 			and not bootstrap.is_disposed
 			and tab.file_path is None
 			and tuple(atom.element for atom in molecule.atoms) == ("C", "O")
 			and len(molecule.bonds) == 1
+		)
+		content_bounds = tab.document_content_bounds()
+		assert content_bounds is not None
+		root = projection.molecule_roots[0]
+		assert (
+			root.document_object_id == molecule.document_object_id
+			and content_bounds == root.sceneBoundingRect()
+			and all(item.parentItem() is root for item in projection.items)
 		)
 	finally:
 		window.close()
@@ -291,8 +328,10 @@ def test_public_open_action_loads_saves_and_reopens_through_rust(
 			and initial_tab.is_disposed
 		)
 		assert not tab.current_snapshot.is_dirty and window.save_active_to_path(str(destination))
-		prepared = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(destination))
-		reopened, observation, _origin, _source_kind = prepared.take_admission_v1()
+		prepared = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+			str(destination), _local_open_handle(".cdml"),
+		)
+		reopened, observation, _origin, _source_kind, _summary = prepared.take_admission_v2()
 		assert observation.document.snapshot.digest == reopened.snapshot().digest
 	finally:
 		window.close()
@@ -325,10 +364,68 @@ def test_cml_open_keeps_import_provenance_and_saves_authoritative_cdml(
 		)
 		assert window.save_active_to_path(str(destination))
 		assert tab.file_path == destination
-		reopened, _observation, _origin, source_kind = (
-			ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(destination)).take_admission_v1()
+		reopened, _observation, _origin, source_kind, _summary = (
+			ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+				str(destination), _local_open_handle(".cdml"),
+			).take_admission_v2()
 		)
 		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
+	finally:
+		window.close()
+
+
+#============================================
+def test_sdf_file_open_creates_one_new_tab_with_source_order_and_durable_cdml(
+		qapp: PySide6.QtWidgets.QApplication,
+		tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""File/Open admits ordered SDF records as one new document, never insertion."""
+	source = tmp_path / "two-records.sd"
+	destination = tmp_path / "two-records.cdml"
+	source.write_text(_TWO_RECORD_SDF, encoding="utf-8")
+	window = _make_window(qapp)
+	bootstrap = _current_native_tab(window)
+	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
+	monkeypatch.setattr(window, "_show_edit_refusal", warnings.append)
+	try:
+		assert _wait_for_open_queue(window, lambda: window.open_file_path(str(source))), warnings
+		tab = _current_native_tab(window)
+		assert (
+			tab is not bootstrap
+			and not bootstrap.is_disposed
+			and not warnings
+			and tuple(molecule.name for molecule in tab.current_document_observation().projection.molecules)
+			== ("ethanol", "water")
+		)
+		assert window.save_active_to_path(str(destination))
+		reopened, _observation, _origin, source_kind, _summary = (
+			ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+				str(destination), _local_open_handle(".cdml"),
+			).take_admission_v2()
+		)
+		assert source_kind == "cdml" and reopened.snapshot().digest == tab.current_snapshot.digest
+	finally:
+		window.close()
+
+
+#============================================
+def test_sdf_file_open_refusal_preserves_the_active_document(
+		qapp: PySide6.QtWidgets.QApplication,
+		tmp_path: pathlib.Path,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A failed SDF Open cannot publish a tab or mutate the active drawing."""
+	source = tmp_path / "invalid.sdf"
+	source.write_text("not an SD file", encoding="utf-8")
+	window = _make_window(qapp)
+	tab = _current_native_tab(window)
+	before = tab.current_snapshot
+	warnings: list[ferrum_qt.dialogs.refusal_presenter.RefusalRequest] = []
+	monkeypatch.setattr(window, "_show_edit_refusal", warnings.append)
+	try:
+		assert not _wait_for_open_queue(window, lambda: window.open_file_path(str(source)))
+		assert _current_native_tab(window) is tab and tab.current_snapshot is before and warnings
 	finally:
 		window.close()
 

@@ -10,6 +10,9 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly LOCAL_CLI="${REPO_ROOT}/build/bin/ferrum"
 readonly LOCAL_PYTHON_ROOT="${REPO_ROOT}/build/runtime/python"
 readonly LOCAL_RUNTIME_RECEIPT="${REPO_ROOT}/packages/ferrum-rust/local_runtime_receipt.py"
+readonly KEYBOARD_E2E_DIR="$(mktemp -d /private/tmp/ferrum-keyboard-e2e.XXXXXX)"
+
+trap 'rm -rf "${KEYBOARD_E2E_DIR}"' EXIT
 
 
 #============================================
@@ -94,3 +97,10 @@ run_e2e "Ferrum Qt template catalog authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_authoring.py"
 run_e2e "Ferrum Qt SMARTS partial-result warning E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_smarts_partial_result_warning.py"
+printf '%s\n' \
+	"<cdml xmlns='urn:ferrum:cdml'><molecule id='m'><atom id='a' name='C'><point x='10' y='20'/></atom></molecule></cdml>" \
+	> "${KEYBOARD_E2E_DIR}/keyboard-workflow.cdml"
+run_e2e "Ferrum Qt keyboard authoring and structural selection E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_keyboard_workflow.py" \
+	--input "${KEYBOARD_E2E_DIR}/keyboard-workflow.cdml" \
+	--output "${KEYBOARD_E2E_DIR}/keyboard-workflow-output.cdml"

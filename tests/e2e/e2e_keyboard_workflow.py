@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Ferrum's open, keyboard-author, undo, save, and Rust-reopen workflow."""
+"""Run Ferrum's open, keyboard-select, context, save, and Rust-reopen workflow."""
 
 # Standard Library
 import argparse
@@ -20,9 +20,9 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
-import ferrum_qt.canvas.ferrum_render_target
 
 
 #============================================
@@ -71,18 +71,72 @@ def find_atom(projection: object, document_object_id: str) -> object | None:
 
 
 #============================================
-def find_bond_between(projection: object, first: str, second: str) -> object | None:
-	"""Return the bond with these exact durable endpoint identities, if present."""
-	for molecule in projection.molecules:
-		for bond in molecule.bonds:
-			if frozenset((bond.start.document_object_id, bond.end.document_object_id)) == frozenset((first, second)):
-				return bond
-	return None
+def selection_bridge_diagnostic(tab: object, window: object) -> str:
+	"""Render bounded bridge facts when keyboard action state diverges."""
+	bridge = tab._structure_action_selection_v1
+	if bridge is None:
+		targets = None
+	else:
+		targets = tuple((repr(target.kind), target.object_id) for target in bridge.targets)
+	atom_action = window._action_registry.get_qt_action("edit.atom.properties")
+	return repr({
+		"bridge_is_none": bridge is None,
+		"bridge_targets": targets,
+		"has_one_selected_atom": tab.has_one_selected_atom(),
+		"requires_refresh": tab.requires_refresh,
+		"atom_properties_enabled": atom_action.isEnabled(),
+		"select_structure_checked": window._select_structure_action.isChecked(),
+		"select_structure_enabled": window._select_structure_action.isEnabled(),
+	})
 
 
 #============================================
+def trigger_atom_properties_and_escape(
+		application: PySide6.QtWidgets.QApplication,
+		menu: PySide6.QtWidgets.QMenu,
+		) -> None:
+	"""Activate and dismiss Atom Properties through its public keyboard route."""
+	delivery: dict[str, object | None] = {"dialog": None, "error": None, "completed": False}
+
+	def dismiss_from_keyboard() -> None:
+		"""Verify the public dialog then use its public Escape input."""
+		dialog = application.activeModalWidget()
+		if not isinstance(dialog, PySide6.QtWidgets.QDialog) or not dialog.isVisible():
+			delivery["error"] = "Atom Properties did not open a visible modal Ferrum dialog"
+			if isinstance(dialog, PySide6.QtWidgets.QDialog):
+				dialog.reject()
+			return
+		delivery["dialog"] = dialog
+		PySide6.QtTest.QTest.keyClick(dialog, PySide6.QtCore.Qt.Key.Key_Escape)
+
+	def release_liveness_guard() -> None:
+		"""Release a synchronous modal loop while preserving a diagnostic failure."""
+		if delivery["completed"] or delivery["error"] is not None:
+			return
+		delivery["error"] = (
+			"Atom Properties did not return after keyboard Escape before the E2E "
+			"liveness guard"
+		)
+		dialog = application.activeModalWidget()
+		if isinstance(dialog, PySide6.QtWidgets.QDialog):
+			dialog.reject()
+
+	PySide6.QtCore.QTimer.singleShot(0, dismiss_from_keyboard)
+	PySide6.QtCore.QTimer.singleShot(5000, release_liveness_guard)
+	press(menu, PySide6.QtCore.Qt.Key.Key_Return)
+	delivery["completed"] = True
+	if delivery["error"] is not None:
+		raise KeyboardWorkflowError(str(delivery["error"]))
+	if delivery["dialog"] is None:
+		raise KeyboardWorkflowError(
+			"Atom Properties action returned without presenting its modal dialog",
+		)
+
+
+#============================================
+#============================================
 def main() -> int:
-	"""Exercise only keyboard actions after launch, with deterministic dialog paths."""
+	"""Exercise structural keyboard selection after deterministic dialog setup."""
 	args = parse_args()
 	app = PySide6.QtWidgets.QApplication.instance()
 	if app is None:
@@ -116,53 +170,61 @@ def main() -> int:
 		if len(initial_atoms) != 1 or initial_atoms[0].element != "C":
 			raise KeyboardWorkflowError("keyboard fixture lost its ordinary carbon projection")
 		original_atom_id = initial_atoms[0].document_object_id
-		original_target = ferrum_qt.canvas.ferrum_render_target.RenderTargetKey(
-			"document_object", original_atom_id,
-		)
-		if original_target not in tab._require_projection().durable_items:
-			raise KeyboardWorkflowError(
-				"keyboard fixture lacks a durable Rust-to-Qt render target",
-			)
 		tab.view.set_hex_grid_snap_enabled(False)
-		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(90.0, 80.0))
-		press(window, PySide6.QtCore.Qt.Key.Key_8,
-			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
-		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return, flush=False)
-		created = tab.selected_atom_projection()
-		if (
-			created is None
-			or created.document_object_id == original_atom_id
-			or (created.position.x, created.position.y) != (90.0, 80.0)
-		):
-			raise KeyboardWorkflowError(
-				"Return did not immediately select the newly created Rust atom at (90, 80)",
-			)
-		created_atom_id = created.document_object_id
-		created_target = ferrum_qt.canvas.ferrum_render_target.RenderTargetKey(
-			"document_object", created_atom_id,
-		)
-		if created_target not in tab._require_projection().durable_items:
-			raise KeyboardWorkflowError("newly created Rust atom lacks a durable Qt render target")
 		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(10.0, 20.0))
-		press(window, PySide6.QtCore.Qt.Key.Key_2,
+		press(window, PySide6.QtCore.Qt.Key.Key_K,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
+		palette = window._command_palette_controller.dialog
+		if not palette.isVisible() or not palette.search_field.hasFocus():
+			raise KeyboardWorkflowError("Command Palette shortcut did not expose keyboard command search")
+		PySide6.QtTest.QTest.keyClicks(palette.search_field, "select structure")
+		press(palette.search_field, PySide6.QtCore.Qt.Key.Key_Return)
+		if not window._select_structure_action.isChecked():
+			raise KeyboardWorkflowError("Keyboard command palette did not activate Select Structure")
+		if not tab.view.viewport().hasFocus():
+			raise KeyboardWorkflowError(
+				"Keyboard command activation did not restore Select Structure canvas focus",
+			)
+		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Right)
+		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Left)
 		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return)
-		tab.view.set_keyboard_cursor_scene(PySide6.QtCore.QPointF(
-			created.position.x, created.position.y,
-		))
-		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Return)
-		bond = find_bond_between(
-			tab.current_document_observation().projection, original_atom_id, created_atom_id,
-		)
-		if bond is None:
-			raise KeyboardWorkflowError("keyboard bond did not use the newly created Rust atom")
-		press(window, PySide6.QtCore.Qt.Key.Key_Z,
-			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier)
-		if find_bond_between(
-			tab.current_document_observation().projection, original_atom_id, created_atom_id,
-		) is not None:
-			raise KeyboardWorkflowError("Undo shortcut did not remove the keyboard bond")
-		press(window, PySide6.QtCore.Qt.Key.Key_S,
+		selection = window._structure_selection
+		if selection is None or tuple(
+			target.object_id for target in selection.targets
+		) != (original_atom_id,):
+			raise KeyboardWorkflowError("keyboard cursor selection did not retain the Rust-opened atom")
+		bridge_before_menu = selection_bridge_diagnostic(tab, window)
+		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_Menu)
+		context_menu = PySide6.QtWidgets.QApplication.activePopupWidget()
+		if not isinstance(context_menu, PySide6.QtWidgets.QMenu):
+			raise KeyboardWorkflowError(
+				"Menu key did not expose selected-structure actions; "
+				f"before Menu: {bridge_before_menu}; after Menu: "
+				f"{selection_bridge_diagnostic(tab, window)}",
+			)
+		atom_properties = window._action_registry.get_qt_action("edit.atom.properties")
+		if not atom_properties.isEnabled():
+			context_action_ids = tuple(
+				view.action_id for view in window._action_registry.live_action_views()
+				if view.qt_action in context_menu.actions()
+			)
+			selected_target = selection.targets[0]
+			raise KeyboardWorkflowError(
+				"keyboard atom selection did not enable Atom Properties for "
+				f"{selected_target.kind!r}/{selected_target.object_id}; "
+				f"enabled context actions: {context_action_ids!r}; "
+				f"before Menu: {bridge_before_menu}; after Menu: "
+				f"{selection_bridge_diagnostic(tab, window)}",
+			)
+		if atom_properties not in context_menu.actions():
+			raise KeyboardWorkflowError("keyboard context menu omitted the enabled Atom Properties action")
+		context_menu.setActiveAction(atom_properties)
+		context_menu.setFocus()
+		trigger_atom_properties_and_escape(app, context_menu)
+		app.processEvents()
+		if not tab.view.viewport().hasFocus():
+			raise KeyboardWorkflowError("Atom Properties did not restore keyboard focus to the canvas")
+		press(tab.view.viewport(), PySide6.QtCore.Qt.Key.Key_S,
 			PySide6.QtCore.Qt.KeyboardModifier.ControlModifier
 			| PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier)
 		if not args.output.is_file():
@@ -173,21 +235,18 @@ def main() -> int:
 		)
 		try:
 			reopened_projection = reopened.current_document_observation().projection
-			reopened_atom = find_atom(reopened_projection, created_atom_id)
-			if (
-				reopened_atom is None
-				or (reopened_atom.position.x, reopened_atom.position.y) != (90.0, 80.0)
-				or find_bond_between(reopened_projection, original_atom_id, created_atom_id) is not None
-			):
-				raise KeyboardWorkflowError("Rust reopen lost the saved keyboard workflow state")
-			if created_target not in reopened._require_projection().durable_items:
-				raise KeyboardWorkflowError("Rust reopen lost the created atom's durable render target")
+			if find_atom(reopened_projection, original_atom_id) is None:
+				raise KeyboardWorkflowError("Rust reopen lost the keyboard-selected atom")
 		finally:
 			reopened.dispose()
 		return 0
 	finally:
 		PySide6.QtWidgets.QFileDialog.getOpenFileName = original_open
 		PySide6.QtWidgets.QFileDialog.getSaveFileName = original_save
+		while window._tab_widget.count():
+			window._close_native_tab_at(
+				0, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+			)
 		window.close()
 		window.deleteLater()
 

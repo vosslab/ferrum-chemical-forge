@@ -781,6 +781,49 @@ fn structured_error(
     Ok(error)
 }
 
+/// Register the direct ABI-4 SMILES boundary.
+pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add("ChemistryError", module.py().get_type::<ChemistryError>())?;
+    module.add("InvalidSmiles", module.py().get_type::<InvalidSmiles>())?;
+    module.add("InvalidSdf", module.py().get_type::<InvalidSdf>())?;
+    module.add("InvalidMolblock", module.py().get_type::<InvalidMolblock>())?;
+    module.add("InvalidInchi", module.py().get_type::<InvalidInchi>())?;
+    module.add(
+        "ChemistryUnavailable",
+        module.py().get_type::<ChemistryUnavailable>(),
+    )?;
+    module.add("ChemistryParse", module.py().get_type::<ChemistryParse>())?;
+    module.add("ChemistryCodec", module.py().get_type::<ChemistryCodec>())?;
+    module.add(
+        "ChemistryBoundary",
+        module.py().get_type::<ChemistryBoundary>(),
+    )?;
+    module.add_class::<PySmilesPoint2V1>()?;
+    module.add_class::<PySmilesAtomChiralityV1>()?;
+    module.add_class::<PySmilesBondOrderV1>()?;
+    module.add_class::<PySmilesBondStereoV1>()?;
+    module.add_class::<PySmilesBondDirectionV1>()?;
+    module.add_class::<PyMolblockVersionV1>()?;
+    module.add_class::<PyInchiModeV1>()?;
+    module.add_class::<PySmilesAtomV1>()?;
+    module.add_class::<PySmilesBondV1>()?;
+    module.add_class::<PySmilesMoleculeV1>()?;
+    module.add_class::<PySdfPropertyV1>()?;
+    module.add_class::<PySdfRecordV1>()?;
+    module.add_class::<PyImportedSdfRecordV1>()?;
+    module.add_function(wrap_pyfunction!(parse_smiles, module)?)?;
+    module.add_function(wrap_pyfunction!(molblock_to_molecule, module)?)?;
+    module.add_function(wrap_pyfunction!(parse_inchi, module)?)?;
+    module.add_function(wrap_pyfunction!(molecule_to_smarts, module)?)?;
+    module.add_function(wrap_pyfunction!(molecule_to_molblock, module)?)?;
+    module.add_function(wrap_pyfunction!(molecule_to_inchi, module)?)?;
+    module.add_function(wrap_pyfunction!(inchi_to_inchi_key, module)?)?;
+    module.add_function(wrap_pyfunction!(prepare_sdf_record, module)?)?;
+    module.add_function(wrap_pyfunction!(records_to_sdf, module)?)?;
+    module.add_function(wrap_pyfunction!(sdf_to_records, module)?)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,47 +990,4 @@ mod tests {
             }
         });
     }
-}
-
-/// Register the direct ABI-4 SMILES boundary.
-pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add("ChemistryError", module.py().get_type::<ChemistryError>())?;
-    module.add("InvalidSmiles", module.py().get_type::<InvalidSmiles>())?;
-    module.add("InvalidSdf", module.py().get_type::<InvalidSdf>())?;
-    module.add("InvalidMolblock", module.py().get_type::<InvalidMolblock>())?;
-    module.add("InvalidInchi", module.py().get_type::<InvalidInchi>())?;
-    module.add(
-        "ChemistryUnavailable",
-        module.py().get_type::<ChemistryUnavailable>(),
-    )?;
-    module.add("ChemistryParse", module.py().get_type::<ChemistryParse>())?;
-    module.add("ChemistryCodec", module.py().get_type::<ChemistryCodec>())?;
-    module.add(
-        "ChemistryBoundary",
-        module.py().get_type::<ChemistryBoundary>(),
-    )?;
-    module.add_class::<PySmilesPoint2V1>()?;
-    module.add_class::<PySmilesAtomChiralityV1>()?;
-    module.add_class::<PySmilesBondOrderV1>()?;
-    module.add_class::<PySmilesBondStereoV1>()?;
-    module.add_class::<PySmilesBondDirectionV1>()?;
-    module.add_class::<PyMolblockVersionV1>()?;
-    module.add_class::<PyInchiModeV1>()?;
-    module.add_class::<PySmilesAtomV1>()?;
-    module.add_class::<PySmilesBondV1>()?;
-    module.add_class::<PySmilesMoleculeV1>()?;
-    module.add_class::<PySdfPropertyV1>()?;
-    module.add_class::<PySdfRecordV1>()?;
-    module.add_class::<PyImportedSdfRecordV1>()?;
-    module.add_function(wrap_pyfunction!(parse_smiles, module)?)?;
-    module.add_function(wrap_pyfunction!(molblock_to_molecule, module)?)?;
-    module.add_function(wrap_pyfunction!(parse_inchi, module)?)?;
-    module.add_function(wrap_pyfunction!(molecule_to_smarts, module)?)?;
-    module.add_function(wrap_pyfunction!(molecule_to_molblock, module)?)?;
-    module.add_function(wrap_pyfunction!(molecule_to_inchi, module)?)?;
-    module.add_function(wrap_pyfunction!(inchi_to_inchi_key, module)?)?;
-    module.add_function(wrap_pyfunction!(prepare_sdf_record, module)?)?;
-    module.add_function(wrap_pyfunction!(records_to_sdf, module)?)?;
-    module.add_function(wrap_pyfunction!(sdf_to_records, module)?)?;
-    Ok(())
 }

@@ -161,7 +161,7 @@ class FerrumNativeMoleculeImportsMixin:
 		)
 		self._import_molblock_action.triggered.connect(self._on_import_molblock)
 		self._import_sdf_action = PySide6.QtGui.QAction(
-			self.tr("Import SDF Records"), self,
+			self.tr("Import SDF Records into Current Drawing..."), self,
 		)
 		self._import_sdf_action.triggered.connect(self._on_import_sdf)
 		self._import_peptide_action = PySide6.QtGui.QAction(
@@ -375,10 +375,10 @@ class FerrumNativeMoleculeImportsMixin:
 
 	#============================================
 	def _on_import_sdf(self) -> None:
-		"""Choose one local SDF without reading it in Python."""
+		"""Choose SDF records for insertion into the current drawing."""
 		path = PySide6.QtWidgets.QFileDialog.getOpenFileName(
 			self,
-			self.tr("Import Rust SDF Records"),
+			self.tr("Import SDF Records into Current Drawing"),
 			"",
 			self.tr("Structure Data File (*.sdf *.sd)"),
 		)[0]
@@ -422,15 +422,17 @@ class FerrumNativeMoleculeImportsMixin:
 			self._molecule_import_relay.on_sdf_finished,
 			PySide6.QtCore.Qt.ConnectionType.QueuedConnection,
 		)
-		self.statusBar().showMessage(self.tr("Reading bounded SDF with Ferrum Rust..."), 0)
+		self.statusBar().showMessage(
+			self.tr("Reading SDF records for insertion into the current drawing..."), 0,
+		)
 		self._refresh_actions()
 		worker.start()
 		return True
 
 	#============================================
 	def _sdf_import_route_handle(self) -> object:
-		"""Return the registry-issued route handle for the selected SDF source."""
-		return self._local_ingress_registry.interchange_route_handle_for_suffix(".sdf")
+		"""Return the catalog-issued SDF handle for current-document insertion."""
+		return self._local_document_open_catalog.route_handle_for_suffix(".sdf")
 
 	#============================================
 	def _on_import_peptide(self) -> None:
@@ -570,7 +572,7 @@ class FerrumNativeMoleculeImportsMixin:
 			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
 			return
 		message = (
-			f"Imported {molecule.record_count} Ferrum SDF records."
+			f"Inserted {molecule.record_count} Ferrum SDF records into the current drawing."
 			if label == "SDF" else
 			"Imported one Ferrum molecule."
 		)

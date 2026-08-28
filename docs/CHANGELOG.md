@@ -8,12 +8,17 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 
 ### Additions and New Features
 
+- `LocalDocumentOpenCatalogV2` is sole Rust File/Open authority for native CDML,
+  decoded SVG, and registry `DocumentImportNew` issued descriptors/limits.
+- Open creates/replaces a document; File > Import SDF remains distinct current-document insertion.
+  Evidence: 32 PyO3, 18 Qt File/Open, public SDF-import E2E; M2 remains open.
+- M4.C identifiers, Rust periodic picker, and M6 fence-owned selected delivery;
+  workers admit selection once, then deliver by captured fence/receipt; 57 Qt/PyO3 pass.
 - Added Rust-owned Semantic Render Palette V3. Render operations now carry a
   frozen tagged `RenderPaintV3` value: exact authored RGB, semantic document
   roles, or reserved validated element roles. Headless SVG, PDF, and PNG use
   the Rust export palette only, while PyO3 exposes read-only kind, export RGB,
   role, and element facts for the Qt display-palette owner.
-
 - Added the bounded M6 command-palette V1: portable `Ctrl+K` (`Cmd+K` on native
   macOS) and YAML-owned **View > Commands > Command Palette...** provide a
   registry-derived search over live action labels, help text, and stable IDs.
@@ -40,6 +45,11 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 
 ### Behavior or Interface Changes
 
+- Added Rust-issued `MoleculeContentBoundsV1` to each frozen molecule render
+  entry at the PyO3 boundary. Qt now uses a dedicated noninteractive molecule
+  ownership root for content fitting and disposal, while atom and bond render
+  items remain ordinary independently selectable children.
+
 - Command Palette results now show a validated YAML-derived primary placement
   breadcrumb, prefer ordinary menu paths over ribbon fallbacks, and rank direct
   label/action-ID intent ahead of help-text or subsequence-only matches while
@@ -59,6 +69,45 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   preferences, manager bindings, or QAction shortcuts change.
 
 ### Fixes and Maintenance
+
+- Repaired format-neutral interchange placement in Rust. Shared CML, CDXML, and
+  SDF preparation now observes the session paper and centers imported records on
+  that page instead of scaling them around a hard-coded scene origin.
+
+- Repaired molecule projection ownership without a `QGraphicsItemGroup` or
+  Qt-side geometry authority. The completed detached hierarchy is installed only
+  after validation, root bounds come from Rust's lowered draw stream, and member
+  selection is no longer swallowed by a grouping item. Removed the unused legacy
+  overlay module that still constructed the superseded parallel group projection.
+
+- Scoped PyO3 extension-only link mode to the production extension build instead
+  of the workspace dependency graph. Rust binaries and tests now link normally on
+  macOS, while the installed module retains the required dynamic extension mode.
+  The Maturin project now targets the dedicated `api-python` wheel owner directly.
+
+- Cleared strict Clippy debt across the affected Rust API graph: named conversion
+  and materialization input bundles replace argument lists, the protocol success
+  payload is boxed, and byte-pair parsing uses the current slice API.
+
+- Repaired the real GUI-tour capture contract. Documentation uses a transient
+  light theme without changing `QSettings`, frames content through the public
+  view transform, verifies imported CDXML semantics and visibility, prints each
+  scene phase, fails fast on unexpected modals, and keeps ring, arrow, and vector
+  examples on the visible page.
+
+- Repaired the window-owned Properties action so dock replacement and deferred
+  Qt deletion cannot leave a registered command pointing at a destroyed dock
+  action. Blank-canvas Select Structure also retires Rust-owned direct-root
+  selection before durable arrow and vector documentation captures.
+
+- Repaired the successor-window action-lifecycle regression itself: manually
+  deferred-deleted owners are no longer also registered for `pytest-qt` teardown,
+  and the isolated one-action Command Palette receives its explicit placement
+  projection instead of pretending to be a complete production registry.
+
+- Repaired the cyclohexane-attachment documentation route to use an eligible
+  host molecule and the template route to place the real Rust-owned Furan system
+  entry with visible catalog provenance.
 
 - Repaired the real GUI-tour driver to use the public Rust-backed **Insert
   Template...** palette, visible family/category/search/result/detail provenance,
@@ -168,7 +217,33 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
   tests and the registered reaction E2E already own permanent semantics; native
   shortcut dispatch and accessibility are one-time real 16:10 desktop evidence.
 
+- Rejected the deprecated global PyO3 `extension-module` Cargo feature. Its
+  workspace-wide no-libpython behavior broke ordinary Rust test targets; the
+  extension build now opts in through its dedicated environment instead.
+
 ### Developer Tests and Notes
+
+- Built the complete local CLI, PyO3 extension, pinned native RDKit runtime, and
+  PySide6 launcher successfully after the Rust, Cargo, and Qt changes. A focused
+  final binding/CDXML/theme/lifecycle run passed all 74 tests.
+
+- `./all_test.sh` exited 0: 8,019 repository-hygiene tests, every registered CLI
+  and Qt E2E, 286 installed PyO3 tests, and 342 Qt tests passed with one
+  intentional skip.
+
+- `cargo test --workspace` exited 0 after the link-mode repair. Affected-package
+  receipts include 117 default API and 132 renderer tests; format checks and
+  strict API, renderer, and PyO3-feature Clippy gates also passed. A clean Maturin
+  wheel build and isolated CPython 3.12 import passed through the checked-in project.
+
+- Seven independent post-fix reviews completed. The stale Qt contract/ledger,
+  dynamic import, dead parallel projection, and split Maturin ownership findings
+  were repaired; the test auditor found no fragile changed coverage.
+
+- Regenerated all 13 GUI-tour PNGs transactionally at 1440 by 900. Every scene
+  passed its semantic postcondition; image-by-image agent review accepted the
+  candidate set as complete, legible, page-contained, and uncropped. Final human
+  release sign-off remains separate.
 
 - The complete approved document-display focused suite passed: `28 passed` for
   the palette and Qt theme-toggle files, including direct public-registry proof
@@ -204,19 +279,19 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 - Paused the stabilization audit after documenting its non-acceptance result in
   [TODO.md](TODO.md) and [ROADMAP.md](ROADMAP.md). Resume with explicit
   `ActionRegistry` destruction retirement, one successor-window command-palette
-  regression, the remaining typing-lint repair, the full 13-scene capture, and
-  the complete build/test/audit gate. Reconcile the canonical parity ledger's
-  status receipts before approving another milestone.
+  regression, remaining lint repair, capture, and full gate; reconcile parity-ledger receipts.
 
-- Completed a six-pass independent stabilization audit covering plan conformance,
-  permanent-test policy, implementation style, documentation, dead code, and
-  readability. All passes converged on the missing `ActionRegistry` destruction
-  lifecycle and successor-window regression as the high-impact blocker. The
-  audit also corrected two overclaims: proposed M5A work now requires a canonical
-  dependency/contract decision before dispatch, and GUI capture documentation now
-  distinguishes all-scenes staging from sequential publication. The action
-  lifecycle repair, clean aggregate gate, full 13-scene capture, and post-fix
-  audit remain open.
+- Completed a six-pass independent stabilization audit; its actionable findings are resolved
+  above. The approved in-progress M5.A
+  [Template Catalog V1](active_plans/decisions/m5_template_catalog_v1.md) replaces
+  Qt filename-derived authority with a bounded immutable Rust snapshot, native
+  snapshot-fenced placement, and Rust publication receipt without expanding M2/M4.
+  Its next foundation prerequisite is the approved
+  [Qt Operation Lease Registry](active_plans/decisions/qt_operation_lease_registry.md): Patch 1
+  atomically replaces catalog mixins with a controller and pure Qt lifecycle registry, then Patch 2
+  proves Local Open source retention and truthful delivery cancellation. Neither patch changes
+  Rust/PyO3 in Patch 1 or closes M5.A, M5, native accessibility/visual acceptance, or full parity.
+  The registry decision records the fixed ownership, scope, and verification boundary.
 
 - Pre-repair receipt: paused after the delivery-stabilization checkpoint with the
   exact remaining evidence gap recorded in [ROADMAP.md](ROADMAP.md),
@@ -555,8 +630,9 @@ continues through [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md) and
 
 - Restored `Attach Compact Group...` as one registered public QAction with
   declarative `Draw > Compact groups` and `Structure > Groups and templates`
-  clients. The routes reuse its feature-owned handler, state, and accessibility
-  presentation without a compatibility placement path.
+  clients. Every pointer action now prepares an immutable one-shot command
+  before cancelling the prior tool; Attach freezes Rust selection facts before
+  cleanup, re-fences later chooser acceptance, and preserves its exact refusal request.
 
 - Repaired the Atom Oxidation State public Qt E2E's fluoride selection by
   clicking an interior point of the live painted selectable glyph rather than

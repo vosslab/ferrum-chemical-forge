@@ -44,6 +44,13 @@ the current UI palette for its fill and outline. Preserved malformed paper facts
 remain document data; Rust supplies a typed compatibility issue and the A4
 portrait display fallback. Normal-window paper/session adoption remains open.
 
+The bounded periodic picker is another Rust projection, not a Qt chemistry
+catalog. Rust publishes each picker symbol, display name, grid row/column,
+category, and color as frozen facts. Qt uses them for the accessible
+**Periodic table...** view beside Next atom and submits accepted symbols only to
+the shared drawing-parameter preference model. A choice changes neither CDML,
+session revision/digest, history, nor structural selection.
+
 Ordinary native `File -> Export...` never paints the installed view scene or a Qt
 projection. Qt captures the active registered tab and its immutable
 `SessionDocumentObservationV1`, revision, digest, and opaque local-origin token
@@ -142,11 +149,11 @@ The Ferrum molecule painter consumes a final `RenderObservationV1`, composed by
 the API from one revision-checked `SessionDocumentObservationV1` and verified
 render metrics. It does not consume retired atom or bond models or Python XML.
 The final observation contains frozen
-`DocumentMoleculeRenderPlanV2` values in document root order. Each entry keeps
+`DocumentMoleculeRenderPlanV3` values in document root order. Each entry keeps
 document-root molecule identity and order separate from the molecule-local atom
-and bond order inside its `RenderPlanV2`. `RenderObservationV1` retains its name
+and bond order inside its `RenderPlanV3`. `RenderObservationV1` retains its name
 because it is the revision-bound document/projection receipt envelope, not a
-molecule-plan grammar; its payload contains only V2 molecule plans.
+molecule-plan grammar; its payload contains only V3 molecule plans.
 
 ```text
 SessionDocumentObservationV1
@@ -155,30 +162,33 @@ SessionDocumentObservationV1
 
 RenderObservationV1
   document: SessionDocumentObservationV1
-  molecule_plans: tuple[DocumentMoleculeRenderPlanV2, ...]
+  molecule_plans: tuple[DocumentMoleculeRenderPlanV3, ...]
 
-DocumentMoleculeRenderPlanV2
+DocumentMoleculeRenderPlanV3
   molecule: MoleculeRenderRootV1
-    id: durable document object key or null
-    projection_key: projection-local identity
-    source_id: authored CDML ID or null
-    source_order: direct document-root position
-  plan: RenderPlanV2
+    document_object_id: opaque durable document object key
+  plan: RenderPlanV3
+  bounds: MoleculeContentBoundsV1
+    left, top, right, bottom: finite Rust-measured painted bounds
+  member_issues: tuple[MoleculeMemberDepictionIssueV1, ...]
 
-RenderPlanV2
-  schema: ferrum-render-plan-v2
+RenderPlanV3
+  schema: ferrum-render-plan-v3
   provenance:
     revision: exactly document.snapshot.revision
     digest: exactly document.snapshot.digest
-  batches: tuple[RenderBatchV2, ...]
+  batches: tuple[RenderBatchV3, ...]
   issues: tuple[RenderIssueV1, ...]
 ```
 
-Each molecule entry becomes one disposable root graphics group whose z order is
-the backend-issued molecule `source_order`. Each batch has a durable
+Each molecule entry becomes one disposable, noninteractive
+`FerrumMoleculeRootItem`. It copies only the Rust-issued document-object identity
+and measured content bounds, owns its ordinary child items for lifetime and
+disposal, and neither paints nor handles selection. Its z order comes from the
+matching backend-issued direct-root order. Each batch has a durable
 `RenderTargetV1` with `record_id.kind`,
 `record_id.id`, and `source_order`, plus a declared coordinate space. Ordered
-tagged `RenderOperationV2` values contain the established line, mask, text, and
+tagged `RenderOperationV3` values contain the established line, mask, text, and
 ellipse leaves or a neutral `PathOpV2`. A path is a finite validated stream of
 `MoveTo`, `LineTo`, `CubicTo`, and `Close` commands with explicit optional
 stroke, fill, and z facts. Scene-space bond batches admit received lines and
@@ -191,12 +201,12 @@ infer missing coordinates, hydrogen policy, line width, color, visibility,
 font, glyph mapping, or other depiction defaults.
 
 `FerrumRenderProjection` validates the schema, exact revision, root envelope,
-and DTO shape before allocating scene objects. It copies received path commands
+DTO shape, and Rust bounds before allocating scene objects. It copies received path commands
 into `QPainterPath` and paints or hit-tests only received geometry and paint; Qt
 does not create, complete, recolor, or reinterpret paths. It builds a complete detached
-scene containing molecule groups and every supported presentation-vector root
+scene containing explicit molecule ownership roots and every supported presentation-vector root
 from the same document observation before replacing scene ownership. Molecule
-group children keep molecule-local order; top-level molecule and presentation
+root children keep molecule-local order; top-level molecule and presentation
 roots use backend-issued document order. Construction failure disposes the
 detached roots and leaves the previous projection visible.
 
@@ -309,6 +319,24 @@ interaction only; it is never a durable operation target, clipboard identifier,
 or save identifier. Issues have no selectable graphics item and appear in the
 non-modal diagnostic/status model. Qt never creates durable-looking or
 provisional correlation identifiers.
+
+The delivered M6 structural-member action bridge is tab-owned. A
+`StructureInteractionSelectionV1` remains a Rust-issued opaque selection
+fenced by revision and digest; the document tab accepts it only when that fence
+matches the installed snapshot and exposes its immutable target tuple to
+selection-aware actions. The structural controller owns replace/clear calls and
+the projection draws only bounds feedback. Scene selection remains the fallback
+for generic root/presentation actions; the two sources are exclusive and never
+merge. The tab clears structural action selection before successful
+snapshot/projection replacement, when refresh cannot install a matching
+projection, and on tool, tab, or disposal lifecycle exit. A refused mutation
+preserves it. Qt must not recreate per-atom items, infer target kind from object
+IDs, or rebase a stale selection after mutation. Combined focused Qt/PyO3 bridge
+coverage passed 57 tests; the registered no-pointer keyboard E2E exited 0; an
+independent final review accepted the implementation with no P1 finding. The
+YAML `selected_structure` context uses those shared enabled actions, while the
+generic focus owner waits for both menu destruction and modal terminal lifecycle
+before returning focus to the viewport.
 
 `Edit -> Change Element...` is available only for exactly one current durable
 selected atom. Before opening its modal form and again before submission, Qt
@@ -622,7 +650,30 @@ live, while export refuses when a local Open is active or queued. Close cancels
 future delivery and waits for retirement; it does not claim to interrupt Rust work
 or publication already begun.
 
+Selected read-only workers capture selection only at admission. Diagnostics and
+selected SMILES capture the selected molecule IDs with immutable revision/digest
+facts before their worker starts. Delivery authenticates worker/cancel state, a
+live active ready tab, exact captured revision/digest, and the receipt molecule
+ID/schema; it does not require that the user still has that molecule selected.
+
+A later selection change or clear preserves a valid historical diagnostics
+result. Its dialog becomes stale and disables rerun until the original molecule
+selection is recaptured. Selected SMILES treats a file dialog as pre-admission
+and rechecks selection before starting; post-worker delivery uses only the
+captured fence and receipt. During either read-only worker, Select Structure
+remains available while selection mutations, including Delete, remain disabled
+until the worker finishes.
+
 ## Native Open lifecycle
+
+`LocalDocumentOpenCatalogV2` is the sole Rust discovery authority for local
+File/Open. It issues opaque handles for native CDML, decoded CD-SVG, and each
+`DocumentImportNew` interchange descriptor. Qt retains one issued descriptor
+and calls one generic preparation API; it does not inspect a source kind or
+reselect an interchange parser from a suffix. File/Open's descriptor fact
+chooses current-tab replacement eligibility. `File > Import SDF Records into
+Current Drawing...` intentionally remains a distinct source-read/current-document
+insertion workflow using the catalog-issued SDF handle.
 
 The local-CDML, decoded-CD-SVG, CML, and CDXML profiles retain the admitted regular descriptor
 long enough for Rust to mint an opaque equality-only origin token. The private one-use PyO3 receipt

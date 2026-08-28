@@ -388,6 +388,7 @@ dependencies = [
  "ferrum-domain",
  "ferrum-geometry",
  "ferrum-render",
+ "ferrum-template-catalog",
  "getrandom 0.4.3",
  "jsonschema",
  "libc",
@@ -548,6 +549,19 @@ dependencies = [
 [[package]]
 name = "ferrum-render-contract"
 version = "26.8.0"
+
+[[package]]
+name = "ferrum-template-catalog"
+version = "26.8.0"
+dependencies = [
+ "ferrum-catalog-placement",
+ "ferrum-document",
+ "ferrum-domain",
+ "ferrum-geometry",
+ "rustix",
+ "sha2",
+ "thiserror",
+]
 
 [[package]]
 name = "fixedbitset"

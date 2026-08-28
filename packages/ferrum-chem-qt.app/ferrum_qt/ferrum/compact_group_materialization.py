@@ -173,6 +173,12 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 		tab = self._active_native_tab()
 		if tab is None or self._native_tabs_by_page.get(tab) is not tab or tab.is_disposed:
 			return False
+		try:
+			address = tab.selected_molecule_compact_group_address()
+		except native_document_tab_errors.FerrumNativeDocumentTabError as exc:
+			self._show_edit_refusal(self._unavailable_edit_refusal(str(exc)))
+			self._refresh_actions()
+			return False
 		if self._atom_insertion_intent is not None:
 			self._cancel_atom_insertion()
 		if self._line_gesture_intent is not None:
@@ -180,7 +186,6 @@ class FerrumNativeCompactGroupMaterializationWindowMixin:
 		if self._structure_tab is tab:
 			self._cancel_structure_selection()
 		try:
-			address = tab.selected_molecule_compact_group_address()
 			availability = tab._session.compact_group_materialization_availability_v1(
 				_availability_request_json(address),
 			)

@@ -11,6 +11,7 @@ from ferrum_qt.dialogs.accessibility import finalize_dialog_accessibility
 import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.ferrum.haworth
+from ferrum_qt.ferrum.interaction_action_handoff import FerrumAdmittedInteractionCommand
 
 
 _PROJECTED_GEOMETRY_TOLERANCE_PX = 1.0
@@ -96,7 +97,8 @@ class FerrumNativeHaworthToolMixin:
 			"Choose a D-glucose Haworth form, then click an empty page location.",
 		))
 		self._connect_interaction_action_v1(
-			self._insert_haworth_ring_action, self._choose_haworth_recipe,
+			self._insert_haworth_ring_action,
+			lambda _checked: FerrumAdmittedInteractionCommand(self._choose_haworth_recipe),
 		)
 		self._register_action("draw.ring.haworth.insert", self._insert_haworth_ring_action)
 		self._haworth_intent: _HaworthIntent | None = None

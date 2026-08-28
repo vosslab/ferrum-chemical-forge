@@ -213,8 +213,14 @@ pub(super) fn structure_selection(
     py: Python<'_>,
     value: StructureInteractionSelectionV1,
 ) -> PyResult<PyStructureSelection> {
+    let fence = value.fence();
     let targets = structure_targets(py, value.targets())?;
-    Ok(PyStructureSelection { value, targets })
+    Ok(PyStructureSelection {
+        value,
+        targets,
+        revision: fence.revision(),
+        digest: hex_digest(&fence.digest()),
+    })
 }
 pub(super) fn structure_commit(value: CommittedStructureDeletionV1) -> PyStructureCommit {
     PyStructureCommit {
@@ -235,7 +241,7 @@ pub(super) fn fence(digest: &str, revision: u64) -> PyResult<DocumentFenceV1> {
         ));
     }
     let mut bytes = [0; 32];
-    for (index, pair) in digest.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in digest.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         bytes[index] = (hex(pair[0]) << 4) | hex(pair[1]);
     }
     Ok(DocumentFenceV1::new(revision, bytes))

@@ -19,6 +19,7 @@ import ferrum_qt.canvas.ferrum_presentation_render_plan
 import ferrum_qt.canvas.ferrum_presentation_target
 from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 import ferrum_qt.canvas.ferrum_telex
+import ferrum_qt.canvas.items.ferrum_molecule_root_item
 import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.canvas.items.ferrum_paper_item
 import ferrum_qt.canvas.items.ferrum_plus_item
@@ -44,6 +45,10 @@ PlanItemFactory = collections.abc.Callable[
 		PySide6.QtWidgets.QGraphicsItem],
 	PySide6.QtWidgets.QGraphicsItem,
 ]
+MoleculeRootItemFactory = collections.abc.Callable[
+	[object, object],
+	ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
+]
 PresentationSceneFactory = collections.abc.Callable[
 	[object, ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1],
 	ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene,
@@ -56,13 +61,6 @@ PaperItemFactory = collections.abc.Callable[
 #============================================
 class FerrumRenderProjectionError(ValueError):
 	"""Raised when a copied render observation violates the V1 contract."""
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class MoleculeRootKey:
-	"""Detached opaque document-root identity for one molecule plan."""
-
-	document_object_id: str
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -95,7 +93,9 @@ class FerrumRenderProjection:
 		ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene | None
 	)
 	roots: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
-	molecule_roots: dict[PySide6.QtWidgets.QGraphicsItemGroup, MoleculeRootKey]
+	molecule_roots: tuple[
+		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem, ...
+	]
 	items: tuple[PySide6.QtWidgets.QGraphicsItem, ...]
 	item_targets: dict[PySide6.QtWidgets.QGraphicsItem, RenderTargetKey]
 	durable_items: dict[tuple[str, str], PySide6.QtWidgets.QGraphicsItem]
@@ -155,6 +155,7 @@ class FerrumRenderProjectionController:
 		self._initialize(
 			view, telex_resource, telex, _require_pyo3_observation,
 			ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
+			ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
 			ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
 			lambda plan, display_palette: _build_presentation_scene(
 				plan, telex_resource, display_palette,
@@ -166,6 +167,7 @@ class FerrumRenderProjectionController:
 	def _initialize(self, view: PySide6.QtWidgets.QGraphicsView,
 			telex_resource: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 			validator: ObservationValidator, item_factory: PlanItemFactory,
+			molecule_root_factory: MoleculeRootItemFactory,
 			paper_factory: PaperItemFactory,
 			presentation_factory: PresentationSceneFactory | None,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
@@ -181,6 +183,7 @@ class FerrumRenderProjectionController:
 		self._telex = telex
 		self._validator = validator
 		self._item_factory = item_factory
+		self._molecule_root_factory = molecule_root_factory
 		self._paper_factory = paper_factory
 		self._presentation_factory = presentation_factory
 		self._palette = palette
@@ -209,7 +212,8 @@ class FerrumRenderProjectionController:
 		try:
 			prepared = _build_render_projection(
 				observation, self._telex_resource, self._telex, self._validator,
-				self._item_factory, self._paper_factory, self._presentation_factory,
+				self._item_factory, self._molecule_root_factory, self._paper_factory,
+				self._presentation_factory,
 				presentation_plan, self._palette,
 			)
 		except FerrumRenderProjectionError:
@@ -296,6 +300,7 @@ def _build_fixture_controller(view: PySide6.QtWidgets.QGraphicsView,
 	controller._initialize(
 		view, telex, telex, validator,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
+		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture, None,
 		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)
@@ -312,6 +317,7 @@ def build_render_projection(observation: object, telex_resource: object,
 	return _build_render_projection(
 		observation, telex_resource, telex, _require_pyo3_observation,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
+		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
 		lambda plan, palette: _build_presentation_scene(plan, telex_resource, palette),
 		presentation_plan, palette,
@@ -328,6 +334,7 @@ def _build_fixture_render_projection(observation: object,
 	return _build_render_projection(
 		observation, telex, telex, validator,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
+		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture,
 		presentation_factory,
 		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
@@ -338,6 +345,7 @@ def _build_fixture_render_projection(observation: object,
 def _build_render_projection(observation: object, telex_resource: object,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 		validator: ObservationValidator, item_factory: PlanItemFactory,
+		molecule_root_factory: MoleculeRootItemFactory,
 		paper_factory: PaperItemFactory,
 		presentation_factory: PresentationSceneFactory | None,
 		presentation_plan: object | None = None,
@@ -356,7 +364,9 @@ def _build_render_projection(observation: object, telex_resource: object,
 	scene = PySide6.QtWidgets.QGraphicsScene()
 	paper: ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem | None = None
 	roots: list[PySide6.QtWidgets.QGraphicsItem] = []
-	molecule_roots: dict[PySide6.QtWidgets.QGraphicsItemGroup, MoleculeRootKey] = {}
+	molecule_roots: list[
+		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem
+	] = []
 	items: list[PySide6.QtWidgets.QGraphicsItem] = []
 	item_targets: dict[PySide6.QtWidgets.QGraphicsItem, RenderTargetKey] = {}
 	durable_items: dict[tuple[str, str], PySide6.QtWidgets.QGraphicsItem] = {}
@@ -387,19 +397,21 @@ def _build_render_projection(observation: object, telex_resource: object,
 		scene.setSceneRect(paper.rect())
 		roots.append(paper)
 		for plan_entry in plans:
-			molecule = _molecule_root(getattr(plan_entry, "molecule", None))
-			if molecule.document_object_id in seen_molecule_roots:
+			molecule = getattr(plan_entry, "molecule", None)
+			molecule_object_id = _molecule_root_identifier(molecule)
+			if molecule_object_id in seen_molecule_roots:
 				raise FerrumRenderProjectionError("duplicate molecule render root")
 			root, _plan_items, plan_issues = _build_plan(
-				scene, plan_entry, molecule, revision, digest, telex_resource, item_factory,
-				display_palette,
+				plan_entry, molecule, revision, digest, telex_resource, item_factory,
+				molecule_root_factory, display_palette,
 			)
 			root.setZValue(float(_direct_root_order(
-				direct_root_orders, molecule.document_object_id, frozenset(("molecule",)),
+				direct_root_orders, molecule_object_id, frozenset(("molecule",)),
 			)))
-			seen_molecule_roots.add(molecule.document_object_id)
+			scene.addItem(root)
+			seen_molecule_roots.add(molecule_object_id)
 			roots.append(root)
-			molecule_roots[root] = molecule
+			molecule_roots.append(root)
 			for item, target in _plan_items:
 				ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
 					item, "molecule render item",
@@ -526,7 +538,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 	if paper is None:
 		raise FerrumRenderProjectionError("render projection has no paper background")
 	result = FerrumRenderProjection(
-		scene, revision, digest, paper, presentation, tuple(roots), molecule_roots, tuple(items),
+		scene, revision, digest, paper, presentation, tuple(roots), tuple(molecule_roots), tuple(items),
 		item_targets, durable_items, local_items, tuple(all_issues),
 	)
 	return result
@@ -588,16 +600,16 @@ def _validate_observation(observation: object,
 
 #============================================
 def _build_plan(
-		scene: PySide6.QtWidgets.QGraphicsScene, plan_entry: object,
-		molecule: MoleculeRootKey,
+		plan_entry: object, molecule: object,
 		revision: int, digest: str, telex_resource: object, item_factory: PlanItemFactory,
+		molecule_root_factory: MoleculeRootItemFactory,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[
-			PySide6.QtWidgets.QGraphicsItemGroup,
+			ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
 			tuple[tuple[PySide6.QtWidgets.QGraphicsItem, RenderTargetKey], ...],
 			tuple[RenderIssue, ...],
 		]:
-	"""Build one exact plan in source order and attach it only to the candidate scene."""
+	"""Build one detached ownership hierarchy in exact source order."""
 	if not _is_frozen_dto(plan_entry):
 		raise FerrumRenderProjectionError("molecule render entry has the wrong DTO shape")
 	plan = getattr(plan_entry, "plan", None)
@@ -612,9 +624,7 @@ def _build_plan(
 	issues = _ordered_dtos(getattr(plan, "issues", None), "plan render issues")
 	seen_targets: set[RenderTargetKey] = set()
 	result = []
-	root = PySide6.QtWidgets.QGraphicsItemGroup()
-	root.setHandlesChildEvents(False)
-	scene.addItem(root)
+	root = molecule_root_factory(molecule, getattr(plan_entry, "bounds", None))
 	for batch_index, batch in enumerate(batches):
 		target = _target(getattr(batch, "target", None))
 		if target in seen_targets:
@@ -632,14 +642,14 @@ def _build_plan(
 
 
 #============================================
-def _molecule_root(value: object) -> MoleculeRootKey:
-	"""Copy one Rust-issued molecule root without interpreting persistent CDML."""
+def _molecule_root_identifier(value: object) -> str:
+	"""Copy one Rust-issued molecule-root identity without interpreting CDML."""
 	if not _is_frozen_dto(value):
 		raise FerrumRenderProjectionError("molecule render root has the wrong DTO shape")
 	document_object_id = getattr(value, "document_object_id", None)
 	if type(document_object_id) is not str or not document_object_id:
 		raise FerrumRenderProjectionError("molecule document-object identity is invalid")
-	return MoleculeRootKey(document_object_id)
+	return document_object_id
 
 
 #============================================

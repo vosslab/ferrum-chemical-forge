@@ -72,6 +72,26 @@ class ThemeManager(PySide6.QtCore.QObject):
 		Raises:
 			ValueError: If name is not 'dark' or 'light'.
 		"""
+		self._apply_theme(name, persist_preference=True)
+
+	#============================================
+	def apply_transient_theme(self, name: str) -> None:
+		"""Apply a theme without changing the saved user preference.
+
+		This is intended for bounded rendering workflows, such as deterministic
+		documentation captures, that must not become a user theme choice.
+
+		Args:
+			name: Theme name, must be 'dark' or 'light'.
+
+		Raises:
+			ValueError: If name is not 'dark' or 'light'.
+		"""
+		self._apply_theme(name, persist_preference=False)
+
+	#============================================
+	def _apply_theme(self, name: str, *, persist_preference: bool) -> None:
+		"""Build and atomically apply one validated theme."""
 		valid_names = ferrum_qt.themes.theme_loader.get_theme_names()
 		if name not in valid_names:
 			msg = self.tr(
@@ -93,8 +113,8 @@ class ThemeManager(PySide6.QtCore.QObject):
 		self._app.setStyleSheet(stylesheet)
 		self._current_theme = name
 
-		# persist preference if Preferences is available
-		self._save_preference(name)
+		if persist_preference:
+			self._save_preference(name)
 
 		# notify listeners after the full application state has changed
 		self.theme_changed.emit(ThemeChangeV1(name, document_display_palette))

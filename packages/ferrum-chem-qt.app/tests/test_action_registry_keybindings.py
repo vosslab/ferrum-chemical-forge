@@ -181,7 +181,6 @@ def test_registry_retires_destroyed_qaction_before_action_id_is_reused(
 	"""A successor window sees only its own live command after owner retirement."""
 	registry = ferrum_qt.actions.action_registry.ActionRegistry()
 	first_window = PySide6.QtWidgets.QMainWindow()
-	qtbot.addWidget(first_window)
 	first_calls: list[bool] = []
 	first_action = PySide6.QtGui.QAction("First command", first_window)
 	first_action.setToolTip("Run the first window command")
@@ -213,10 +212,13 @@ def test_registry_retires_destroyed_qaction_before_action_id_is_reused(
 	)
 	palette = ferrum_qt.actions.command_palette.CommandPaletteController(
 		second_window, registry,
+		action_placements={"view.window_command": ("View",)},
 	)
 	qtbot.addWidget(palette.dialog)
 	palette.open()
 	palette.activate_selected()
+	assert first_calls == [] and second_calls == []
+	qapp.processEvents()
 	assert first_calls == [] and second_calls == [True]
 
 
@@ -234,7 +236,6 @@ def test_registry_rebinds_portable_declaration_after_qaction_retirement(
 		"The command is reachable by its labelled menu.",
 	))
 	first_window = PySide6.QtWidgets.QMainWindow()
-	qtbot.addWidget(first_window)
 	first_action = PySide6.QtGui.QAction("First portable command", first_window)
 	registry.bind_qt_action("view.portable_command", first_action)
 	first_window.deleteLater()

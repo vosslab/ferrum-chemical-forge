@@ -209,6 +209,27 @@ def test_structure_interaction_targets_expose_typed_durable_addresses() -> None:
     ), observed
 
 
+def test_structure_selection_exposes_an_immutable_observation_fence() -> None:
+    """Rust selection fence facts equal the source observation and reject mutation."""
+    session = ferrum_chem.DocumentSession.load(SOURCE)
+    snapshot = session.snapshot()
+    observation = session.observe_structure_interaction_v1(
+        snapshot.revision, snapshot.digest,
+    )
+    selection = session.select_structure_interaction_v1(
+        observation,
+        None,
+        ferrum_chem.StructureInteractionQueryV1.point(
+            1.0, 2.0, ferrum_chem.RenderInteractionModifierV1.replace,
+        ),
+    )
+    assert (selection.revision, selection.digest) == (snapshot.revision, snapshot.digest)
+    with pytest.raises(AttributeError):
+        selection.revision = snapshot.revision + 1
+    with pytest.raises(AttributeError):
+        selection.digest = "0" * len(snapshot.digest)
+
+
 def test_smiles_input_precedes_native_availability_and_module_replacement() -> None:
     held_parse_smiles = ferrum_chem.parse_smiles
 
@@ -483,8 +504,12 @@ def test_periodic_display_catalog_is_closed_immutable_and_picker_scoped() -> Non
     entries = ferrum_chem.periodic_display_entries_v1()
     provenance = ferrum_chem.periodic_display_catalog_provenance_v1()
 
-    assert (facts.symbol, facts.color, facts.category) == (
-        "Fe", "#ffc0c0", ferrum_chem.ElementDisplayCategoryV1.transition_metal,
+    assert (
+        facts.symbol, facts.display_name, facts.grid_row, facts.grid_column,
+        facts.color, facts.category,
+    ) == (
+        "Fe", "Iron", 3, 7, "#ffc0c0",
+        ferrum_chem.ElementDisplayCategoryV1.transition_metal,
     )
     assert isinstance(entries, tuple) and len(entries) == 42
     assert tuple(entry.symbol for entry in entries) == tuple(dict.fromkeys(
@@ -496,6 +521,8 @@ def test_periodic_display_catalog_is_closed_immutable_and_picker_scoped() -> Non
     assert "query pseudo-elements" in provenance.scope
     with pytest.raises(AttributeError):
         facts.color = "#000000"
+    with pytest.raises(AttributeError):
+        facts.grid_row = 0
     with pytest.raises(ferrum_chem.UnknownElementDisplaySymbolError) as caught:
         ferrum_chem.periodic_display_facts_v1("fe")
 
@@ -561,6 +588,8 @@ def test_render_observation_is_one_frozen_api_owned_plan_with_exact_glyphs() -> 
     assert entry.molecule.document_object_id == (
         observation.document.projection.molecules[0].document_object_id
     )
+    assert (type(entry.bounds), entry.bounds.left < entry.bounds.right,
+        entry.bounds.top < entry.bounds.bottom) == (ferrum_chem.MoleculeContentBoundsV1, True, True)
     assert batch.target.kind == "document_object"
     assert operation.kind == "text"
     assert operation.operation.runs[0].glyphs[0].glyph_index > 0

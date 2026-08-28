@@ -147,7 +147,7 @@ fn parse_digest(value: &str) -> Result<[u8; 32], ExecutionFailureV1> {
         ));
     }
     let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         digest[index] = u8::from_str_radix(std::str::from_utf8(pair).unwrap_or(""), 16)
             .map_err(|_| ExecutionFailureV1::document_invalid("digest_mismatch".to_owned()))?;
     }

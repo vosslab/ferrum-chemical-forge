@@ -257,6 +257,15 @@ fn commit_refusal_error(error: AdmittedSessionTransitionRefusalV1) -> PyErr {
     }
 }
 
+pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PySessionOperationTransitionRequestV1>()?;
+    module.add_class::<PyPreparedSessionTransitionV1>()?;
+    module.add_class::<PyPreparedSessionTransitionPresentationV1>()?;
+    module.add_class::<PyDocumentPrecommitOverlayV1>()?;
+    module.add_class::<PyDocumentPrecommitOverlayCoordinateSpaceV1>()?;
+    module.add_class::<PyDocumentPrecommitPaintPrimitiveV1>()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,13 +296,4 @@ mod tests {
             );
         });
     }
-}
-
-pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PySessionOperationTransitionRequestV1>()?;
-    module.add_class::<PyPreparedSessionTransitionV1>()?;
-    module.add_class::<PyPreparedSessionTransitionPresentationV1>()?;
-    module.add_class::<PyDocumentPrecommitOverlayV1>()?;
-    module.add_class::<PyDocumentPrecommitOverlayCoordinateSpaceV1>()?;
-    module.add_class::<PyDocumentPrecommitPaintPrimitiveV1>()
 }

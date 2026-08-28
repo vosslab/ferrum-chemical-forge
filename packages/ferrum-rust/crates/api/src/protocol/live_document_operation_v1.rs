@@ -13,8 +13,8 @@ use ferrum_document::{
 use serde::{Deserialize, Serialize};
 
 use super::document_compact_group_materialization_v1::{
-    compact_group_materialization_outcome, compact_refusal,
-    execute_document_compact_group_materialize_transition_on_session,
+    CompactGroupMaterializationOutcomePartsV1, compact_group_materialization_outcome,
+    compact_refusal, execute_document_compact_group_materialize_transition_on_session,
 };
 use super::document_hydrogen_materialization_v1::execute_document_molecule_hydrogen_materialize_on_session;
 use super::document_request_parse_v1::parse_sha256_hex;
@@ -268,11 +268,13 @@ pub(crate) fn execute_live_document_operation_v1(
             } else {
                 match execute_document_molecule_hydrogen_materialize_on_session(session, request) {
                     Ok((outcome, mutation_result)) => (
-                        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-                            schema: ProtocolResponseSchemaV1::V1,
-                            request_id,
-                            outcome,
-                        }),
+                        OperationProtocolEnvelopeV1::Success(Box::new(
+                            OperationProtocolResponseV1 {
+                                schema: ProtocolResponseSchemaV1::V1,
+                                request_id,
+                                outcome,
+                            },
+                        )),
                         mutation_result,
                     ),
                     Err(error) => (
@@ -351,21 +353,28 @@ fn execute_live_compact_group_materialization_v1(
                     };
                     let snapshot = session.snapshot().map_err(internal_input_error)?;
                     let outcome = compact_group_materialization_outcome(
-                        expected_revision,
-                        expected_digest_hex,
-                        molecule_object_id,
-                        compact_group_object_id,
-                        materialization.focus_atom_id().as_str().to_owned(),
-                        snapshot.cdml().to_owned(),
-                        snapshot.revision(),
-                        hex_digest(snapshot.digest()),
+                        CompactGroupMaterializationOutcomePartsV1 {
+                            source_revision: expected_revision,
+                            source_digest_hex: expected_digest_hex,
+                            molecule_id: molecule_object_id,
+                            compact_group_id: compact_group_object_id,
+                            replacement_focus_atom_id: materialization
+                                .focus_atom_id()
+                                .as_str()
+                                .to_owned(),
+                            document: snapshot.cdml().to_owned(),
+                            document_revision: snapshot.revision(),
+                            document_digest_hex: hex_digest(snapshot.digest()),
+                        },
                     );
                     (
-                        OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-                            schema: ProtocolResponseSchemaV1::V1,
-                            request_id,
-                            outcome,
-                        }),
+                        OperationProtocolEnvelopeV1::Success(Box::new(
+                            OperationProtocolResponseV1 {
+                                schema: ProtocolResponseSchemaV1::V1,
+                                request_id,
+                                outcome,
+                            },
+                        )),
                         Some(result),
                     )
                 }

@@ -66,7 +66,7 @@ fn parse_digest(py: Python<'_>, value: &str) -> PyResult<[u8; 32]> {
         return Err(name_error(py, DIGEST_REASON));
     }
     let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         digest[index] = (hex_value(pair[0]) << 4) | hex_value(pair[1]);
     }
     Ok(digest)

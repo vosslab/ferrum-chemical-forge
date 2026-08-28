@@ -9,11 +9,12 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::binding::document_result;
-use super::document_session_binding::{PyDocumentSession, hex_digest};
+use super::document_session_binding::PyDocumentSession;
 use super::render_binding::{
     PyDocumentPlusRenderV1, PyRenderPaintV3, PyRenderPointV1, PyRenderTargetV1,
     RenderDepictionError, RenderProvenanceError, paint_from,
 };
+use super::session_publication_binding::hex_digest;
 
 /// Renderer-calculated finite painted scene bounds for one presentation root.
 #[pyclass(frozen, name = "PresentationRenderBoundsV1", skip_from_py_object)]

@@ -92,16 +92,31 @@ typed provenance, and no CDXML save baseline or encoder. The exact grammar,
 security boundary, resource limits, evidence, and exclusions are frozen in
 [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
 Its chemistry/API/binding/workspace/build/CLI/Qt receipts support this bounded
-claim only. Post-audit `./build.sh` exited 0; the registered
+claim only. The following delivery-time receipt is retained as historical
+evidence and is superseded by the current 2026-08-27 checkpoint below. At that
+time, post-audit `./build.sh` exited 0; the registered
 `tests/e2e/run_all.sh` exited 0, including CDXML; staged Python bindings passed
 281 tests; Qt passed 238 tests with one intentional skip; focused chemistry and
 API libraries passed 124 and 117 tests; and `cargo check --workspace` passed.
-`./all_test.sh` is not aggregate-green: it recorded 7,759 passes before five
+`./all_test.sh` was not aggregate-green: it recorded 7,759 passes before five
 Markdown-link failures stopped later aggregate phases. All five canonical links
-target the present CDXML decision artifact, which is absent only from the
+targeted the present CDXML decision artifact, which was absent only from the
 tracked-file catalog. The skipped later phases were run directly and passed as
 listed above. Real 16:10 accessibility evidence, M2, and full parity remain
 open.
+
+The current checkpoint also contains four bounded Rust-first slices. M2.B
+unifies File/Open discovery and preparation in `LocalDocumentOpenCatalogV2`;
+M4.C makes the closed molecule-report identifier outcome required; the periodic
+picker projects Rust-issued display facts into the shared next-drawing
+preference; and M6 adds active-Select-Structure cursor keyboard interaction.
+Focused M2 evidence covers 32 PyO3 tests, 18 Qt File/Open tests, and the public
+SDF-import E2E. Focused M4 evidence covers 26 Rust tests, 9 PyO3 tests, 10 Qt
+tests, and the report CLI E2E. The periodic-picker suites pass 48 focused tests
+plus 5 real-document invariance tests. The delivered M6 tab-owned opaque Rust
+selection-fence bridge passed 57 combined focused Qt/PyO3 tests; its registered
+no-pointer keyboard E2E exited 0 and independent final review accepted it with
+no P1 finding. None of these bounded results closes M2, M4, M6, or full parity.
 
 ## Delivered bounded parity slice
 
@@ -260,6 +275,17 @@ Qt; `ferrum formats`, conversion, and graph inspection routes.
 Done when corpus import -> typed graph/document -> export -> reimport retains
 declared facts or returns an explicit loss report.  XML, compression, clipboard,
 and unsupported inputs refuse before mutation or publication.
+
+`PARITY-M2.B` is a delivered bounded authority repair, not M2 completion.
+`LocalDocumentOpenCatalogV2` emits native CDML and decoded SVG followed by the
+registry's `DocumentImportNew` formats, each with an opaque Rust-issued handle.
+The generic preparation API alone dispatches the route; Qt neither classifies
+source kind nor selects a parser from a suffix. File/Open creates a new document
+or uses the explicit replacement fact, while **File > Import SDF Records into
+Current Drawing...** retains its separate source-read and insertion workflow.
+Focused PyO3, Qt File/Open, and visible Import-SDF E2E evidence are recorded in
+the current checkpoint. M2 remains open for the declared corpus-backed graph and
+interchange scope.
 
 ### M3: P1 presentation grammar
 
@@ -536,12 +562,22 @@ and its aggregate is complete or omitted. Unaddressable source locations remain
 typed report outcomes; the slice adds no mutation, local CLI verb, chemistry
 engine, external corpus, or installation/publishing workflow.
 
+`PARITY-M4.C` is a delivered bounded report-contract repair, not M4 completion.
+Each report record now requires exactly one Rust-issued identifier outcome:
+the complete canonical SMILES, Standard InChI, and Standard InChIKey trio, or
+one closed unavailable reason. Rust evaluates the trio in dependency order;
+resource exhaustion remains an operation-level refusal, while Qt presents and
+validates the tagged receipt without chemistry calculation. Focused Rust, PyO3,
+Qt, and CLI E2E evidence is recorded at the current checkpoint. The remaining
+M4 reports, diagnostics, query, and expansion workflows remain open.
+
 The delivered bounded
 [`document.molecule.diagnostics.v1` decision](../decisions/m4_molecule_diagnostics_v1.md)
 adds deterministic read-only structural findings for a fenced snapshot and
 selected durable direct roots, with named CLI, typed PyO3, and modeless
-accessible `Check Structure...` delivery. It excludes auto-fix and runtime
-chemistry. The source-only durable-identity migration is a separate
+accessible `Check Structure...` delivery. Selection admits the immutable worker;
+delivery authenticates the captured fence and receipt rather than live selection.
+It excludes auto-fix and runtime chemistry. The source-only durable-identity migration is a separate
 foundational follow-on, not an implicit diagnostics compatibility path.
 
 Immediately after diagnostics, deliver the approved
@@ -605,6 +641,37 @@ outcomes, never guesses.
 **Depends on:** M1, M2, M4.  **Parallel-plan ready:** yes after immutable catalog
 manifest and attachment DTOs are frozen.
 
+`PARITY-M5.A` is approved and in progress as the independently deliverable
+[Template Catalog V1](../decisions/m5_template_catalog_v1.md). It consumes the
+delivered generic document admission, prepared user-template plan, session transition,
+durable identity, and fenced placement contracts. It does not expand the still-open M2
+graph/interchange corpus or M4 report, diagnostic, query, and expansion corpus. Rust owns the
+immutable shipped-and-user snapshot, opaque key/content identity, provenance, compatibility,
+explicit entry/candidate/refusal/file/total-byte limits, bounded lexical admission and aggregate
+refusal occurrences, descriptor-relative user-directory admission, and typed refusal. PyO3
+projects that contract read-only and accepts a native-issued expected document snapshot for the
+placement fence. Rust also owns prepared user-template publication capability and receipt. Qt's
+modeless task is split among dialog, tab, and window owners; it exposes only
+`chemistry.template.catalog`, keeps no scanner, plan, payload, re-admission, or raw OS errors,
+and forwards only fenced native authority. Implementation and all acceptance gates remain open.
+
+The automated M5.A receipt is green: `./build.sh` produced CLI and GUI; focused catalog, API,
+PyO3, and Qt suites passed 13, 164, 8, and 18 tests; the public authoring E2E schema
+`ferrum-template-catalog-authoring-e2e-v2` reported `ok`; workspace test and strict Clippy both
+exited 0; and `./all_test.sh` exited 0 with 8,092 hygiene checks, all registered E2Es, 294
+installed PyO3, and 344 Qt tests. Three independent final reviews found no P1/P2/P3. Manual
+native accessibility/contrast/focus review and a fresh real-dialog screenshot with human acceptance
+remain open, so M5.A, M5, and full parity do not advance to complete.
+
+Before more high-coupling concurrent Qt tools, execute the approved
+[Qt Operation Lease Registry](../decisions/qt_operation_lease_registry.md) in two dependent
+patches. Patch 1 migrates Template Catalog placement to an explicit controller and a pure Qt
+lifecycle registry, deletes both catalog mixins and `CATALOG_PLACEMENT_BLOCKED`, continues the same
+close attempt after synchronous cancellation, and changes neither Rust nor PyO3. Patch 2 begins
+only after Patch 1 review and full Qt/E2E acceptance; it migrates Local Document Open and proves
+source-retaining `CANCELLATION_REQUESTED` plus truthful delivery cancellation. Both patches delete
+their old family state atomically and add no aliases, event bus, service locator, or wholesale move.
+
 The shipped `catalog.list.v1` / `catalog.insert.v1` protocol contract and its
 lease-backed public E2E are completed prerequisites for this milestone. They
 establish bounded catalog discovery, fenced insertion, and typed stale refusal;
@@ -640,6 +707,27 @@ input client owns context placement, invocation, focus recovery, and keyboard
 equivalence, but no chemistry, hit testing, selection mutation, or document
 mutation. The remaining M6 keyboard, accessibility, help, clipboard, and
 application-usability work stays open.
+
+The periodic picker is a delivered bounded next-drawing usability/authority
+slice. Rust owns each immutable symbol, display name, grid coordinate, category,
+and color; Qt projects those entries in the **Periodic table...** control and
+updates only the shared next-drawing preference. The focused 48-test picker
+suite and 5-test real-document invariance suite prove that an accepted choice
+does not change document revision, digest, history, or structural selection.
+
+Keyboard structural selection is a delivered bounded M6 slice.
+In active **Select Structure** mode, Arrow and Shift+Arrow move only the view
+cursor; Enter and Shift+Enter use Rust point selection; a no-hit preserves the
+prior selection; Escape restores inactive cursor/accessibility state. The
+command-palette focus repair is focused-test green. The selected-atom action
+bridge is delivered: it places fenced Rust-issued structural action selection on
+the document tab, not on per-atom Qt graphics items or a Python identity model.
+Combined focused Qt/PyO3 bridge evidence passed 57 tests; the registered
+no-pointer keyboard E2E exited 0; and independent final review accepted with no
+P1 finding. The selected-structure YAML context uses the shared enabled actions,
+and generic modal-focus handoff restores viewport focus only after terminal
+modal lifecycle. Human native keyboard/accessibility sign-off remains separate;
+M6 and full parity remain open.
 
 Done when a keyboard-only user creates, edits, inspects, exports, and reopens a
 reaction scheme, with useful accessible state and a clear result/refusal for
@@ -811,9 +899,10 @@ separate design decision. The remaining compact-group capability in this plan
 is broader free compact-group placement, rather than another attachment alias
 or a parallel request contract.
 
-The subsequent confirmed queue remains M2 interchange/graph completion, M5
-catalogs and reactions, and M6 usable-application work. The completed catalog
-protocol prerequisite does not advance M5 beyond its remaining parity work.
+The subsequent confirmed queue includes the approved in-progress M5.A Template Catalog V1,
+then M2 interchange/graph completion, remaining M5 catalogs and reactions, and M6
+usable-application work. The completed catalog protocol prerequisite and M5.A decision do not
+advance M5 beyond their remaining parity work.
 These milestones stay open until their declared parity claims have contract,
 client, corpus, and workflow evidence; this document does not claim complete
 OASA/BKChem parity.
@@ -830,11 +919,11 @@ full Rust/OASA/BKChem parity, nor the manual 16:10 keyboard/accessibility
 walkthrough.
 
 CDXML simple-molecule V1 is no longer a decoder or client-routing queue item.
-Its remaining evidence queue is a fresh `./all_test.sh`, independent audit,
-and real 16:10 File/Open plus keyboard/accessibility walkthrough. CDX binary,
-reaction/presentation/layout import, namespace variants, end-directed wedges,
-and wider chemistry forms remain separate corpus-backed M2 decisions rather
-than implied CDXML V1 compatibility.
+Its fresh `./all_test.sh`, independent audit, and agent-reviewed real 16:10
+File/Open evidence are complete. Human keyboard/accessibility release sign-off
+remains separate. CDX binary, reaction/presentation/layout import, namespace
+variants, end-directed wedges, and wider chemistry forms remain separate
+corpus-backed M2 decisions rather than implied CDXML V1 compatibility.
 
 Implementation reports state: `Milestone`, `Work package`, `Contracts`, `User
 workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency`.
@@ -886,15 +975,18 @@ declaration retention, successor rebinding, and dispatch. The display-refresh
 evidence covers nominal membership, structural-look-alike rejection, and direct
 delegating-adapter forwarding.
 
-The last automated 13-scene capture completed, but human visual review rejected
-eight frames. GUI capture-driver/catalog repairs and command-palette
-hierarchy/relevance repairs are implemented with focused evidence, but each is
-pending independent final review and neither has been recaptured. Resume with
-independent review of both patches; focused recapture and the complete 13-scene
-capture; human review; the guidance-format gate plus full build/all-test/E2E/
-PyO3/Qt validation; the post-fix audit; broader parity-ledger reconciliation;
-and a separate M5A decision. This checkpoint does not approve M5A or advance
-full parity.
+Source review, focused diagnosis, the transactionally staged 13-scene recapture,
+and image-by-image agent visual review are complete. The current candidate set
+uses a non-persistent documentation theme, visible Rust catalog provenance,
+page-contained examples, YAML-owned command breadcrumbs, Rust-measured molecule
+bounds, and Rust-owned observed-page centering for interchange imports. Final
+human release sign-off remains separate. The guidance-format, fresh build,
+complete aggregate, registered E2E, installed PyO3, full Qt, affected Rust test,
+strict lint, and isolated wheel gates passed; seven independent post-fix reviews
+completed and their actionable findings were repaired. Resume with broader
+parity-ledger reconciliation, human release sign-off when preparing a release,
+and the later approved, in-progress M5.A decision. That earlier stabilization checkpoint did not
+approve M5.A; the current decision does. Neither advances full parity.
 
 This completes one bounded M6 discoverability slice. It does not prove a full
 M6 usability program, real desktop visual acceptance, or complete Ferrum parity.

@@ -48,6 +48,66 @@ class FerrumSelectedMoleculeCompactGroupAddress:
 class FerrumNativeDocumentSelectionMixin:
 	"""Selection-backed document actions owned by the host tab session."""
 
+	#============================================
+	def replace_structure_action_selection_v1(self, selection: object | None) -> None:
+		"""Install one exact Rust-issued structural action selection for this snapshot."""
+		import ferrum_qt.ferrum.engine as engine
+		if selection is None:
+			self.clear_structure_action_selection_v1()
+			return
+		self._require_mutable()
+		if type(selection) is not engine.StructureInteractionSelectionV1:
+			raise TypeError("Ferrum structural action selection requires an exact Rust selection")
+		snapshot = self.current_snapshot
+		if (
+			type(selection.revision) is not int
+			or type(selection.digest) is not str
+			or not selection.digest
+			or selection.revision != snapshot.revision
+			or selection.digest != snapshot.digest
+		):
+			raise FerrumNativeDocumentTabError(
+				"Rust structural action selection does not match the installed document fence",
+			)
+		targets = selection.targets
+		if type(targets) is not tuple:
+			raise FerrumNativeDocumentTabError(
+				"Rust structural action selection returned a non-frozen target collection",
+			)
+		seen_ids: set[str] = set()
+		for target in targets:
+			if type(target) is not engine.StructureInteractionTargetV1:
+				raise FerrumNativeDocumentTabError(
+					"Rust structural action selection returned an invalid target DTO",
+				)
+			if (
+				type(target.molecule_object_id) is not str
+				or not target.molecule_object_id
+				or type(target.object_id) is not str
+				or not target.object_id
+				or type(target.kind) is not engine.StructureTargetKindV1
+			):
+				raise FerrumNativeDocumentTabError(
+					"Rust structural action selection returned an invalid durable target address",
+				)
+			if target.object_id in seen_ids:
+				raise FerrumNativeDocumentTabError(
+					"Rust structural action selection contains a duplicate durable object identity",
+				)
+			seen_ids.add(target.object_id)
+		self._structure_action_selection_v1 = selection
+		self._structure_action_targets_v1 = targets
+		self.selection_changed.emit()
+
+	#============================================
+	def clear_structure_action_selection_v1(self) -> None:
+		"""Discard structural action state before its Rust fence can become stale."""
+		if getattr(self, "_structure_action_selection_v1", None) is None:
+			return
+		self._structure_action_selection_v1 = None
+		self._structure_action_targets_v1 = ()
+		self.selection_changed.emit()
+
 
 	#============================================
 	def selected_atom_projection(self) -> object:
@@ -494,11 +554,13 @@ class FerrumNativeDocumentSelectionMixin:
 
 	#============================================
 	def selected_structure_targets(self) -> tuple[object, ...]:
-		"""Resolve every current generic canvas selection through Rust in Rust order.
+		"""Return the bridge targets or resolve generic canvas targets through Rust.
 
-		Canvas targets contribute durable identities only.  Rust authenticates their
-		current fence, membership, molecule ownership, and structural kind.
+		A current structural action selection is an opaque Rust-issued, fence-checked
+		tab value. Generic canvas targets remain a separate presentation fallback.
 		"""
+		if self._structure_action_selection_v1 is not None:
+			return self._structure_action_targets_v1
 		from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 		selected = self._require_projection().selected_targets()
 		if type(selected) is not tuple:

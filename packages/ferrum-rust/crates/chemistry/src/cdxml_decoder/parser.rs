@@ -135,7 +135,7 @@ impl Fragment {
                     },
                 )?,
             );
-            points.push(atom.point.clone());
+            points.push(atom.point);
         }
         let mut bonds = Vec::with_capacity(self.bonds.len());
         for bond in self.bonds {

@@ -433,13 +433,13 @@ fn bind_durable_reactions_v1(
     let mut direct_records = HashMap::<&str, Option<&TypedRecord>>::new();
     for child in document.root().typed_children() {
         let record = child.record();
-        if record.path().components().len() == 1 {
-            if let Some(identifier) = record.attribute("id") {
-                direct_records
-                    .entry(identifier)
-                    .and_modify(|entry| *entry = None)
-                    .or_insert(Some(record));
-            }
+        if record.path().components().len() == 1
+            && let Some(identifier) = record.attribute("id")
+        {
+            direct_records
+                .entry(identifier)
+                .and_modify(|entry| *entry = None)
+                .or_insert(Some(record));
         }
     }
     let durable_reactions = reactions

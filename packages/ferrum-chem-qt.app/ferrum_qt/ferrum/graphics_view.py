@@ -20,6 +20,10 @@ ZOOM_PERCENT_MAXIMUM = 1000
 ZOOM_PERCENT_STEP = 5
 _ZOOM_FACTOR_PER_NOTCH = 1.15
 _WHEEL_UNITS_PER_NOTCH = 120.0
+_INACTIVE_CANVAS_ACCESSIBLE_DESCRIPTION = (
+	"Document-space cursor. Arrow keys move by one grid increment; "
+	"Shift+Arrow moves by a fine increment."
+)
 
 
 #============================================
@@ -67,10 +71,6 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		self.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
 		self.viewport().setMouseTracking(True)
 		self.setAccessibleName(self.tr("Ferrum drawing canvas"))
-		self.setAccessibleDescription(self.tr(
-			"Document-space cursor. Arrow keys move by one grid increment; "
-			"Shift+Arrow moves by a fine increment.",
-		))
 		self._direct_zoom_anchor_scene: PySide6.QtCore.QPointF | None = None
 		self._direct_zoom_change_in_progress = False
 		self._hex_grid_requested_visible = True
@@ -80,6 +80,8 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		) = None
 		self._keyboard_cursor_scene: PySide6.QtCore.QPointF | None = None
 		self._keyboard_cursor_item: PySide6.QtWidgets.QGraphicsPathItem | None = None
+		self._keyboard_cursor_accessibility_context: str | None = None
+		self._update_keyboard_cursor_accessibility()
 		self.horizontalScrollBar().valueChanged.connect(
 			self._invalidate_direct_zoom_anchor,
 		)
@@ -94,8 +96,10 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		self._hex_grid_item = None
 		self._keyboard_cursor_scene = None
 		self._keyboard_cursor_item = None
+		self._keyboard_cursor_accessibility_context = None
 		super().setScene(scene)
 		self._install_hex_grid_item(scene)
+		self._update_keyboard_cursor_accessibility()
 
 	#============================================
 	def show_keyboard_cursor(self) -> PySide6.QtCore.QPointF:
@@ -142,6 +146,15 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 		"""Clear only the disposable cursor marker, retaining its location."""
 		if self._keyboard_cursor_item is not None:
 			self._keyboard_cursor_item.setVisible(False)
+		self._update_keyboard_cursor_accessibility()
+
+	#============================================
+	def set_keyboard_cursor_accessibility_context(self, context: str | None) -> None:
+		"""Compose canvas accessibility from the cursor and one active-tool context."""
+		if context is not None and (type(context) is not str or not context):
+			raise TypeError("Ferrum keyboard cursor accessibility context must be a non-empty string")
+		self._keyboard_cursor_accessibility_context = context
+		self._update_keyboard_cursor_accessibility()
 
 	#============================================
 	def _ensure_keyboard_cursor_item(self) -> None:
@@ -180,18 +193,24 @@ class FerrumNativeGraphicsView(PySide6.QtWidgets.QGraphicsView):
 
 	#============================================
 	def _update_keyboard_cursor_accessibility(self) -> None:
-		"""Expose the visible cursor position to ordinary Qt accessibility clients."""
+		"""Publish the sole view-owned canvas accessibility description."""
 		point = self._keyboard_cursor_scene
-		if point is None:
+		item = self._keyboard_cursor_item
+		if point is None or item is None or not item.isVisible():
+			self.setAccessibleDescription(self.tr(_INACTIVE_CANVAS_ACCESSIBLE_DESCRIPTION))
 			return
-		self.setAccessibleDescription(self.tr(
+		cursor_description = self.tr(
 			"Document cursor at {0:.1f}, {1:.1f}. Arrow keys move by {2:.0f} "
 			"points; Shift+Arrow moves by {3:.0f} points."
 		).format(
 			point.x(), point.y(),
 			ferrum_qt.ferrum.keyboard_canvas.KEYBOARD_CURSOR_GRID_INCREMENT_PT,
 			ferrum_qt.ferrum.keyboard_canvas.KEYBOARD_CURSOR_FINE_INCREMENT_PT,
-		))
+		)
+		context = self._keyboard_cursor_accessibility_context
+		if context is not None:
+			cursor_description += " " + context
+		self.setAccessibleDescription(cursor_description)
 
 	#============================================
 	@property

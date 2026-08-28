@@ -22,7 +22,6 @@ import ferrum_qt.ferrum.rotation
 import ferrum_qt.ferrum.terminal_arrow
 import ferrum_qt.ferrum.text_placement
 import ferrum_qt.ferrum.text_placement_preview
-import ferrum_qt.ferrum.molecule_plan_overlay
 import ferrum_qt.ferrum.native_mode_input
 import ferrum_qt.ferrum.document_tab_errors
 import ferrum_qt.modes.base_mode

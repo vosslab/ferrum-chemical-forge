@@ -10,6 +10,7 @@ mod interchange_capability_catalog_v1;
 mod interchange_capability_v1;
 mod interchange_import_v1;
 mod interchange_output_v1;
+mod local_document_open_catalog_v2;
 mod presentation_path_gesture_v1;
 mod presentation_vector_gesture_v1;
 mod protocol;
@@ -60,14 +61,16 @@ pub use interchange_import_v1::{
     InterchangeImportLimitsV1, InterchangeImportRecoveryV1, InterchangeImportRefusalCategoryV1,
     InterchangeImportRefusalReasonV1, InterchangeImportRefusalV1, InterchangeOperationRefusalV1,
     InterchangeOperationV1, InterchangeRuntimeRequirementV1, InterchangeSemanticLossPolicyV1,
-    LocalDocumentIngressDecoderV1, LocalDocumentIngressDescriptorV1,
-    LocalDocumentIngressDirectionV1, LocalDocumentIngressRefusalV1, LocalDocumentIngressRegistryV1,
-    LocalDocumentIngressRouteV1, SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
+    SDF_IMPORT_FORMAT_V1, SDF_IMPORT_PROFILE_V1,
 };
 pub use interchange_output_v1::{
     CML_SIMPLE_MOLECULE_OUTPUT_FORMAT_V1, CML_SIMPLE_MOLECULE_OUTPUT_PROFILE_V1,
     ConversionOutputDescriptorV1, ConversionOutputRegistryRefusalV1, ConversionOutputRegistryV1,
     ConversionOutputTargetV1,
+};
+pub use local_document_open_catalog_v2::{
+    LocalDocumentOpenCatalogErrorV2, LocalDocumentOpenCatalogV2, LocalDocumentOpenDescriptorV2,
+    LocalDocumentOpenDispositionV2, LocalDocumentOpenRouteV2,
 };
 pub use presentation_path_gesture_v1::{
     ApiPresentationPathGestureV1, ApiPresentationPathOverlayV1, PresentationPathProgressV1,
@@ -110,10 +113,12 @@ pub use protocol::{
     DocumentMoleculeReportFindingCodeSummaryV1, DocumentMoleculeReportFindingLocationSummaryV1,
     DocumentMoleculeReportFindingRecoverySummaryV1, DocumentMoleculeReportFindingSeveritySummaryV1,
     DocumentMoleculeReportFindingSubjectSummaryV1, DocumentMoleculeReportFindingSummaryV1,
-    DocumentMoleculeReportRecordSummaryV1, DocumentMoleculeReportRequestV1,
-    DocumentMoleculeReportSnapshotV1, DocumentMoleculeReportStereoDepictionSummaryV1,
-    DocumentMoleculeReportStereoLigandSummaryV1, DocumentMoleculeReportStereoSemanticsSummaryV1,
-    DocumentMoleculeReportSummaryV1, DocumentMoleculeReportTetrahedralParitySummaryV1,
+    DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1,
+    DocumentMoleculeReportIdentifiersSummaryV1, DocumentMoleculeReportRecordSummaryV1,
+    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSnapshotV1,
+    DocumentMoleculeReportStereoDepictionSummaryV1, DocumentMoleculeReportStereoLigandSummaryV1,
+    DocumentMoleculeReportStereoSemanticsSummaryV1, DocumentMoleculeReportSummaryV1,
+    DocumentMoleculeReportTetrahedralParitySummaryV1,
     DocumentMoleculeReportTetrahedralStereoSummaryV1, DocumentRenderArtifactRequestV1,
     DocumentRequestFenceV1, DocumentRewriteRequestV1, DocumentSmartsQueryInputV1,
     DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,

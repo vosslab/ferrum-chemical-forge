@@ -517,7 +517,7 @@ class FerrumNativeMoleculeExportsMixin:
 	#============================================
 	def _current_molecule_export_intent(
 			self, worker: object, kind: str) -> _MoleculeExportIntent | None:
-		"""Return one export only while its exact source tab remains current."""
+		"""Return one admitted export while its exact source tab and fence remain current."""
 		intent = self._molecule_export_intent
 		if (
 			intent is None
@@ -534,13 +534,6 @@ class FerrumNativeMoleculeExportsMixin:
 			or tab.requires_refresh
 		):
 			return None
-		if kind == _SMILES_EXPORT:
-			address = (
-				ferrum_qt.ferrum.molecule_inspection.
-				selected_durable_molecule_address(tab)
-			)
-			if address is None or address.molecule_id != intent.molecule_id:
-				return None
 		snapshot = tab.current_snapshot
 		if snapshot.revision != intent.revision or snapshot.digest != intent.digest:
 			return None

@@ -153,10 +153,20 @@ def report_outcome(
 	for record in records:
 		if isinstance(record, dict) and record.get("molecule_id") == MOLECULE_ID:
 			composition = record.get("composition")
-			if isinstance(composition, dict) and composition.get("formula") == "CH4":
+			identifiers = record.get("identifiers")
+			if (
+				isinstance(composition, dict)
+				and composition.get("formula") == "CH4"
+				and identifiers == {
+					"kind": "available",
+					"canonical_smiles": "C",
+					"standard_inchi": "InChI=1S/CH4/h1H4",
+					"standard_inchi_key": "VNWKTOKETHGBQD-UHFFFAOYSA-N",
+				}
+			):
 				return
 	raise DocumentMoleculeReportCliE2eError(
-		"report omitted the selected durable molecule's methane formula"
+		"report omitted the selected durable molecule's complete native identity bundle"
 	)
 
 

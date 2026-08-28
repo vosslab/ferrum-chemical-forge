@@ -203,7 +203,7 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 			(self._zoom_in_action, standard.SP_ArrowUp),
 			(self._show_hex_grid_action, standard.SP_FileDialogContentsView),
 			(self._snap_hex_grid_action, standard.SP_DialogApplyButton),
-			(self._insert_catalog_template_action, standard.SP_FileDialogNewFolder),
+			(self._template_catalog_action, standard.SP_FileDialogNewFolder),
 			(self._create_reaction_action, standard.SP_FileDialogDetailedView),
 			(self._reaction_inspector_action, standard.SP_FileDialogContentsView),
 		):

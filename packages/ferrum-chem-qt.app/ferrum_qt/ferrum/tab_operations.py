@@ -7,8 +7,6 @@ _TAB_OPERATION_INTENTS = (
 	"_molecule_report_intent", "_clipboard_copy_intent", "_clipboard_cut_intent",
 	"_atom_oxidation_intent",
 	"_clipboard_paste_intent", "_coordinate_generation_intent",
-	"_user_template_placement_intent",
-	"_catalog_placement_intent",
 	"_compact_group_materialization_intent",
 	"_snapshot_export_intent",
 )
@@ -17,7 +15,7 @@ _TAB_OPERATION_INTENTS = (
 #============================================
 def tab_has_active_native_operation(window: object, tab: object) -> bool:
 	"""Return whether existing host-owned asynchronous work retains this tab."""
-	return any(
+	return bool(window._operation_leases.active_for_tab(tab)) or any(
 		_tab_owned_by_intent(getattr(window, name, None)) is tab
 		for name in _TAB_OPERATION_INTENTS
 	)

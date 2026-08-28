@@ -7,15 +7,40 @@ contexts:
   - id: selected_structure
     accessible_name: "Selected structure actions"
     groups:
-      - id: edit_selection
+      - id: edit_selected_atom
+        actions:
+          - edit.atom.change_element
+          - edit.atom.properties
+          - edit.atom.set_number
+          - edit.atom.clear_number
+          - edit.atom_mark.plus
+          - edit.atom_mark.minus
+          - edit.atom_mark.radical
+          - edit.atom_mark.biradical
+          - edit.atom_mark.electronpair
+          - edit.atom_mark.dotted_electronpair
+          - edit.atom_mark.pz_orbital
+          - edit.atom_mark.remove
+      - id: edit_selected_bond
+        actions:
+          - edit.bond.properties
+          - edit.bond.reverse_wedge
+          - edit.bond.change_order
+      - id: inspect_selected_structure
+        actions:
+          - chemistry.report.molecule
+          - chemistry.diagnostics.structure
+          - chemistry.bond_capacity.check
+          - chemistry.atom.oxidation_state
+      - id: edit_clipboard
         actions:
           - edit.cut
           - edit.copy
           - edit.paste
-      - id: inspect
+      - id: view_selection
         actions:
           - view.properties.toggle
-      - id: remove
+      - id: delete_selected_structure
         actions:
           - edit.delete_selection
 
@@ -334,8 +359,7 @@ menus:
             - action: chemistry.hydrogens.make_explicit
             - action: chemistry.compact_group.materialize
             - action: chemistry.linear_form.convert
-            - action: chemistry.template.insert
-            - action: chemistry.template.place
+            - action: chemistry.template.catalog
             - action: chemistry.haworth.direct_glycosidic.insert
       - section:
           id: chemistry_fragments

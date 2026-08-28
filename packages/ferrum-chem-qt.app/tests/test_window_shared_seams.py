@@ -17,6 +17,7 @@ import ferrum_qt.actions.action_registry
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.close_decision
+import ferrum_qt.ferrum.operation_leases
 import ferrum_qt.ferrum.property_observation
 import ferrum_qt.ferrum.window_shared_seams
 import ferrum_qt.ferrum.window_mode_sync
@@ -604,6 +605,71 @@ def test_invalid_close_index_returns_no_tab_without_window_mutation(main_window:
 	)
 	assert result is ferrum_qt.ferrum.close_decision.CloseResult.NO_TAB
 	assert window._tab_widget.currentWidget() is tab and tab in window._native_tabs_by_page
+
+
+#============================================
+def test_armed_catalog_close_cleans_up_and_closes_in_the_same_attempt(
+		main_window: object,
+		) -> None:
+	"""An armed clean catalog placement does not impose a retry-only tab close."""
+	window = main_window
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "catalog-clean-close.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	window._register_native_tab(tab, activate=True)
+	assert window._template_catalog_controller.start_placement(object(), "opaque-key")
+	result = window._close_native_tab_at(
+		window._tab_widget.indexOf(tab),
+		ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+	)
+	assert result is ferrum_qt.ferrum.close_decision.CloseResult.CLOSED
+	assert tab.is_disposed
+
+
+#============================================
+def test_armed_catalog_close_preserves_the_ordinary_dirty_decision(
+		qapp: PySide6.QtWidgets.QApplication, main_window: object,
+		) -> None:
+	"""Catalog cleanup precedes, but never bypasses, an unsaved-work decision."""
+	window = main_window
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'><molecule id='mol-1'><atom id='a1' name='C'><point x='10' y='10'/></atom></molecule></cdml>",
+		"catalog-dirty-close.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	window._register_native_tab(tab, activate=True)
+	window._refresh_actions()
+	_add_atom_through_active_canvas(qapp, window, tab)
+	assert window._template_catalog_controller.start_placement(object(), "opaque-key")
+	result = window._close_native_tab_at(
+		window._tab_widget.indexOf(tab),
+		ferrum_qt.ferrum.close_decision.CloseDecision.KEEP_OPEN,
+	)
+	assert result is ferrum_qt.ferrum.close_decision.CloseResult.DIRTY_REQUIRES_DECISION
+	assert tab in window._native_tabs_by_page
+
+
+#============================================
+def test_typed_catalog_cleanup_failure_preserves_the_tab(
+		main_window: object, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Only an exact lifecycle invariant error produces the typed close refusal."""
+	window = main_window
+	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(
+		"<cdml xmlns='urn:ferrum:cdml'/>", "catalog-close-failure.cdml",
+	ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
+	window._register_native_tab(tab, activate=True)
+
+	def refuse_cleanup(_tab: object, _reason: str) -> bool:
+		raise ferrum_qt.ferrum.operation_leases.OperationLeaseError("forced cleanup error")
+
+	monkeypatch.setattr(window._template_catalog_controller, "cancel_for_tab", refuse_cleanup)
+	result = window._close_native_tab_at(
+		window._tab_widget.indexOf(tab),
+		ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+	)
+	monkeypatch.undo()
+	assert result is ferrum_qt.ferrum.close_decision.CloseResult.OPERATION_CANCELLATION_FAILED
+	assert tab in window._native_tabs_by_page and not tab.is_disposed
 
 
 #============================================

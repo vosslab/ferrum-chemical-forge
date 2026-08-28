@@ -58,3 +58,15 @@ class FerrumNativeDocumentTabPublicationMixin:
 		self._require_live()
 		publication = self._session.recovery_export(path, expected_revision)
 		return publication
+
+	#============================================
+	def prepare_user_template_publication_v1(self) -> object:
+		"""Prepare an opaque Rust-owned template publication receipt for this tab."""
+		self._require_live()
+		return self._session.prepare_user_template_publication_v1()
+
+	#============================================
+	def publish_user_template_v1(self, receipt: object, path: str | pathlib.Path) -> object:
+		"""Redeem one opaque Rust receipt without serializing or reparsing Qt state."""
+		self._require_live()
+		return self._session.publish_user_template_v1(receipt, str(path))

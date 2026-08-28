@@ -14,10 +14,34 @@ import ferrum_qt.ferrum.presentation_properties
 import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
+import ferrum_qt.ferrum.operation_leases
 
 #============================================
 class FerrumNativeMainWindowLifecycleMixin:
 	"""Own tab registration, lifecycle guards, and action reachability."""
+
+	#============================================
+	def _structure_selection_mutation_eligible(self) -> bool:
+		"""Return the sole current gate for a Rust structural-selection mutation."""
+		tab = self._active_native_tab()
+		if tab is None or tab.is_disposed or tab.requires_refresh:
+			return False
+		return not (
+			self._molecule_import_busy()
+			or self._molecule_export_busy()
+			or self._molecule_inspection_busy()
+			or self._molecule_diagnostics_busy()
+			or self._atom_oxidation_busy()
+			or self._compact_group_materialization_intent is not None
+			or self._compact_group_authoring_intent is not None
+			or self._clipboard_busy()
+			or self._coordinate_generation_intent is not None
+			or self._operation_leases.has_active(
+				ferrum_qt.ferrum.operation_leases.OperationFamily.TEMPLATE_CATALOG,
+				tab=tab,
+			)
+			or self._snapshot_export_busy()
+		)
 
 	def _register_native_tab(
 			self,
@@ -29,6 +53,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 			raise TypeError("Ferrum window requires an exact FerrumNativeDocumentTab")
 		if tab in self._native_tabs_by_page:
 			raise ValueError("Ferrum tab is already registered")
+		self._operation_leases.bind_tab(tab)
 		index = self._tab_widget.addTab(tab, tab.title)
 		self._native_tabs_by_page[tab] = tab
 		self._install_native_hex_grid_for_tab(tab)
@@ -121,10 +146,10 @@ class FerrumNativeMainWindowLifecycleMixin:
 			return ferrum_qt.ferrum.close_decision.CloseResult.CLIPBOARD_OPERATION_BLOCKED
 		if self._coordinate_generation_blocks_tab_close(tab):
 			return ferrum_qt.ferrum.close_decision.CloseResult.COORDINATE_GENERATION_BLOCKED
-		if self._user_template_placement_blocks_tab_close(tab):
-			return ferrum_qt.ferrum.close_decision.CloseResult.USER_TEMPLATE_PLACEMENT_BLOCKED
-		if self._catalog_placement_blocks_tab_close(tab):
-			return ferrum_qt.ferrum.close_decision.CloseResult.CATALOG_PLACEMENT_BLOCKED
+		try:
+			self._template_catalog_controller.cancel_for_tab(tab, "tab_close")
+		except ferrum_qt.ferrum.operation_leases.OperationLeaseError:
+			return ferrum_qt.ferrum.close_decision.CloseResult.OPERATION_CANCELLATION_FAILED
 		if tab.requires_refresh:
 			return ferrum_qt.ferrum.close_decision.CloseResult.REFRESH_REQUIRED
 		if tab.is_dirty:
@@ -151,8 +176,13 @@ class FerrumNativeMainWindowLifecycleMixin:
 		):
 			self._cancel_direct_glycosidic_haworth_intent()
 		try:
+			self._operation_leases.unregister_tab(tab)
+		except ferrum_qt.ferrum.operation_leases.OperationLeaseError:
+			return ferrum_qt.ferrum.close_decision.CloseResult.OPERATION_CANCELLATION_FAILED
+		try:
 			tab.dispose()
 		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
+			self._operation_leases.bind_tab(tab)
 			return ferrum_qt.ferrum.close_decision.CloseResult.DISPOSAL_FAILED
 		self._close_molecule_report_dialog_for_tab(tab)
 		self._close_molecule_diagnostics_dialog_for_tab(tab)
@@ -251,15 +281,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 		tab = self._active_native_tab()
 		active = tab is not None and not tab.is_disposed
 		pending = active and tab.requires_refresh
-		template_intent = self._user_template_placement_intent
-		if (
-			template_intent is not None
-			and not self._user_template_placement_is_current(template_intent)
-		):
-			self._cancel_user_template_placement()
-		catalog_intent = self._catalog_placement_intent
-		if catalog_intent is not None and not self._catalog_current(catalog_intent):
-			self._cancel_catalog_placement()
 		busy_import = self._molecule_import_busy()
 		busy_export = self._molecule_export_busy()
 		busy_inspection = self._molecule_inspection_busy()
@@ -269,19 +290,26 @@ class FerrumNativeMainWindowLifecycleMixin:
 		busy_compact_group_authoring = self._compact_group_authoring_intent is not None
 		busy_clipboard = self._clipboard_busy()
 		busy_coordinates = self._coordinate_generation_intent is not None
-		busy_user_template = self._user_template_placement_intent is not None
-		busy_catalog_template = self._catalog_placement_intent is not None
-		busy_snapshot_export = self._snapshot_export_busy()
-		busy = (
-			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard or busy_coordinates
-			or busy_user_template or busy_catalog_template or busy_snapshot_export
+		busy_catalog_template = self._operation_leases.has_active(
+			ferrum_qt.ferrum.operation_leases.OperationFamily.TEMPLATE_CATALOG,
+			tab=tab,
 		)
+		busy_snapshot_export = self._snapshot_export_busy()
+		busy_without_catalog = (
+			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard or busy_coordinates
+			or busy_snapshot_export
+		)
+		busy = busy_without_catalog or busy_catalog_template
 		# A template placement is itself a terminal authoring intent.  Keep ordinary
 		# document commands protected, but leave the exclusive authoring actions
 		# reachable so selecting one can cancel the template owner before it arms.
 		authoring_busy = (
 			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_atom_oxidation or busy_compact_group_materialization or busy_compact_group_authoring or busy_clipboard
 			or busy_coordinates or busy_snapshot_export
+		)
+		selection_busy = (
+			busy_import or busy_compact_group_materialization
+			or busy_compact_group_authoring or busy_clipboard or busy_coordinates
 		)
 		if self._atom_insertion_intent is not None and (
 			not active or self._atom_insertion_intent.tab is not tab or busy
@@ -303,7 +331,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._save_as_action.setEnabled(active and not pending and not busy)
 		self._refresh_recovery_export_action(active, pending, busy)
 		self._refresh_snapshot_export_actions(active, pending, busy)
-		self._close_action.setEnabled(active and not pending and not busy)
+		self._close_action.setEnabled(active and not pending and not busy_without_catalog)
 		self._change_element_action.setEnabled(
 			active
 			and not busy
@@ -374,7 +402,7 @@ class FerrumNativeMainWindowLifecycleMixin:
 		self._add_single_bond_action.setEnabled(active and not pending and not busy)
 		self._refresh_line_tool_actions(active and not pending and not authoring_busy)
 		self._refresh_structure_selection_action(
-			active and not pending and not authoring_busy,
+			active and not pending and not selection_busy,
 		)
 		self._refresh_top_level_transform_actions(tab, active, pending, authoring_busy)
 		self._refresh_action.setEnabled(pending)
@@ -431,9 +459,8 @@ class FerrumNativeMainWindowLifecycleMixin:
 			active, pending,
 			busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard or busy_coordinates,
 		)
-		self._refresh_catalog_template_action(
-			active, pending, busy_import or busy_export or busy_inspection or busy_diagnostics or busy_clipboard
-			or busy_coordinates or busy_user_template or busy_snapshot_export,
+		self._template_catalog_controller.refresh_action(
+			active, pending, busy_without_catalog,
 		)
 		self._generate_coordinates_action.setEnabled(
 			active and not pending and not busy and bool(tab.durable_molecule_choices()),
@@ -464,8 +491,15 @@ class FerrumNativeMainWindowLifecycleMixin:
 		controller = getattr(self, "_smarts_query_controller", None)
 		if controller is not None:
 			controller.close()
-		self._cancel_user_template_placement()
-		self._cancel_catalog_placement()
+		try:
+			self._template_catalog_controller.cancel_active(reopen=False)
+		except ferrum_qt.ferrum.operation_leases.OperationLeaseError:
+			event.ignore()
+			self._show_edit_refusal(self._typed_refusal(
+				"close_document", "busy_close",
+				"Ferrum could not cancel the active template placement; keep the window open.",
+			))
+			return
 		self._cancel_direct_glycosidic_haworth_intent()
 		self._cancel_atom_insertion()
 		self._window_mode_sync.cancel()

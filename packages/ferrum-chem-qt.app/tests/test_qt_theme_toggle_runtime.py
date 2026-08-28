@@ -120,6 +120,25 @@ def test_theme_toggle_roundtrip(qapp: object, theme_manager: object) -> None:
 
 
 #============================================
+def test_transient_theme_applies_without_persisting_preference(
+		theme_manager: object,
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A bounded rendering theme changes live state but not saved user state."""
+	saved = []
+	emissions = []
+	monkeypatch.setattr(theme_manager, "_save_preference", saved.append)
+	theme_manager.theme_changed.connect(emissions.append)
+	theme_manager.apply_transient_theme("dark")
+	assert theme_manager.current_theme == "dark"
+	assert saved == []
+	change, = emissions
+	assert change.name == "dark"
+	theme_manager.apply_theme("light")
+	assert saved == ["light"]
+
+
+#============================================
 def test_invalid_document_palette_preserves_active_application_theme(
 		qapp: object,
 		theme_manager: object,

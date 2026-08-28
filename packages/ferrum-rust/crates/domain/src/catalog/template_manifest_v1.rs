@@ -74,6 +74,35 @@ pub enum CatalogRecipeKindV1 {
     Purine,
     HaworthBiomolecule(StandaloneDGlucoseHaworthRecipeV1),
 }
+impl CatalogRecipeKindV1 {
+    /// Stable closed semantic descriptor for catalog identity protocols.
+    #[must_use]
+    pub const fn canonical_descriptor(self) -> &'static str {
+        match self {
+            Self::Benzene => "ring:benzene;vertices=6;aromatic=true",
+            Self::Cyclopropane => "ring:cyclopropane;vertices=3",
+            Self::Cyclobutane => "ring:cyclobutane;vertices=4",
+            Self::Cyclopentane => "ring:cyclopentane;vertices=5",
+            Self::Cyclohexane => "ring:cyclohexane;vertices=6",
+            Self::Thiophene => "heterocycle:thiophene;vertices=5;hetero=sulfur;aromatic=true",
+            Self::Furan => "heterocycle:furan;vertices=5;hetero=oxygen;aromatic=true",
+            Self::Pyrrole => "heterocycle:pyrrole;vertices=5;hetero=nitrogen;aromatic=true",
+            Self::Purine => "heterocycle:purine;fused=imidazole+pyrimidine;aromatic=true",
+            Self::HaworthBiomolecule(StandaloneDGlucoseHaworthRecipeV1::AlphaDGlucopyranose) => {
+                "haworth:d-glucose;configuration=d;anomer=alpha;ring=pyranose;detached=true;translation_only=true"
+            }
+            Self::HaworthBiomolecule(StandaloneDGlucoseHaworthRecipeV1::BetaDGlucopyranose) => {
+                "haworth:d-glucose;configuration=d;anomer=beta;ring=pyranose;detached=true;translation_only=true"
+            }
+            Self::HaworthBiomolecule(StandaloneDGlucoseHaworthRecipeV1::AlphaDGlucofuranose) => {
+                "haworth:d-glucose;configuration=d;anomer=alpha;ring=furanose;detached=true;translation_only=true"
+            }
+            Self::HaworthBiomolecule(StandaloneDGlucoseHaworthRecipeV1::BetaDGlucofuranose) => {
+                "haworth:d-glucose;configuration=d;anomer=beta;ring=furanose;detached=true;translation_only=true"
+            }
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct CatalogEntrySummaryV1 {
     key: CatalogKeyV1,
@@ -97,6 +126,11 @@ impl CatalogEntrySummaryV1 {
     }
     pub const fn label(self) -> &'static str {
         self.label
+    }
+    /// Return the closed, Ferrum-authored search vocabulary for this entry.
+    #[must_use]
+    pub const fn terms(self) -> &'static [&'static str] {
+        self.terms
     }
     pub const fn provenance(self) -> CatalogProvenanceV1 {
         self.provenance
@@ -375,6 +409,20 @@ mod tests {
         assert_eq!(
             search_catalog_v1(Some(CatalogFamilyV1::Biomolecule), None, None).len(),
             4
+        );
+    }
+    #[test]
+    fn recipe_descriptors_are_closed_and_debug_independent() {
+        assert_eq!(
+            CatalogRecipeKindV1::HaworthBiomolecule(
+                StandaloneDGlucoseHaworthRecipeV1::AlphaDGlucopyranose
+            )
+            .canonical_descriptor(),
+            "haworth:d-glucose;configuration=d;anomer=alpha;ring=pyranose;detached=true;translation_only=true"
+        );
+        assert_ne!(
+            CatalogRecipeKindV1::Benzene.canonical_descriptor(),
+            CatalogRecipeKindV1::Cyclohexane.canonical_descriptor()
         );
     }
 }

@@ -2,7 +2,7 @@
 
 # Standard Library
 import collections.abc
-import inspect
+import dataclasses
 import weakref
 
 # PIP3 modules
@@ -16,11 +16,34 @@ import shiboken6
 class FerrumInteractionActionHandoffRefusal(Exception):
 	"""An intentional user-visible refusal from one pointer-owning action."""
 
-	def __init__(self, detail: str) -> None:
+	def __init__(self, detail: str, payload: object | None = None) -> None:
 		"""Create a refusal with the precise explanation shown by the window."""
 		if not isinstance(detail, str) or not detail:
 			raise ValueError("Ferrum interaction refusal detail must be nonempty text")
 		super().__init__(detail)
+		self.payload = payload
+
+
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class FerrumAdmittedInteractionCommand:
+	"""One prepared, one-shot interaction command safe to invoke after handoff."""
+
+	_callback: collections.abc.Callable[[], None]
+	_consumed: list[bool] = dataclasses.field(default_factory=lambda: [False],
+		repr=False, compare=False)
+
+	def __post_init__(self) -> None:
+		"""Reject malformed commands before the handoff can take ownership."""
+		if not callable(self._callback):
+			raise TypeError("Ferrum admitted interaction command callback must be callable")
+
+	def invoke(self) -> None:
+		"""Invoke this exact admitted command once, never re-querying prior state."""
+		if self._consumed[0]:
+			raise RuntimeError("Ferrum admitted interaction command was already invoked")
+		self._consumed[0] = True
+		self._callback()
 
 
 #============================================
@@ -63,13 +86,13 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 	"""Own one action invocation until its transient popup has closed."""
 
 	def __init__(self, handoff: "FerrumInteractionActionHandoff", action: PySide6.QtGui.QAction,
-			handler: object, accepts_checked: bool, checked: bool) -> None:
+			prepare: collections.abc.Callable[[bool], FerrumAdmittedInteractionCommand],
+			checked: bool) -> None:
 		"""Retain exactly one guarded action invocation."""
 		super().__init__(handoff)
 		self._handoff = handoff
 		self._action = action
-		self._handler = handler
-		self._accepts_checked = accepts_checked
+		self._prepare = prepare
 		self._checked = checked
 		self._state = "waiting"
 		self._popup: PySide6.QtWidgets.QWidget | None = None
@@ -142,17 +165,18 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 			return
 		self._state = "running"
 		try:
-			self._handoff._before_incoming_action(self._action, self._checked)
+			command = self._prepare(self._checked)
 		except FerrumInteractionActionHandoffRefusal as refusal:
-			self._fail(str(refusal))
+			self._fail(str(refusal), refusal.payload)
+			return
+		if not isinstance(command, FerrumAdmittedInteractionCommand):
+			self._fail("Ferrum interaction preparation returned an invalid command.")
 			return
 		try:
-			if self._accepts_checked:
-				self._handler(self._checked)
-			else:
-				self._handler()
+			self._handoff._before_incoming_action(self._action, self._checked)
+			command.invoke()
 		except FerrumInteractionActionHandoffRefusal as refusal:
-			self._fail(str(refusal))
+			self._fail(str(refusal), refusal.payload)
 			return
 		self._finish()
 
@@ -163,7 +187,7 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		self._state = "cancelled"
 		self._cleanup()
 
-	def _fail(self, detail: str) -> None:
+	def _fail(self, detail: str, payload: object | None = None) -> None:
 		"""Finish one abnormal invocation and present exactly one typed refusal."""
 		if self._state in ("cancelled", "finished"):
 			return
@@ -171,7 +195,7 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		if self._action_is_live() and self._action.isCheckable():
 			self._action.setChecked(False)
 		self._cleanup()
-		self._handoff._report_failure(detail)
+		self._handoff._report_failure(detail, payload)
 
 	def _finish(self) -> None:
 		"""Release all retained Qt and Python state after a successful invocation."""
@@ -182,7 +206,7 @@ class _PopupActionContinuation(PySide6.QtCore.QObject):
 		"""Release popup and action state after a terminal outcome."""
 		self._disconnect_popup()
 		self._handoff._release_continuation(self._action, self)
-		self._handler = None
+		self._prepare = None
 
 	def _disconnect_popup(self) -> None:
 		"""Remove only observers installed by this continuation."""
@@ -241,25 +265,17 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if canceller is not None:
 			canceller(clear_status)
 
-	def connect(self, action: PySide6.QtGui.QAction, handler: object) -> None:
-		"""Connect one pointer-owning action through its cancellation guard."""
-		if not callable(handler):
-			raise TypeError("Ferrum interaction action handler must be callable")
+	def connect(self, action: PySide6.QtGui.QAction,
+			prepare: collections.abc.Callable[[bool], FerrumAdmittedInteractionCommand]) -> None:
+		"""Connect one action through explicit preparation then ownership handoff."""
+		if not callable(prepare):
+			raise TypeError("Ferrum interaction action preparer must be callable")
 		if action in self._actions:
 			raise ValueError("Ferrum interaction action registered twice")
-		signature = inspect.signature(handler)
-		accepts_checked = any(
-			parameter.kind in (
-				inspect.Parameter.POSITIONAL_ONLY,
-				inspect.Parameter.POSITIONAL_OR_KEYWORD,
-				inspect.Parameter.VAR_POSITIONAL,
-			)
-			for parameter in signature.parameters.values()
-		)
 
 		def dispatch(checked: bool = False) -> None:
 			"""Associate this one trigger with the current popup lifecycle."""
-			self._dispatch(action, handler, accepts_checked, checked)
+			self._dispatch(action, prepare, checked)
 
 		self._actions[action] = dispatch
 		action.triggered.connect(dispatch)
@@ -282,8 +298,9 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		self._popup_latch_for(menu)
 		menus.add(menu)
 
-	def _dispatch(self, action: PySide6.QtGui.QAction, handler: object,
-			accepts_checked: bool, checked: bool) -> None:
+	def _dispatch(self, action: PySide6.QtGui.QAction,
+			prepare: collections.abc.Callable[[bool], FerrumAdmittedInteractionCommand],
+			checked: bool) -> None:
 		"""Create the one continuation for this exact Qt action trigger."""
 		if not self._owner_is_live() or not shiboken6.isValid(action):
 			return
@@ -291,7 +308,7 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		if previous is not None:
 			previous.cancel()
 		continuation = _PopupActionContinuation(
-			self, action, handler, accepts_checked, checked,
+			self, action, prepare, checked,
 		)
 		self._continuations[action] = continuation
 		popup = PySide6.QtWidgets.QApplication.activePopupWidget()
@@ -384,7 +401,7 @@ class FerrumInteractionActionHandoff(PySide6.QtCore.QObject):
 		"""Check both logical and C++ owner liveness before presentation or dispatch."""
 		return not self._owner_destroyed and shiboken6.isValid(self._owner)
 
-	def _report_failure(self, detail: str) -> None:
+	def _report_failure(self, detail: str, payload: object | None = None) -> None:
 		"""Present one shared typed refusal only while the owning window remains live."""
 		if self._owner_is_live():
-			self._failure_reporter(detail)
+			self._failure_reporter(payload if payload is not None else detail)

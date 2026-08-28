@@ -185,6 +185,7 @@ class CommandPaletteController:
 		self.parent = parent
 		self._registry = registry
 		self._invoking_focus: PySide6.QtWidgets.QWidget | None = None
+		self._pending_action: PySide6.QtGui.QAction | None = None
 		self._results: tuple[ferrum_qt.actions.action_registry.LiveActionView, ...] = ()
 		self._action_placements = action_placements
 		self.dialog = CommandPaletteDialog(self)
@@ -276,6 +277,8 @@ class CommandPaletteController:
 	#============================================
 	def activate_selected(self) -> None:
 		"""Close and invoke one currently enabled registered QAction exactly once."""
+		if self._pending_action is not None:
+			return
 		row = self.dialog.result_list.currentRow()
 		if row < 0 or row >= len(self._results):
 			return
@@ -286,8 +289,25 @@ class CommandPaletteController:
 				self.dialog.tr("{0} is currently unavailable.").format(view.label),
 			)
 			return
+		action = view.qt_action
+		self._pending_action = action
 		self.dialog.close()
-		view.qt_action.trigger()
+		PySide6.QtCore.QTimer.singleShot(0, self._trigger_pending_action)
+
+	#============================================
+	def _trigger_pending_action(self) -> None:
+		"""Dispatch after palette closure has restored the invoking focus lifecycle."""
+		action = self._pending_action
+		self._pending_action = None
+		if action is None:
+			return
+		try:
+			self.parent.activateWindow()
+			if action.isEnabled():
+				action.trigger()
+		except RuntimeError:
+			# The QAction's C++ owner may be deleted while the palette closes.
+			return
 
 	#============================================
 	def restore_invoking_focus(self) -> None:

@@ -64,6 +64,21 @@ build/bin/ferrum-qt
 
 The local build and Qt suites are the permanent developer validation boundary.
 
+## Verify the Python wheel
+
+Run the isolated packaging gate after changing PyO3, Cargo extension ownership,
+or Maturin configuration:
+
+```bash
+bash devel/verify_python_wheel.sh
+```
+
+The gate builds the checked-in Maturin project with its lockfile and a disposable
+Cargo target, installs the wheel into a disposable CPython 3.12 environment,
+clears the local developer `PYTHONPATH`, and imports the installed native module.
+It also creates an empty Rust-owned document so a package wrapper alone cannot
+satisfy the check.
+
 Ferrum's Rust engine is the local runtime chemistry backend. Accepted migration
 evidence remains in `docs/active_plans/reports/`. The optional
 `tests/e2e/reference/` environment contains only Python RDKit for one-time

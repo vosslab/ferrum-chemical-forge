@@ -30,11 +30,22 @@ class StructureSelectionMode(ferrum_qt.modes.base_mode.InteractionMode):
 	#============================================
 	def key_intent(self, key: str, context: ferrum_qt.modes.base_mode.ModeContext,
 			) -> ferrum_qt.modes.base_mode.ModeIntent | None:
-		"""Dispatch deletion through the feature endpoint and leave other keys alone."""
+		"""Translate active selection keys into feature-owned semantic intents."""
 		del context
-		if key not in ("Delete", "Backspace"):
+		operation_by_key = {
+			"Left": "selection.cursor.move.left",
+			"Right": "selection.cursor.move.right",
+			"Up": "selection.cursor.move.up",
+			"Down": "selection.cursor.move.down",
+			"Enter": "selection.cursor.select",
+			"Return": "selection.cursor.select",
+			"Delete": "selection.delete",
+			"Backspace": "selection.delete",
+		}
+		operation_id = operation_by_key.get(key)
+		if operation_id is None:
 			return None
-		intent = ferrum_qt.modes.base_mode.ModeIntent("selection.delete", ())
+		intent = ferrum_qt.modes.base_mode.ModeIntent(operation_id, ())
 		return intent
 
 	#============================================

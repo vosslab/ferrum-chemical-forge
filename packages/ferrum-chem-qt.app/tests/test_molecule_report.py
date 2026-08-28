@@ -1,5 +1,7 @@
 """Receipt authentication coverage for the native Molecule Report client."""
 
+import pytest
+
 # local repo modules
 import ferrum_qt.ferrum.engine
 import ferrum_qt.ferrum.molecule_inspection
@@ -44,6 +46,12 @@ def _record(molecule_id: str, document_paint_order: int) -> dict:
 		"authored_charge": None,
 		"authored_elements": [{"symbol": "C", "atom_count": 1}],
 		"composition": None,
+		"identifiers": {
+			"kind": "available",
+			"canonical_smiles": "C",
+			"standard_inchi": "InChI=1S/CH4/h1H4",
+			"standard_inchi_key": "VNWKTOKETHGBQD-UHFFFAOYSA-N",
+		},
 		"neutral_bond_capacity": "within_capacity",
 		"stereo_semantics": None,
 		"stereo_depiction": None,
@@ -109,3 +117,18 @@ def test_molecule_report_matches_durable_ids_without_changing_rust_order() -> No
 	assert [record["molecule_id"] for record in report["records"]] == [
 		second_molecule_id, first_molecule_id,
 	]
+
+
+#============================================
+@pytest.mark.parametrize("identifiers", [
+	{"kind": "available", "canonical_smiles": "C"},
+	{"kind": "unavailable", "reason": "unrecognized"},
+	{"kind": "available", "canonical_smiles": "C", "standard_inchi": "I", "standard_inchi_key": "K", "native_detail": "private"},
+])
+def test_molecule_report_rejects_noncanonical_identifier_receipts(identifiers: dict) -> None:
+	"""A report callback admits only the closed Rust identifier outcome."""
+	molecule_id, _unused_molecule_id = _durable_molecule_ids()
+	record = _record(molecule_id, 0)
+	record["identifiers"] = identifiers
+
+	assert _authenticated_report(_intent(molecule_id), _response([record])) is None

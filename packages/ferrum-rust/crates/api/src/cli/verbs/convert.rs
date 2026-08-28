@@ -20,6 +20,14 @@ pub(crate) struct ConvertOptions {
     pub(crate) json: bool,
 }
 
+/// Fully admitted conversion facts shared by production and controlled test execution.
+#[derive(Clone, Copy)]
+struct ResolvedConversionV1 {
+    input_format: InterchangeInputFormat,
+    output_format: ferrum_document::InterchangeFormatV1,
+    execution_profile: crate::ConversionExecutionProfileV1,
+}
+
 pub(crate) fn run(
     options: ConvertOptions,
     stdin: &mut dyn Read,
@@ -42,9 +50,11 @@ pub(crate) fn run(
         InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
     run_with_executor(
         options,
-        input_format,
-        output.target().protocol_format(),
-        execution_profile,
+        ResolvedConversionV1 {
+            input_format,
+            output_format: output.target().protocol_format(),
+            execution_profile,
+        },
         stdin,
         stdout,
         stderr,
@@ -76,9 +86,11 @@ pub(crate) fn run_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRu
         InterchangeCapabilityResolverV1::resolve_execution_profile(input, output);
     run_with_executor(
         options,
-        input_format,
-        output.target().protocol_format(),
-        execution_profile,
+        ResolvedConversionV1 {
+            input_format,
+            output_format: output.target().protocol_format(),
+            execution_profile,
+        },
         stdin,
         stdout,
         stderr,
@@ -88,9 +100,7 @@ pub(crate) fn run_with_runtime_for_test<R: crate::protocol::runtime::ChemistryRu
 
 fn run_with_executor(
     options: ConvertOptions,
-    input_format: InterchangeInputFormat,
-    output_format: ferrum_document::InterchangeFormatV1,
-    execution_profile: crate::ConversionExecutionProfileV1,
+    conversion: ResolvedConversionV1,
     stdin: &mut dyn Read,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -98,14 +108,18 @@ fn run_with_executor(
         OperationProtocolOperationV1,
     ) -> Result<OperationProtocolEnvelopeV1, VerbCliError>,
 ) -> Result<(), VerbCliError> {
-    let source = read_text(&options.input, stdin, execution_profile.max_source_bytes())?;
+    let source = read_text(
+        &options.input,
+        stdin,
+        conversion.execution_profile.max_source_bytes(),
+    )?;
     let envelope = executor(OperationProtocolOperationV1::ChemistryConvert(
         ChemistryConvertRequestV1 {
             input: ChemistryConvertInputV1 {
-                format: input_format.into(),
+                format: conversion.input_format.into(),
                 text: source.text,
             },
-            output_format,
+            output_format: conversion.output_format,
         },
     ))?;
     if options.json {

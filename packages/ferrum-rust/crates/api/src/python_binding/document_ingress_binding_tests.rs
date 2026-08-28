@@ -65,8 +65,24 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         );
         let document_session = module.getattr("DocumentSession").expect("session type");
         let descriptors = document_session
-            .call_method0("local_interchange_open_descriptors_v1")
+            .call_method0("local_document_open_descriptors_v2")
             .expect("descriptors issue");
+        assert!(
+            !document_session
+                .hasattr("local_document_open_descriptors_v1")
+                .expect("session surface is inspectable"),
+            "V1 split discovery must not remain public"
+        );
+        for descriptor in descriptors.try_iter().expect("descriptors iterate") {
+            assert!(
+                !descriptor
+                    .expect("descriptor")
+                    .getattr("route_handle")
+                    .expect("every V2 descriptor issues a handle")
+                    .is_none(),
+                "native and interchange File/Open routes both carry opaque handles"
+            );
+        }
         let cml_descriptor = issued_descriptor(&descriptors, ".cml");
         let sdf_descriptor = issued_descriptor(&descriptors, ".sdf");
         let cml_handle = cml_descriptor
@@ -93,7 +109,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         assert!(
             document_session
                 .call_method1(
-                    "prepare_local_interchange_file_v1",
+                    "prepare_local_document_open_file_v2",
                     (
                         "/definitely-not-an-interchange-file.cml",
                         "cml_simple_molecule_import_v1"
@@ -104,7 +120,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         assert!(
             document_session
                 .call_method1(
-                    "prepare_local_interchange_file_v1",
+                    "prepare_local_document_open_file_v2",
                     ("/definitely-not-an-interchange-file.cml", &cml_handle),
                 )
                 .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py))
@@ -118,7 +134,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         assert!(
             document_session
                 .call_method1(
-                    "read_local_interchange_utf8_v1",
+                    "read_local_interchange_utf8_v2",
                     (path.to_string_lossy().as_ref(), "sdf"),
                 )
                 .is_err_and(|error| error.is_instance_of::<PyTypeError>(py)),
@@ -127,7 +143,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         assert_eq!(
             document_session
                 .call_method1(
-                    "read_local_interchange_utf8_v1",
+                    "read_local_interchange_utf8_v2",
                     (path.to_string_lossy().as_ref(), &sdf_handle),
                 )
                 .expect("registered SDF source reads as text")
@@ -138,7 +154,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         assert!(
             document_session
                 .call_method1(
-                    "read_local_interchange_utf8_v1",
+                    "read_local_interchange_utf8_v2",
                     ("/definitely-not-an-interchange-file.sdf", &sdf_handle),
                 )
                 .is_err_and(|error| !error.is_instance_of::<PyTypeError>(py)),
@@ -148,13 +164,14 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
         fs::write(&cml_path, TWO_ATOM_CML_V1).expect("write valid CML");
         let prepared = document_session
             .call_method1(
-                "prepare_local_interchange_file_v1",
+                "prepare_local_document_open_file_v2",
                 (cml_path.to_string_lossy().as_ref(), cml_handle),
             )
             .expect("registered CML descriptor prepares a new document");
-        let summary = prepared
-            .getattr("interchange_summary")
-            .expect("safe generic receipt");
+        let admission = prepared
+            .call_method0("take_admission_v2")
+            .expect("redeem once");
+        let summary = admission.get_item(4).expect("interchange summary receipt");
         assert!(!summary.is_none(), "interchange receipts carry a summary");
         assert_eq!(
             summary
@@ -201,9 +218,6 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
                 .is_instance_of::<pyo3::types::PyString>()
         );
 
-        let admission = prepared
-            .call_method0("take_admission_v1")
-            .expect("redeem once");
         let session = admission.get_item(0).expect("admitted session");
         let revision = session
             .call_method0("snapshot")
@@ -213,7 +227,7 @@ fn interchange_preparation_requires_a_descriptor_issued_opaque_route_handle() {
             .extract::<u64>()
             .expect("revision is an integer");
         assert!(
-            prepared.call_method0("take_admission_v1").is_err(),
+            prepared.call_method0("take_admission_v2").is_err(),
             "replay refuses"
         );
         assert_eq!(
@@ -240,7 +254,7 @@ fn cml_interchange_admission_observation_matches_committed_snapshot() {
         super::super::binding::initialize(&module).expect("extension module registers");
         let document_session = module.getattr("DocumentSession").expect("session type");
         let descriptors = document_session
-            .call_method0("local_interchange_open_descriptors_v1")
+            .call_method0("local_document_open_descriptors_v2")
             .expect("descriptors issue");
         let cml_handle = issued_descriptor(&descriptors, ".cml")
             .getattr("route_handle")
@@ -250,12 +264,12 @@ fn cml_interchange_admission_observation_matches_committed_snapshot() {
 
         let prepared = document_session
             .call_method1(
-                "prepare_local_interchange_file_v1",
+                "prepare_local_document_open_file_v2",
                 (path.to_string_lossy().as_ref(), cml_handle),
             )
             .expect("registered CML descriptor prepares a new document");
         let admission = prepared
-            .call_method0("take_admission_v1")
+            .call_method0("take_admission_v2")
             .expect("redeem CML admission");
         assert_eq!(
             admission
@@ -309,7 +323,7 @@ fn cdxml_descriptor_prepares_through_the_opaque_generic_route() {
         super::super::binding::initialize(&module).expect("extension module registers");
         let document_session = module.getattr("DocumentSession").expect("session type");
         let descriptors = document_session
-            .call_method0("local_interchange_open_descriptors_v1")
+            .call_method0("local_document_open_descriptors_v2")
             .expect("descriptors issue");
         let cdxml_descriptor = issued_descriptor(&descriptors, ".cdxml");
         let cdxml_handle = cdxml_descriptor
@@ -320,13 +334,14 @@ fn cdxml_descriptor_prepares_through_the_opaque_generic_route() {
 
         let prepared = document_session
             .call_method1(
-                "prepare_local_interchange_file_v1",
+                "prepare_local_document_open_file_v2",
                 (path.to_string_lossy().as_ref(), cdxml_handle),
             )
             .expect("registered CDXML descriptor prepares a new document");
-        let summary = prepared
-            .getattr("interchange_summary")
-            .expect("safe generic receipt");
+        let admission = prepared
+            .call_method0("take_admission_v2")
+            .expect("redeem CDXML admission");
+        let summary = admission.get_item(4).expect("interchange summary receipt");
         assert_eq!(
             summary
                 .getattr("format_id")
@@ -343,9 +358,6 @@ fn cdxml_descriptor_prepares_through_the_opaque_generic_route() {
                 .expect("declared loss categories are text"),
             ["lexical_syntax", "document_view_metadata"]
         );
-        let admission = prepared
-            .call_method0("take_admission_v1")
-            .expect("redeem CDXML admission");
         assert_eq!(
             admission
                 .get_item(3)
@@ -366,7 +378,7 @@ fn cdxml_opaque_route_refuses_unrepresented_semantics_without_source_disclosure(
         super::super::binding::initialize(&module).expect("extension module registers");
         let document_session = module.getattr("DocumentSession").expect("session type");
         let descriptors = document_session
-            .call_method0("local_interchange_open_descriptors_v1")
+            .call_method0("local_document_open_descriptors_v2")
             .expect("descriptors issue");
         let cdxml_handle = issued_descriptor(&descriptors, ".cdxml")
             .getattr("route_handle")
@@ -376,7 +388,7 @@ fn cdxml_opaque_route_refuses_unrepresented_semantics_without_source_disclosure(
 
         let error = document_session
             .call_method1(
-                "prepare_local_interchange_file_v1",
+                "prepare_local_document_open_file_v2",
                 (path.to_string_lossy().as_ref(), cdxml_handle),
             )
             .expect_err("unrepresented CDXML semantics must refuse before preparation");

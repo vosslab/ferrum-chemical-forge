@@ -57,16 +57,16 @@ pub(crate) fn execute_document_compact_group_materialize_on_session(
         .snapshot()
         .map_err(|error| ExecutionFailureV1::internal(error.to_string()))?;
     Ok((
-        compact_group_materialization_outcome(
+        compact_group_materialization_outcome(CompactGroupMaterializationOutcomePartsV1 {
             source_revision,
             source_digest_hex,
-            source_molecule_id,
-            source_compact_group_id,
-            materialization.focus_atom_id().as_str().to_owned(),
-            snapshot.cdml().to_owned(),
-            0,
-            hex_digest(snapshot.digest()),
-        ),
+            molecule_id: source_molecule_id,
+            compact_group_id: source_compact_group_id,
+            replacement_focus_atom_id: materialization.focus_atom_id().as_str().to_owned(),
+            document: snapshot.cdml().to_owned(),
+            document_revision: 0,
+            document_digest_hex: hex_digest(snapshot.digest()),
+        }),
         Some(result),
     ))
 }
@@ -88,28 +88,33 @@ pub(crate) fn execute_document_compact_group_materialize_transition_on_session(
     }
 }
 
+/// Named source and committed-document facts for one materialization receipt.
+pub(crate) struct CompactGroupMaterializationOutcomePartsV1 {
+    pub(crate) source_revision: u64,
+    pub(crate) source_digest_hex: String,
+    pub(crate) molecule_id: String,
+    pub(crate) compact_group_id: String,
+    pub(crate) replacement_focus_atom_id: String,
+    pub(crate) document: String,
+    pub(crate) document_revision: u64,
+    pub(crate) document_digest_hex: String,
+}
+
 pub(crate) fn compact_group_materialization_outcome(
-    source_revision: u64,
-    source_digest_hex: String,
-    molecule_id: String,
-    compact_group_id: String,
-    replacement_focus_atom_id: String,
-    document: String,
-    document_revision: u64,
-    document_digest_hex: String,
+    parts: CompactGroupMaterializationOutcomePartsV1,
 ) -> OperationProtocolOutcomeV1 {
     OperationProtocolOutcomeV1::DocumentCompactGroupMaterialize {
         materialization: DocumentCompactGroupMaterializationResultV1 {
             schema: MATERIALIZATION_SCHEMA_V1.to_owned(),
-            source_revision,
-            source_digest_hex,
-            molecule_id,
-            compact_group_id,
-            replacement_focus_atom_id,
-            document,
+            source_revision: parts.source_revision,
+            source_digest_hex: parts.source_digest_hex,
+            molecule_id: parts.molecule_id,
+            compact_group_id: parts.compact_group_id,
+            replacement_focus_atom_id: parts.replacement_focus_atom_id,
+            document: parts.document,
             document_fence: DocumentRequestFenceV1 {
-                expected_revision: document_revision,
-                expected_digest_hex: document_digest_hex,
+                expected_revision: parts.document_revision,
+                expected_digest_hex: parts.document_digest_hex,
             },
         },
     }

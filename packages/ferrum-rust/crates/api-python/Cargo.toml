@@ -18,7 +18,7 @@ workspace = true
 
 [dependencies]
 ferrum-api = { path = "../api", features = ["python-binding"] }
-pyo3 = { version = "*", features = ["extension-module"] }
+pyo3 = { version = "*" }
 
 [build-dependencies]
 pyo3-build-config = { version = "*" }

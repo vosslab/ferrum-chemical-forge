@@ -34,6 +34,10 @@ use super::molecule_report_diagnostics_v1::{
     append_graph_finding_v1, collect_report_findings_v1, finding_recovery_summary_v1,
     map_diagnostic_finding_error_v1,
 };
+use super::molecule_report_identifiers_v1::{
+    DocumentMoleculeReportIdentifiersV1, evaluate_identifiers_v1, identifier_summary_v1,
+    unavailable_identifiers_for_missing_graph_v1,
+};
 use super::runtime::ChemistryRuntimeV1;
 
 /// Stable report schema identifier.
@@ -167,6 +171,7 @@ struct PreparedReportRecordV1 {
 struct DocumentMoleculeReportRecordV1 {
     source: DocumentMoleculeReportSourceV1,
     composition: Option<MoleculeComposition>,
+    identifiers: DocumentMoleculeReportIdentifiersV1,
     neutral_bond_capacity: DocumentBondCapacityOutcomeV1,
     findings: Vec<super::dto::DocumentMoleculeReportFindingSummaryV1>,
 }
@@ -178,6 +183,10 @@ impl DocumentMoleculeReportRecordV1 {
     #[must_use]
     const fn composition(&self) -> Option<&MoleculeComposition> {
         self.composition.as_ref()
+    }
+    #[must_use]
+    const fn identifiers(&self) -> &DocumentMoleculeReportIdentifiersV1 {
+        &self.identifiers
     }
     #[must_use]
     const fn neutral_bond_capacity(&self) -> &DocumentBondCapacityOutcomeV1 {
@@ -330,9 +339,14 @@ fn execute_prepared_document_molecule_report_v1(
             append_composition_unavailable_finding_v1(&mut record.findings)
                 .map_err(map_diagnostics_error)?;
         }
+        let identifiers = match record.graph.as_ref() {
+            Some(graph) => evaluate_identifiers_v1(engine, graph)?,
+            None => unavailable_identifiers_for_missing_graph_v1(),
+        };
         records.push(DocumentMoleculeReportRecordV1 {
             source: record.source,
             composition,
+            identifiers,
             neutral_bond_capacity: record.capacity,
             findings: record.findings,
         });
@@ -540,7 +554,7 @@ enum DocumentMoleculeReportRequestErrorV1 {
     TooManySelectors,
 }
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-enum DocumentMoleculeReportErrorV1 {
+pub(super) enum DocumentMoleculeReportErrorV1 {
     #[error("molecule report observation or direct-root resolution was refused")]
     Inspection,
     #[error("molecule report capacity evaluation was refused")]
@@ -747,6 +761,7 @@ fn report_summary_with_source_provenance(
                 )
                 .collect(),
             composition: record.composition().map(composition_summary),
+            identifiers: identifier_summary_v1(record.identifiers()),
             neutral_bond_capacity: capacity_name(record.neutral_bond_capacity()).to_owned(),
             stereo_semantics: record.source().stereo_semantics().map(stereo_summary),
             stereo_depiction: record

@@ -76,8 +76,14 @@ captures an owned CDML/revision/digest snapshot and durable selected root IDs.
 A detached worker calls a thread-safe module-level or static PyO3 typed executor
 with those owned values only. That executor validates the request and digest and
 returns typed data; it performs no JSON serialization round trip and never calls
-a session-bound method. When the result reaches the UI thread, Qt authenticates
-the current tab, fence, and selection before presenting it.
+a session-bound method. Selection is admission-only. When the result reaches the
+UI thread, Qt authenticates worker/cancel state, a live active ready tab, exact
+revision/digest, and the receipt molecule ID/schema before presenting it.
+
+A later selection change or clear does not discard that valid historical
+result. The dialog becomes stale and disables rerun until the original molecule
+selection is recaptured. While this read-only worker runs, Select Structure
+remains available, but selection mutations such as Delete remain disabled.
 
 Qt exposes one explicit `Check Structure...` action and presents authenticated
 findings in a modeless, accessible, read-only dialog. Qt owns only action state,
@@ -92,7 +98,9 @@ user returns to the existing Rust-owned materialization workflow.
 - Formula, mass, identifiers, oxidation, SMARTS, or runtime chemistry.
 - Known-group expansion itself; diagnostics may point to the existing recovery
   but do not perform it.
-- Canvas highlighting, navigation, or selection changes.
+- Diagnostic-owned canvas highlighting, navigation, or selection changes.
+  User navigation and non-mutating selection remain available; selection
+  mutations remain disabled while the worker runs.
 - Legacy-ID reconstruction or runtime migration heuristics.
 - Publishing, installation, or workflow automation outside the local build.
 
@@ -105,8 +113,8 @@ user returns to the existing Rust-owned materialization workflow.
 - Installed PyO3 coverage proves owned-value typed executor transport, digest
   rejection, and execution without a JSON round trip or session-bound worker
   call.
-- Focused Qt coverage proves an explicit accessible action and modeless,
-  read-only finding presentation.
+- Focused Qt coverage proves admission-only selection, fenced receipt delivery,
+  stale-result/rerun behavior, navigation, and mutation-action gating.
 - One registered public E2E authors an attached compact group through visible
   UI, leaves it unexpanded, runs `Check Structure...`, and uses the existing
   public Rust-owned materialization route to recover. It asserts a durable

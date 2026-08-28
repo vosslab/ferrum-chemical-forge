@@ -1,9 +1,8 @@
 use crate::RenderInteractionSessionV1;
 use ferrum_document::{
     CreateAtomV1, CreateBondV1, DocumentBondOrderV1, DocumentBondPresentationV1,
-    DocumentRenderObservationV1, DocumentSession, DocumentSnapshot, PendingCreateWavy, Point3V1,
-    Publication, SaveOutcome, SessionOperation, SessionOperationTransitionRequestV1,
-    SessionOperationV1, TransitionAuthorizationV1,
+    DocumentRenderObservationV1, DocumentSession, PendingCreateWavy, Point3V1, SessionOperation,
+    SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyTuple};
@@ -19,88 +18,7 @@ use super::molecule_coordinate_binding::{
 use super::projection_binding::PySessionDocumentObservationV1;
 use super::render_binding::{self, PyRenderObservationV1};
 use super::session_operation_result_binding::PySessionOperationResultV1;
-
-/// Immutable Python-owned copy of one authoritative document revision.
-///
-/// All values are copied from Rust. A snapshot has no mutable alias to its
-/// originating [`PyDocumentSession`], so callers may retain it after later session
-/// calls, but it never observes those later revisions.
-#[pyclass(frozen, name = "DocumentSnapshot", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyDocumentSnapshot {
-    #[pyo3(get)]
-    cdml: String,
-    #[pyo3(get)]
-    revision: u64,
-    #[pyo3(get)]
-    digest: String,
-    #[pyo3(get)]
-    is_dirty: bool,
-}
-
-impl From<DocumentSnapshot> for PyDocumentSnapshot {
-    fn from(snapshot: DocumentSnapshot) -> Self {
-        Self {
-            cdml: snapshot.cdml().to_owned(),
-            revision: snapshot.revision(),
-            digest: hex_digest(snapshot.digest()),
-            is_dirty: snapshot.is_dirty(),
-        }
-    }
-}
-
-/// Closed outcome of an ordinary save publication.
-///
-/// Instances are created only by [`PyPublication`]. Use the boolean facts instead
-/// of comparing a mutable spelling.
-#[pyclass(frozen, name = "SaveOutcome", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PySaveOutcome {
-    outcome: SaveOutcome,
-}
-
-#[pymethods]
-impl PySaveOutcome {
-    /// Return whether the saved baseline was advanced.
-    #[getter]
-    fn is_confirmed(&self) -> bool {
-        self.outcome == SaveOutcome::Confirmed
-    }
-
-    /// Return whether the destination needs explicit verification or recovery.
-    #[getter]
-    fn requires_destination_verification(&self) -> bool {
-        self.outcome == SaveOutcome::DirectoryEntryUnconfirmed
-    }
-}
-
-/// Immutable result of one document publication attempt.
-///
-/// `snapshot` is the session state after the operation. `published_snapshot` is
-/// the exact value given to the publisher. A confirmed ordinary save returns a
-/// clean `snapshot`; recovery exports and unconfirmed replacements do not alter
-/// the session baseline.
-#[pyclass(frozen, name = "Publication")]
-pub(crate) struct PyPublication {
-    #[pyo3(get)]
-    snapshot: PyDocumentSnapshot,
-    #[pyo3(get)]
-    published_snapshot: PyDocumentSnapshot,
-    #[pyo3(get)]
-    outcome: PySaveOutcome,
-}
-
-impl From<Publication> for PyPublication {
-    fn from(publication: Publication) -> Self {
-        Self {
-            snapshot: publication.snapshot().clone().into(),
-            published_snapshot: publication.published_snapshot().clone().into(),
-            outcome: PySaveOutcome {
-                outcome: publication.outcome(),
-            },
-        }
-    }
-}
+use super::session_publication_binding::PyDocumentSnapshot;
 
 /// Opaque one-use prepared Wavy insertion.
 ///
@@ -438,6 +356,7 @@ impl PyDocumentSession {
     }
 
     /// Rotate durable molecule-owned atom targets under one exact live fence.
+    #[allow(clippy::too_many_arguments)]
     fn rotate_live_document_atoms_v1(
         &mut self,
         py: Python<'_>,
@@ -836,6 +755,7 @@ impl PyDocumentSession {
     }
 
     /// Resolve one atom authoring intent into an opaque generic transition request.
+    #[allow(clippy::too_many_arguments)]
     fn resolve_create_atom_v1(
         &self,
         py: Python<'_>,
@@ -963,7 +883,7 @@ fn parse_live_digest(py: Python<'_>, value: &str) -> PyResult<[u8; 32]> {
         ));
     }
     let mut digest = [0; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         digest[index] = (hex_value(pair[0]) << 4) | hex_value(pair[1]);
     }
     Ok(digest)
@@ -975,8 +895,4 @@ const fn hex_value(value: u8) -> u8 {
         b'a'..=b'f' => value - b'a' + 10,
         _ => 0,
     }
-}
-
-pub(crate) fn hex_digest(digest: &[u8; 32]) -> String {
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

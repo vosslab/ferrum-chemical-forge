@@ -59,6 +59,7 @@ def test_molecule_report_schema_exposes_closed_aggregate_outcomes() -> None:
 	schema = json.loads(ferrum_chem.operation_protocol_schema_v1())
 	definitions = schema["$defs"]
 	record = definitions["DocumentMoleculeReportRecordSummaryV1"]["properties"]
+	record_required = definitions["DocumentMoleculeReportRecordSummaryV1"]["required"]
 	report = definitions["DocumentMoleculeReportSummaryV1"]["properties"]
 	aggregate = definitions["DocumentMoleculeReportAggregateOutcomeSummaryV1"]
 	omission = definitions["DocumentMoleculeReportAggregateOmissionReasonSummaryV1"]
@@ -67,6 +68,8 @@ def test_molecule_report_schema_exposes_closed_aggregate_outcomes() -> None:
 
 	assert (
 		"composition" in record
+		and "identifiers" in record
+		and "identifiers" in record_required
 		and "composition_formula" not in record
 		and "aggregate" in report
 		and "combined_composition" not in report
@@ -76,6 +79,41 @@ def test_molecule_report_schema_exposes_closed_aggregate_outcomes() -> None:
 		and omission["enum"] == ["fewer_than_two_selected", "incomplete_record_composition"]
 		and {"formula", "net_formal_charge", "average_molecular_weight_da", "monoisotopic_mass_da", "elements"}.issubset(composition)
 		and {"symbol", "isotope", "atom_count", "average_mass_contribution_da", "mass_percentage"}.issubset(element)
+	)
+
+
+def test_molecule_report_installed_receipt_preserves_complete_identifiers() -> None:
+	"""The installed PyO3 route publishes one complete native identifier bundle."""
+	session = ferrum_chem.DocumentSession.load(CDML)
+	snapshot = session.snapshot()
+	molecule_id = session.observe(snapshot.revision).projection.molecules[0].document_object_id
+	completed = json.loads(ferrum_chem.execute_operation_v1(json.dumps({
+		"schema": "ferrum-operation-request-v1",
+		"request_id": "identifier-receipt-example",
+		"operation": {
+			"kind": "document.molecule.report.v1",
+			"snapshot": {
+				"cdml": snapshot.cdml,
+				"revision": snapshot.revision,
+				"digest_hex": snapshot.digest,
+			},
+			"molecule_ids": [molecule_id],
+		},
+	})))
+	report = completed["outcome"]["report"]
+	identifiers = report["records"][0]["identifiers"]
+	after = session.snapshot()
+
+	assert identifiers == {
+		"kind": "available",
+		"canonical_smiles": "C",
+		"standard_inchi": "InChI=1S/CH4/h1H4",
+		"standard_inchi_key": "VNWKTOKETHGBQD-UHFFFAOYSA-N",
+	}
+	assert report["source_revision"] == snapshot.revision and (
+		report["source_digest_hex"] == snapshot.digest
+		and after.revision == snapshot.revision
+		and after.digest == snapshot.digest
 	)
 
 
@@ -107,6 +145,9 @@ def test_molecule_report_serializes_structured_diagnostic_findings() -> None:
 	zero_bond_finding = findings_by_code["zero_order_bond"]
 
 	assert report["source_revision"] == snapshot.revision and report["source_digest_hex"] == snapshot.digest
+	assert record["identifiers"] == {
+		"kind": "unavailable", "reason": "unsupported_molecule",
+	}
 	assert "finding_codes" not in record
 	assert text_finding["severity"] == "warning"
 	assert text_finding["recovery"] == "choose_supported_representation"

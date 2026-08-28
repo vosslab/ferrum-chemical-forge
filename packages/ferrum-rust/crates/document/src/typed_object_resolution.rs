@@ -9,7 +9,6 @@ impl TypedDocument {
     /// The document-owned persisted `DocumentObjectIdV1` index resolves the
     /// selector, never a diagnostic XML path. A caller must use the returned
     /// record only while borrowing this immutable document.
-    #[must_use]
     pub fn resolve_document_object_id(
         &self,
         object_id: &DocumentObjectIdV1,
@@ -24,7 +23,6 @@ impl TypedDocument {
     ///
     /// Source identifiers remain inside document mutation adapters; callers expose
     /// only the returned document-owned selector across the public boundary.
-    #[must_use]
     pub(crate) fn document_object_id_for_source_id_v1(
         &self,
         source_id: &PersistentId,
@@ -40,7 +38,6 @@ impl TypedDocument {
     /// This remains crate-private so source `id` values cannot become a document
     /// session API. It pairs with [`Self::document_object_id_for_source_id_v1`]
     /// for adapters that must translate retained IDREF semantics to durable facts.
-    #[must_use]
     pub(crate) fn source_id_for_document_object_id_v1(
         &self,
         object_id: &DocumentObjectIdV1,

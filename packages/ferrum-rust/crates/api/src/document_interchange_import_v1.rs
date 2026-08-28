@@ -389,21 +389,35 @@ fn prepare_records(
         .iter()
         .map(|record| record.molecule().bonds().len())
         .sum();
-    let placement = MoleculePlacementV1::new(
-        IMPORT_BOND_LENGTH_PT_V1,
-        Point2::new(0.0, 0.0).expect("finite origin"),
-    )
-    .map_err(|_| {
-        InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
-    })?;
-    let batch = build_interchange_record_batch_insertion_v1(engine, &records, placement)
-        .map_err(map_record_build_error)?;
     let mut session = DocumentSession::create_empty_document_v1().map_err(|_| {
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
     let baseline = session.snapshot().map_err(|_| {
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
+    let page = session
+        .observe(baseline.revision())
+        .map_err(|_| {
+            InterchangeImportRefusalV1::for_reason(
+                InterchangeImportRefusalReasonV1::InternalFailure,
+            )
+        })?
+        .projection()
+        .paper_layout()
+        .page();
+    let placement = MoleculePlacementV1::new(
+        IMPORT_BOND_LENGTH_PT_V1,
+        Point2::new(
+            (page.scene_left() + page.scene_right()) / 2.0,
+            (page.scene_top() + page.scene_bottom()) / 2.0,
+        )
+        .expect("the document projection publishes finite page bounds"),
+    )
+    .map_err(|_| {
+        InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
+    })?;
+    let batch = build_interchange_record_batch_insertion_v1(engine, &records, placement)
+        .map_err(map_record_build_error)?;
     let transition = session
         .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
             baseline.revision(),
@@ -861,6 +875,21 @@ mod tests {
                 .map(|molecule| molecule.atoms()[0].element())
                 .collect::<Vec<_>>(),
             [Some("C"), Some("O")]
+        );
+        let page = observation.projection().paper_layout().page();
+        let positions = observation
+            .projection()
+            .molecules()
+            .iter()
+            .map(|molecule| molecule.atoms()[0].position())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            (positions[0].x() + positions[1].x()) / 2.0,
+            (page.scene_left() + page.scene_right()) / 2.0,
+        );
+        assert_eq!(
+            (positions[0].y() + positions[1].y()) / 2.0,
+            (page.scene_top() + page.scene_bottom()) / 2.0,
         );
     }
 

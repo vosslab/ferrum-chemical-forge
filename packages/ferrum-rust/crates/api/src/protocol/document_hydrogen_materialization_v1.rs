@@ -199,7 +199,7 @@ fn parse_digest(value: &str) -> Result<[u8; 32], ExecutionFailureV1> {
         ));
     }
     let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let high = hexadecimal_nibble(pair[0])
             .ok_or_else(|| ExecutionFailureV1::invalid_request("expected_digest_hex is invalid"))?;
         let low = hexadecimal_nibble(pair[1])

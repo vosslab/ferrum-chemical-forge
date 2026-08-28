@@ -306,15 +306,16 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
             );
         }
     };
-    let envelope = match result {
-        Ok(outcome) => OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
-            schema: ProtocolResponseSchemaV1::V1,
-            request_id,
-            outcome,
-        }),
+    match result {
+        Ok(outcome) => {
+            OperationProtocolEnvelopeV1::Success(Box::new(OperationProtocolResponseV1 {
+                schema: ProtocolResponseSchemaV1::V1,
+                request_id,
+                outcome,
+            }))
+        }
         Err(error) => operation_error_response(Some(request_id), Some(kind), error),
-    };
-    envelope
+    }
 }
 
 pub(crate) fn admit_shared_response_budget_v1(

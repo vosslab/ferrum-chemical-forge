@@ -44,8 +44,8 @@ class FerrumNativeSdfPreparationWorker(FerrumDetachedJobThread):
 
 	#============================================
 	def _prepare_sdf_text(self) -> object:
-		"""Read descriptor-authorized text, then delegate parsing to Rust."""
-		source = engine.DocumentSession.read_local_interchange_utf8_v1(
+		"""Read catalog-authorized SDF text, then delegate parsing to Rust."""
+		source = engine.DocumentSession.read_local_interchange_utf8_v2(
 			self._path, self._route_handle,
 		)
 		return engine.prepare_sdf_molecules_v1(source, self._placement)

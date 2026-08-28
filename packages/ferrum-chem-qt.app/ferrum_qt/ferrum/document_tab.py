@@ -42,7 +42,6 @@ import ferrum_qt.ferrum.sdf_insertion as native_sdf_insertion
 import ferrum_qt.ferrum.text_properties as native_text_properties
 import ferrum_qt.ferrum.text_placement_gesture_tab as native_text_placement_gesture_tab
 import ferrum_qt.ferrum.top_level_transform as native_top_level_transform
-import ferrum_qt.ferrum.user_templates as native_user_templates
 import ferrum_qt.ferrum.tab_view_state
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 import ferrum_qt.ferrum.document_tab_publication as native_publication
@@ -52,7 +51,6 @@ import ferrum_qt.ferrum.document_tab_selection as native_document_tab_selection
 import ferrum_qt.ferrum.drawing_standard as native_drawing_standard
 import ferrum_qt.ferrum.explicit_fragment_tab as native_explicit_fragment
 import ferrum_qt.ferrum.local_document_origin_tab as native_local_document_origin_tab
-import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
 import ferrum_qt.ferrum.live_document_transaction as native_live_document_transaction
 import ferrum_qt.ferrum.smarts_selected_root_capture_tab as native_smarts_selected_root_capture
 import ferrum_qt.themes.document_display_palette
@@ -106,7 +104,6 @@ class FerrumNativeDocumentTab(
 		native_smarts_selected_root_capture.FerrumNativeSmartsSelectedRootCaptureTabMixin,
 		native_live_document_transaction.FerrumLiveDocumentTransactionMixin,
 		native_document_tab_molecules.FerrumNativeDocumentMoleculeChoicesMixin,
-		native_catalog_palette.FerrumNativeCatalogPlacementTabMixin,
 		native_local_document_origin_tab.FerrumNativeLocalDocumentOriginTabMixin,
 		native_regular_ring_tab.FerrumNativeRegularRingTabMixin,
 		native_attached_cyclohexane_tab.FerrumNativeAttachedCyclohexaneTabMixin,
@@ -122,7 +119,6 @@ class FerrumNativeDocumentTab(
 		native_direct_root_interaction_tab.FerrumNativeDirectRootInteractionTabMixin,
 		native_structure_interaction_tab.FerrumNativeStructureInteractionTabMixin,
 		native_bond_creation.FerrumNativeBondCreationMixin,
-		native_user_templates.FerrumNativeUserTemplateTabMixin,
 		native_publication.FerrumNativeDocumentTabPublicationMixin,
 		native_property_observation.FerrumNativePropertyObservationMixin,
 		native_clipboard_cut_tab.FerrumNativeClipboardCutTabMixin,
@@ -186,7 +182,6 @@ class FerrumNativeDocumentTab(
 				self._dispose_partial_resources()
 				raise
 
-	#============================================
 	@classmethod
 	def from_session(
 			cls,
@@ -215,6 +210,23 @@ class FerrumNativeDocumentTab(
 		)
 		return tab
 
+	def place_template_catalog_entry(
+			self, catalog_snapshot: object, key: str, document_snapshot: object,
+			x: float, y: float,
+			) -> object:
+		self._require_mutable()
+		commit = self._session.place_template_catalog_entry_v1(
+			catalog_snapshot, key, document_snapshot, x, y,
+		)
+		try:
+			selection = ()
+			if commit.inserted_molecule_object_id is not None:
+				selection = (commit.inserted_molecule_object_id,)
+			self._install_mutation_result(commit.result, selection)
+		except FerrumNativeDocumentTabMutationPresentationError as error:
+			error.accepted_receipt = commit
+			raise
+		return commit
 	#============================================
 	@classmethod
 	def _from_fixture(cls, title: str, session: object,
@@ -253,6 +265,8 @@ class FerrumNativeDocumentTab(
 		self._pending_snapshot: object | None = None
 		self._pending_durable_selection: tuple[str, ...] | None = None
 		self._pending_focus_atom_object_id: str | None = None
+		self._structure_action_selection_v1: object | None = None
+		self._structure_action_targets_v1: tuple[object, ...] = ()
 		self._file_path: pathlib.Path | None = None
 		self._initialize_local_document_origin()
 		self._disposed = False
@@ -697,6 +711,7 @@ class FerrumNativeDocumentTab(
 		if self._disposed:
 			return
 		self._require_live_smarts_invalidation_v1("tab_disposed")
+		self.clear_structure_action_selection_v1()
 		self._disposed = True
 		self._retire_scene_selection_bridge()
 		self._controller.dispose()
@@ -725,6 +740,7 @@ class FerrumNativeDocumentTab(
 		)
 		prior_scene_selection_source = self._scene_selection_source
 		prior_scene_selection_connection = self._scene_selection_connection
+		self.clear_structure_action_selection_v1()
 		self._retire_scene_selection_bridge()
 		installed = self._install_published_render_plan_v1(
 			self._controller.replace, render_observation, latch, observation.presentation_plan,
@@ -785,6 +801,7 @@ class FerrumNativeDocumentTab(
 		self._pending_snapshot = authoritative.snapshot
 		self._pending_durable_selection = durable_selection
 		self._pending_focus_atom_object_id = focus_atom_object_id
+		self.clear_structure_action_selection_v1()
 		try:
 			observation = self._publish_live_render_plan_v1(authoritative.snapshot.revision)
 		except FerrumNativeDocumentTabError as exc:
@@ -969,6 +986,7 @@ class FerrumNativeDocumentTab(
 		"""Dispose partial projection resources after construction failure."""
 		if getattr(self, "_session", None) is not None:
 			self._invalidate_live_smarts_query_v1("construction_failure")
+		self.clear_structure_action_selection_v1()
 		self._retire_scene_selection_bridge()
 		controller = getattr(self, "_controller", None)
 		if controller is not None:

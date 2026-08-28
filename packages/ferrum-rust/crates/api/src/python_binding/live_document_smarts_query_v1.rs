@@ -835,7 +835,7 @@ fn map_chemistry_error(error: ChemistryError) -> LiveFailureV1 {
 fn map_selection_failure(error: ferrum_document_render::RenderInteractionErrorV1) -> LiveFailureV1 {
     use ferrum_document_render::RenderInteractionErrorV1;
 
-    let failure = match error {
+    match error {
         RenderInteractionErrorV1::ForeignSession => {
             LiveFailureV1::Refused(PyLiveDocumentSmartsReasonV1::ForeignSelection)
         }
@@ -845,8 +845,7 @@ fn map_selection_failure(error: ferrum_document_render::RenderInteractionErrorV1
             LiveFailureV1::Stale(PyLiveDocumentSmartsReasonV1::StaleSelection)
         }
         _ => LiveFailureV1::UnsupportedDocument(PyLiveDocumentSmartsReasonV1::UnsupportedDocument),
-    };
-    failure
+    }
 }
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {

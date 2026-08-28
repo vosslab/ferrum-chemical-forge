@@ -2,6 +2,7 @@
 
 # PIP3 modules
 import PySide6.QtWidgets
+import shiboken6
 
 
 #============================================
@@ -38,14 +39,61 @@ def present_context_menu(menu: PySide6.QtWidgets.QMenu,
 		global_position: PySide6.QtCore.QPoint) -> None:
 	"""Present one transient menu and return focus to its invoking viewport."""
 	menu.setAttribute(PySide6.QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
-	menu.aboutToHide.connect(lambda: PySide6.QtCore.QTimer.singleShot(
-		0, lambda: _restore_viewport_focus(viewport),
-	))
+	menu.aboutToHide.connect(
+		lambda: _restore_viewport_focus_after_menu(menu, viewport),
+	)
 	menu.popup(global_position)
+
+
+#============================================
+def _restore_viewport_focus_after_menu(menu: PySide6.QtWidgets.QMenu,
+		viewport: PySide6.QtWidgets.QWidget) -> None:
+	"""Wait until the transient menu has relinquished its focus ownership."""
+	def restore_after_menu_destroyed(*_args: object) -> None:
+		"""Restore after Qt has completed the menu's terminal close boundary."""
+		PySide6.QtCore.QTimer.singleShot(0, lambda: _restore_viewport_focus(viewport))
+
+	menu.destroyed.connect(
+		restore_after_menu_destroyed,
+		PySide6.QtCore.Qt.ConnectionType.SingleShotConnection,
+	)
 
 
 #============================================
 def _restore_viewport_focus(viewport: PySide6.QtWidgets.QWidget) -> None:
 	"""Restore context-menu focus unless a modal widget now owns interaction."""
-	if PySide6.QtWidgets.QApplication.activeModalWidget() is None:
+	modal = PySide6.QtWidgets.QApplication.activeModalWidget()
+	if isinstance(modal, PySide6.QtWidgets.QDialog):
+		_restore_viewport_focus_after_dialog(modal, viewport)
+		return
+	if modal is None and shiboken6.isValid(viewport):
+		viewport.window().activateWindow()
+		viewport.setFocus()
+
+
+#============================================
+def _restore_viewport_focus_after_dialog(dialog: PySide6.QtWidgets.QDialog,
+		viewport: PySide6.QtWidgets.QWidget) -> None:
+	"""Restore after this dialog, unless another modal takes its place."""
+	def restore_after_dialog_finished(*_args: object) -> None:
+		"""Wait until Qt releases the finished dialog's modal ownership."""
+		PySide6.QtCore.QTimer.singleShot(
+			0, lambda: _restore_viewport_focus_after_modal(viewport),
+		)
+
+	dialog.finished.connect(
+		restore_after_dialog_finished,
+		PySide6.QtCore.Qt.ConnectionType(
+			PySide6.QtCore.Qt.ConnectionType.QueuedConnection.value
+			| PySide6.QtCore.Qt.ConnectionType.SingleShotConnection.value,
+		),
+	)
+
+
+#============================================
+def _restore_viewport_focus_after_modal(viewport: PySide6.QtWidgets.QWidget) -> None:
+	"""Restore only when no successor modal owns interaction."""
+	if (PySide6.QtWidgets.QApplication.activeModalWidget() is None
+			and shiboken6.isValid(viewport)):
+		viewport.window().activateWindow()
 		viewport.setFocus()

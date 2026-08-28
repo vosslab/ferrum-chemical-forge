@@ -13,6 +13,15 @@ CDML = (
 )
 
 
+def local_cdml_handle() -> object:
+	"""Return the extension-issued V2 File/Open handle for native CDML."""
+	return next(
+		descriptor.route_handle
+		for descriptor in ferrum_chem.DocumentSession.local_document_open_descriptors_v2()
+		if ".cdml" in descriptor.suffixes
+	)
+
+
 def test_preparation_refuses_a_mismatched_observation_fence_without_mutation() -> None:
 	"""The worker receipt is bound to the exact captured document observation."""
 	session = ferrum_chem.DocumentSession.load(CDML)
@@ -37,8 +46,10 @@ def test_local_origin_publication_uses_one_immutable_receipt_without_mutation(
 	source = tmp_path / "source.cdml"
 	destination = tmp_path / "artifact.svg"
 	source.write_text(CDML, encoding="utf-8")
-	prepared_open = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(source))
-	session, _render_observation, origin, _source_kind = prepared_open.take_admission_v1()
+	prepared_open = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+		str(source), local_cdml_handle(),
+	)
+	session, _render_observation, origin, _source_kind, _summary = prepared_open.take_admission_v2()
 	before = session.snapshot()
 	receipt = ferrum_chem.prepare_document_native_artifact_v1(
 		session.observe(before.revision), before.revision, before.digest, "svg",
@@ -58,8 +69,10 @@ def test_local_origin_token_refuses_a_hard_link_destination(tmp_path: Path) -> N
 	alias = tmp_path / "source-alias.svg"
 	source.write_text(CDML, encoding="utf-8")
 	alias.hardlink_to(source)
-	prepared_open = ferrum_chem.DocumentSession.prepare_local_cdml_file_v1(str(source))
-	session, _render_observation, origin, _source_kind = prepared_open.take_admission_v1()
+	prepared_open = ferrum_chem.DocumentSession.prepare_local_document_open_file_v2(
+		str(source), local_cdml_handle(),
+	)
+	session, _render_observation, origin, _source_kind, _summary = prepared_open.take_admission_v2()
 	before = session.snapshot()
 	receipt = ferrum_chem.prepare_document_native_artifact_v1(
 		session.observe(before.revision), before.revision, before.digest, "svg",

@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.ferrum.drawing_parameters
 import ferrum_qt.widgets.periodic_table
 import ferrum_qt.widgets.property_dock
 import ferrum_qt.widgets.status_bar
@@ -88,13 +89,27 @@ def test_property_dock_projects_only_observation_dto(qapp: object) -> None:
 
 
 #============================================
-def test_periodic_table_emits_symbol_from_keyboard_reachable_button(qapp: object) -> None:
-	"""The chooser returns UI intent without invoking chemistry behavior."""
-	del qapp
-	dialog = ferrum_qt.widgets.periodic_table.PeriodicTablePopup()
+def test_periodic_table_projects_rust_entry_and_emits_keyboard_intent(
+		qapp: object,
+		) -> None:
+	"""A supplied Rust entry controls the picker layout and keyboard intent."""
+	entries = ferrum_qt.ferrum.drawing_parameters.periodic_display_entries()
+	entry = next(entry for entry in entries if entry.symbol == "O")
+	dialog = ferrum_qt.widgets.periodic_table.PeriodicTablePopup(entries)
 	selected: list[str] = []
 	dialog.element_selected.connect(selected.append)
 	button = dialog.findChild(PySide6.QtWidgets.QPushButton, "element-O")
-	assert button.accessibleName() == "O, Oxygen"
-	PySide6.QtTest.QTest.mouseClick(button, PySide6.QtCore.Qt.MouseButton.LeftButton)
+	layout = dialog.layout()
+	button_index = next(index for index in range(layout.count())
+		if layout.itemAt(index).widget() is button)
+	assert layout.getItemPosition(button_index)[:2] == (entry.grid_row, entry.grid_column)
+	assert button.accessibleName() == f"{entry.symbol}, {entry.display_name}"
+	assert button.accessibleDescription() == (
+		f"{entry.symbol}, {entry.display_name}. Category: {entry.category}."
+	)
+	assert button.toolTip() == entry.display_name
+	dialog.show()
+	button.setFocus()
+	qapp.processEvents()
+	PySide6.QtTest.QTest.keyClick(button, PySide6.QtCore.Qt.Key.Key_Return)
 	assert selected == ["O"]

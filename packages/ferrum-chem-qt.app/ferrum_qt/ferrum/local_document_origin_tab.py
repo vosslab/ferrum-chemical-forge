@@ -13,6 +13,7 @@ class _LocalDocumentOriginKind(enum.Enum):
 	DECODED_CDSVG = "decoded_cdsvg"
 	CML = "cml"
 	CDXML = "cdxml"
+	INTERCHANGE = "interchange"
 
 
 #============================================
@@ -25,6 +26,7 @@ class FerrumNativeLocalDocumentOriginTabMixin:
 		self._local_document_origin_token: object | None = None
 		self._local_document_source_path: pathlib.Path | None = None
 		self._local_document_source_kind: _LocalDocumentOriginKind | None = None
+		self._local_document_source_display_name: str | None = None
 		self._is_initial_placeholder = False
 
 	#============================================
@@ -46,12 +48,13 @@ class FerrumNativeLocalDocumentOriginTabMixin:
 	#============================================
 	def _adopt_local_document_origin(
 			self, path: str | pathlib.Path, source_kind: str, token: object,
+			source_display_name: str | None = None,
 			) -> None:
 		"""Retain one admitted source without conflating it with CDML publication.
 
-		Decoded CD-SVG plus imported CML and CDXML are conversion-only sources, so
-		they intentionally have no ``file_path`` save baseline.  The descriptor
-		token remains independent of a later CDML Save As destination.
+		Decoded CD-SVG and Rust-issued interchange routes are conversion-only
+		sources, so they intentionally have no ``file_path`` save baseline.  The
+		descriptor token remains independent of a later CDML Save As destination.
 		"""
 		self._require_live()
 		origin = pathlib.Path(path)
@@ -63,9 +66,17 @@ class FerrumNativeLocalDocumentOriginTabMixin:
 			raise ValueError("Ferrum document origin has an unknown source kind") from exc
 		if self._local_document_source_path is not None:
 			raise ValueError("Ferrum tab already has local document source provenance")
+		if origin_kind is _LocalDocumentOriginKind.INTERCHANGE:
+			if type(source_display_name) is not str or not source_display_name:
+				raise ValueError(
+					"interchange sources require a Rust-issued descriptor display name",
+				)
+		elif source_display_name is not None:
+			raise ValueError("only interchange sources carry a descriptor display name")
 		self._adopt_local_document_origin_token(token)
 		self._local_document_source_path = origin
 		self._local_document_source_kind = origin_kind
+		self._local_document_source_display_name = source_display_name
 		if origin_kind is _LocalDocumentOriginKind.CDML:
 			self._adopt_loaded_origin_path(origin)
 			return
@@ -92,6 +103,7 @@ class FerrumNativeLocalDocumentOriginTabMixin:
 			_LocalDocumentOriginKind.DECODED_CDSVG,
 			_LocalDocumentOriginKind.CML,
 			_LocalDocumentOriginKind.CDXML,
+			_LocalDocumentOriginKind.INTERCHANGE,
 		}:
 			return None
 		if self._local_document_source_path is None:
@@ -100,6 +112,9 @@ class FerrumNativeLocalDocumentOriginTabMixin:
 			_LocalDocumentOriginKind.DECODED_CDSVG: "embedded CDML document",
 			_LocalDocumentOriginKind.CML: "imported CML document",
 			_LocalDocumentOriginKind.CDXML: "imported ChemDraw XML document",
+			_LocalDocumentOriginKind.INTERCHANGE: (
+				f"imported {self._local_document_source_display_name} document"
+			),
 		}[self._local_document_source_kind]
 		if self.file_path is None:
 			return (

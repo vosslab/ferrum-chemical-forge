@@ -24,6 +24,7 @@ clap = { version = "*", features = ["derive"] }
 ferrum-document = { path = "../document" }
 ferrum-document-render = { path = "../document-render" }
 ferrum-catalog-placement = { path = "../catalog-placement" }
+ferrum-template-catalog = { path = "../template-catalog" }
 ferrum-domain = { path = "../domain" }
 ferrum-chemistry = { path = "../chemistry" }
 ferrum-core = { path = "../core" }
@@ -44,7 +45,6 @@ getrandom = { version = "*", optional = true }
 # PyO3 transport is compiled inside this crate so Rust visibility, rather than
 # a cross-crate convention, seals the installed-wheel runtime capability.
 python-binding = ["dep:pyo3", "dep:getrandom"]
-python-extension-module = ["python-binding", "pyo3/extension-module"]
 
 [dev-dependencies]
 jsonschema = "0.33"

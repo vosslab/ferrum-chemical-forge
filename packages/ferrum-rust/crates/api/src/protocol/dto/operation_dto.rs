@@ -355,7 +355,7 @@ pub enum OperationProtocolOutcomeV1 {
 #[serde(untagged)]
 pub enum OperationProtocolEnvelopeV1 {
     /// Successful response.
-    Success(OperationProtocolResponseV1),
+    Success(Box<OperationProtocolResponseV1>),
     /// Typed refusal.
     Error(OperationProtocolErrorResponseV1),
 }

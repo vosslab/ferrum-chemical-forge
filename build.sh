@@ -205,7 +205,8 @@ build_local_program() {
 		cd "${RUST_ROOT}"
 		env CARGO_TARGET_DIR="${CARGO_TARGET_DIR}" \
 			cargo build --locked --release --package ferrum-api
-		env CARGO_TARGET_DIR="${CARGO_TARGET_DIR}" \
+		# Extension-only link mode must not leak into workspace tests or binaries.
+		env CARGO_TARGET_DIR="${CARGO_TARGET_DIR}" PYO3_BUILD_EXTENSION_MODULE=1 \
 			cargo build --locked --release --package ferrum-api-python
 	)
 	extension_source="${CARGO_TARGET_DIR}/release/libferrum_chem.dylib"

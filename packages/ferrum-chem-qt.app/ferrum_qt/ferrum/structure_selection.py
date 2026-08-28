@@ -12,6 +12,7 @@ import ferrum_qt.ferrum.direct_root_preview
 import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.ferrum.document_tab_errors
 import ferrum_qt.ferrum.engine
+import ferrum_qt.ferrum.keyboard_canvas
 import ferrum_qt.ferrum.structure_selection_mode
 import ferrum_qt.ferrum.window_mode_sync
 import ferrum_qt.modes.base_mode
@@ -72,22 +73,22 @@ class FerrumNativeStructureSelectionMixin:
 		self._window_mode_sync.register_tool(binding)
 
 	#============================================
-	def _refresh_structure_selection_action(self, enabled: bool) -> None:
-		"""Keep the tool available only for a live mutable tab."""
+	def _refresh_structure_selection_action(self, navigation_enabled: bool) -> None:
+		"""Refresh read-only selection navigation separately from deletion permission."""
 		if self._structure_tab is not None and (
-			not enabled or self._active_native_tab() is not self._structure_tab
+			not navigation_enabled or self._active_native_tab() is not self._structure_tab
 		):
 			self._cancel_structure_selection()
-		self._select_structure_action.setEnabled(enabled)
-		self._refresh_structure_deletion_action(enabled)
+		self._select_structure_action.setEnabled(navigation_enabled)
+		self._refresh_structure_deletion_action()
 
 	#============================================
-	def _refresh_structure_deletion_action(self, selection_owner_enabled: bool) -> None:
+	def _refresh_structure_deletion_action(self) -> None:
 		"""Enable the registered deletion action only for this live selection."""
 		action = self._delete_structure_selection_action
 		selection = self._structure_selection
 		action.setEnabled(
-			selection_owner_enabled
+			self._structure_selection_mutation_eligible()
 			and self._structure_tab is self._active_native_tab()
 			and selection is not None
 			and bool(selection.targets)
@@ -99,7 +100,7 @@ class FerrumNativeStructureSelectionMixin:
 		cancel_capture = getattr(self, "_cancel_live_smarts_selected_root_capture_v1", None)
 		if callable(cancel_capture):
 			cancel_capture("Molecule choice cancelled because Select Structure was selected.")
-		self._cancel_catalog_placement()
+		self._template_catalog_controller.cancel_active(reopen=False)
 		self._cancel_atom_insertion()
 		self._cancel_line_gesture(clear_status=False)
 		tab = self._active_native_tab()
@@ -108,6 +109,8 @@ class FerrumNativeStructureSelectionMixin:
 			return False
 		self._replace_render_interaction_selection(None, tab)
 		self._structure_tab = tab
+		tab.view.show_keyboard_cursor()
+		self._refresh_structure_selection_accessibility(tab)
 		tab.view.viewport().setFocus()
 		self.statusBar().showMessage(self.tr(
 			"Select atoms, normal bonds, or compact groups; Shift toggles; Delete removes supported targets through Rust.",
@@ -134,6 +137,12 @@ class FerrumNativeStructureSelectionMixin:
 		if intent.operation_id == "selection.marquee" and len(intent.points) == 2:
 			self._finish_structure_marquee(intent.points[1], intent.modifiers)
 			return
+		if intent.operation_id.startswith("selection.cursor.move.") and not intent.points:
+			self._move_structure_selection_cursor(intent.operation_id, intent.modifiers)
+			return
+		if intent.operation_id == "selection.cursor.select" and not intent.points:
+			self._select_structure_at_keyboard_cursor(intent.modifiers)
+			return
 		if intent.operation_id == "selection.delete" and not intent.points:
 			self._delete_structure_selection_action.trigger()
 			return
@@ -141,8 +150,13 @@ class FerrumNativeStructureSelectionMixin:
 
 	#============================================
 	def _select_structure_at(self, point: ferrum_qt.modes.base_mode.ScenePoint,
-			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
+			modifiers: PySide6.QtCore.Qt.KeyboardModifiers,
+			allow_empty_marquee: bool = True) -> None:
 		"""Ask Rust to resolve one normalized atom, bond, or compact-group hit."""
+		had_selected_targets = (
+			self._structure_selection is not None
+			and bool(self._structure_selection.targets)
+		)
 		try:
 			tab = self._active_native_tab()
 			if tab is None:
@@ -164,11 +178,96 @@ class FerrumNativeStructureSelectionMixin:
 		) as exc:
 			self._show_edit_refusal(self._structure_refusal(exc))
 			return
+		is_toggle = bool(
+			modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier,
+		)
+		if not allow_empty_marquee and not selection.targets and not (
+			is_toggle and had_selected_targets
+		):
+			self.statusBar().showMessage(self.tr(
+				"No selectable structure at document cursor.",
+			), 5000)
+			tab.view.viewport().setFocus()
+			return
 		self._structure_observation = observation
 		self._replace_structure_selection(selection, tab)
-		if not selection.targets:
+		if allow_empty_marquee and not selection.targets:
 			self._structure_press_scene = PySide6.QtCore.QPointF(point.x, point.y)
 			self._structure_marquee = self._new_structure_marquee(tab, self._structure_press_scene)
+
+	#============================================
+	def _move_structure_selection_cursor(self, operation_id: str,
+			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
+		"""Move only the view-owned cursor while Select Structure is active."""
+		direction_by_operation = {
+			"selection.cursor.move.left": (-1.0, 0.0),
+			"selection.cursor.move.right": (1.0, 0.0),
+			"selection.cursor.move.up": (0.0, -1.0),
+			"selection.cursor.move.down": (0.0, 1.0),
+		}
+		direction = direction_by_operation.get(operation_id)
+		if direction is None:
+			raise RuntimeError("Ferrum structure selection received an unknown cursor direction.")
+		tab = self._active_native_tab()
+		if tab is None or tab is not self._structure_tab or tab.requires_refresh:
+			return
+		fine = bool(modifiers & PySide6.QtCore.Qt.KeyboardModifier.ShiftModifier)
+		increment = ferrum_qt.ferrum.keyboard_canvas.keyboard_cursor_increment(fine)
+		point = tab.view.move_keyboard_cursor(
+			float(direction[0] * increment), float(direction[1] * increment),
+		)
+		self._refresh_structure_selection_accessibility(tab)
+		precision = "fine " if fine else ""
+		self.statusBar().showMessage(self.tr(
+			"{0}document cursor: {1:.1f}, {2:.1f}. Press Enter to select or Esc to cancel."
+		).format(precision, point.x(), point.y()), 5000)
+		tab.view.viewport().setFocus()
+
+	#============================================
+	def _select_structure_at_keyboard_cursor(self,
+			modifiers: PySide6.QtCore.Qt.KeyboardModifiers) -> None:
+		"""Resolve a cursor point without pointer marquee or no-hit replacement."""
+		tab = self._active_native_tab()
+		if tab is None or tab is not self._structure_tab or tab.requires_refresh:
+			return
+		point = tab.view.show_keyboard_cursor()
+		self._select_structure_at(
+			ferrum_qt.modes.base_mode.ScenePoint(float(point.x()), float(point.y())),
+			modifiers, allow_empty_marquee=False,
+		)
+
+	#============================================
+	def _structure_selection_accessibility_context(self) -> str:
+		"""Describe only Rust-issued target descriptors for the active selection mode."""
+		selection = self._structure_selection
+		if selection is None or not selection.targets:
+			summary = "No structure selected."
+		else:
+			kind_labels = (
+				(ferrum_qt.ferrum.engine.StructureTargetKindV1.atom, "atom"),
+				(ferrum_qt.ferrum.engine.StructureTargetKindV1.bond, "bond"),
+				(ferrum_qt.ferrum.engine.StructureTargetKindV1.compact_group, "compact group"),
+			)
+			parts: list[str] = []
+			for kind, label in kind_labels:
+				count = sum(target.kind is kind for target in selection.targets)
+				if count:
+					suffix = "" if count == 1 else "s"
+					parts.append(f"{count} {label}{suffix}")
+			summary = "Selected: " + ", ".join(parts) + "."
+		context = (
+			"Select Structure mode. Enter selects at the document cursor; Shift+Enter "
+			"toggles the target. {0} Escape cancels Select Structure."
+		).format(summary)
+		return context
+
+	#============================================
+	def _refresh_structure_selection_accessibility(self, tab: object) -> None:
+		"""Give the view the active mode's Rust-derived selection summary."""
+		if tab is self._structure_tab:
+			tab.view.set_keyboard_cursor_accessibility_context(
+				self._structure_selection_accessibility_context(),
+			)
 
 	#============================================
 	def _update_structure_marquee(self, point: ferrum_qt.modes.base_mode.ScenePoint) -> None:
@@ -210,7 +309,12 @@ class FerrumNativeStructureSelectionMixin:
 	#============================================
 	def _commit_structure_deletion(self) -> None:
 		"""Delete the exact opaque Rust selection as one history operation."""
-		if self._structure_selection is None or not self._structure_selection.targets:
+		if (
+			not self._structure_selection_mutation_eligible()
+			or self._structure_selection is None
+			or not self._structure_selection.targets
+		):
+			self._refresh_structure_deletion_action()
 			return
 		selection = self._structure_selection
 		try:
@@ -228,7 +332,6 @@ class FerrumNativeStructureSelectionMixin:
 				ferrum_qt.ferrum.document_tab_errors.FerrumNativeDocumentTabMutationPresentationError,
 			):
 				self._replace_structure_selection(None, tab)
-				self._refresh_actions()
 				self._show_edit_refusal(self._unavailable_edit_refusal(
 					"Selected structure was deleted, but its authoritative display still needs "
 					"recovery; refresh before saving or editing.",
@@ -245,7 +348,6 @@ class FerrumNativeStructureSelectionMixin:
 				commit.removed_compact_group_count,
 			),
 		), 5000)
-		self._refresh_actions()
 
 	#============================================
 	def _structure_refusal(self, exc: Exception) -> object:
@@ -278,14 +380,8 @@ class FerrumNativeStructureSelectionMixin:
 
 	#============================================
 	def _replace_structure_selection(self, selection: object | None, tab: object) -> None:
-		"""Publish generic document-object keys before retaining Rust's opaque selection."""
-		generic_targets: list[tuple[str, str]] = []
-		if selection is not None:
-			for target in selection.targets:
-				if type(target.object_id) is not str or not target.object_id:
-					raise RuntimeError("Ferrum structure selection has no durable object identity")
-				generic_targets.append(("document_object", target.object_id))
-		tab._require_projection().select_durable(tuple(generic_targets))
+		"""Install Rust's fenced action selection and a Qt-only bounds preview."""
+		tab.replace_structure_action_selection_v1(selection)
 		self._dispose_line_preview(self._structure_selection_item)
 		self._structure_selection = selection
 		self._structure_selection_item = None if selection is None else (
@@ -293,7 +389,10 @@ class FerrumNativeStructureSelectionMixin:
 				tab, tuple(target.bounds for target in selection.targets),
 			)
 		)
-		self._refresh_structure_deletion_action(self._select_structure_action.isEnabled())
+		self._refresh_structure_deletion_action()
+		self._refresh_structure_selection_accessibility(tab)
+		# The tab owns structural action truth; the projection only presents bounds.
+		self._refresh_actions()
 
 	#============================================
 	def _request_structure_deletion(self) -> None:
@@ -369,9 +468,20 @@ class FerrumNativeStructureSelectionMixin:
 	#============================================
 	def _cancel_structure_selection(self) -> None:
 		"""Release structural transient state without mutating Rust."""
+		tab = self._structure_tab
+		# Detach first: the replacement below refreshes every registered action.
+		# A disabled action refresh may cancel this tool, so retaining the owner
+		# until afterward would recursively re-enter cancellation.
 		self._structure_tab = None
 		self._dispose_structure_marquee()
-		self._dispose_line_preview(self._structure_selection_item)
-		self._structure_selection_item = None
-		self._structure_selection = None
+		if tab is not None and not tab.is_disposed:
+			self._replace_structure_selection(None, tab)
+		else:
+			self._dispose_line_preview(self._structure_selection_item)
+			self._structure_selection_item = None
+			self._structure_selection = None
 		self._structure_observation = None
+		if tab is not None and not tab.is_disposed:
+			tab.view.set_keyboard_cursor_accessibility_context(None)
+			tab.view.hide_keyboard_cursor()
+			tab.view.viewport().setFocus()

@@ -76,12 +76,30 @@ impl ElementDisplayCategoryV1 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ElementDisplayFactsV1 {
     symbol: &'static str,
+    display_name: &'static str,
+    grid_row: u8,
+    grid_column: u8,
     category: ElementDisplayCategoryV1,
 }
 
 impl ElementDisplayFactsV1 {
     pub const fn symbol(&self) -> &'static str {
         self.symbol
+    }
+
+    /// Return the authored accessible name shown for this picker symbol.
+    pub const fn display_name(&self) -> &'static str {
+        self.display_name
+    }
+
+    /// Return this entry's zero-based row in the bounded picker grid.
+    pub const fn grid_row(&self) -> u8 {
+        self.grid_row
+    }
+
+    /// Return this entry's zero-based column in the bounded picker grid.
+    pub const fn grid_column(&self) -> u8 {
+        self.grid_column
     }
 
     pub const fn category(&self) -> ElementDisplayCategoryV1 {
@@ -118,52 +136,142 @@ impl fmt::Display for UnknownElementSymbolError {
 impl std::error::Error for UnknownElementSymbolError {}
 
 const ELEMENTS: &[ElementDisplayFactsV1] = &[
-    facts("H", ElementDisplayCategoryV1::Nonmetal),
-    facts("He", ElementDisplayCategoryV1::NobleGas),
-    facts("Li", ElementDisplayCategoryV1::Metal),
-    facts("Be", ElementDisplayCategoryV1::Metal),
-    facts("B", ElementDisplayCategoryV1::Metalloid),
-    facts("C", ElementDisplayCategoryV1::Nonmetal),
-    facts("N", ElementDisplayCategoryV1::Nonmetal),
-    facts("O", ElementDisplayCategoryV1::Nonmetal),
-    facts("F", ElementDisplayCategoryV1::Halogen),
-    facts("Ne", ElementDisplayCategoryV1::NobleGas),
-    facts("Na", ElementDisplayCategoryV1::Metal),
-    facts("Mg", ElementDisplayCategoryV1::Metal),
-    facts("Al", ElementDisplayCategoryV1::Metal),
-    facts("Si", ElementDisplayCategoryV1::Metalloid),
-    facts("P", ElementDisplayCategoryV1::Nonmetal),
-    facts("S", ElementDisplayCategoryV1::Nonmetal),
-    facts("Cl", ElementDisplayCategoryV1::Halogen),
-    facts("Ar", ElementDisplayCategoryV1::NobleGas),
-    facts("K", ElementDisplayCategoryV1::Metal),
-    facts("Ca", ElementDisplayCategoryV1::Metal),
-    facts("Ti", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Cr", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Mn", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Fe", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Co", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Ni", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Cu", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Zn", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Ga", ElementDisplayCategoryV1::Metal),
-    facts("Ge", ElementDisplayCategoryV1::Metalloid),
-    facts("As", ElementDisplayCategoryV1::Metalloid),
-    facts("Se", ElementDisplayCategoryV1::Nonmetal),
-    facts("Br", ElementDisplayCategoryV1::Halogen),
-    facts("Kr", ElementDisplayCategoryV1::NobleGas),
-    facts("Ag", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Sn", ElementDisplayCategoryV1::Metal),
-    facts("I", ElementDisplayCategoryV1::Halogen),
-    facts("Xe", ElementDisplayCategoryV1::NobleGas),
-    facts("Pt", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Au", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Hg", ElementDisplayCategoryV1::TransitionMetal),
-    facts("Pb", ElementDisplayCategoryV1::Metal),
+    facts("H", "Hydrogen", 0, 0, ElementDisplayCategoryV1::Nonmetal),
+    facts("He", "Helium", 0, 17, ElementDisplayCategoryV1::NobleGas),
+    facts("Li", "Lithium", 1, 0, ElementDisplayCategoryV1::Metal),
+    facts("Be", "Beryllium", 1, 1, ElementDisplayCategoryV1::Metal),
+    facts("B", "Boron", 1, 12, ElementDisplayCategoryV1::Metalloid),
+    facts("C", "Carbon", 1, 13, ElementDisplayCategoryV1::Nonmetal),
+    facts("N", "Nitrogen", 1, 14, ElementDisplayCategoryV1::Nonmetal),
+    facts("O", "Oxygen", 1, 15, ElementDisplayCategoryV1::Nonmetal),
+    facts("F", "Fluorine", 1, 16, ElementDisplayCategoryV1::Halogen),
+    facts("Ne", "Neon", 1, 17, ElementDisplayCategoryV1::NobleGas),
+    facts("Na", "Sodium", 2, 0, ElementDisplayCategoryV1::Metal),
+    facts("Mg", "Magnesium", 2, 1, ElementDisplayCategoryV1::Metal),
+    facts("Al", "Aluminium", 2, 12, ElementDisplayCategoryV1::Metal),
+    facts("Si", "Silicon", 2, 13, ElementDisplayCategoryV1::Metalloid),
+    facts("P", "Phosphorus", 2, 14, ElementDisplayCategoryV1::Nonmetal),
+    facts("S", "Sulfur", 2, 15, ElementDisplayCategoryV1::Nonmetal),
+    facts("Cl", "Chlorine", 2, 16, ElementDisplayCategoryV1::Halogen),
+    facts("Ar", "Argon", 2, 17, ElementDisplayCategoryV1::NobleGas),
+    facts("K", "Potassium", 3, 0, ElementDisplayCategoryV1::Metal),
+    facts("Ca", "Calcium", 3, 1, ElementDisplayCategoryV1::Metal),
+    facts(
+        "Ti",
+        "Titanium",
+        3,
+        3,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Cr",
+        "Chromium",
+        3,
+        5,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Mn",
+        "Manganese",
+        3,
+        6,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Fe",
+        "Iron",
+        3,
+        7,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Co",
+        "Cobalt",
+        3,
+        8,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Ni",
+        "Nickel",
+        3,
+        9,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Cu",
+        "Copper",
+        3,
+        10,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Zn",
+        "Zinc",
+        3,
+        11,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts("Ga", "Gallium", 3, 12, ElementDisplayCategoryV1::Metal),
+    facts(
+        "Ge",
+        "Germanium",
+        3,
+        13,
+        ElementDisplayCategoryV1::Metalloid,
+    ),
+    facts("As", "Arsenic", 3, 14, ElementDisplayCategoryV1::Metalloid),
+    facts("Se", "Selenium", 3, 15, ElementDisplayCategoryV1::Nonmetal),
+    facts("Br", "Bromine", 3, 16, ElementDisplayCategoryV1::Halogen),
+    facts("Kr", "Krypton", 3, 17, ElementDisplayCategoryV1::NobleGas),
+    facts(
+        "Ag",
+        "Silver",
+        4,
+        10,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts("Sn", "Tin", 4, 13, ElementDisplayCategoryV1::Metal),
+    facts("I", "Iodine", 4, 16, ElementDisplayCategoryV1::Halogen),
+    facts("Xe", "Xenon", 4, 17, ElementDisplayCategoryV1::NobleGas),
+    facts(
+        "Pt",
+        "Platinum",
+        5,
+        9,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Au",
+        "Gold",
+        5,
+        10,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts(
+        "Hg",
+        "Mercury",
+        5,
+        11,
+        ElementDisplayCategoryV1::TransitionMetal,
+    ),
+    facts("Pb", "Lead", 5, 13, ElementDisplayCategoryV1::Metal),
 ];
 
-const fn facts(symbol: &'static str, category: ElementDisplayCategoryV1) -> ElementDisplayFactsV1 {
-    ElementDisplayFactsV1 { symbol, category }
+const fn facts(
+    symbol: &'static str,
+    display_name: &'static str,
+    grid_row: u8,
+    grid_column: u8,
+    category: ElementDisplayCategoryV1,
+) -> ElementDisplayFactsV1 {
+    ElementDisplayFactsV1 {
+        symbol,
+        display_name,
+        grid_row,
+        grid_column,
+        category,
+    }
 }
 
 /// Return every supported picker entry in its user-visible order.
@@ -203,10 +311,15 @@ mod tests {
     }
 
     #[test]
-    fn palette_and_closed_categories_are_exact() {
+    fn representative_picker_entries_expose_names_grid_palette_and_category() {
         let iron = periodic_display_facts_v1("Fe").expect("supported picker symbol");
+        assert_eq!(iron.display_name(), "Iron");
+        assert_eq!((iron.grid_row(), iron.grid_column()), (3, 7));
         assert_eq!(iron.category(), ElementDisplayCategoryV1::TransitionMetal);
         assert_eq!(iron.color(), "#ffc0c0");
+        let helium = periodic_display_facts_v1("He").expect("supported picker symbol");
+        assert_eq!(helium.display_name(), "Helium");
+        assert_eq!((helium.grid_row(), helium.grid_column()), (0, 17));
         assert_eq!(ElementDisplayCategoryV1::NobleGas.color(), "#a0e0ff");
     }
 

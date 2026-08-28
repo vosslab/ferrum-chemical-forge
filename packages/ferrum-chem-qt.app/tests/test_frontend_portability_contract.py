@@ -1,5 +1,9 @@
 """Public portability contracts for the converged Ferrum frontend seams."""
 
+# Standard Library
+import ast
+import pathlib
+
 # PIP3 modules
 import PySide6.QtWidgets
 
@@ -72,3 +76,21 @@ def test_shared_widget_and_dialog_clients_expose_focused_boundaries() -> None:
 	assert callable(ferrum_qt.widgets.periodic_table.PeriodicTablePopup)
 	assert callable(ferrum_qt.dialogs.preferences_dialog.PreferencesDialog.choose_preferences)
 	assert callable(ferrum_qt.dialogs.theme_chooser_dialog.ThemeChooserDialog.choose_theme)
+
+
+#============================================
+def test_periodic_picker_is_a_rust_catalog_projection_not_an_element_facts_owner() -> None:
+	"""Qt accepts issued entries without retaining a parallel element catalog."""
+	path = pathlib.Path(ferrum_qt.widgets.periodic_table.__file__)
+	tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+	assignment_names = {
+		target.id
+		for node in ast.walk(tree)
+		if isinstance(node, (ast.Assign, ast.AnnAssign))
+		for target in (
+			node.targets if isinstance(node, ast.Assign) else (node.target,)
+		)
+		if isinstance(target, ast.Name)
+	}
+	assert "ELEMENTS" not in assignment_names
+	assert "Oxygen" not in path.read_text(encoding="utf-8")

@@ -40,6 +40,9 @@ pub(crate) use super::session_operation_result_binding::{
     PyMoleculeInsertedOutcomeV1, PyReactionCreatedOutcomeV1, PyReactionDefinitionDeletedOutcomeV1,
     PyReactionMembershipReplacedOutcomeV1, PySessionOperationOutcomeV1, PySessionOperationResultV1,
 };
+pub(crate) use super::session_publication_binding::{
+    PyDocumentSnapshot, PyPublication, PySaveOutcome,
+};
 
 pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("FerrumError", module.py().get_type::<FerrumError>())?;
@@ -138,7 +141,15 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::attached_cyclohexane_binding::initialize(module)?;
     super::free_compact_group_placement_binding::initialize(module)?;
     super::document_native_artifact_binding::register(module)?;
+    module.add(
+        "UserTemplatePublicationError",
+        module
+            .py()
+            .get_type::<super::session_publication_binding::UserTemplatePublicationError>(),
+    )?;
     module.add_class::<PyDocumentSession>()?;
+    module
+        .add_class::<super::session_publication_binding::PyPreparedUserTemplatePublicationV1>()?;
     module
         .add_class::<super::live_document_operation_binding::PyLiveDocumentOperationReceiptV1>()?;
     module.add_class::<
@@ -155,10 +166,10 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsRunSummaryV1>()?;
     module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsPaintV1>()?;
     module.add_class::<super::document_ingress_binding::PyXmlInputBudgetV1>()?;
-    module.add_class::<super::document_ingress_binding::PyLocalInterchangeOpenDescriptorV1>()?;
-    module.add_class::<super::document_ingress_binding::PyLocalInterchangeOpenRouteHandleV1>()?;
-    module.add_class::<super::document_ingress_binding::PyPreparedLocalDocumentOpenV1>()?;
-    module.add_class::<super::document_ingress_binding::PyLocalDocumentOriginTokenV1>()?;
+    module.add_class::<super::document_ingress_binding::PyLocalDocumentOpenDescriptorV2>()?;
+    module.add_class::<super::document_ingress_binding::PyLocalDocumentOpenRouteHandleV2>()?;
+    module.add_class::<super::document_ingress_binding::PyPreparedLocalDocumentOpenV2>()?;
+    module.add_class::<super::document_ingress_binding::PyLocalDocumentOriginTokenV2>()?;
     module.add_class::<
         super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1,
     >()?;

@@ -431,11 +431,11 @@ pub use session::{
     DocumentReactionListDispositionV1, DocumentReactionListObservationV1,
     DocumentReactionListReactionV1, DocumentReactionMemberObservationV1,
     DocumentReactionMemberSelectionV1, DocumentReactionSelectionObservationV1, DocumentSession,
-    DocumentSessionError, DocumentSnapshot, DocumentUserTemplateResultV1,
-    LiveChemicalPresentationTargetV1, PendingAttachedCyclohexaneV1, PendingCreateBracket,
-    PendingCreateWavy, PendingDeleteCompactGroupV1, PendingDeleteStructureV1,
-    PendingLinearFormConvertV1, PreparedLinearFormConvertResultV1, Publication,
-    ReactionMemberSelectionRefusalV1, SaveOutcome,
+    DocumentSessionError, DocumentSnapshot, DocumentUserTemplatePublicationErrorV1,
+    DocumentUserTemplateResultV1, LiveChemicalPresentationTargetV1, PendingAttachedCyclohexaneV1,
+    PendingCreateBracket, PendingCreateWavy, PendingDeleteCompactGroupV1, PendingDeleteStructureV1,
+    PendingLinearFormConvertV1, PreparedDocumentUserTemplatePublicationV1,
+    PreparedLinearFormConvertResultV1, Publication, ReactionMemberSelectionRefusalV1, SaveOutcome,
 };
 pub use session::{
     DocumentCreateReactionCommandV1, DocumentDeleteReactionCommandV1,

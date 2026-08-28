@@ -393,7 +393,7 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 
 	#============================================
 	def _current_molecule_diagnostics_intent(self, worker: object) -> _Intent | None:
-		"""Accept late delivery only while tab, fence, and exact root remain current."""
+		"""Accept an admitted receipt while its worker, tab, and source fence remain current."""
 		intent = self._molecule_diagnostics_intent
 		if intent is None or worker is not intent.worker or worker.delivery_cancelled:
 			return None
@@ -404,10 +404,8 @@ class FerrumNativeMoleculeDiagnosticsMixin:
 		):
 			return None
 		snapshot = tab.current_snapshot
-		address = self._selected_molecule_diagnostics_address(tab)
 		if (
 			snapshot.revision != intent.revision or snapshot.digest != intent.digest
-			or address is None or address.molecule_id != intent.molecule_id
 		):
 			return None
 		return intent

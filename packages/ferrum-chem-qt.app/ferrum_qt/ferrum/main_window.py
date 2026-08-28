@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.ferrum.document_save
 import ferrum_qt.bridge.insertion_placement
 import ferrum_qt.canvas.graphics_disposal
@@ -64,7 +65,8 @@ import ferrum_qt.ferrum.smarts_query_dock
 import ferrum_qt.ferrum.smarts_selected_root_contract
 import ferrum_qt.ferrum.view_controls
 import ferrum_qt.ferrum.user_templates as native_user_templates
-import ferrum_qt.ferrum.catalog_palette as native_catalog_palette
+import ferrum_qt.ferrum.operation_leases
+import ferrum_qt.ferrum.template_catalog_controller
 import ferrum_qt.ferrum.presentation_properties
 import ferrum_qt.ferrum.property_dock
 import ferrum_qt.ferrum.paper_properties as native_paper_properties
@@ -89,7 +91,6 @@ class FerrumNativeMainWindow(
 		FerrumNativeFreeCompactGroupPlacementWindowMixin,
 		ferrum_qt.ferrum.main_window_lifecycle.
 		FerrumNativeMainWindowLifecycleMixin,
-		native_catalog_palette.FerrumNativeCatalogPlacementWindowMixin,
 		ferrum_qt.ferrum.window_mode_sync.FerrumNativeWindowModeSyncMixin,
 		ferrum_qt.ferrum.explicit_fragments.
 		FerrumNativeExplicitFragmentsWindowMixin,
@@ -164,10 +165,26 @@ class FerrumNativeMainWindow(
 		)
 		self._atom_mode = ferrum_qt.ferrum.atom_mode.FerrumAtomModeFeature(self)
 		self._initialize_native_user_templates(user_template_directory)
-		self._initialize_catalog_placement()
-		self._local_ingress_registry = (
+		self._operation_leases = ferrum_qt.ferrum.operation_leases.OperationLeaseRegistry()
+		self._template_catalog_controller = (
+			ferrum_qt.ferrum.template_catalog_controller.TemplateCatalogController(
+				ferrum_qt.ferrum.template_catalog_controller.TemplateCatalogHost(
+					self, self._action_registry, self._connect_interaction_action_v1,
+					self._template_catalog_directory,
+					self._active_native_tab,
+					lambda tab: self._native_tabs_by_page.get(tab) is tab,
+					self._replace_authoring_owner_with_template_catalog,
+					self._template_catalog_placement_compatible,
+					self._on_save_as_user_template, self._refresh_actions,
+					self._publish_document_installation_v1,
+					self._template_catalog_replacement_actions,
+				), self._operation_leases,
+			)
+		)
+		self._template_catalog_action = self._template_catalog_controller.action
+		self._local_document_open_catalog = (
 			ferrum_qt.ferrum.local_document_open_types.
-			FerrumNativeLocalIngressRegistryV1.from_rust()
+			FerrumNativeLocalDocumentOpenCatalogV2.from_rust()
 		)
 		self._initialize_local_document_open()
 		self._initialize_view_controls()
@@ -473,8 +490,6 @@ class FerrumNativeMainWindow(
 		self._refresh_action.triggered.connect(self._on_refresh_authoritative)
 		self._register_action("view.refresh", self._refresh_action)
 		self._build_view_controls_actions()
-		self._build_catalog_template_action()
-		self._build_native_user_template_place_action()
 		self._build_molecule_import_actions()
 		self._build_multi_sdf_export_actions()
 		self._build_sdf_export_actions()
@@ -493,7 +508,7 @@ class FerrumNativeMainWindow(
 		self._build_explicit_fragment_actions()
 		self._build_direct_glycosidic_haworth_action()
 		self._build_coordinate_generation_actions()
-		self._wire_catalog_tool_replacement()
+		self._template_catalog_controller.wire_tool_replacement()
 
 	#============================================
 	def _register_action(self, action_id: str, action: PySide6.QtGui.QAction,
@@ -519,9 +534,9 @@ class FerrumNativeMainWindow(
 
 	#============================================
 	def _connect_interaction_action_v1(self, action: PySide6.QtGui.QAction,
-			handler: object) -> None:
-		"""Register one action whose handler takes canvas interaction ownership."""
-		self._interaction_action_handoff.connect(action, handler)
+			prepare: object) -> None:
+		"""Register one action with its explicit pre-handoff admission callback."""
+		self._interaction_action_handoff.connect(action, prepare)
 
 	def _register_pointer_capture_canceller_v1(self,
 			canceller: collections.abc.Callable[[bool], None]) -> None:
@@ -589,14 +604,54 @@ class FerrumNativeMainWindow(
 		self._cancel_structure_selection()
 		self._cancel_compact_group_authoring(clear_status=clear_status)
 		self._cancel_free_compact_group_placement(clear_status=clear_status)
-		self._cancel_catalog_placement(clear_status=clear_status)
-		self._cancel_user_template_placement(clear_status=clear_status)
+		self._template_catalog_controller.cancel_active(reopen=False)
 
-	def _present_interaction_action_handoff_failure_v1(self, detail: str) -> None:
-		"""Present one shared handoff failure through the ordinary typed refusal route."""
-		self._show_edit_refusal(self._typed_refusal(
-			"edit_document", "unavailable_operation", detail,
-		))
+	def _replace_authoring_owner_with_template_catalog(self) -> None:
+		"""Retire established canvas tools before catalog placement owns the viewport."""
+		self._cancel_atom_insertion()
+		self._cancel_structure_selection()
+		self._cancel_line_gesture()
+
+	def _template_catalog_directory(self) -> str | None:
+		"""Return the configured author template directory for Rust scanning."""
+		directory = self._user_template_directory
+		return None if directory is None else str(directory)
+
+	def _template_catalog_placement_compatible(self) -> bool:
+		"""Keep catalog admission exclusive with every conflicting current operation."""
+		return not (
+			self._molecule_import_busy() or self._molecule_export_busy()
+			or self._molecule_inspection_busy() or self._molecule_diagnostics_busy()
+			or self._atom_oxidation_busy() or self._clipboard_busy()
+			or self._coordinate_generation_intent is not None
+			or self._compact_group_materialization_intent is not None
+			or self._compact_group_authoring_intent is not None
+			or self._snapshot_export_busy()
+			or self._local_document_open_intent is not None
+		)
+
+	def _template_catalog_replacement_actions(self) -> tuple[PySide6.QtGui.QAction, ...]:
+		"""Return the exact authored pointer actions that replace catalog placement."""
+		return (
+			self._add_atom_action, self._draw_bond_action, self._draw_arrow_action,
+			self._draw_plus_action, self._insert_text_action,
+			self._insert_cyclohexane_ring_action, self._draw_wavy_action,
+			self._attach_cyclohexane_ring_action, self._draw_bracket_action,
+			self._draw_round_bracket_action, self._select_structure_action,
+			self._move_atom_action, self._rotate_atoms_action,
+			self._translate_roots_action, *self._draw_vector_actions.values(),
+		)
+
+	def _present_interaction_action_handoff_failure_v1(self, refusal: object) -> None:
+		"""Present either a feature-owned request or a generic handoff refusal."""
+		if type(refusal) is not ferrum_qt.dialogs.refusal_presenter.RefusalRequest:
+			detail = refusal if isinstance(refusal, str) else (
+				"Ferrum interaction action returned an invalid refusal payload."
+			)
+			refusal = self._typed_refusal(
+				"edit_document", "unavailable_operation", detail,
+			)
+		self._show_edit_refusal(refusal)
 		self._refresh_actions()
 
 	def _on_change_element(self) -> None:

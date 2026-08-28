@@ -43,6 +43,12 @@ the edition-2024 workspace. Its crates divide responsibility as follows:
   and [../packages/ferrum-rust/crates/render/](../packages/ferrum-rust/crates/render/)
   supply lower geometry values, higher-level domain utilities, and renderer-owned
   typed render and presentation operations.
+- [../packages/ferrum-rust/crates/template-catalog/](../packages/ferrum-rust/crates/template-catalog/)
+  owns the bounded, immutable V1 template-catalog snapshot. It combines Rust
+  shipped recipes with a bounded user CDML directory scan, retains typed
+  refusals and provenance, and applies an accepted catalog entry through the
+  Rust document session. It is not a Python directory-scanning or CDML-parsing
+  feature.
 - [../packages/ferrum-rust/crates/api/](../packages/ferrum-rust/crates/api/)
   composes those crates into the `ferrum` executable and its document-native
   artifact publication boundary. Its `protocol_v1` module owns the closed,
@@ -84,6 +90,13 @@ builds the direct `ferrum_chem` PyO3 extension. It exposes typed document
 sessions, fenced render observations, renderer-issued presentation plans,
 chemistry DTOs, and native artifact preparation and publication to Python. Qt
 uses this extension rather than parsing a product document itself.
+
+The template catalog follows the same boundary. Its Python projection exposes
+an immutable snapshot capability and display-safe entry, provenance, limit, and
+refusal facts. It does not expose user-directory paths, CDML payloads, a native
+placement plan, or a mutable catalog model. A session accepts the retained
+native snapshot plus a selected opaque key and the document fence, then returns
+the normal Rust-owned mutation receipt.
 
 The extension's V1 public automation additions are deliberately narrower:
 `execute_operation_v1`, `operation_protocol_schema_v1`, and
@@ -127,6 +140,16 @@ editing tools and properties, molecule import and export, user templates,
 recovery export, and view controls. A document tab owns one Rust
 `DocumentSession`; Rust confirms document changes and replacement render
 observations before Qt adopts persistent document state.
+
+The Template Catalog is a three-module Qt vertical slice:
+[../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_dialog.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_dialog.py)
+projects frozen catalog facts and accessible browse controls;
+[../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_tab.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_tab.py)
+submits an exact fenced placement to the session; and
+[../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/template_catalog_window.py)
+owns the modeless dialog, retained capability, and one-shot canvas interaction.
+Qt filters and presents Rust-owned facts but does not scan directories, hash
+content, parse CDML, construct placements, or own publication eligibility.
 
 The native `Molecule Report...` information surface presents a frozen,
 multi-root diagnostic receipt. It renders typed records, aggregate outcome,
@@ -302,6 +325,18 @@ Its envelope is bounded before transport allocation/copy/parsing, then uses the
 existing CDML and artifact-completion resource policies. This is a safety
 boundary, not a performance target.
 
+The template-catalog interaction is a fenced variant of that desktop flow:
+
+```text
+Rust shipped recipes plus optional user-template directory
+  -> ferrum-template-catalog immutable snapshot
+  -> ferrum_chem frozen snapshot projection
+  -> modeless Template Catalog dialog and opaque key selection
+  -> one-shot Qt canvas coordinate
+  -> fenced Rust session placement and mutation receipt
+  -> replacement Rust observation and Qt projection
+```
+
 ## Testing and verification
 
 - Workspace crates use Cargo unit and integration tests from
@@ -330,6 +365,9 @@ boundary, not a performance target.
 - Add a focused, deterministic behavior test at the boundary it protects; use
   disposable local evidence for package and visual checks that do not warrant a
   permanent suite test.
+- Keep Qt feature work as a vertical slice until a controller migration changes
+  its concrete ownership boundary. A nested directory alone is not a design
+  improvement.
 
 ## Attached compact-group authoring
 
@@ -378,6 +416,16 @@ asserts only the net formal charge.
   [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
 - Extend local-runtime validation as native adapter contracts evolve.
 - Keep free placement limited to `Me` until its expanded contract is designed.
+- The current Qt macro-boundaries are sound, but the ordered mixin hosts in
+  [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/main_window.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/main_window.py)
+  and [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/document_tab.py](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/document_tab.py)
+  are a scaling concern. The next foundation milestone must migrate one feature
+  family at a time to explicit feature-controller composition and an
+  `OperationLeaseRegistry` for busy, close, cancellation, and action-refresh
+  ownership. It must delete each migrated mixin chain, preserve typed Rust
+  boundaries and action/YAML IDs, and avoid compatibility aliases, a generic
+  event bus, or a cosmetic wholesale directory move. This refactor is planned;
+  it is not implemented by the current structure.
 ## Free compact-group placement
 
 `PlaceFreeCompactGroupV1` is the Rust-owned direct-root compact-group

@@ -180,11 +180,11 @@ pub(crate) fn interchange_import_success_envelope_v1(
     descriptor: &crate::InterchangeFormatDescriptorV1,
     summary: DocumentInterchangeImportSummaryV1,
 ) -> Result<OperationProtocolEnvelopeV1, crate::InterchangeImportRefusalV1> {
-    let envelope = OperationProtocolEnvelopeV1::Success(OperationProtocolResponseV1 {
+    let envelope = OperationProtocolEnvelopeV1::Success(Box::new(OperationProtocolResponseV1 {
         schema: ProtocolResponseSchemaV1::V1,
         request_id: request_id.to_owned(),
         outcome: OperationProtocolOutcomeV1::DocumentMoleculeInterchangeImport { summary },
-    });
+    }));
     if interchange_import_response_fits(descriptor, &envelope) {
         Ok(envelope)
     } else {

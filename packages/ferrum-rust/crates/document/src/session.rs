@@ -118,7 +118,11 @@ pub use reaction_member_selection_v1::{
 };
 pub use structural_deletion::{PendingDeleteCompactGroupV1, PendingDeleteStructureV1};
 pub use text_placement::PendingTextPlacementV1;
-pub use user_template::DocumentUserTemplateResultV1;
+#[allow(unused_imports)]
+pub use user_template::{
+    DocumentUserTemplatePublicationErrorV1, DocumentUserTemplateResultV1,
+    PreparedDocumentUserTemplatePublicationV1,
+};
 pub use wavy::PendingCreateWavy;
 
 /// An owned structural serialization of the authoritative CDML tree.

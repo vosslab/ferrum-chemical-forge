@@ -75,6 +75,10 @@ pub struct DocumentMoleculeReportRecordSummaryV1 {
     /// Complete engine-derived facts, or `None` when this root cannot produce a
     /// supported composition. `findings` explains that absence.
     pub composition: Option<DocumentMoleculeReportCompositionSummaryV1>,
+    /// Complete canonical identifiers, or one closed reason that this root
+    /// cannot publish an identity bundle. Individual identifiers never leak
+    /// through when the complete bundle cannot be derived.
+    pub identifiers: DocumentMoleculeReportIdentifiersSummaryV1,
     pub neutral_bond_capacity: String,
     /// Durable source stereo facts, separate from drawing-only bond presentation.
     pub stereo_semantics: Option<DocumentMoleculeReportStereoSemanticsSummaryV1>,
@@ -82,6 +86,32 @@ pub struct DocumentMoleculeReportRecordSummaryV1 {
     pub stereo_depiction: Option<DocumentMoleculeReportStereoDepictionSummaryV1>,
     /// Authenticated structured diagnostics in report order.
     pub findings: Vec<DocumentMoleculeReportFindingSummaryV1>,
+}
+
+/// The all-or-nothing canonical identifier facet for one selected root.
+///
+/// Ferrum publishes the complete bundle in dependency order, or one bounded
+/// reason. It never represents unavailable identifiers with nullable fields or
+/// a partial export.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentMoleculeReportIdentifiersSummaryV1 {
+    Available {
+        canonical_smiles: String,
+        standard_inchi: String,
+        standard_inchi_key: String,
+    },
+    Unavailable {
+        reason: DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1,
+    },
+}
+
+/// Closed reasons a running chemistry engine could not publish identifiers.
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1 {
+    UnsupportedMolecule,
+    ChemistryUnavailable,
 }
 
 /// Canonical graph-source-indexed stereo facts retained by one direct molecule.

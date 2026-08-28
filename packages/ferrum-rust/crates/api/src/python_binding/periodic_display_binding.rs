@@ -53,6 +53,12 @@ struct PyElementDisplayFactsV1 {
     #[pyo3(get)]
     symbol: String,
     #[pyo3(get)]
+    display_name: String,
+    #[pyo3(get)]
+    grid_row: u8,
+    #[pyo3(get)]
+    grid_column: u8,
+    #[pyo3(get)]
     category: Py<PyElementDisplayCategoryV1>,
     #[pyo3(get)]
     color: String,
@@ -121,6 +127,9 @@ fn facts_to_python(
 ) -> PyResult<PyElementDisplayFactsV1> {
     Ok(PyElementDisplayFactsV1 {
         symbol: facts.symbol().to_owned(),
+        display_name: facts.display_name().to_owned(),
+        grid_row: facts.grid_row(),
+        grid_column: facts.grid_column(),
         category: Py::new(py, category_to_python(facts.category()))?,
         color: facts.color().to_owned(),
     })
@@ -159,4 +168,46 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use pyo3::types::PyAnyMethods;
+
+    use super::*;
+
+    #[test]
+    fn python_picker_facts_copy_all_rust_issued_display_fields() {
+        Python::initialize();
+        Python::attach(|py| {
+            let facts = periodic_display_facts_v1(py, "Fe".to_owned())
+                .expect("iron is a supported picker symbol");
+            let facts = facts.into_pyobject(py).expect("Python facts object");
+            assert_eq!(
+                facts
+                    .getattr("display_name")
+                    .expect("display name getter")
+                    .extract::<String>()
+                    .expect("text display name"),
+                "Iron"
+            );
+            assert_eq!(
+                facts
+                    .getattr("grid_row")
+                    .expect("grid row getter")
+                    .extract::<u8>()
+                    .expect("integer grid row"),
+                3
+            );
+            assert_eq!(
+                facts
+                    .getattr("grid_column")
+                    .expect("grid column getter")
+                    .extract::<u8>()
+                    .expect("integer grid column"),
+                7
+            );
+            assert!(facts.setattr("grid_row", 0).is_err());
+        });
+    }
 }

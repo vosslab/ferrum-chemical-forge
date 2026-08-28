@@ -18,6 +18,10 @@ pub(crate) mod live_document_operation_v1;
 mod molecule_diagnostics_core_v1;
 mod molecule_report_core_v1;
 mod molecule_report_diagnostics_v1;
+#[cfg(test)]
+#[path = "molecule_report_identifier_v1_tests.rs"]
+mod molecule_report_identifier_v1_tests;
+mod molecule_report_identifiers_v1;
 pub(crate) mod runtime;
 mod schema;
 pub(crate) mod smarts_query_core_v1;
@@ -53,10 +57,12 @@ pub use dto::{
     DocumentMoleculeReportFindingCodeSummaryV1, DocumentMoleculeReportFindingLocationSummaryV1,
     DocumentMoleculeReportFindingRecoverySummaryV1, DocumentMoleculeReportFindingSeveritySummaryV1,
     DocumentMoleculeReportFindingSubjectSummaryV1, DocumentMoleculeReportFindingSummaryV1,
-    DocumentMoleculeReportRecordSummaryV1, DocumentMoleculeReportRequestV1,
-    DocumentMoleculeReportSnapshotV1, DocumentMoleculeReportStereoDepictionSummaryV1,
-    DocumentMoleculeReportStereoLigandSummaryV1, DocumentMoleculeReportStereoSemanticsSummaryV1,
-    DocumentMoleculeReportSummaryV1, DocumentMoleculeReportTetrahedralParitySummaryV1,
+    DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1,
+    DocumentMoleculeReportIdentifiersSummaryV1, DocumentMoleculeReportRecordSummaryV1,
+    DocumentMoleculeReportRequestV1, DocumentMoleculeReportSnapshotV1,
+    DocumentMoleculeReportStereoDepictionSummaryV1, DocumentMoleculeReportStereoLigandSummaryV1,
+    DocumentMoleculeReportStereoSemanticsSummaryV1, DocumentMoleculeReportSummaryV1,
+    DocumentMoleculeReportTetrahedralParitySummaryV1,
     DocumentMoleculeReportTetrahedralStereoSummaryV1, DocumentRenderArtifactRequestV1,
     DocumentRequestFenceV1, DocumentRewriteRequestV1, DocumentSmartsQueryInputV1,
     DocumentSmartsQueryLimitsV1, DocumentSmartsQueryMoleculeSummaryV1,

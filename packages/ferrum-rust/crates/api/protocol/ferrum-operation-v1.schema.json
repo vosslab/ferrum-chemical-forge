@@ -1252,6 +1252,61 @@
       ],
       "type": "object"
     },
+    "DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1": {
+      "description": "Closed reasons a running chemistry engine could not publish identifiers.",
+      "enum": [
+        "unsupported_molecule",
+        "chemistry_unavailable"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeReportIdentifiersSummaryV1": {
+      "description": "The all-or-nothing canonical identifier facet for one selected root.\n\nFerrum publishes the complete bundle in dependency order, or one bounded\nreason. It never represents unavailable identifiers with nullable fields or\na partial export.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "canonical_smiles": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "available",
+              "type": "string"
+            },
+            "standard_inchi": {
+              "type": "string"
+            },
+            "standard_inchi_key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "canonical_smiles",
+            "standard_inchi",
+            "standard_inchi_key"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unavailable",
+              "type": "string"
+            },
+            "reason": {
+              "$ref": "#/$defs/DocumentMoleculeReportIdentifierUnavailableReasonSummaryV1"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "DocumentMoleculeReportRecordSummaryV1": {
       "additionalProperties": false,
       "properties": {
@@ -1307,6 +1362,10 @@
           },
           "type": "array"
         },
+        "identifiers": {
+          "$ref": "#/$defs/DocumentMoleculeReportIdentifiersSummaryV1",
+          "description": "Complete canonical identifiers, or one closed reason that this root\ncannot publish an identity bundle. Individual identifiers never leak\nthrough when the complete bundle cannot be derived."
+        },
         "molecule_id": {
           "type": "string"
         },
@@ -1342,6 +1401,7 @@
         "atom_count",
         "bond_count",
         "authored_elements",
+        "identifiers",
         "neutral_bond_capacity",
         "findings"
       ],

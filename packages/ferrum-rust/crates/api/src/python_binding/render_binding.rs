@@ -6,9 +6,9 @@ use ferrum_document::{
 };
 use ferrum_render::{
     BatchSpace, DepictionSuppressionV1, DocumentMoleculeRenderPlanV3, DocumentPlusRenderV1, LineOp,
-    MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue, RenderIssueKind, RenderOp,
-    RenderPoint, RenderTarget, TextOp, TextScript, VectorStrokeLineCapV1,
-    verified_telex_regular_v1,
+    MoleculeContentBoundsV1, MoleculeRenderPlan, RenderBatch, RenderDisplayLayerV1, RenderIssue,
+    RenderIssueKind, RenderOp, RenderPoint, RenderTarget, TextOp, TextScript,
+    VectorStrokeLineCapV1, measure_molecule_render_plan_bounds_v1, verified_telex_regular_v1,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -352,6 +352,8 @@ pub(crate) struct PyDocumentMoleculeRenderPlanV3 {
     molecule: PyMoleculeRenderRootV1,
     #[pyo3(get)]
     plan: PyRenderPlanV3,
+    #[pyo3(get)]
+    bounds: PyMoleculeContentBoundsV1,
     member_issues: Vec<PyMoleculeMemberDepictionIssueV1>,
 }
 
@@ -384,6 +386,30 @@ pub(crate) struct PyMoleculeMemberDepictionIssueV1 {
     category: String,
     #[pyo3(get)]
     detail: String,
+}
+
+#[pyclass(frozen, name = "MoleculeContentBoundsV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyMoleculeContentBoundsV1 {
+    #[pyo3(get)]
+    left: f64,
+    #[pyo3(get)]
+    top: f64,
+    #[pyo3(get)]
+    right: f64,
+    #[pyo3(get)]
+    bottom: f64,
+}
+
+impl From<MoleculeContentBoundsV1> for PyMoleculeContentBoundsV1 {
+    fn from(value: MoleculeContentBoundsV1) -> Self {
+        Self {
+            left: value.left(),
+            top: value.top(),
+            right: value.right(),
+            bottom: value.bottom(),
+        }
+    }
 }
 
 #[pyclass(frozen, name = "PresentationTextBoundsV1", skip_from_py_object)]
@@ -536,11 +562,14 @@ fn document_molecule_plan_from(
     py: Python<'_>,
     value: &DocumentMoleculeRenderPlanV3,
 ) -> PyResult<PyDocumentMoleculeRenderPlanV3> {
+    let bounds = measure_molecule_render_plan_bounds_v1(value.plan())
+        .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
     Ok(PyDocumentMoleculeRenderPlanV3 {
         molecule: PyMoleculeRenderRootV1 {
             document_object_id: value.molecule().document_object_id().as_str().to_owned(),
         },
         plan: plan_from(py, value.plan())?,
+        bounds: bounds.into(),
         member_issues: value
             .member_issues()
             .iter()
@@ -836,6 +865,7 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyScenePathCommandV3>()?;
     module.add_class::<PyRenderIssueV1>()?;
     module.add_class::<PyMoleculeMemberDepictionIssueV1>()?;
+    module.add_class::<PyMoleculeContentBoundsV1>()?;
     module.add_class::<PyDocumentPlusRenderV1>()?;
     super::presentation_text_render_binding::register(module)?;
     module.add_class::<PyPresentationTextBoundsV1>()?;

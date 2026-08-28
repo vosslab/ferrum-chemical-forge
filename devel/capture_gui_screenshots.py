@@ -153,7 +153,9 @@ def _documentation_frame(canvas: PySide6.QtWidgets.QGraphicsView) -> None:
 		height,
 	)
 	canvas.setBackgroundBrush(PySide6.QtGui.QColor("#f6f2e9"))
-	canvas.fitInView(frame, PySide6.QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+	fit = getattr(canvas, "fit_display_bounds", None)
+	if not callable(fit) or fit(frame) is not True:
+		raise CaptureError("Ferrum drawing canvas could not frame completed content")
 
 
 #============================================
@@ -346,7 +348,7 @@ def _inserted_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 	tab = _active_tab(window)
 	before = _atom_count(tab)
 	_activate_command(window, application, "Insert Cyclohexane Ring")
-	_click(_canvas(tab), _scene_point(tab, 650.0, 360.0))
+	_click(_canvas(tab), _scene_point(tab, 450.0, 360.0))
 	application.processEvents()
 	if _atom_count(tab) != before + 6:
 		raise CaptureError("Insert Cyclohexane Ring did not create six visible atoms")
@@ -491,10 +493,11 @@ def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
 	window = _window(application, theme_manager, workspace, _CARBON_CDML)
 	tab = _active_tab(window)
 	_activate_command(window, application, "Select Structure")
-	_click(_canvas(tab), _scene_point(tab, 300.0, 360.0))
+	point = _scene_point(tab, 300.0, 360.0)
+	_click(_canvas(tab), point)
 	application.processEvents()
 	if not _find_action(window, "Change Element").isEnabled():
-		raise CaptureError("Select Structure did not enable the selected-atom command")
+		raise CaptureError(f"Select Structure did not enable the selected-atom command: {point}")
 	PySide6.QtCore.QTimer.singleShot(0, lambda: _accept_item_dialog(application, "N"))
 	_activate_command(window, application, "Change Element")
 	application.processEvents()
@@ -536,7 +539,7 @@ def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 	window = _window(application, theme_manager, workspace)
 	tab = _active_tab(window)
 	_activate_command(window, application, "Draw Arrow")
-	_drag(_canvas(tab), _scene_point(tab, 300.0, 360.0), _scene_point(tab, 620.0, 360.0))
+	_drag(_canvas(tab), _scene_point(tab, 350.0, 360.0), _scene_point(tab, 500.0, 360.0))
 	application.processEvents()
 	if "<arrow" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Arrow did not create a durable reaction arrow")
@@ -551,7 +554,7 @@ def _presentation_vector_scene(application: PySide6.QtWidgets.QApplication,
 	window = _window(application, theme_manager, workspace)
 	tab = _active_tab(window)
 	_activate_command(window, application, "Draw Line")
-	_drag(_canvas(tab), _scene_point(tab, 300.0, 300.0), _scene_point(tab, 620.0, 470.0))
+	_drag(_canvas(tab), _scene_point(tab, 150.0, 280.0), _scene_point(tab, 450.0, 280.0))
 	application.processEvents()
 	if "<polyline" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Line did not create a durable presentation vector")
@@ -693,7 +696,7 @@ def _retire_presentation_selection(window: PySide6.QtWidgets.QMainWindow,
 #============================================
 def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Require the imported ChemDraw document to remain current after framing."""
+	"""Require the imported ChemDraw document to remain current and visibly framed."""
 	application.processEvents()
 	tab = _active_tab(window)
 	molecules = tab.current_document_observation().projection.molecules
@@ -705,6 +708,23 @@ def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 		raise CaptureError("bounded CDXML lost its imported structure before capture")
 	if "Opening drawing" in window.statusBar().currentMessage():
 		raise CaptureError("bounded CDXML still reports an in-progress Open before capture")
+	# CDXML ingress can schedule its first page frame after the generic scene
+	# preparation pass. Use the public view command once import is definitively
+	# complete so the screenshot proves the editable projection, not an empty page.
+	canvas = _canvas(tab)
+	bounds = tab.document_content_bounds()
+	if bounds is None:
+		raise CaptureError("bounded CDXML has no drawable content bounds after import")
+	_documentation_frame(canvas)
+	application.processEvents()
+	center = canvas.mapFromScene(bounds.center())
+	mapped_bounds = canvas.mapFromScene(bounds).boundingRect()
+	visible = canvas.viewport().rect().adjusted(40, 40, -40, -40)
+	if not visible.contains(center) or mapped_bounds.width() < 100:
+		raise CaptureError(
+			f"bounded CDXML content is not visibly framed after import: "
+			f"center={center.x()},{center.y()} visible={visible} bounds={bounds}"
+		)
 
 
 #============================================
@@ -939,7 +959,10 @@ def main() -> int:
 		application = PySide6.QtWidgets.QApplication(sys.argv[:1])
 	application.setApplicationName("Ferrum")
 	theme_manager = ferrum_qt.themes.theme_manager.ThemeManager(application)
-	theme_manager.restore_theme()
+	# Keep documentation evidence deterministic without mutating the user's saved
+	# application preference. Explicit black presentation marks remain legible on
+	# the light document page.
+	theme_manager.apply_transient_theme("light")
 	scenes = tuple(scene for scene in SCENES if args.scene is None or scene.name == args.scene)
 	backends: set[str] = set()
 	with tempfile.TemporaryDirectory(prefix="ferrum_gui_screenshots_") as temporary:

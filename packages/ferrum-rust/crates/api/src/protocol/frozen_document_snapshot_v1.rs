@@ -87,7 +87,7 @@ fn parse_lowercase_sha256(value: &str) -> Result<[u8; 32], FrozenDocumentSnapsho
         ));
     }
     let mut digest = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let text = std::str::from_utf8(pair).expect("digest bytes are sized as ASCII pairs");
         if !text
             .bytes()

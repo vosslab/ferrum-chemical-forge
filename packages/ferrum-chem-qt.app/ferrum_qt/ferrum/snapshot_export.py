@@ -282,7 +282,6 @@ class FerrumNativeSnapshotExportWindowMixin:
 			or self._molecule_inspection_busy()
 			or self._clipboard_busy()
 			or self._coordinate_generation_intent is not None
-			or self._user_template_placement_intent is not None
 		)
 
 	#============================================

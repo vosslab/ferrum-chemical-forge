@@ -39,7 +39,7 @@ tabs:
         entries:
           - {action: draw.ring.cyclohexane.insert, role: primary, priority: required}
           - {action: draw.ring.cyclohexane.attach, role: supporting, priority: normal}
-          - {action: chemistry.template.insert, role: supporting, priority: normal}
+          - {action: chemistry.template.catalog, role: supporting, priority: normal}
       - id: reaction
         label_key: Reaction
         overflow_label_key: More reaction commands
@@ -73,8 +73,7 @@ tabs:
         label_key: Groups and templates
         overflow_label_key: More group and template commands
         entries:
-          - {action: chemistry.template.insert, role: primary, priority: required}
-          - {action: chemistry.template.place, role: supporting, priority: normal}
+          - {action: chemistry.template.catalog, role: primary, priority: required}
           - {action: chemistry.compact_group.place, role: supporting, priority: normal}
           - {action: chemistry.compact_group.materialize, role: supporting, priority: normal}
           - {action: chemistry.compact_group.attach, role: supporting, priority: normal}

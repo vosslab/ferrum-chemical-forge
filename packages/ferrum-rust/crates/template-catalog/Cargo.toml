@@ -1,0 +1,22 @@
+[package]
+name = "ferrum-template-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-catalog-placement = { path = "../catalog-placement" }
+ferrum-document = { path = "../document" }
+ferrum-domain = { path = "../domain" }
+ferrum-geometry = { path = "../geometry" }
+rustix = { version = "*", features = ["fs"] }
+sha2 = { version = "*" }
+thiserror = { version = "*" }

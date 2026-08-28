@@ -176,6 +176,29 @@ pub fn prepare_document_user_template_v1(
     })
 }
 
+/// Inspect the live retained document for saved-template publication eligibility.
+///
+/// Unlike external-template preparation, this never serializes, reparses, or
+/// detaches the live document.  It deliberately retains only the inert display
+/// fact needed by a publication receipt; placement material remains private to
+/// the external-template route.
+pub(crate) fn inspect_live_document_user_template_v1(
+    document: &TypedDocument,
+) -> Result<Option<String>, DocumentUserTemplateErrorV1> {
+    let molecule = eligible_molecule(document)?;
+    let display_name = molecule
+        .attribute("name")
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned);
+    reject_legacy_template_marker(molecule)?;
+    reject_nested_mark_geometry(molecule)?;
+    validate_internal_references(molecule)?;
+    atom_centroid(molecule)?;
+    validate_complete_geometry(document, molecule)?;
+    Ok(display_name)
+}
+
 fn eligible_molecule(
     document: &TypedDocument,
 ) -> Result<&TypedRecord, DocumentUserTemplateErrorV1> {

@@ -12,6 +12,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.ferrum.document_tab_errors as native_document_tab_errors
+import ferrum_qt.ferrum.operation_leases
+from ferrum_qt.ferrum.interaction_action_handoff import FerrumAdmittedInteractionCommand
 
 
 #============================================
@@ -178,7 +180,12 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 			"Place a free Me compact group. Ferrum Rust owns identifiers, orientation, "
 			"history, chemistry, and rendering admission.",
 		))
-		self._connect_interaction_action_v1(action, self._choose_free_compact_group)
+		self._connect_interaction_action_v1(
+			action,
+			lambda checked: FerrumAdmittedInteractionCommand(
+				lambda: self._choose_free_compact_group(checked),
+			),
+		)
 		action.toggled.connect(self._on_place_free_compact_group_toggled)
 		self._place_free_compact_group_action = action
 		self._action_registry.register_existing(
@@ -372,10 +379,11 @@ class FerrumNativeFreeCompactGroupPlacementWindowMixin:
 			"_line_gesture_intent",
 			"_structure_tab",
 			"_compact_group_authoring_intent",
-			"_catalog_placement_intent",
-			"_user_template_placement_intent",
 			"_direct_glycosidic_haworth_intent",
-		))
+		)) or self._operation_leases.has_active(
+			ferrum_qt.ferrum.operation_leases.OperationFamily.TEMPLATE_CATALOG,
+			tab=self._active_native_tab(),
+		)
 
 	def _close_tab_at(self, index: int) -> None:
 		"""Cancel this capture for a closing tab before the ordinary lifecycle guard."""

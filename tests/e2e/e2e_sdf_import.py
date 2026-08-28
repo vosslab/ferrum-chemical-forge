@@ -15,6 +15,7 @@ ferrum_qt_e2e.select_offscreen_qt_platform()
 
 # PIP3 modules
 import PySide6.QtCore
+import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
@@ -69,6 +70,16 @@ def _molecule_names(tab: object) -> tuple[str, ...]:
 
 
 #============================================
+def _visible_action(window: PySide6.QtWidgets.QMainWindow, label: str) -> PySide6.QtGui.QAction:
+	"""Return a user-visible menu action by its stable accessible caption."""
+	return next(
+		action
+		for action in window.findChildren(PySide6.QtGui.QAction)
+		if action.text() == label
+	)
+
+
+#============================================
 def main() -> int:
 	"""Run one complete receipt-bounded SDF import against the staged product."""
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
@@ -90,11 +101,15 @@ def main() -> int:
 			app.processEvents()
 			tab = _active_canvas_tab(window)
 			initial_revision = tab.current_snapshot.revision
-			if window._sdf_import_route_handle() is None:
-				raise SdfImportE2eError("Ferrum did not retain the SDF ingress route handle")
-			if not window.start_sdf_import(str(path)):
-				raise SdfImportE2eError("Ferrum did not start the supplied SDF import")
-			completion_loop.exec()
+			original_chooser = PySide6.QtWidgets.QFileDialog.getOpenFileName
+			PySide6.QtWidgets.QFileDialog.getOpenFileName = lambda *_args: (
+				str(path), "Structure Data File (*.sdf *.sd)",
+			)
+			try:
+				_visible_action(window, "Import SDF Records into Current Drawing...").trigger()
+				completion_loop.exec()
+			finally:
+				PySide6.QtWidgets.QFileDialog.getOpenFileName = original_chooser
 			if len(receipts) != 1:
 				raise SdfImportE2eError("SDF import did not publish one installation receipt")
 			receipt = receipts[0]
@@ -109,6 +124,8 @@ def main() -> int:
 				raise SdfImportE2eError("SDF installation receipt did not describe one committed batch")
 			if _molecule_names(tab) != ("ethanol", "water"):
 				raise SdfImportE2eError("SDF import did not preserve source record order and names")
+			if _active_canvas_tab(window) is not tab:
+				raise SdfImportE2eError("File Import SDF did not retain its current document tab")
 			print(json.dumps({"schema": "ferrum-sdf-import-e2e-v1", "status": "ok"}))
 			return 0
 	finally:

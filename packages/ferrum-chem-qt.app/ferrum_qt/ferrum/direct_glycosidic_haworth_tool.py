@@ -11,6 +11,7 @@ from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.ferrum.direct_glycosidic_haworth
 import ferrum_qt.ferrum.document_display_refresh
+from ferrum_qt.ferrum.interaction_action_handoff import FerrumAdmittedInteractionCommand
 from ferrum_qt.ferrum.document_tab_errors import (
 	FerrumNativeDocumentTabMutationPresentationError,
 )
@@ -108,7 +109,9 @@ class FerrumNativeDirectGlycosidicHaworthWindowMixin:
 		self._insert_direct_glycosidic_haworth_action.setStatusTip(message)
 		self._connect_interaction_action_v1(
 			self._insert_direct_glycosidic_haworth_action,
-			self._on_insert_direct_glycosidic_haworth,
+			lambda checked: FerrumAdmittedInteractionCommand(
+				lambda: self._on_insert_direct_glycosidic_haworth(checked),
+			),
 		)
 		self._action_registry.register_existing(
 			"chemistry.haworth.direct_glycosidic.insert",
