@@ -1,43 +1,58 @@
 # TODO
 
-Ferrum remains at a delivery-stabilization checkpoint. The authoritative
-capability ledger and parity sequence are in
+This is Ferrum's short dispatch queue. The authoritative capability ledger and
+acceptance criteria remain
 [FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md);
-[ROADMAP.md](ROADMAP.md) explains the current release-facing order. Neither
-document claims complete Rust/OASA/BKChem parity.
+[ROADMAP.md](ROADMAP.md) gives the delivery order. Completed Local Document
+Open stabilization, its independent screenshot review, and its local automated
+gates are recorded there and are not TODO work. This queue names only the next
+evidence gates and contract selections; it does not duplicate roadmap detail.
 
-## Prove the current stabilization repair
+## Obtain human and release acceptance
 
-- Verify the Local Document Open host-issued publication and replacement-commit
-  receipts with injected failures immediately after each irreversible boundary.
-  The candidate must remain registered and valid, a committed replacement must
-  retain its settled source lease, and only pre-commit refusal may dispose the
-  candidate. Obtain independent architecture acceptance, then rerun the
-  focused, build, registered E2E, and aggregate gates.
-- Record maintainer native keyboard and accessibility sign-off separately from
-  the delivered action bridge. Retain Rust document identity and avoid a
-  Qt-side durable-item or Python structural-selection model.
-- Create a fresh real GUI screenshot set and obtain maintainer visual
-  acceptance for the complete, uncropped Ferrum surface. Treat image capture
-  and automated semantic checks as supporting evidence, not visual acceptance.
-- Obtain remote-CI and release-artifact receipts before calling a release ready.
-  Check repository and process quiescence at the time of that handoff.
+- Complete the `PARITY-M5.A` [Template Catalog](active_plans/decisions/m5_template_catalog_v1.md)
+  native walkthrough. Record keyboard focus, visible focus, accessible
+  names/roles/states, contrast, recovery wording, and human acceptance of a
+  current real-dialog capture. Automated catalog receipts do not close this
+  gate.
+- Complete the atom-label/bond attachment evidence gate: rebuild the Rust,
+  PyO3, and installed-Qt consumers; capture a current real Qt alignment scene;
+  and obtain maintainer visual acceptance that visible label ink and final bond
+  ink remain disjoint. Keep this evidence separate from the broader native
+  accessibility acceptance.
+- Obtain maintainer native visual and accessibility acceptance for the current
+  full Ferrum surface, including keyboard-only authoring and focus recovery.
+  The 13-scene documentation tour and its automated/agent review support that
+  decision but do not replace it.
+- Before release readiness, obtain remote-CI and release-artifact receipts and
+  check repository and process quiescence at handoff. Keep local build and test
+  results distinct from those external acceptance records.
 
-## Close the next bounded parity gate
+## Advance parity through bounded contracts
 
-- Close `PARITY-M5.A` [Template Catalog V1](active_plans/decisions/m5_template_catalog_v1.md)
-  only after fresh native accessibility, contrast, focus, and real-dialog
-  screenshot review receives human acceptance. Its Rust snapshot/admission and
-  prepared-publication contracts, plus the explicit Qt controller and
-  `OperationLeaseRegistry`, are already the implemented boundary.
+- Select the next corpus-backed M2 graph or interchange profile. Define the
+  accepted grammar, typed loss/refusal behavior, Rust ownership, CLI and Qt
+  routes, and semantic import/export/reimport evidence before implementation.
+  CDX binary, reaction and page-layout CDXML, namespace variants,
+  end-directed wedges, and wider chemistry forms remain separate decisions.
+- Design the remaining bond-presentation parity renderer-first. Start with
+  finite, sink-neutral Rust geometry and a closed durable presentation before
+  admitting one corpus-backed Adder or Dotted import/editor route; then add
+  its CLI/Qt client, CDML persistence, history/reopen, and refusal evidence.
+  Do not treat the delivered CDXML Wavy, Bold, and Dash slice as a generic
+  presentation-import fallback.
+- Select each next M4, M5, or M6 slice as one independently accepted contract:
+  Rust semantics and typed outcomes, the required CLI and Qt client, durable
+  mutation proof where applicable, and explicit accessibility evidence. Keep
+  unselected catalog, reaction, peptide, carbohydrate, help, clipboard, output,
+  and exchange scope out of the dispatch queue until its boundary is chosen.
 
-## Resume complete parity deliberately
+## Preserve the architecture boundary
 
-- Reconcile current validation receipts and historical milestone status in the
-  canonical parity ledger after the stabilization gate. Do not promote dated
-  local counts into current acceptance evidence.
-- Select the next unclassified reference workflow from the ledger's M2, M4,
-  M5, or M6 queues. Give it a Rust-owned semantic contract, appropriate CLI
-  exposure when it is a non-library operation, a Qt interaction/accessibility
-  client, corpus comparison where representable, and mutation history plus
-  save/reopen evidence before advancing its milestone.
+- Keep historical reference material as read-only provenance only. Every newly
+  admitted workflow must have a Ferrum-owned Rust semantic contract, with PyO3
+  carrying frozen facts and Qt owning interaction and accessibility rather than
+  a second chemistry or durable-document model.
+- Start M7 only after separate plugin and compound-service security/product
+  decisions define authority, isolation, permissions, provenance, failure
+  containment, and offline behavior.

@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    CompactGroupRenderPrimitiveV1, MoleculeRenderPlan, RenderBatch, RenderError, RenderIssue,
+    CompactGroupRenderPrimitiveV1, MoleculeRenderPlanV4, RenderBatchV4, RenderError, RenderIssue,
     RenderProvenance, RenderRevision,
 };
 use ferrum_document_projection::{
@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Closed schema identifier for the final API-owned render observation.
-pub const RESOLVED_DOCUMENT_RENDER_SCHEMA_V1: &str = "ferrum-resolved-document-render-v1";
+pub const RESOLVED_DOCUMENT_RENDER_SCHEMA_V2: &str = "ferrum-resolved-document-render-v2";
 
 /// The durable document-root identity for one molecule render plan.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -44,19 +44,19 @@ impl MoleculeRenderRootV1 {
 /// One document-root molecule and its existing complete render plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DocumentMoleculeRenderPlanV3 {
+pub struct DocumentMoleculeRenderPlanV4 {
     molecule: MoleculeRenderRootV1,
-    plan: MoleculeRenderPlan,
+    plan: MoleculeRenderPlanV4,
     member_ids: Vec<DocumentObjectIdV1>,
     member_issues: Vec<MoleculeMemberDepictionIssueV1>,
     #[serde(skip, default)]
     compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
 }
 
-impl DocumentMoleculeRenderPlanV3 {
+impl DocumentMoleculeRenderPlanV4 {
     pub(crate) fn from_document_object_id(
         document_object_id: DocumentObjectIdV1,
-        plan: MoleculeRenderPlan,
+        plan: MoleculeRenderPlanV4,
         compact_group_primitives: Vec<CompactGroupRenderPrimitiveV1>,
         member_ids: Vec<DocumentObjectIdV1>,
         member_issues: Vec<MoleculeMemberDepictionIssueV1>,
@@ -80,7 +80,7 @@ impl DocumentMoleculeRenderPlanV3 {
 
     /// Return the complete molecule-local renderer plan.
     #[must_use]
-    pub const fn plan(&self) -> &MoleculeRenderPlan {
+    pub const fn plan(&self) -> &MoleculeRenderPlanV4 {
         &self.plan
     }
 
@@ -98,7 +98,7 @@ impl DocumentMoleculeRenderPlanV3 {
 
     /// Return immutable molecule-local target batches in source order.
     #[must_use]
-    pub fn batches(&self) -> &[RenderBatch] {
+    pub fn batches(&self) -> &[RenderBatchV4] {
         self.plan.batches()
     }
 
@@ -144,39 +144,39 @@ impl DocumentMoleculeRenderPlanV3 {
 
 /// A revision-checked immutable document observation with its complete render result.
 ///
-/// This type is constructed only by [`observe_render_v1`]. That one call obtains the
-/// document snapshot and projection, invokes the closed verified-Telex depiction entry,
+/// This type is constructed only by [`resolve_document_render_v2`]. That call accepts
+/// one immutable document projection, invokes the closed verified-Telex depiction entry,
 /// and lowers the projection. It therefore has no API for combining separately-read
-/// snapshots, projections, resolutions, or plans.
+/// projections, resolutions, or plans.
 #[derive(Debug)]
-pub struct ResolvedDocumentRenderV1 {
+pub struct ResolvedDocumentRenderV2 {
     projection: DocumentProjectionV1,
     profile: DepictionProfileV1,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV4>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
-impl ResolvedDocumentRenderV1 {
+impl ResolvedDocumentRenderV2 {
     fn from_projection(
         projection: DocumentProjectionV1,
         profile: DepictionProfileV1,
-    ) -> Result<Self, ResolvedDocumentRenderErrorV1> {
+    ) -> Result<Self, ResolvedDocumentRenderErrorV2> {
         let resolution = render_document_projection_v1(&projection, &profile)?;
         let revision = projection.revision();
         let digest = projection.digest();
         let render_revision = RenderRevision::new(revision)
-            .map_err(|_| ResolvedDocumentRenderErrorV1::ProvenanceMismatch)?;
+            .map_err(|_| ResolvedDocumentRenderErrorV2::ProvenanceMismatch)?;
         if resolution.projection_revision() != revision || resolution.projection_digest() != digest
         {
-            return Err(ResolvedDocumentRenderErrorV1::ProvenanceMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::ProvenanceMismatch);
         }
         if resolution.plans().iter().any(|entry| {
             entry.plan().revision() != render_revision
                 || entry.plan().provenance().digest() != *digest
         }) {
-            return Err(ResolvedDocumentRenderErrorV1::ProvenanceMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::ProvenanceMismatch);
         }
         validate_projection_plan_roots(projection.molecules(), resolution.plans())?;
         validate_projection_plus_roots(
@@ -211,7 +211,7 @@ impl ResolvedDocumentRenderV1 {
 
     /// Return complete molecule plans in document root order.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV4] {
         &self.molecule_plans
     }
 
@@ -235,9 +235,9 @@ impl ResolvedDocumentRenderV1 {
 
     /// Return the frozen, validated render-facing wire DTO.
     #[must_use]
-    pub fn wire(&self) -> ResolvedDocumentRenderWireV1 {
-        ResolvedDocumentRenderWireV1 {
-            schema: RESOLVED_DOCUMENT_RENDER_SCHEMA_V1.to_owned(),
+    pub fn wire(&self) -> ResolvedDocumentRenderWireV2 {
+        ResolvedDocumentRenderWireV2 {
+            schema: RESOLVED_DOCUMENT_RENDER_SCHEMA_V2.to_owned(),
             document: RenderDocumentProvenanceV1 {
                 revision: self.projection.revision(),
                 digest: *self.projection.digest(),
@@ -252,16 +252,16 @@ impl ResolvedDocumentRenderV1 {
 }
 
 /// Resolve one lower immutable document projection without session authority.
-pub fn resolve_document_render_v1(
+pub fn resolve_document_render_v2(
     projection: DocumentProjectionV1,
     profile: DepictionProfileV1,
-) -> Result<ResolvedDocumentRenderV1, ResolvedDocumentRenderErrorV1> {
-    ResolvedDocumentRenderV1::from_projection(projection, profile)
+) -> Result<ResolvedDocumentRenderV2, ResolvedDocumentRenderErrorV2> {
+    ResolvedDocumentRenderV2::from_projection(projection, profile)
 }
 
 /// Failure while producing one final render observation.
 #[derive(Debug, Error)]
-pub enum ResolvedDocumentRenderErrorV1 {
+pub enum ResolvedDocumentRenderErrorV2 {
     /// Closed depiction resolution rejected lower-level rendering.
     #[error(transparent)]
     Depiction(#[from] DepictionError),
@@ -308,11 +308,11 @@ impl RenderDocumentProvenanceV1 {
 /// forge a `DocumentProjectionV1` or submit a session operation.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ResolvedDocumentRenderWireV1 {
+pub struct ResolvedDocumentRenderWireV2 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV4>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -320,19 +320,19 @@ pub struct ResolvedDocumentRenderWireV1 {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct UncheckedResolvedDocumentRenderWireV1 {
+struct UncheckedResolvedDocumentRenderWireV2 {
     schema: String,
     document: RenderDocumentProvenanceV1,
     profile: String,
-    molecule_plans: Vec<DocumentMoleculeRenderPlanV3>,
+    molecule_plans: Vec<DocumentMoleculeRenderPlanV4>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
 }
 
-impl ResolvedDocumentRenderWireV1 {
-    fn from_unchecked(wire: UncheckedResolvedDocumentRenderWireV1) -> Result<Self, String> {
-        let UncheckedResolvedDocumentRenderWireV1 {
+impl ResolvedDocumentRenderWireV2 {
+    fn from_unchecked(wire: UncheckedResolvedDocumentRenderWireV2) -> Result<Self, String> {
+        let UncheckedResolvedDocumentRenderWireV2 {
             schema,
             document,
             profile,
@@ -341,7 +341,7 @@ impl ResolvedDocumentRenderWireV1 {
             text_renders,
             suppression,
         } = wire;
-        if schema != RESOLVED_DOCUMENT_RENDER_SCHEMA_V1 || profile != DEPICTION_PROFILE_SCHEMA_V1 {
+        if schema != RESOLVED_DOCUMENT_RENDER_SCHEMA_V2 || profile != DEPICTION_PROFILE_SCHEMA_V1 {
             return Err("unknown render-observation schema or depiction profile".to_owned());
         }
         if molecule_plans.iter().any(|entry| {
@@ -377,7 +377,7 @@ impl ResolvedDocumentRenderWireV1 {
 
     /// Return plans that are complete batches or exact target exclusions.
     #[must_use]
-    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
+    pub fn molecule_plans(&self) -> &[DocumentMoleculeRenderPlanV4] {
         &self.molecule_plans
     }
 
@@ -398,18 +398,18 @@ impl ResolvedDocumentRenderWireV1 {
         serde_json::to_string(self).map_err(|error| RenderError::Serialization(error.to_string()))
     }
 
-    /// Decode only the exact V1 grammar and validate all provenance links.
+    /// Decode only the exact V2 grammar and validate all provenance links.
     pub fn from_json(input: &str) -> Result<Self, RenderError> {
         serde_json::from_str(input).map_err(|error| RenderError::InvalidJson(error.to_string()))
     }
 }
 
-impl<'de> Deserialize<'de> for ResolvedDocumentRenderWireV1 {
+impl<'de> Deserialize<'de> for ResolvedDocumentRenderWireV2 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Self::from_unchecked(UncheckedResolvedDocumentRenderWireV1::deserialize(
+        Self::from_unchecked(UncheckedResolvedDocumentRenderWireV2::deserialize(
             deserializer,
         )?)
         .map_err(serde::de::Error::custom)
@@ -419,17 +419,17 @@ impl<'de> Deserialize<'de> for ResolvedDocumentRenderWireV1 {
 fn validate_projection_plus_roots(
     entries: &[PresentationStackEntryV1],
     renders: &[DocumentPlusRenderV1],
-) -> Result<(), ResolvedDocumentRenderErrorV1> {
+) -> Result<(), ResolvedDocumentRenderErrorV2> {
     let pluses = entries.iter().filter_map(|entry| match entry.root() {
         PresentationRootProjectionV1::Plus { plus } => Some(plus),
         _ => None,
     });
     for render in renders {
         let Some(plus) = pluses.clone().find(|plus| plus.target() == render.target()) else {
-            return Err(ResolvedDocumentRenderErrorV1::PlusRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::PlusRootMismatch);
         };
         if plus.target() != render.target() {
-            return Err(ResolvedDocumentRenderErrorV1::PlusRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::PlusRootMismatch);
         }
     }
     Ok(())
@@ -438,17 +438,17 @@ fn validate_projection_plus_roots(
 fn validate_projection_text_roots(
     entries: &[PresentationStackEntryV1],
     renders: &[DocumentTextRenderV1],
-) -> Result<(), ResolvedDocumentRenderErrorV1> {
+) -> Result<(), ResolvedDocumentRenderErrorV2> {
     let texts = entries.iter().filter_map(|entry| match entry.root() {
         PresentationRootProjectionV1::Text { text } => Some(text),
         _ => None,
     });
     for render in renders {
         let Some(text) = texts.clone().find(|text| text.target() == render.target()) else {
-            return Err(ResolvedDocumentRenderErrorV1::TextRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::TextRootMismatch);
         };
         if text.target() != render.target() {
-            return Err(ResolvedDocumentRenderErrorV1::TextRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::TextRootMismatch);
         }
     }
     Ok(())
@@ -456,20 +456,20 @@ fn validate_projection_text_roots(
 
 fn validate_projection_plan_roots(
     molecules: &[MoleculeProjectionV1],
-    plans: &[DocumentMoleculeRenderPlanV3],
-) -> Result<(), ResolvedDocumentRenderErrorV1> {
+    plans: &[DocumentMoleculeRenderPlanV4],
+) -> Result<(), ResolvedDocumentRenderErrorV2> {
     if molecules.len() != plans.len() {
-        return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
+        return Err(ResolvedDocumentRenderErrorV2::MoleculeRootMismatch);
     }
     for (molecule, entry) in molecules.iter().zip(plans) {
         if molecule.document_object_id() != entry.molecule().document_object_id() {
-            return Err(ResolvedDocumentRenderErrorV1::MoleculeRootMismatch);
+            return Err(ResolvedDocumentRenderErrorV2::MoleculeRootMismatch);
         }
     }
     Ok(())
 }
 
-fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV3]) -> Result<(), String> {
+fn validate_wire_plan_roots(plans: &[DocumentMoleculeRenderPlanV4]) -> Result<(), String> {
     let mut durable_ids = HashSet::new();
     for entry in plans {
         let root = entry.molecule();
@@ -511,8 +511,8 @@ mod tests {
         DocumentObjectIdV1::from_entropy_bytes([seed; 16])
     }
 
-    fn plan() -> MoleculeRenderPlan {
-        MoleculeRenderPlan::new(
+    fn plan() -> MoleculeRenderPlanV4 {
+        MoleculeRenderPlanV4::new(
             RenderProvenance::new(RenderRevision::new(1).expect("test revision"), [1; 32]),
             Vec::new(),
             Vec::new(),
@@ -520,12 +520,27 @@ mod tests {
         .expect("empty molecule plan")
     }
 
+    fn wire() -> ResolvedDocumentRenderWireV2 {
+        ResolvedDocumentRenderWireV2 {
+            schema: RESOLVED_DOCUMENT_RENDER_SCHEMA_V2.to_owned(),
+            document: RenderDocumentProvenanceV1 {
+                revision: 1,
+                digest: [1; 32],
+            },
+            profile: DEPICTION_PROFILE_SCHEMA_V1.to_owned(),
+            molecule_plans: Vec::new(),
+            plus_renders: Vec::new(),
+            text_renders: Vec::new(),
+            suppression: None,
+        }
+    }
+
     #[test]
     fn molecule_member_issue_refuses_a_foreign_durable_target() {
         let owner = object_id(1);
         let member = object_id(2);
         let foreign = object_id(3);
-        let result = DocumentMoleculeRenderPlanV3::from_document_object_id(
+        let result = DocumentMoleculeRenderPlanV4::from_document_object_id(
             owner,
             plan(),
             Vec::new(),
@@ -543,7 +558,7 @@ mod tests {
     fn molecule_member_issue_is_retained_by_its_molecule_plan() {
         let owner = object_id(4);
         let atom = object_id(5);
-        let entry = DocumentMoleculeRenderPlanV3::from_document_object_id(
+        let entry = DocumentMoleculeRenderPlanV4::from_document_object_id(
             owner,
             plan(),
             Vec::new(),
@@ -560,5 +575,48 @@ mod tests {
             entry.member_issues()[0].code(),
             DepictionIssueCodeV1::UnsupportedRichLabel
         );
+    }
+
+    #[test]
+    fn resolved_wire_refuses_the_retired_v1_schema() {
+        let json = wire()
+            .to_canonical_json()
+            .expect("canonical V2 wire")
+            .replace(
+                RESOLVED_DOCUMENT_RENDER_SCHEMA_V2,
+                "ferrum-resolved-document-render-v1",
+            );
+        assert!(ResolvedDocumentRenderWireV2::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn resolved_wire_refuses_unknown_fields() {
+        let mut value = serde_json::to_value(wire()).expect("serialize V2 wire");
+        value
+            .as_object_mut()
+            .expect("wire JSON object")
+            .insert("compatibility".to_owned(), serde_json::Value::Null);
+        let json = serde_json::to_string(&value).expect("wire JSON text");
+        assert!(ResolvedDocumentRenderWireV2::from_json(&json).is_err());
+    }
+
+    #[test]
+    fn resolved_wire_refuses_a_retired_nested_v3_plan() {
+        let mut wire = wire();
+        wire.molecule_plans.push(
+            DocumentMoleculeRenderPlanV4::from_document_object_id(
+                object_id(8),
+                plan(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+            .expect("valid V4 document plan"),
+        );
+        let json = wire
+            .to_canonical_json()
+            .expect("canonical V2 wire")
+            .replace("ferrum-render-plan-v4", "ferrum-render-plan-v3");
+        assert!(ResolvedDocumentRenderWireV2::from_json(&json).is_err());
     }
 }

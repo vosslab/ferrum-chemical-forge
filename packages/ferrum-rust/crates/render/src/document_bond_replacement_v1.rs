@@ -199,7 +199,7 @@ impl BondReplacementV1 {
     }
 }
 impl BondReplacementTargetV1 {
-    fn from_batch(batch: &crate::RenderBatch) -> Self {
+    fn from_batch(batch: &crate::RenderBatchV4) -> Self {
         Self::new(batch.target().clone(), batch.paint_order())
     }
 
@@ -221,9 +221,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        BatchSpace, DocumentMoleculeRenderContentV1, LineOp, MoleculeRenderPlan, PositiveFinite,
-        RenderBatch, RenderOp, RenderPaintV3, RenderPoint, RenderProvenance, RenderRevision,
-        RenderViewportV1, Rgb24,
+        BondRenderBatchV1, BondRenderOpV1, DocumentMoleculeRenderContentV1, LineOp,
+        MoleculeRenderPlanV4, PositiveFinite, RenderBatchV4, RenderPaintV3, RenderPoint,
+        RenderProvenance, RenderRevision, RenderViewportV1, Rgb24,
     };
 
     fn provenance() -> RenderProvenance {
@@ -263,17 +263,13 @@ mod tests {
             0,
         )
         .expect("line");
-        let molecule = MoleculeRenderPlan::new(
+        let molecule = MoleculeRenderPlanV4::new(
             provenance(),
-            vec![
-                RenderBatch::new(
-                    bond,
-                    paint_order,
-                    BatchSpace::Scene,
-                    vec![RenderOp::Line(line)],
-                )
-                .expect("batch"),
-            ],
+            vec![RenderBatchV4::bond_target(
+                bond,
+                paint_order,
+                BondRenderBatchV1::new(vec![BondRenderOpV1::Line(line)]).expect("bond content"),
+            )],
             vec![],
         )
         .expect("molecule");

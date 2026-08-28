@@ -4,8 +4,8 @@ use ferrum_geometry::Vector2;
 
 use crate::bond_style::BondStyle;
 use crate::{
-    BatchSpace, PathOpV3, PositiveFinite, RenderBatch, RenderDisplayLayerV1, RenderIssueKind,
-    RenderOp, RenderPaintV3, RenderPoint, RenderTarget, ScenePathCommandV3, ScenePathStrokeV3,
+    PathOpV3, PositiveFinite, RenderBatchV4, RenderDisplayLayerV1, RenderIssueKind, RenderOp,
+    RenderPaintV3, RenderPoint, RenderTarget, ScenePathCommandV3, ScenePathStrokeV3,
     VectorStrokeLineCapV1,
 };
 
@@ -104,7 +104,7 @@ pub(crate) struct HaworthFrontBondInput {
 /// Build the complete source-tiered batch for one already label-clipped front edge.
 pub(crate) fn build_haworth_front_batch(
     input: HaworthFrontBondInput,
-) -> Result<RenderBatch, RenderIssueKind> {
+) -> Result<RenderBatchV4, RenderIssueKind> {
     let HaworthFrontBondInput {
         target,
         paint_order,
@@ -134,11 +134,16 @@ pub(crate) fn build_haworth_front_batch(
         wedge_width,
         paint,
     )?;
-    RenderBatch::new(target, paint_order, BatchSpace::Scene, operations)
-        .map(|batch| batch.with_display_layer(layer))
-        .map_err(|error| RenderIssueKind::UnrenderableTarget {
-            reason: format!("Haworth front bond batch is not renderable: {error}"),
-        })
+    Ok(RenderBatchV4::bond_target(
+        target,
+        paint_order,
+        crate::BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
+            RenderIssueKind::UnrenderableTarget {
+                reason: error.to_string(),
+            }
+        })?,
+    )
+    .with_display_layer(layer))
 }
 
 fn padded_q(

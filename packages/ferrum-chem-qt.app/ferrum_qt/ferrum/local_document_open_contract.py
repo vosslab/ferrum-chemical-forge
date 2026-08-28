@@ -6,6 +6,7 @@ only the immutable request facts and the lifecycle transition around them.
 """
 
 # Standard Library
+import abc
 import dataclasses
 import enum
 from collections.abc import Callable
@@ -172,12 +173,53 @@ class LocalOpenReplacementCommitReceipt:
 
 
 #============================================
+class LocalOpenPublicationResolution(abc.ABC):
+	"""Resolve one host publication attempt exactly once.
+
+	The host accepts only after irreversible publication.  A pre-commit refusal
+	returns candidate ownership to delivery after host rollback is complete.
+	"""
+
+	#============================================
+	@abc.abstractmethod
+	def accept_publication(self, receipt: LocalOpenNewTabPublicationReceipt) -> None:
+		"""Record one host-owned new-tab publication exactly once."""
+
+	#============================================
+	@abc.abstractmethod
+	def refuse_publication(self) -> None:
+		"""Return one unpublished candidate after complete host rollback."""
+
+
+#============================================
+class LocalOpenReplacementResolution(abc.ABC):
+	"""Resolve one host replacement attempt exactly once.
+
+	The host accepts only after the old tab is irreversibly replaced and its lease
+	is settled.  A pre-commit refusal returns the candidate after full rollback.
+	"""
+
+	#============================================
+	@abc.abstractmethod
+	def accept_replacement(self, receipt: LocalOpenReplacementCommitReceipt) -> None:
+		"""Record one host-owned replacement commit exactly once."""
+
+	#============================================
+	@abc.abstractmethod
+	def refuse_replacement(self) -> None:
+		"""Return one uncommitted replacement candidate after complete rollback."""
+
+
+#============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class LocalDocumentOpenHost:
 	"""Callback-only window port for one local-document Open controller.
 
 	No window service locator belongs here.  Each callback documents a specific
 	presentation or lifecycle capability that remains owned by the window.
+	Publication and replacement callbacks return ``None`` and must resolve their
+	one-shot capability.  An unresolved return or exception is an invariant fault;
+	delivery conservatively retains the candidate because ownership is uncertain.
 	"""
 
 	parent: PySide6.QtWidgets.QMainWindow
@@ -190,8 +232,11 @@ class LocalDocumentOpenHost:
 	tab_widget_index: Callable[[ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab], int]
 	tab_widget_set_current_index: Callable[[int], None]
 	publish_open_tab: Callable[
-		[ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab],
-		LocalOpenNewTabPublicationReceipt,
+		[
+			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			LocalOpenPublicationResolution,
+		],
+		None,
 	]
 	finish_open_publication: Callable[[LocalOpenNewTabPublicationReceipt, bool], None]
 	commit_open_replacement: Callable[
@@ -201,8 +246,9 @@ class LocalDocumentOpenHost:
 			int,
 			ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability,
 			ferrum_qt.ferrum.operation_leases.OperationLease,
+			LocalOpenReplacementResolution,
 		],
-		LocalOpenReplacementCommitReceipt,
+		None,
 	]
 	finish_open_replacement: Callable[[LocalOpenReplacementCommitReceipt], None]
 	palette: Callable[[], ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1]

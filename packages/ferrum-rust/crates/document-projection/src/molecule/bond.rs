@@ -6,7 +6,12 @@ use ferrum_core::{BondOrder, BondStyle};
 use serde::Serialize;
 use thiserror::Error;
 
-use super::{AtomProjectionV1, DoubleBondCarrierMarkProjectionV1};
+use super::{
+    AtomProjectionV1, DirectMoleculeGraphAtomFact, DirectMoleculeGraphAtomInput,
+    DirectMoleculeGraphBondFact, DirectMoleculeGraphEndpoint, DirectMoleculeGraphFacts,
+    DirectMoleculeGraphFactsError, DoubleBondCarrierMarkProjectionV1, NonAtomVertexFact,
+    NonAtomVertexKindV1,
+};
 use crate::{
     CompactGroupProjectionV1, DocumentObjectIdV1, NonZeroFiniteV1, PositiveFiniteV1,
     ProjectionLocalObjectKeyV1, Rgb24V1,
@@ -244,8 +249,65 @@ pub struct MoleculeProjectionV1 {
     name: Option<String>,
     atoms: Vec<AtomProjectionV1>,
     compact_groups: Vec<CompactGroupProjectionV1>,
+    non_atom_vertices: Vec<NonAtomVertexProjectionV1>,
     bonds: Vec<BondProjectionV1>,
     stereo_depictions: Vec<DoubleBondCarrierMarkProjectionV1>,
+}
+
+/// Complete immutable child inventory required to construct a molecule projection.
+pub struct MoleculeProjectionChildrenV1 {
+    pub atoms: Vec<AtomProjectionV1>,
+    pub compact_groups: Vec<CompactGroupProjectionV1>,
+    pub non_atom_vertices: Vec<NonAtomVertexProjectionV1>,
+    pub bonds: Vec<BondProjectionV1>,
+}
+
+/// Closed retained inventory for each non-atom molecule child.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct NonAtomVertexProjectionV1 {
+    id: DocumentObjectIdV1,
+    projection_key: ProjectionLocalObjectKeyV1,
+    source_id: Option<String>,
+    source_order: u32,
+    kind: NonAtomVertexKindV1,
+}
+impl NonAtomVertexProjectionV1 {
+    #[must_use]
+    pub const fn new(
+        id: DocumentObjectIdV1,
+        projection_key: ProjectionLocalObjectKeyV1,
+        source_id: Option<String>,
+        source_order: u32,
+        kind: NonAtomVertexKindV1,
+    ) -> Self {
+        Self {
+            id,
+            projection_key,
+            source_id,
+            source_order,
+            kind,
+        }
+    }
+    #[must_use]
+    pub const fn document_object_id(&self) -> &DocumentObjectIdV1 {
+        &self.id
+    }
+    #[must_use]
+    pub const fn projection_key(&self) -> &ProjectionLocalObjectKeyV1 {
+        &self.projection_key
+    }
+    #[must_use]
+    pub fn source_id(&self) -> Option<&str> {
+        self.source_id.as_deref()
+    }
+    #[must_use]
+    pub const fn source_order(&self) -> u32 {
+        self.source_order
+    }
+    #[must_use]
+    pub const fn kind(&self) -> NonAtomVertexKindV1 {
+        self.kind
+    }
 }
 
 /// Closed refusal taxonomy for invalid molecule child aggregates.
@@ -272,6 +334,9 @@ pub enum MoleculeProjectionV1Error {
     /// Two retained children claim one durable document identity.
     #[error("molecule child document object ID is duplicated: {object_id}")]
     DuplicateChildDocumentObjectId { object_id: String },
+    /// The retained compact-group view and closed non-atom inventory differ.
+    #[error("compact-group inventory is not an exact one-to-one correspondence")]
+    CompactGroupInventoryMismatch,
 }
 
 impl MoleculeProjectionV1 {
@@ -281,10 +346,14 @@ impl MoleculeProjectionV1 {
         projection_key: ProjectionLocalObjectKeyV1,
         source_id: Option<String>,
         name: Option<String>,
-        atoms: Vec<AtomProjectionV1>,
-        compact_groups: Vec<CompactGroupProjectionV1>,
-        bonds: Vec<BondProjectionV1>,
+        children: MoleculeProjectionChildrenV1,
     ) -> Result<Self, MoleculeProjectionV1Error> {
+        let MoleculeProjectionChildrenV1 {
+            atoms,
+            compact_groups,
+            non_atom_vertices,
+            bonds,
+        } = children;
         validate_strict_source_order("atom", &atoms, AtomProjectionV1::source_order)?;
         validate_strict_source_order(
             "compact-group",
@@ -292,7 +361,13 @@ impl MoleculeProjectionV1 {
             CompactGroupProjectionV1::source_order,
         )?;
         validate_strict_source_order("bond", &bonds, BondProjectionV1::source_order)?;
-        validate_child_identities(&atoms, &compact_groups, &bonds)?;
+        validate_strict_source_order(
+            "non-atom",
+            &non_atom_vertices,
+            NonAtomVertexProjectionV1::source_order,
+        )?;
+        validate_compact_group_inventory(&compact_groups, &non_atom_vertices)?;
+        validate_child_identities(&atoms, &non_atom_vertices, &bonds)?;
         Ok(Self {
             id,
             projection_key,
@@ -300,6 +375,7 @@ impl MoleculeProjectionV1 {
             name,
             atoms,
             compact_groups,
+            non_atom_vertices,
             bonds,
             stereo_depictions: Vec::new(),
         })
@@ -333,6 +409,85 @@ impl MoleculeProjectionV1 {
     #[must_use]
     pub fn compact_groups(&self) -> &[CompactGroupProjectionV1] {
         &self.compact_groups
+    }
+
+    /// Return the complete retained non-atom topology inventory.
+    #[must_use]
+    pub fn non_atom_vertices(&self) -> &[NonAtomVertexProjectionV1] {
+        &self.non_atom_vertices
+    }
+
+    /// Convert this complete projection to pure graph-lowering facts.
+    pub fn direct_molecule_graph_facts(
+        &self,
+        include_coordinates: bool,
+    ) -> Result<DirectMoleculeGraphFacts, DirectMoleculeGraphFactsError> {
+        self.direct_molecule_graph_facts_with_atom_metadata(include_coordinates, |_| ())
+            .map(|(facts, _)| facts)
+    }
+
+    /// Convert this projection to facts while emitting caller-owned atom metadata.
+    ///
+    /// The returned metadata has the exact same order as the emitted atom facts.
+    /// This transfers no graph or document authority to the projection layer.
+    pub fn direct_molecule_graph_facts_with_atom_metadata<T>(
+        &self,
+        include_coordinates: bool,
+        mut atom_metadata: impl FnMut(&AtomProjectionV1) -> T,
+    ) -> Result<(DirectMoleculeGraphFacts, Vec<T>), DirectMoleculeGraphFactsError> {
+        let (atoms, metadata): (Vec<_>, Vec<T>) = self
+            .atoms
+            .iter()
+            .map(|atom| {
+                (
+                    DirectMoleculeGraphAtomFact::new(DirectMoleculeGraphAtomInput {
+                        element: atom.element().map(str::to_owned),
+                        position: atom.position(),
+                        formal_charge: atom.formal_charge(),
+                        isotope: atom.isotope(),
+                        explicit_hydrogens: atom.explicit_hydrogens(),
+                        valence: atom.valence(),
+                        multiplicity: atom.multiplicity(),
+                        free_sites: atom.free_sites(),
+                    }),
+                    atom_metadata(atom),
+                )
+            })
+            .unzip();
+        let mut atom_positions = std::collections::HashMap::new();
+        for (position, atom) in self.atoms.iter().enumerate() {
+            atom_positions.insert(atom.document_object_id(), position);
+        }
+        let endpoint = |endpoint: &BondEndpointV1| match endpoint.kind() {
+            BondEndpointKindV1::Atom => endpoint
+                .object_id()
+                .and_then(|id| atom_positions.get(id).copied())
+                .map(DirectMoleculeGraphEndpoint::Atom)
+                .ok_or(DirectMoleculeGraphFactsError::UnresolvedEndpoint),
+            BondEndpointKindV1::Group
+            | BondEndpointKindV1::MoleculeText
+            | BondEndpointKindV1::Query => Ok(DirectMoleculeGraphEndpoint::NonAtom),
+            BondEndpointKindV1::Unknown => Ok(DirectMoleculeGraphEndpoint::Unknown),
+            BondEndpointKindV1::Missing => Ok(DirectMoleculeGraphEndpoint::Missing),
+        };
+        let mut bonds = Vec::with_capacity(self.bonds.len());
+        for bond in &self.bonds {
+            bonds.push(DirectMoleculeGraphBondFact::new(
+                endpoint(bond.start())?,
+                endpoint(bond.end())?,
+                bond.order(),
+                bond.style().cloned(),
+            ));
+        }
+        let non_atoms = self
+            .non_atom_vertices
+            .iter()
+            .map(|item| NonAtomVertexFact::new(item.kind(), item.source_order()))
+            .collect();
+        Ok((
+            DirectMoleculeGraphFacts::new(atoms, bonds, non_atoms, include_coordinates),
+            metadata,
+        ))
     }
     /// Return bonds in nested source order.
     #[must_use]
@@ -379,9 +534,30 @@ fn validate_strict_source_order<T>(
     Ok(())
 }
 
+fn validate_compact_group_inventory(
+    compact_groups: &[CompactGroupProjectionV1],
+    non_atom_vertices: &[NonAtomVertexProjectionV1],
+) -> Result<(), MoleculeProjectionV1Error> {
+    let compact_inventory = non_atom_vertices
+        .iter()
+        .filter(|value| value.kind() == NonAtomVertexKindV1::CompactGroup)
+        .collect::<Vec<_>>();
+    if compact_inventory.len() != compact_groups.len()
+        || compact_groups.iter().any(|group| {
+            !compact_inventory.iter().any(|item| {
+                item.document_object_id() == group.document_object_id()
+                    && item.source_order() == group.source_order()
+            })
+        })
+    {
+        return Err(MoleculeProjectionV1Error::CompactGroupInventoryMismatch);
+    }
+    Ok(())
+}
+
 fn validate_child_identities(
     atoms: &[AtomProjectionV1],
-    compact_groups: &[CompactGroupProjectionV1],
+    non_atom_vertices: &[NonAtomVertexProjectionV1],
     bonds: &[BondProjectionV1],
 ) -> Result<(), MoleculeProjectionV1Error> {
     let mut source_orders = HashSet::new();
@@ -392,9 +568,9 @@ fn validate_child_identities(
         .iter()
         .map(MoleculeChildIdentityV1::from_atom)
         .chain(
-            compact_groups
+            non_atom_vertices
                 .iter()
-                .map(MoleculeChildIdentityV1::from_compact_group),
+                .map(MoleculeChildIdentityV1::from_non_atom),
         )
         .chain(bonds.iter().map(MoleculeChildIdentityV1::from_bond))
     {
@@ -441,12 +617,12 @@ impl<'a> MoleculeChildIdentityV1<'a> {
         }
     }
 
-    fn from_compact_group(compact_group: &'a CompactGroupProjectionV1) -> Self {
+    fn from_non_atom(non_atom: &'a NonAtomVertexProjectionV1) -> Self {
         Self {
-            source_order: compact_group.source_order(),
-            projection_key: compact_group.id().as_str(),
-            source_id: None,
-            object_id: compact_group.id(),
+            source_order: non_atom.source_order(),
+            projection_key: non_atom.projection_key().as_str(),
+            source_id: non_atom.source_id(),
+            object_id: non_atom.document_object_id(),
         }
     }
 
@@ -462,11 +638,11 @@ impl<'a> MoleculeChildIdentityV1<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MoleculeProjectionV1, MoleculeProjectionV1Error};
+    use super::{MoleculeProjectionChildrenV1, MoleculeProjectionV1, MoleculeProjectionV1Error};
     use crate::{
         AtomProjectionV1, CompactGroupAttachmentV1, CompactGroupCatalogKeyV1,
-        CompactGroupProjectionV1, CompactGroupV1, DocumentObjectIdV1, Point3V1,
-        ProjectionLocalObjectKeyV1,
+        CompactGroupProjectionV1, CompactGroupV1, DocumentObjectIdV1, NonAtomVertexKindV1,
+        NonAtomVertexProjectionV1, Point3V1, ProjectionLocalObjectKeyV1,
     };
 
     fn atom(source_order: u32, path: &[u32], source_id: &str) -> AtomProjectionV1 {
@@ -522,6 +698,20 @@ mod tests {
         CompactGroupProjectionV1::from_group(&group, source_order)
     }
 
+    fn non_atom(
+        id: DocumentObjectIdV1,
+        source_order: u32,
+        kind: NonAtomVertexKindV1,
+    ) -> NonAtomVertexProjectionV1 {
+        NonAtomVertexProjectionV1::new(
+            id,
+            ProjectionLocalObjectKeyV1::from_path_components(&[9, source_order]).expect("test key"),
+            Some(format!("non-atom-{source_order}")),
+            source_order,
+            kind,
+        )
+    }
+
     fn molecule(
         atoms: Vec<AtomProjectionV1>,
     ) -> Result<MoleculeProjectionV1, MoleculeProjectionV1Error> {
@@ -531,9 +721,12 @@ mod tests {
                 .expect("nonempty test path is a projection key"),
             Some("molecule-1".to_owned()),
             None,
-            atoms,
-            Vec::new(),
-            Vec::new(),
+            MoleculeProjectionChildrenV1 {
+                atoms,
+                compact_groups: Vec::new(),
+                non_atom_vertices: Vec::new(),
+                bonds: Vec::new(),
+            },
         )
     }
 
@@ -547,9 +740,19 @@ mod tests {
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
                 None,
-                vec![atom(1, &[0, 0], "atom-1")],
-                vec![compact_group(group_id.clone(), 2)],
-                Vec::new(),
+                MoleculeProjectionChildrenV1 {
+                    atoms: vec![atom(1, &[0, 0], "atom-1")],
+                    compact_groups: vec![compact_group(group_id.clone(), 2)],
+                    non_atom_vertices: vec![NonAtomVertexProjectionV1::new(
+                        group_id.clone(),
+                        ProjectionLocalObjectKeyV1::from_path_components(&[0, 1])
+                            .expect("test key"),
+                        Some("group-1".to_owned()),
+                        2,
+                        NonAtomVertexKindV1::CompactGroup,
+                    )],
+                    bonds: Vec::new(),
+                },
             )
             .is_ok()
         );
@@ -561,9 +764,19 @@ mod tests {
                     .expect("nonempty test path is a projection key"),
                 Some("molecule-1".to_owned()),
                 None,
-                vec![atom_with_id(group_id.clone(), 1, &[0, 0], "atom-1")],
-                vec![compact_group(group_id.clone(), 2)],
-                Vec::new(),
+                MoleculeProjectionChildrenV1 {
+                    atoms: vec![atom_with_id(group_id.clone(), 1, &[0, 0], "atom-1")],
+                    compact_groups: vec![compact_group(group_id.clone(), 2)],
+                    non_atom_vertices: vec![NonAtomVertexProjectionV1::new(
+                    group_id.clone(),
+                    ProjectionLocalObjectKeyV1::from_path_components(&[0, 1])
+                        .expect("test key"),
+                    Some("group-1".to_owned()),
+                    2,
+                    NonAtomVertexKindV1::CompactGroup,
+                    )],
+                    bonds: Vec::new(),
+                },
             ),
             Err(MoleculeProjectionV1Error::DuplicateChildDocumentObjectId { object_id })
                 if object_id == group_id.as_str()
@@ -586,6 +799,106 @@ mod tests {
         assert!(matches!(
             molecule(vec![first, atom(2, &[0, 0], "atom-1")]),
             Err(MoleculeProjectionV1Error::DuplicateChildProjectionKey { .. })
+        ));
+    }
+
+    #[test]
+    fn molecule_factory_requires_exact_compact_group_inventory() {
+        let group_id = DocumentObjectIdV1::from_entropy_bytes([7; 16]);
+        let group = compact_group(group_id.clone(), 2);
+        let make = |inventory| {
+            MoleculeProjectionV1::try_new(
+                DocumentObjectIdV1::from_entropy_bytes([8; 16]),
+                ProjectionLocalObjectKeyV1::from_path_components(&[0]).expect("test key"),
+                None,
+                None,
+                MoleculeProjectionChildrenV1 {
+                    atoms: vec![atom(1, &[0, 0], "atom-1")],
+                    compact_groups: vec![group.clone()],
+                    non_atom_vertices: inventory,
+                    bonds: Vec::new(),
+                },
+            )
+        };
+        assert!(matches!(
+            make(Vec::new()),
+            Err(MoleculeProjectionV1Error::CompactGroupInventoryMismatch)
+        ));
+        assert!(matches!(
+            make(vec![non_atom(
+                DocumentObjectIdV1::from_entropy_bytes([6; 16]),
+                2,
+                NonAtomVertexKindV1::CompactGroup,
+            )]),
+            Err(MoleculeProjectionV1Error::CompactGroupInventoryMismatch)
+        ));
+        assert!(matches!(
+            make(vec![non_atom(
+                group_id.clone(),
+                3,
+                NonAtomVertexKindV1::CompactGroup
+            )]),
+            Err(MoleculeProjectionV1Error::CompactGroupInventoryMismatch)
+        ));
+        assert!(
+            make(vec![non_atom(
+                group_id,
+                2,
+                NonAtomVertexKindV1::CompactGroup
+            )])
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn molecule_factory_refuses_surplus_duplicate_and_cross_kind_non_atom_collisions() {
+        let group_id = DocumentObjectIdV1::from_entropy_bytes([7; 16]);
+        let base = |inventory| {
+            MoleculeProjectionV1::try_new(
+                DocumentObjectIdV1::from_entropy_bytes([8; 16]),
+                ProjectionLocalObjectKeyV1::from_path_components(&[0]).expect("test key"),
+                None,
+                None,
+                MoleculeProjectionChildrenV1 {
+                    atoms: vec![atom(1, &[0, 0], "atom-1")],
+                    compact_groups: vec![compact_group(group_id.clone(), 2)],
+                    non_atom_vertices: inventory,
+                    bonds: Vec::new(),
+                },
+            )
+        };
+        assert!(
+            base(vec![
+                non_atom(group_id.clone(), 2, NonAtomVertexKindV1::CompactGroup),
+                non_atom(
+                    DocumentObjectIdV1::from_entropy_bytes([9; 16]),
+                    3,
+                    NonAtomVertexKindV1::Query
+                ),
+            ])
+            .is_ok(),
+            "a complete inventory may contain a valid query child"
+        );
+        assert!(matches!(
+            base(vec![
+                non_atom(group_id.clone(), 2, NonAtomVertexKindV1::CompactGroup),
+                non_atom(group_id.clone(), 3, NonAtomVertexKindV1::MoleculeText),
+            ]),
+            Err(MoleculeProjectionV1Error::DuplicateChildDocumentObjectId { .. })
+        ));
+        assert!(matches!(
+            base(vec![
+                non_atom(group_id.clone(), 2, NonAtomVertexKindV1::CompactGroup),
+                non_atom(
+                    DocumentObjectIdV1::from_entropy_bytes([9; 16]),
+                    1,
+                    NonAtomVertexKindV1::Query
+                ),
+            ]),
+            Err(MoleculeProjectionV1Error::UnorderedChildSourceOrder {
+                child_kind: "non-atom",
+                ..
+            })
         ));
     }
 }

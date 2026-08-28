@@ -2,9 +2,10 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::{
-    FontFace, GlyphBounds, GlyphPlacement, PositiveFinite, RenderError, RenderPaintV3, RenderPoint,
-    TextOp, TextScript,
+    FontFace, GlyphPlacement, PositiveFinite, RenderError, RenderPaintV3, RenderPoint, TextOp,
+    TextScript,
 };
 
 /// One exact text operation and its anchor-local ink bounds.

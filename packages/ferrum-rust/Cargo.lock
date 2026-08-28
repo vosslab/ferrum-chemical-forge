@@ -384,9 +384,11 @@ dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
  "ferrum-document",
+ "ferrum-document-projection",
  "ferrum-document-render",
  "ferrum-domain",
  "ferrum-geometry",
+ "ferrum-graph-lowering",
  "ferrum-render",
  "ferrum-template-catalog",
  "getrandom 0.4.3",
@@ -452,6 +454,7 @@ dependencies = [
  "ferrum-document-projection",
  "ferrum-domain",
  "ferrum-geometry",
+ "ferrum-graph-lowering",
  "ferrum-render",
  "ferrum-render-contract",
  "getrandom 0.4.3",
@@ -520,6 +523,16 @@ version = "26.8.0"
 dependencies = [
  "kurbo",
  "nalgebra",
+ "thiserror",
+]
+
+[[package]]
+name = "ferrum-graph-lowering"
+version = "26.8.0"
+dependencies = [
+ "ferrum-chemistry",
+ "ferrum-core",
+ "ferrum-document-projection",
  "thiserror",
 ]
 

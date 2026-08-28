@@ -6,7 +6,7 @@ use super::{
 const ATTACHED_GROUP: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-    "<compact-group id=\"g\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"20\" y=\"0\"/></compact-group>",
+    "<compact-group id=\"g\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"60\" y=\"0\"/></compact-group>",
     "<bond id=\"b\" start=\"a\" end=\"g\" type=\"n1\"/>",
     "</molecule></cdml>",
 );
@@ -66,7 +66,7 @@ fn compact_group_deletion_refuses_zero_or_multiple_exterior_bonds_atomically() {
     let two_bonds = ATTACHED_GROUP.replace(
         "<bond id=\"b\" start=\"a\" end=\"g\" type=\"n1\"/>",
         concat!(
-            "<atom id=\"c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom>",
+            "<atom id=\"c\" name=\"C\"><point x=\"120\" y=\"0\"/></atom>",
             "<bond id=\"b\" start=\"a\" end=\"g\" type=\"n1\"/>",
             "<bond id=\"c-g\" start=\"c\" end=\"g\" type=\"n1\"/>"
         ),
@@ -100,8 +100,8 @@ fn compact_group_deletion_refuses_a_foreign_durable_group_without_mutation() {
         "</molecule></cdml>",
         concat!(
             "</molecule><molecule id=\"other\">",
-            "<atom id=\"other-atom\" name=\"C\"><point x=\"40\" y=\"0\"/></atom>",
-            "<compact-group id=\"other-group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"60\" y=\"0\"/></compact-group>",
+            "<atom id=\"other-atom\" name=\"C\"><point x=\"120\" y=\"0\"/></atom>",
+            "<compact-group id=\"other-group\" version=\"1\" catalog-key=\"methyl\" attachment-index=\"0\" orientation-degrees=\"0\"><point x=\"180\" y=\"0\"/></compact-group>",
             "<bond id=\"other-bond\" start=\"other-atom\" end=\"other-group\" type=\"n1\"/>",
             "</molecule></cdml>"
         ),

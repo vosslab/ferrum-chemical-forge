@@ -3,7 +3,8 @@ use std::collections::HashMap;
 
 use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_domain::linear_form::{
-    LinearFormAtomV1, LinearFormBondV1, LinearFormGraphV1, LinearFormRequestV1, plan_linear_form_v1,
+    LinearFormAtomV1, LinearFormBondLength, LinearFormBondV1, LinearFormGraphV1,
+    LinearFormRequestV1, plan_linear_form_v1,
 };
 use ferrum_geometry::Point2;
 use thiserror::Error;
@@ -222,7 +223,11 @@ fn extract(
         selected.push(record);
     }
     Ok(Extracted {
-        request: LinearFormRequestV1::new(selected, LinearFormGraphV1::new(atoms, bonds)),
+        request: LinearFormRequestV1::new(
+            selected,
+            LinearFormGraphV1::new(atoms, bonds),
+            LinearFormBondLength::NATIVE,
+        ),
         ids,
     })
 }
@@ -272,6 +277,7 @@ fn apply(
         fragment_id.as_str(),
         &atoms,
         &bonds,
+        plan.bond_length(),
     )?;
     TypedDocument::parse(&candidate.to_xml()?)
 }
@@ -484,7 +490,7 @@ mod tests {
             result.push_str(&format!("<vertex id=\"{atom}\"/>"));
         }
         result
-            .push_str("<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>");
+            .push_str("<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>");
         result
     }
 
@@ -518,8 +524,9 @@ mod tests {
         assert!(xml.contains("show_hydrogens=\"on\""));
         assert!(xml.contains("opaque=\"yes\""));
         assert!(xml.contains("x=\"20\" y=\"0\" z=\"7\""));
-        assert!(xml.contains("<point x=\"30\" y=\"0\"/>"));
-        assert!(xml.contains("<mark x=\"31\" y=\"2\"/>"));
+        assert!(xml.contains("<point x=\"60\" y=\"0\"/>"));
+        assert!(xml.contains("<mark x=\"61\" y=\"2\"/>"));
+        assert!(xml.contains("bond_length\" value=\"40\" type=\"IntType"));
     }
 
     #[test]
@@ -547,7 +554,7 @@ mod tests {
             r#"<atom id="b"><point x="20" y="0"/></atom><bond id="ab" start="a" end="b"/>"#,
             r#"<fragment id="rich" type="linear_form" vendor="keep"><name>linear_form</name>"#,
             r#"<vertex id="a"/><vertex id="b"/>"#,
-            r#"<property name="bond_length" value="10" type="IntType"/>"#,
+            r#"<property name="bond_length" value="40" type="IntType"/>"#,
             r#"</fragment><vendor id="ferrum-fragment-v1-0"/></molecule></cdml>"#,
         );
         let document = TypedDocument::parse(source).expect("typed document");
@@ -650,7 +657,7 @@ mod tests {
             concat!(
                 "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"b\" show_hydrogens=\"on\">",
                 "<point x=\"0cm\" y=\"0cm\"/></atom><atom id=\"a\" show_hydrogens=\"on\">",
-                "<point x=\"10\" y=\"0cm\"/></atom><atom id=\"c\">",
+                "<point x=\"40\" y=\"0cm\"/></atom><atom id=\"c\">",
                 "<point x=\"1\" y=\"0cm\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\"/>",
                 "<bond id=\"bc\" start=\"b\" end=\"c\"/>{owned}</molecule></cdml>",
             ),
@@ -678,7 +685,7 @@ mod tests {
         else {
             panic!("must mutate")
         };
-        assert!(candidate.to_xml().expect("xml").contains("x=\"31\""));
+        assert!(candidate.to_xml().expect("xml").contains("x=\"61\""));
     }
 
     #[test]

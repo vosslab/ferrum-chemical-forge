@@ -612,3 +612,46 @@ fn attached_methoxy_materialization_survives_history_and_reopen() {
         .expect("materialized Methoxy reopens");
     assert_materialized_attached_methoxy(&reopened);
 }
+
+#[test]
+fn every_authorable_compact_group_previews_an_exterior_bond_before_commit() {
+    for catalog_key in ferrum_document_model::attached_compact_group_authoring_keys_v1() {
+        let mut session = DocumentSession::load(SOURCE).expect("source");
+        let request = AttachCompactGroupV1::new(
+            *catalog_key,
+            AttachedCompactGroupReleaseV1::new(1.0, 0.0).expect("short same-ray release is finite"),
+        );
+        let mut pending = session
+            .prepare_attach_compact_group_v1(fence(&session), target(&session), request)
+            .expect("renderer admits every authorable compact-group family");
+        let overlay = pending
+            .precommit_overlay_v1()
+            .expect("renderer-admitted compact group has an exterior-bond overlay");
+        assert!(
+            overlay
+                .primitives()
+                .iter()
+                .any(|primitive| matches!(primitive.operation(), ferrum_render::RenderOp::Line(_))),
+            "{} preview contains its normal exterior bond",
+            catalog_key.as_str(),
+        );
+        let attached = session
+            .commit_attach_compact_group_v1(&mut pending)
+            .expect("renderer-admitted compact group commits");
+        let committed = attached
+            .observation()
+            .projection()
+            .molecules()
+            .iter()
+            .find(|molecule| molecule.source_id() == Some("m"))
+            .expect("seeded molecule remains after commit");
+        assert!(
+            committed
+                .compact_groups()
+                .iter()
+                .any(|group| group.catalog_key() == *catalog_key),
+            "{} preview and commit resolve the same authorable family",
+            catalog_key.as_str(),
+        );
+    }
+}

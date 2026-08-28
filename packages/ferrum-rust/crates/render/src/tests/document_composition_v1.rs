@@ -1,15 +1,16 @@
 use ferrum_document_projection::{
     DocumentDirectRootKindV1, DocumentDirectRootV1, DocumentObjectIdV1,
-    DocumentProjectionProvenanceV1, DocumentProjectionV1, MoleculeProjectionV1, PaperAttributesV1,
-    PaperLayoutFactsV1, PaperLayoutProjectionV1, PaperOrientationV1, PaperPageV1, PositiveFiniteV1,
-    PresentationFactProvenanceV1, PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1,
-    PresentationRecordKindV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
-    PresentationTargetV1, ProjectionLocalObjectKeyV1, ViewportAttributesV1,
+    DocumentProjectionProvenanceV1, DocumentProjectionV1, MoleculeProjectionChildrenV1,
+    MoleculeProjectionV1, PaperAttributesV1, PaperLayoutFactsV1, PaperLayoutProjectionV1,
+    PaperOrientationV1, PaperPageV1, PositiveFiniteV1, PresentationFactProvenanceV1,
+    PresentationProjectionIssueCodeV1, PresentationProjectionIssueV1, PresentationRecordKindV1,
+    PresentationRootProjectionV1, PresentationStackProjectionV1, PresentationTargetV1,
+    ProjectionLocalObjectKeyV1, ViewportAttributesV1,
 };
 
 use crate::{
     DepictionProfileV1, DocumentRenderOutcomeV1, RenderError, compose_document_render_plan_v1,
-    resolve_document_render_v1,
+    resolve_document_render_v2,
 };
 
 const REVISION: u64 = 19;
@@ -47,7 +48,7 @@ fn composition_uses_interleaved_direct_root_order_including_sparse_rejection() {
         ],
     );
 
-    let observation = resolve_document_render_v1(projection, DepictionProfileV1::ferrum_default())
+    let observation = resolve_document_render_v2(projection, DepictionProfileV1::ferrum_default())
         .expect("complete direct-root observation");
     let plan = compose_document_render_plan_v1(&observation).expect("direct roots compose");
 
@@ -81,7 +82,7 @@ fn composition_refuses_presentation_payload_with_a_mismatched_direct_root_kind()
         )],
     );
 
-    let observation = resolve_document_render_v1(projection, DepictionProfileV1::ferrum_default())
+    let observation = resolve_document_render_v2(projection, DepictionProfileV1::ferrum_default())
         .expect("observation preserves payload identity");
 
     assert!(matches!(
@@ -118,9 +119,12 @@ fn molecule(id: DocumentObjectIdV1) -> MoleculeProjectionV1 {
             .expect("nonempty molecule projection path"),
         None,
         None,
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
+        MoleculeProjectionChildrenV1 {
+            atoms: Vec::new(),
+            compact_groups: Vec::new(),
+            non_atom_vertices: Vec::new(),
+            bonds: Vec::new(),
+        },
     )
     .expect("empty direct molecule projection")
 }

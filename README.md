@@ -1,11 +1,11 @@
 # Ferrum Chemical Forge
 
-A pre-production chemical-document workspace for chemists and developers, with one
-Rust-owned CDML model serving both a command-line tool and a PySide6 drawing editor.
+A pre-alpha chemical-document workspace for chemists and developers, with
+Rust-first chemistry, document, and rendering behind a PySide6 drawing editor and CLI.
 
 > Status: Ferrum runs from this checkout on macOS arm64. Its bounded Rust and Qt
 > workflows are actively developed; it is not release-ready and does not yet claim
-> complete BKChem or OASA feature parity.
+> complete historical-feature parity.
 
 ## One document model, two routes
 
@@ -14,6 +14,10 @@ the CDML record, validation, document history, chemistry boundaries, and renderi
 plans. The `ferrum` CLI and the `ferrum-qt` editor use that same native model, so a
 validated document can move between scripted inspection and interactive authoring
 without a second chemistry implementation.
+
+That shared, typed document path is Ferrum's signature promise: a drawing made in
+the desktop workspace and a document inspected or rendered at the command line are
+governed by the same Rust-owned chemistry and rendering decisions.
 
 - Inspect, validate, rewrite, render, convert, and run versioned document operations
   from the local Rust CLI.
@@ -24,13 +28,21 @@ without a second chemistry implementation.
 - Refuse unsupported files and document features with typed outcomes rather than
   silently changing the active document.
 
-## Ferrum in the workspace
+## The desktop workspace
 
-The desktop application is a chemical drawing workspace, not a separate file-format
-viewer. The screenshot set below records the current bounded editor routes; the
-following capture pass maintains its files, captions, and alt text.
+Ferrum's desktop application is a chemical drawing workspace, not a separate
+file-format viewer. The managed visual proof below is supplied from the current
+13-scene documentation tour of authoring, catalog, query, reaction, and command-palette
+workflows. See [docs/GUI_TOUR.md](docs/GUI_TOUR.md) for the complete candidate tour.
+The screenshot documentation pass supplies the current curated images and their
+descriptive alt text in this managed block.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
+![Ferrum workspace showing a carbonyl with aligned atom labels and double bond](docs/screenshots/workspace.png)
+![Template Catalog showing the selected alpha-D-glucofuranose before placement](docs/screenshots/template_catalog.png)
+![SMARTS Query dock reporting one carbon match in the open carbonyl document](docs/screenshots/smarts_result.png)
+![ChemDraw XML C-O-N-F document with wavy, bold, and dashed bonds](docs/screenshots/cdxml_open.png)
+![Command Palette listing registered reaction commands above a reaction arrow](docs/screenshots/command_palette_reaction.png)
 <!-- screenshots:end -->
 
 ## Quick start
@@ -44,16 +56,19 @@ build/bin/ferrum --version
 build/bin/ferrum formats
 ```
 
-The last command is a useful first result: it prints the declared input/output
-format catalog and whether each route needs the local chemistry runtime. The
-launchers stay below `build/`; they do not install Ferrum globally or discover a
-per-user engine.
+The version command begins with `ferrum`; the last command is the first useful result:
+it prints the declared input/output format catalog and whether each route needs the
+local chemistry runtime. The launchers stay below `build/`; they do not install Ferrum
+globally or discover a per-user engine.
 
 To launch the desktop application after the same build:
 
 ```bash
 build/bin/ferrum-qt
 ```
+
+Launch the GUI from an active macOS desktop session. Its current workflow and the
+one-time screenshot-capture route are in [docs/GUI_TOUR.md](docs/GUI_TOUR.md).
 
 For the full local setup, test route, and runtime layout, use
 [docs/INSTALL.md](docs/INSTALL.md).
@@ -67,20 +82,22 @@ turns a SMILES record into a V2000 molfile on standard output:
 printf 'CCO\n' | build/bin/ferrum convert - --from smiles --to molblock_v2000
 ```
 
-The output begins with a three-atom, two-bond V2000 record. Add `--output ethanol.mol`
-to publish the result as a file. See [docs/USAGE.md](docs/USAGE.md) before using
-interchange paths in a workflow: CML/CML2, CDXML, CD-SVG, and document artifacts
-each have deliberately bounded admission and publication rules.
+The output is a three-atom, two-bond V2000 record. Add `--output ethanol.mol` to
+publish the result as a file. See [docs/USAGE.md](docs/USAGE.md) before using
+interchange paths in a workflow: CML/CML2, CDXML, CD-SVG, and document artifacts each
+have deliberately bounded admission and publication rules.
 
 ## What is supported today
 
-CDML is Ferrum's sole document, session, history, and Qt-local format. The current
-desktop route supports decoded local CDML, bounded CD-SVG and CDXML ingress, and
-closed CML/CML2 simple-molecule input. It can save CDML and export complete supported
-documents as SVG, PDF, or transparent PNG.
+CDML is Ferrum's sole document, session, history, and Qt-local format. Desktop
+**File > Open** supports native CDML, decoded CD-SVG, bounded CML/CML2 and CDXML
+simple-molecule inputs, plus trusted-runtime SDF (`.sdf` and `.sd`) records. Every
+interchange File/Open result is a clean new CDML document: it never inserts into or
+replaces the current tab, and its first Save or Save As publishes CDML. Ferrum can
+export complete supported documents as SVG, PDF, or transparent PNG.
 
 This is an active migration, not a general-purpose chemistry format converter or a
-finished desktop replacement. Legacy BKChem and OASA material is reference evidence
+finished desktop replacement. Historical predecessor material is reference evidence
 outside the product runtime; the current scope, format refusals, and remaining parity
 work are explicit in the documents below.
 
@@ -99,7 +116,8 @@ Start here for the task at hand:
 - [docs/FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md) - repository map and where each kind
   of work belongs.
 - [docs/QT_CONTRACT.md](docs/QT_CONTRACT.md) - the desktop integration contract and
-  supported interaction boundaries.
+  supported interaction boundaries; [docs/YAML_FILE_FORMAT.md](docs/YAML_FILE_FORMAT.md)
+  explains the maintained menu, ribbon, and theme resource format.
 - [FULL_PARITY_RUST_FIRST.md](docs/active_plans/active/FULL_PARITY_RUST_FIRST.md).
   Authoritative migration and parity ledger.
 

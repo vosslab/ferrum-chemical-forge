@@ -4,15 +4,15 @@ use super::{
 };
 
 const SOURCE: &str = concat!(
-    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><plus id=\"p\"><point x=\"30\" y=\"40\"/></plus>",
+    "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><plus id=\"p\"><point x=\"180\" y=\"240\"/></plus>",
     "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-    "</atom><atom id=\"b\" name=\"N\"><point x=\"10\" y=\"0\"/></atom>",
-    "<atom id=\"c\" name=\"O\"><point x=\"20\" y=\"0\"/></atom>",
+    "</atom><atom id=\"b\" name=\"N\"><point x=\"40\" y=\"0\"/></atom>",
+    "<atom id=\"c\" name=\"O\"><point x=\"80\" y=\"0\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
     "<bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/>",
     "<fragment id=\"linear\" type=\"linear_form\"><name>linear_form</name>",
     "<bond id=\"ab\"/><bond id=\"bc\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-    "<vertex id=\"c\"/><property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
+    "<vertex id=\"c\"/><property name=\"bond_length\" value=\"40\" type=\"IntType\"/>",
     "</fragment><fragment id=\"foreign\" type=\"linear_form\" retained=\"opaque\">",
     "<extension>keep</extension></fragment></molecule></cdml>",
 );

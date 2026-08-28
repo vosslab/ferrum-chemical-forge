@@ -305,9 +305,17 @@ pub enum TypedDocumentError {
     /// A direct bond cannot reverse endpoint direction unless it is exactly `w1` or `h1`.
     #[error("typed bond does not support directed endpoint reversal: {0}")]
     UnsupportedDirectedBondEndpointReversal(PersistentId),
-    /// A closed bond style and order cannot be composed into an authored V1 type.
-    #[error("typed bond has an unsupported V1 style/order combination: {0}")]
-    UnsupportedBondStyleOrder(PersistentId),
+    /// A non-normal presentation cannot be changed through the normal-order operation.
+    #[error("typed bond presentation does not support normal-order replacement: {0}")]
+    UnsupportedBondPresentationOrder(PersistentId),
+    /// An authored scalar property is not meaningful for the final bond presentation.
+    #[error("typed bond presentation does not support {property}: {bond_id}")]
+    IncompatibleBondPresentationProperty {
+        /// Durable target bond ID.
+        bond_id: PersistentId,
+        /// Exact closed property name.
+        property: &'static str,
+    },
     /// A complete molecule-coordinate update supplied the wrong atom count.
     #[error(
         "molecule {molecule} has {expected} typed atoms but the coordinate update supplied {actual}"

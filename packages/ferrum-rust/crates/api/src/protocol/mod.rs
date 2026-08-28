@@ -8,7 +8,7 @@ mod document_compact_group_attachment_v1;
 mod document_compact_group_materialization_v1;
 mod document_hydrogen_materialization_v1;
 mod document_request_parse_v1;
-pub(crate) mod document_smarts_snapshot_v1;
+pub(crate) mod document_smarts_snapshot;
 mod dto;
 pub use dto::InspectGraphNormalizationV1;
 mod execution;

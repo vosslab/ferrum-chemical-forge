@@ -36,7 +36,7 @@ const SOURCE: &str = concat!(
 const BOND_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
-    "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
+    "<atom id=\"b\" name=\"O\"><point x=\"61\" y=\"2\"/></atom>",
     "</molecule><molecule id=\"other\">",
     "<atom id=\"c\" name=\"N\"><point x=\"5\" y=\"2\"/></atom>",
     "</molecule></cdml>",
@@ -47,8 +47,8 @@ const MISSING_POINT_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id
 const DELETE_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
-    "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
-    "<atom id=\"c\" name=\"N\"><point x=\"5\" y=\"2\"/></atom>",
+    "<atom id=\"b\" name=\"O\"><point x=\"61\" y=\"2\"/></atom>",
+    "<atom id=\"c\" name=\"N\"><point x=\"61\" y=\"62\"/></atom>",
     "<bond id=\"ab\" type=\"n1\" start=\"a\" end=\"b\"/>",
     "<bond id=\"bc\" type=\"n1\" start=\"b\" end=\"c\"/>",
     "<bond id=\"ac\" type=\"n1\" start=\"a\" end=\"c\"/>",

@@ -9,31 +9,31 @@ dependency list or an implementation recipe.
 ### BKChem
 
 - Relationship: prior art or inspiration
-- Link: [BKChem user documentation](https://bkchem.zirael.org/wiki/)
-- Why visitors may care: It documents the established 2D chemical-drawing workflow that
-  Ferrum's desktop application continues for people creating and editing molecular drawings.
-- Evidence: Ferrum's [PROVENANCE.md](PROVENANCE.md) records the carried-forward BKChem-Qt
-  frontend lineage; BKChem's official wiki describes it as a free chemical drawing program.
+- Link: [BKChem project site](https://bkchem.zirael.org/)
+- Why visitors may care: Chemists comparing Ferrum's desktop drawing direction can inspect the
+  historical free chemical-drawing application from which Ferrum's PySide6 frontend lineage began.
+- Evidence: [PROVENANCE.md](PROVENANCE.md) records the carried-forward local frontend lineage,
+  and the [BKChem project site](https://bkchem.zirael.org/) describes a chemical drawing program.
 
 ### OASA
 
-- Relationship: upstream source, fork, or successor
+- Relationship: prior art or inspiration
 - Link: [OASA project page](https://bkchem.zirael.org/oasa_en.html)
-- Why visitors may care: Developers comparing historical format-manipulation behavior can use
-  OASA as the documented predecessor that Ferrum-Chem replaces with a Rust backend.
-- Evidence: Ferrum's [PROVENANCE.md](PROVENANCE.md) explicitly identifies OASA as the replaced
-  backend and a migration oracle; OASA's project page identifies it as BKChem's Python format
-  manipulation library.
+- Why visitors may care: Developers investigating a historical behavior comparison can consult
+  the documented Python format-library reference that Ferrum-Chem replaces with a Rust backend.
+- Evidence: [PROVENANCE.md](PROVENANCE.md) defines OASA as external migration-oracle evidence,
+  while the [OASA project page](https://bkchem.zirael.org/oasa_en.html) describes it as the
+  format-manipulation library that formed BKChem's base.
 
 ### RDKit
 
 - Relationship: companion project, extension, or interoperability tool
 - Link: [RDKit overview](https://www.rdkit.org/docs/Overview.html)
-- Why visitors may care: Chemical-software developers can use its documented cheminformatics
-  algorithms and representations alongside Ferrum's focused document and CLI workflow.
-- Evidence: Ferrum's [PROVENANCE.md](PROVENANCE.md) identifies RDKit as the native chemistry
-  authority behind Ferrum's private adapter, while RDKit documents its C++ toolkit and 2D/3D
-  molecular operations.
+- Why visitors may care: Chemical-software developers can use its cheminformatics and 2D/3D
+  molecular operations alongside Ferrum's focused document and local CLI workflows.
+- Evidence: [PROVENANCE.md](PROVENANCE.md) identifies RDKit as Ferrum's private local-runtime
+  chemistry dependency, and the [RDKit overview](https://www.rdkit.org/docs/Overview.html)
+  documents its cheminformatics toolkit and molecular operations.
 
 ## Possible related projects
 
@@ -59,20 +59,30 @@ dependency list or an implementation recipe.
   editor with drawing, editing, history, and molecular-file import/export capabilities.
 - Confidence: likely
 
+### MarvinSketch
+
+- Relationship: direct alternative or competitor
+- Link: [MarvinSketch getting started guide](https://docs.chemaxon.com/latest/marvin_marvinsketch_getting-started.html)
+- Why visitors may care: It is a chemically aware desktop editor for structures, queries, and
+  reactions when a visitor needs a broader commercial drawing and calculation workflow.
+- Evidence: The official getting-started guide documents MarvinSketch drawing, editable atom and
+  bond properties, templates, chemical checks, and 2D/3D cleanup.
+- Confidence: likely
+
 ### Chemical Markup Language
 
 - Relationship: domain standard, guide, dataset, or other visitor resource
-- Link: [Chemical Markup Language documentation](https://www.xml-cml.org/documentation/FAQ.html)
+- Link: [Chemical Markup Language specifications](https://www.xml-cml.org/spec/)
 - Why visitors may care: It explains the XML molecular-interchange concepts behind Ferrum's
   bounded CML/CML2 import, inspection, and conversion routes.
-- Evidence: The CML documentation defines CML as an XML language for core chemical concepts;
+- Evidence: The CML specifications describe schema and convention rules for chemical XML;
   [FILE_FORMATS.md](FILE_FORMATS.md) and [USAGE.md](USAGE.md) define Ferrum's CML/CML2 profile.
 - Confidence: possible
 
 ## Evidence notes
 
-This guide uses two bounded discovery rounds on 2026-08-28: a seed round from Ferrum's CLI,
-desktop, CDML, CML, and lineage evidence; then a widening round for drawing alternatives and
-interchange resources. The published entries pass the visitor-relevance gate with official
-project documentation and Ferrum's current interface or provenance evidence. Toolchain-only
-dependencies are intentionally absent.
+This refresh used two bounded discovery rounds on 2026-08-28: a seed round from Ferrum's
+document, format, and chemistry-toolkit evidence; then a widening round for historical lineage
+and desktop drawing alternatives. Each entry passes the visitor-relevance gate with Ferrum's
+current product or provenance documentation and the candidate's own authoritative documentation.
+Toolchain-only dependencies are intentionally absent.

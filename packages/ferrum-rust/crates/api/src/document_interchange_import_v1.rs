@@ -3,17 +3,17 @@
 use std::{io::Read, path::Path};
 
 use ferrum_chemistry::{
-    CdxmlDecodedDocumentV1, CdxmlLossCategoryV1, CdxmlRefusalReasonV1, ChemEngine,
-    CmlDecodedRecordV1, CmlRefusalReasonV1, Coordinates, InterchangeRecordV1, MolAtom, MolGraph,
-    Point2 as ChemistryPoint2, decode_cdxml_bytes_v1, decode_cml_bytes_v1,
+    CdxmlDecodedDocumentV1, CdxmlDecodedRecordV1, CdxmlLossCategoryV1, CdxmlRefusalReasonV1,
+    ChemEngine, CmlDecodedRecordV1, CmlRefusalReasonV1, Coordinates, InterchangeRecordV1, MolAtom,
+    MolGraph, Point2 as ChemistryPoint2, decode_cdxml_bytes_v1, decode_cml_bytes_v1,
     interchange_record_from_sdf_v1, validate_sdf_input,
 };
 use ferrum_document::artifact_publication_v1::RetainedSourceFileGuardV1;
 use ferrum_document::{
     DocumentIngressErrorV1, DocumentSession, InterchangeRecordBuildErrorV1,
     PreparedSessionTransitionV1, SessionOperation, SessionOperationTransitionRequestV1,
-    SessionOperationV1, TransitionAuthorizationV1, build_interchange_record_batch_insertion_v1,
-    read_regular_file_with_origin_with_budget,
+    SessionOperationV1, TransitionAuthorizationV1, build_cdxml_record_batch_insertion,
+    build_interchange_record_batch_insertion_v1, read_regular_file_with_origin_with_budget,
 };
 use ferrum_geometry::{MoleculePlacementV1, Point2};
 
@@ -160,7 +160,7 @@ const fn generic_source_refusal() -> InterchangeImportRefusalV1 {
 pub(crate) struct PreparedInterchangeNewDocumentV1 {
     session: DocumentSession,
     transition: PreparedSessionTransitionV1,
-    facts: InterchangeImportSummaryFactsV1,
+    facts: InterchangeImportSummaryFacts,
 }
 
 impl PreparedInterchangeNewDocumentV1 {
@@ -180,8 +180,34 @@ impl PreparedInterchangeNewDocumentV1 {
                 InterchangeImportRefusalReasonV1::InternalFailure,
             )
         })?;
+        require_clean_document_render(&self.session, snapshot.revision())?;
         Ok((self.session, summary(self.facts, &snapshot)))
     }
+}
+
+/// Verify a newly committed private candidate is publishable through the one
+/// authoritative document-rendering path.
+///
+/// Interchange callers only receive a session after this gate succeeds.  A
+/// failed candidate remains owned by this preparation object and is dropped;
+/// no CLI response or desktop prepared tab can observe its committed state.
+fn require_clean_document_render(
+    session: &DocumentSession,
+    revision: u64,
+) -> Result<(), InterchangeImportRefusalV1> {
+    let observation = session
+        .observe_render_v2(revision)
+        .map_err(|_| generic_source_refusal())?;
+    if observation.resolved().suppression().is_some()
+        || observation
+            .resolved()
+            .molecule_plans()
+            .iter()
+            .any(|plan| !plan.issues().is_empty() || !plan.member_issues().is_empty())
+    {
+        return Err(generic_source_refusal());
+    }
+    Ok(())
 }
 
 /// Decode and prepare a new document through the descriptor-selected adapter.
@@ -206,14 +232,9 @@ pub(crate) fn prepare_interchange_new_document_v1<R: ChemistryRuntimeV1>(
         }
         InterchangeDecoderKeyV1::CdxmlSimpleMolecule => {
             let decoded = decode_cdxml_simple_molecule_document_v1(source.bytes())?;
-            let records = decoded
-                .records()
-                .iter()
-                .map(|record| record.record().clone())
-                .collect();
-            prepare_records(
+            prepare_cdxml_records(
                 descriptor,
-                records,
+                decoded.records(),
                 &ferrum_chemistry::UnavailableChemEngine,
                 provenance,
                 map_cdxml_losses(decoded.declared_losses()),
@@ -389,6 +410,72 @@ fn prepare_records(
         .iter()
         .map(|record| record.molecule().bonds().len())
         .sum();
+    prepare_batch(
+        descriptor,
+        source_record_count,
+        atom_count,
+        bond_count,
+        provenance,
+        dropped_categories,
+        |placement| {
+            build_interchange_record_batch_insertion_v1(engine, &records, placement)
+                .map_err(map_record_build_error)
+        },
+    )
+}
+
+/// Prepare decoded CDXML records through the document-owned presentation adapter.
+///
+/// The adapter is the only conversion from the source-specific carrier to
+/// durable document presentation.  This API layer deliberately retains the
+/// exact shared session, placement, count, and publication transaction.
+fn prepare_cdxml_records(
+    descriptor: &'static InterchangeFormatDescriptorV1,
+    records: &[CdxmlDecodedRecordV1],
+    engine: &dyn ChemEngine,
+    provenance: DocumentInterchangeProvenanceV1,
+    dropped_categories: Vec<DocumentInterchangeLossCategoryV1>,
+) -> Result<PreparedInterchangeNewDocumentV1, InterchangeImportRefusalV1> {
+    let source_record_count = records.len();
+    let atom_count = records
+        .iter()
+        .map(|record| record.record().molecule().atoms().len())
+        .sum();
+    let bond_count = records
+        .iter()
+        .map(|record| record.record().molecule().bonds().len())
+        .sum();
+    prepare_batch(
+        descriptor,
+        source_record_count,
+        atom_count,
+        bond_count,
+        provenance,
+        dropped_categories,
+        |placement| {
+            build_cdxml_record_batch_insertion(engine, records, placement)
+                .map_err(|_| generic_source_refusal())
+        },
+    )
+}
+
+fn prepare_batch<F>(
+    descriptor: &'static InterchangeFormatDescriptorV1,
+    source_record_count: usize,
+    atom_count: usize,
+    bond_count: usize,
+    provenance: DocumentInterchangeProvenanceV1,
+    dropped_categories: Vec<DocumentInterchangeLossCategoryV1>,
+    build_batch: F,
+) -> Result<PreparedInterchangeNewDocumentV1, InterchangeImportRefusalV1>
+where
+    F: FnOnce(
+        MoleculePlacementV1,
+    ) -> Result<
+        ferrum_document::InterchangeRecordBatchInsertionV1,
+        InterchangeImportRefusalV1,
+    >,
+{
     let mut session = DocumentSession::create_empty_document_v1().map_err(|_| {
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
@@ -416,8 +503,7 @@ fn prepare_records(
     .map_err(|_| {
         InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InternalFailure)
     })?;
-    let batch = build_interchange_record_batch_insertion_v1(engine, &records, placement)
-        .map_err(map_record_build_error)?;
+    let batch = build_batch(placement)?;
     let transition = session
         .prepare_session_operation_transition_v1(SessionOperationTransitionRequestV1::new(
             baseline.revision(),
@@ -428,7 +514,7 @@ fn prepare_records(
     Ok(PreparedInterchangeNewDocumentV1 {
         session,
         transition,
-        facts: InterchangeImportSummaryFactsV1 {
+        facts: InterchangeImportSummaryFacts {
             descriptor,
             provenance,
             imported_record_count: source_record_count,
@@ -443,7 +529,7 @@ fn prepare_records(
 ///
 /// Keeping this ownership-preserving aggregation private makes the summary
 /// construction boundary self-describing without changing its protocol DTO.
-struct InterchangeImportSummaryFactsV1 {
+struct InterchangeImportSummaryFacts {
     descriptor: &'static InterchangeFormatDescriptorV1,
     provenance: DocumentInterchangeProvenanceV1,
     imported_record_count: usize,
@@ -453,7 +539,7 @@ struct InterchangeImportSummaryFactsV1 {
 }
 
 fn summary(
-    facts: InterchangeImportSummaryFactsV1,
+    facts: InterchangeImportSummaryFacts,
     snapshot: &ferrum_document::DocumentSnapshot,
 ) -> DocumentInterchangeImportSummaryV1 {
     DocumentInterchangeImportSummaryV1 {
@@ -688,264 +774,5 @@ fn map_cdxml_decoder_reason(reason: CdxmlRefusalReasonV1) -> InterchangeImportRe
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{fs, io::Cursor};
-
-    use super::*;
-
-    const TWO_FRAGMENT_CDXML: &str = r#"<CDXML Name="import"><page HeightPages="1"><fragment id="source-first"><n id="carbon" p="0 0"/></fragment><fragment id="source-second"><n id="oxygen" p="30 0" Element="8"/></fragment></page></CDXML>"#;
-    const CDXML_WITH_LEXICAL_AND_VIEW_LOSSES: &str = r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd"><CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1"><fragment id="source-fragment"><n id="source-atom" p="0 0"/></fragment></page></CDXML>"#;
-
-    fn cdxml_descriptor() -> &'static InterchangeFormatDescriptorV1 {
-        crate::InterchangeFormatRegistryV1::lookup_input_alias("cdxml").expect("CDXML descriptor")
-    }
-
-    fn cdxml_provenance() -> DocumentInterchangeProvenanceV1 {
-        DocumentInterchangeProvenanceV1 {
-            format_id: cdxml_descriptor().format_id().to_owned(),
-            profile_id: cdxml_descriptor().profile_id().to_owned(),
-            source_kind: crate::protocol::DocumentInterchangeSourceKindV1::RequestText,
-        }
-    }
-
-    fn temporary_path(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "ferrum-interchange-{name}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("monotonic wall clock")
-                .as_nanos(),
-        ))
-    }
-
-    #[test]
-    fn every_registered_descriptor_refuses_sources_above_its_limit() {
-        enum SourceKind {
-            RequestText,
-            StandardInput,
-            RegularFile,
-        }
-
-        for descriptor in crate::InterchangeFormatRegistryV1::descriptors() {
-            let over_limit = vec![b'x'; descriptor.limits().max_source_bytes() + 1];
-            let path = temporary_path(descriptor.format_id());
-            fs::write(&path, &over_limit).expect("write bounded source");
-            for source_kind in [
-                SourceKind::RequestText,
-                SourceKind::StandardInput,
-                SourceKind::RegularFile,
-            ] {
-                let result = match source_kind {
-                    SourceKind::RequestText => admit_interchange_source_v1(
-                        descriptor,
-                        InterchangeSourceInputV1::RequestText(&over_limit),
-                    ),
-                    SourceKind::StandardInput => {
-                        let mut stdin = Cursor::new(&over_limit);
-                        admit_interchange_source_v1(
-                            descriptor,
-                            InterchangeSourceInputV1::StandardInput(&mut stdin),
-                        )
-                    }
-                    SourceKind::RegularFile => admit_interchange_source_v1(
-                        descriptor,
-                        InterchangeSourceInputV1::RegularFile(&path),
-                    ),
-                };
-                assert!(matches!(
-                    result,
-                    Err(refusal) if refusal == InterchangeImportRefusalV1::for_reason(InterchangeImportRefusalReasonV1::InputBytesLimit)
-                ));
-            }
-            fs::remove_file(path).expect("remove bounded source");
-        }
-    }
-
-    #[test]
-    fn every_registered_descriptor_preserves_admitted_bytes_and_provenance() {
-        for descriptor in crate::InterchangeFormatRegistryV1::descriptors() {
-            let bytes = format!("{} source bytes", descriptor.format_id()).into_bytes();
-            assert!(bytes.len() <= descriptor.limits().max_source_bytes());
-            assert!(!descriptor.profile_id().is_empty());
-
-            let request = admit_interchange_source_v1(
-                descriptor,
-                InterchangeSourceInputV1::RequestText(&bytes),
-            )
-            .expect("request source should be admitted");
-            assert_eq!(request.bytes(), bytes);
-            assert_eq!(
-                request.source_kind(),
-                crate::protocol::DocumentInterchangeSourceKindV1::RequestText
-            );
-
-            let mut stdin = Cursor::new(bytes.clone());
-            let standard_input = admit_interchange_source_v1(
-                descriptor,
-                InterchangeSourceInputV1::StandardInput(&mut stdin),
-            )
-            .expect("standard input should be admitted");
-            assert_eq!(standard_input.bytes(), bytes);
-            assert_eq!(
-                standard_input.source_kind(),
-                crate::protocol::DocumentInterchangeSourceKindV1::StandardInput
-            );
-
-            let path = temporary_path(descriptor.format_id());
-            fs::write(&path, &bytes).expect("write regular source");
-            let regular_file = admit_interchange_source_v1(
-                descriptor,
-                InterchangeSourceInputV1::RegularFile(&path),
-            )
-            .expect("regular file should be admitted");
-            assert_eq!(regular_file.bytes(), bytes);
-            assert_eq!(
-                regular_file.source_kind(),
-                crate::protocol::DocumentInterchangeSourceKindV1::RegularFile
-            );
-            assert!(regular_file.retained_source().is_some());
-            drop(regular_file);
-            fs::remove_file(path).expect("remove regular source");
-        }
-    }
-
-    #[test]
-    fn non_regular_file_is_redacted_at_shared_source_boundary() {
-        let path = temporary_path("directory");
-        fs::create_dir(&path).expect("make temporary directory");
-        for descriptor in crate::InterchangeFormatRegistryV1::descriptors() {
-            assert!(matches!(
-                admit_interchange_source_v1(descriptor, InterchangeSourceInputV1::RegularFile(&path)),
-                Err(refusal) if refusal == generic_source_refusal()
-            ));
-        }
-        fs::remove_dir(path).expect("remove temporary directory");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn symlink_is_refused_before_opening_at_shared_source_boundary() {
-        use std::os::unix::fs::symlink;
-
-        let target = temporary_path("target");
-        let link = temporary_path("link");
-        fs::write(&target, b"source").expect("write target");
-        symlink(&target, &link).expect("create symlink");
-        for descriptor in crate::InterchangeFormatRegistryV1::descriptors() {
-            assert!(matches!(
-                admit_interchange_source_v1(descriptor, InterchangeSourceInputV1::RegularFile(&link)),
-                Err(refusal) if refusal == generic_source_refusal()
-            ));
-        }
-        fs::remove_file(link).expect("remove symlink");
-        fs::remove_file(target).expect("remove target");
-    }
-
-    #[test]
-    fn cdxml_commit_retains_fragment_order_in_public_document_observation() {
-        let source = admit_interchange_source_v1(
-            cdxml_descriptor(),
-            InterchangeSourceInputV1::RequestText(TWO_FRAGMENT_CDXML.as_bytes()),
-        )
-        .expect("admitted CDXML source");
-        let prepared = prepare_interchange_new_document_v1(
-            cdxml_descriptor(),
-            &source,
-            &crate::protocol::runtime::NoChemistryRuntimeV1,
-            cdxml_provenance(),
-        )
-        .expect("atomic preparation");
-        let (session, receipt) = prepared.commit_and_take_session().expect("one commit");
-
-        assert_eq!(receipt.imported_record_count, 2);
-        assert_eq!(
-            receipt.loss_report,
-            DocumentInterchangeImportLossReportV1 {
-                source_identifiers_reallocated: true,
-                dropped_categories: vec![DocumentInterchangeLossCategoryV1::DocumentViewMetadata],
-            }
-        );
-        let observation = session.observe(1).expect("committed document observation");
-        assert_eq!(
-            observation
-                .projection()
-                .molecules()
-                .iter()
-                .map(|molecule| molecule.atoms()[0].element())
-                .collect::<Vec<_>>(),
-            [Some("C"), Some("O")]
-        );
-        let page = observation.projection().paper_layout().page();
-        let positions = observation
-            .projection()
-            .molecules()
-            .iter()
-            .map(|molecule| molecule.atoms()[0].position())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            (positions[0].x() + positions[1].x()) / 2.0,
-            (page.scene_left() + page.scene_right()) / 2.0,
-        );
-        assert_eq!(
-            (positions[0].y() + positions[1].y()) / 2.0,
-            (page.scene_top() + page.scene_bottom()) / 2.0,
-        );
-    }
-
-    #[test]
-    fn cdxml_receipt_reports_declared_lexical_and_view_losses_in_order() {
-        let source = admit_interchange_source_v1(
-            cdxml_descriptor(),
-            InterchangeSourceInputV1::RequestText(CDXML_WITH_LEXICAL_AND_VIEW_LOSSES.as_bytes()),
-        )
-        .expect("admitted CDXML source");
-        let prepared = prepare_interchange_new_document_v1(
-            cdxml_descriptor(),
-            &source,
-            &crate::protocol::runtime::NoChemistryRuntimeV1,
-            cdxml_provenance(),
-        )
-        .expect("atomic preparation");
-        let (_, receipt) = prepared.commit_and_take_session().expect("one commit");
-
-        assert_eq!(
-            receipt.loss_report.dropped_categories,
-            vec![
-                DocumentInterchangeLossCategoryV1::LexicalSyntax,
-                DocumentInterchangeLossCategoryV1::DocumentViewMetadata,
-            ]
-        );
-    }
-
-    #[test]
-    fn cdxml_refusal_is_mapped_and_redacted_before_preparation() {
-        let source = b"<CDXML><page><fragment id=\"source-fragment\"><n id=\"source-atom\" p=\"0 0\" Radical=\"1\"/></fragment></page></CDXML>";
-        let admitted = admit_interchange_source_v1(
-            cdxml_descriptor(),
-            InterchangeSourceInputV1::RequestText(source),
-        )
-        .expect("bounded source admission");
-        let result = prepare_interchange_new_document_v1(
-            cdxml_descriptor(),
-            &admitted,
-            &crate::protocol::runtime::NoChemistryRuntimeV1,
-            cdxml_provenance(),
-        );
-        let Err(refusal) = result else {
-            panic!("unsupported CDXML attribute must refuse before a commit");
-        };
-
-        assert_eq!(
-            refusal,
-            InterchangeImportRefusalV1::for_reason(
-                InterchangeImportRefusalReasonV1::AttributeUnsupported
-            )
-        );
-        assert!(
-            !serde_json::to_string(&refusal)
-                .expect("redacted refusal JSON")
-                .contains("source-fragment")
-        );
-    }
-}
+#[path = "document_interchange_import_tests.rs"]
+mod tests;

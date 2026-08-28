@@ -40,17 +40,6 @@ impl RenderInteractionSessionV1 {
             .begin_presentation_creation_gesture_v1(fence, kind, start, style, snap)
     }
 
-    /// Prepare the current document revision for the public SMARTS operation.
-    ///
-    /// The document session owns target admission, graph construction, and
-    /// revision refusal. The renderer facade deliberately adds no policy.
-    pub fn prepare_smarts_snapshot_v1(
-        &self,
-        expected_revision: u64,
-    ) -> Result<PreparedDocumentSmartsSnapshotV1, DocumentSmartsSnapshotErrorV1> {
-        self.session.prepare_smarts_snapshot_v1(expected_revision)
-    }
-
     pub fn observe_render_interaction_v1(
         &self,
         fence: DocumentFenceV1,
@@ -58,7 +47,7 @@ impl RenderInteractionSessionV1 {
         self.require_fence(fence)?;
         let rendered = self
             .session
-            .observe_render_v1(fence.revision())
+            .observe_render_v2(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::Observation)?;
         let presentation_plan =
             render_presentation_stack_v1(rendered.document().projection().presentation_stack())
@@ -79,7 +68,7 @@ impl RenderInteractionSessionV1 {
         self.require_fence(fence)?;
         let rendered = self
             .session
-            .observe_render_v1(fence.revision())
+            .observe_render_v2(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::Observation)?;
         self.observe_render_interaction_from_rendered_plan_v1(fence, &rendered, presentation_plan)
     }
@@ -87,7 +76,7 @@ impl RenderInteractionSessionV1 {
     fn observe_render_interaction_from_rendered_plan_v1(
         &self,
         fence: DocumentFenceV1,
-        rendered: &DocumentRenderObservationV1,
+        rendered: &DocumentRenderObservationV2,
         presentation_plan: &PresentationRenderPlanV1,
     ) -> Result<RenderInteractionObservationV1, RenderInteractionErrorV1> {
         if rendered.document().snapshot().revision() != fence.revision() {
@@ -197,7 +186,7 @@ impl RenderInteractionSessionV1 {
         self.require_fence(fence)?;
         let rendered = self
             .session
-            .observe_render_v1(fence.revision())
+            .observe_render_v2(fence.revision())
             .map_err(|_| RenderInteractionErrorV1::Observation)?;
         if rendered.document().snapshot().digest() != &fence.digest() {
             return Err(RenderInteractionErrorV1::StaleDigest);
@@ -274,7 +263,7 @@ impl RenderInteractionSessionV1 {
                             segments.push(segment);
                         }
                         RenderOp::Path(path) => {
-                            path_primitive_bounds.push(path_bounds(path));
+                            path_primitive_bounds.push(path_bounds(&path));
                         }
                         RenderOp::Text(_)
                         | RenderOp::Mask(_)

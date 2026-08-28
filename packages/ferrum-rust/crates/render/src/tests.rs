@@ -22,6 +22,8 @@ mod document_vector_v1;
 mod draw_stream_v1;
 #[path = "tests/font_environment.rs"]
 mod font_environment;
+#[path = "tests/isotope_third_label_alignment.rs"]
+mod isotope_third_label_alignment;
 #[path = "tests/model_contract.rs"]
 mod model_contract;
 #[path = "tests/pdf_backend.rs"]

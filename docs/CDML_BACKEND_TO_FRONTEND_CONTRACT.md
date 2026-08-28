@@ -469,14 +469,15 @@ typed ambiguity failure. Canonical equality is history-free.
 Convert to linear form is a revision-bound backend operation for one direct-
 root molecule and a nonempty unique selection of direct atoms. The backend
 derives one deterministic induced unbranched path (including a single atom),
-lays it out horizontally at fixed 10 PostScript-point spacing, turns selected
+lays it out horizontally at the domain-owned native spacing of 40 PostScript
+points, turns selected
 hydrogens on, and translates explicit marks plus each external component that
 has exactly one selected anchor. Invalid geometry, topology, targets, external
 bridges, ambiguity, and stale revisions are typed atomic failures.
 
 The generated metadata is exactly `<fragment id="..." type="linear_form">`
 with `<name>linear_form</name>`, path-ordered bonds then vertices, and final
-`<property name="bond_length" value="10" type="IntType"/>`; richer imported
+`<property name="bond_length" value="40" type="IntType"/>`; richer imported
 forms remain preservation-only. A single matching narrow record is repaired
 under its existing durable ID, while multiple matches are ambiguous and a
 canonical repeat is history-free. Accepted coordinate or topology operations

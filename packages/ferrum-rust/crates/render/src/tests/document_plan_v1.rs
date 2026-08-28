@@ -64,8 +64,8 @@ fn page() -> RenderViewportV1 {
     RenderViewportV1::new(0.0, 0.0, 200.0, 100.0).expect("test page")
 }
 
-fn empty_molecule(provenance: RenderProvenance) -> MoleculeRenderPlan {
-    MoleculeRenderPlan::new(provenance, vec![], vec![]).expect("empty molecule plan")
+fn empty_molecule(provenance: RenderProvenance) -> MoleculeRenderPlanV4 {
+    MoleculeRenderPlanV4::new(provenance, vec![], vec![]).expect("empty molecule plan")
 }
 
 fn element_children(tree: &Xot, node: Node) -> Vec<Node> {

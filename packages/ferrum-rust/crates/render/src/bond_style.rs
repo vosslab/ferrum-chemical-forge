@@ -23,8 +23,12 @@ pub enum BondStyle {
     HaworthFrontStroke,
     /// A declared directed `w1` front shoulder in a Haworth depiction.
     HaworthFrontWedge,
-    /// A dashed bond.
+    /// A bold single bond.
+    Bold,
+    /// A dashed single bond.
     Dashed,
+    /// A wavy single bond.
+    Wavy,
     /// An exact source depiction that V1 intentionally cannot lower.
     Unsupported { detail: String },
 }
@@ -40,9 +44,11 @@ impl BondStyle {
             | Self::SolidWedge
             | Self::HashedWedge
             | Self::HaworthFrontStroke
-            | Self::HaworthFrontWedge => None,
+            | Self::HaworthFrontWedge
+            | Self::Bold
+            | Self::Dashed
+            | Self::Wavy => None,
             Self::Aromatic => Some("aromatic bond"),
-            Self::Dashed => Some("dashed bond"),
             Self::Unsupported { detail } => Some(detail.as_str()),
         }
     }

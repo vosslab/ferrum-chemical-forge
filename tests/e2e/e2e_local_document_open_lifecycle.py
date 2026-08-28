@@ -343,6 +343,7 @@ def _run_postcommit_refresh_recovery(app: PySide6.QtWidgets.QApplication,
 	controller = window._local_document_open_controller
 	worker = _HeldWorker()
 	receipts, original_settle = _capture_terminal_receipts(window)
+	original_complete = window._operation_leases.complete_prepared_terminal_replacement
 	original_factory = controller._create_local_document_open_worker
 	original_refresh = window._on_native_tab_changed
 	original_present = controller._present_refusal
@@ -351,6 +352,16 @@ def _run_postcommit_refresh_recovery(app: PySide6.QtWidgets.QApplication,
 	controller._create_local_document_open_worker = lambda _path, _route: worker
 	controller._present_refusal = presented.append
 	window.local_document_open_completed.connect(lambda opened_path, success: completed.append((opened_path, success)))
+
+	def capture_completion(prepared: object, observer: object) -> None:
+		"""Observe the replacement terminal receipt at its final observer boundary."""
+		def capture_observer(receipt: object) -> None:
+			receipts.append(receipt)
+			observer(receipt)
+
+		original_complete(prepared, capture_observer)
+
+	window._operation_leases.complete_prepared_terminal_replacement = capture_completion
 
 	def fail_postcommit_refresh(_index: int) -> None:
 		"""Inject a postcommit-only display refresh failure."""
@@ -396,6 +407,7 @@ def _run_postcommit_refresh_recovery(app: PySide6.QtWidgets.QApplication,
 		controller._present_refusal = original_present
 		controller._create_local_document_open_worker = original_factory
 		window._operation_leases.settle = original_settle
+		window._operation_leases.complete_prepared_terminal_replacement = original_complete
 		_release_worker(app, worker)
 		ferrum_qt_e2e.close_e2e_main_window(window, app)
 

@@ -9,12 +9,14 @@ use ferrum_render_contract::{
 };
 use ttf_parser::{Face, GlyphId};
 
-use crate::glyph_metrics::LaidOutAtomLabel;
+use crate::glyph_metrics::{
+    AtomLabelAttachmentGeometry, GlyphBounds, GlyphMetrics, LaidOutAtomLabel,
+};
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, CenteredTextLayout, FerrumFontEnvironmentV1,
-    FerrumFontId, FontFace, GlyphBounds, GlyphMetrics, GlyphPlacement, PositiveFinite,
-    PresentationGlyphRun, PresentationTextLayout, PresentationTextOp, PresentationTextSourceRun,
-    RenderError, RenderPaintV3, RenderPoint, TextOp, TextRun, TextScript,
+    FerrumFontId, FontFace, GlyphPlacement, PositiveFinite, PresentationGlyphRun,
+    PresentationTextLayout, PresentationTextOp, PresentationTextSourceRun, RenderError,
+    RenderPaintV3, RenderPoint, TextOp, TextRun, TextScript,
 };
 
 /// Exact unhinted Telex extents for one fully specified text run.
@@ -121,6 +123,98 @@ pub struct VerifiedTelexGlyphMetrics {
 }
 
 impl VerifiedTelexGlyphMetrics {
+    /// Measure exact visible ink for an already-validated V4 text operation.
+    pub(crate) fn v1_text_ink_bounds(&self, text: &TextOp) -> Result<GlyphBounds, RenderError> {
+        let mut bounds: Option<GlyphBounds> = None;
+        for run in text.runs() {
+            let run_bounds = self.v1_run_ink_bounds(text, run)?;
+            bounds = Some(match bounds {
+                Some(existing) => GlyphBounds::new(
+                    existing.min_x().min(run_bounds.min_x()),
+                    existing.min_y().min(run_bounds.min_y()),
+                    existing.max_x().max(run_bounds.max_x()),
+                    existing.max_y().max(run_bounds.max_y()),
+                )?,
+                None => run_bounds,
+            });
+        }
+        bounds.ok_or_else(|| {
+            RenderError::InvalidRequest("text operation has no visible Telex ink".to_owned())
+        })
+    }
+
+    /// Measure a label's exact canonical ink envelope.
+    ///
+    /// The structurally selected core run uses the same symmetric float
+    /// normalization as its durable attachment rectangle. Other runs retain
+    /// their exact Telex outline bounds.
+    pub(crate) fn v1_atom_label_ink_bounds(
+        &self,
+        text: &TextOp,
+        core_element_run_index: usize,
+    ) -> Result<GlyphBounds, RenderError> {
+        let full = self.v1_text_ink_bounds(text)?;
+        let core = self.v1_centered_core_run_ink_bounds(text, core_element_run_index)?;
+        GlyphBounds::new(
+            full.min_x().min(core.min_x()),
+            full.min_y().min(core.min_y()),
+            full.max_x().max(core.max_x()),
+            full.max_y().max(core.max_y()),
+        )
+    }
+
+    /// Verify and canonicalize the source-issued structural atom-label run.
+    ///
+    /// Atom layout places this one run at the negated mathematical center of
+    /// its Telex outline. The exact origin equality proves that a tiny wire
+    /// translation cannot be hidden by canonical symmetric bounds.
+    pub(crate) fn v1_centered_core_run_ink_bounds(
+        &self,
+        text: &TextOp,
+        index: usize,
+    ) -> Result<GlyphBounds, RenderError> {
+        let run = text.runs().get(index).ok_or_else(|| {
+            RenderError::InvalidRequest(
+                "atom-label core run index is outside label text".to_owned(),
+            )
+        })?;
+        let layout = self.layout_unshaped_run(run.text(), text.size(), run.scale())?;
+        self.validate_v1_run(
+            run.text(),
+            run.script(),
+            text.size(),
+            run.scale(),
+            run.glyphs(),
+        )?;
+        let expected_x = -((layout.min_x + layout.max_x) / 2.0);
+        let expected_y = -((layout.min_y + layout.max_y) / 2.0);
+        let absolute_x = text.origin().x() + run.origin().x();
+        let absolute_y = text.origin().y() + run.origin().y();
+        if absolute_x != expected_x || absolute_y != expected_y {
+            return Err(RenderError::InvalidRequest(
+                "atom-label core run must use the exact Telex-centered origin".to_owned(),
+            ));
+        }
+        self.v1_run_ink_bounds(text, run)?
+            .canonical_centered_at_origin()
+    }
+
+    fn v1_run_ink_bounds(&self, text: &TextOp, run: &TextRun) -> Result<GlyphBounds, RenderError> {
+        self.validate_v1_run(
+            run.text(),
+            run.script(),
+            text.size(),
+            run.scale(),
+            run.glyphs(),
+        )?;
+        let layout = self.layout_unshaped_run(run.text(), text.size(), run.scale())?;
+        GlyphBounds::new(
+            text.origin().x() + run.origin().x() + layout.min_x,
+            text.origin().y() + run.origin().y() + layout.min_y,
+            text.origin().x() + run.origin().x() + layout.max_x,
+            text.origin().y() + run.origin().y() + layout.max_y,
+        )
+    }
     /// Open the immutable verified Telex bytes without reopening a filesystem path.
     pub fn new(environment: &FerrumFontEnvironmentV1) -> Result<Self, RenderError> {
         let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
@@ -368,11 +462,7 @@ impl VerifiedTelexGlyphMetrics {
         let segment = self.layout_presentation_run(text, context.size, scale)?;
         let line_y = line as f64 * context.baseline.height();
         let baseline_y = line_y + context.baseline.ascent();
-        let y = match script {
-            TextScript::Baseline => baseline_y,
-            TextScript::Subscript => baseline_y + context.baseline.descent() * 0.8,
-            TextScript::Superscript => baseline_y - context.baseline.ascent() * 0.55,
-        };
+        let y = script_baseline_y(script, baseline_y, context.baseline);
         if let Some((left, top, right, bottom)) = segment.ink_bounds {
             layout.min_ink_x = layout.min_ink_x.min(layout.cursor_x + left);
             layout.min_ink_y = layout.min_ink_y.min(y + top);
@@ -624,6 +714,12 @@ fn is_v1_text_run(text: &str, script: TextScript) -> bool {
             .parse::<u8>()
             .is_ok_and(|count| count >= 2 && text == count.to_string()),
         TextScript::Superscript => {
+            if text
+                .parse::<u16>()
+                .is_ok_and(|mass| (1..=32_767).contains(&mass) && text == mass.to_string())
+            {
+                return true;
+            }
             let Some(sign) = text.chars().last() else {
                 return false;
             };
@@ -664,60 +760,85 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
             };
             layouts.push(self.layout_unshaped_run(text, font.size(), scale)?);
         }
-        let total_width: f64 = layouts.iter().map(|layout| layout.advance).sum();
-        let mut cursor = -total_width / 2.0;
+        // An optional isotope precedes the structural element. Preserve the
+        // structural run identity explicitly rather than inferring it later.
+        let core_element_run_index = u32::from(label.isotope_mass_number().is_some());
+        let core = layouts
+            .get(core_element_run_index as usize)
+            .expect("atom labels always include the structural element run");
+        let core_min_x = core.min_x;
+        let core_max_x = core.max_x;
+        let core_min_y = core.min_y;
+        let core_max_y = core.max_y;
+        let core_center_x = (core_min_x + core_max_x) / 2.0;
+        let core_center_y = (core_min_y + core_max_y) / 2.0;
+        let prefix_advance = layouts
+            .iter()
+            .take(core_element_run_index as usize)
+            .map(|layout| layout.advance)
+            .sum::<f64>();
+        let mut cursor = -core_center_x - prefix_advance;
+        let baseline_y = -core_center_y;
         let mut runs = Vec::with_capacity(pieces.len());
         let mut ink_bounds: Option<(f64, f64, f64, f64)> = None;
-        for ((text, script), layout) in pieces.into_iter().zip(layouts) {
+        for (index, ((text, script), layout)) in pieces.into_iter().zip(layouts).enumerate() {
             let scale = if script == TextScript::Baseline {
                 PositiveFinite::new(1.0)?
             } else {
                 script_scale
             };
-            let y = match script {
-                TextScript::Baseline => 0.0,
-                TextScript::Subscript => -baseline.descent() * 0.8,
-                TextScript::Superscript => baseline.ascent() * 0.55,
+            let x = if index == core_element_run_index as usize {
+                -core_center_x
+            } else {
+                cursor
             };
+            let y = script_baseline_y(script, baseline_y, baseline);
             ink_bounds = Some(match ink_bounds {
                 Some((min_x, min_y, max_x, max_y)) => (
-                    min_x.min(cursor + layout.min_x),
+                    min_x.min(x + layout.min_x),
                     min_y.min(y + layout.min_y),
-                    max_x.max(cursor + layout.max_x),
+                    max_x.max(x + layout.max_x),
                     max_y.max(y + layout.max_y),
                 ),
                 None => (
-                    cursor + layout.min_x,
+                    x + layout.min_x,
                     y + layout.min_y,
-                    cursor + layout.max_x,
+                    x + layout.max_x,
                     y + layout.max_y,
                 ),
             });
             runs.push(TextRun::new(
                 text,
                 script,
-                RenderPoint::new(cursor, y)?,
+                RenderPoint::new(x, y)?,
                 layout.glyphs,
                 scale,
             )?);
-            cursor += layout.advance;
+            cursor = x + layout.advance;
         }
         let Some((min_x, min_y, max_x, max_y)) = ink_bounds else {
             return Err(RenderError::InvalidRequest(
                 "atom label has no finite Telex ink".to_owned(),
             ));
         };
-        // Bond clipping begins at the durable atom anchor, so this particular
-        // boundary retains the origin-containing envelope required by
-        // `GlyphBounds`.  It is intentionally distinct from `GlyphRunMetrics`.
+        let core_bounds = GlyphBounds::new(
+            -core_center_x + core_min_x,
+            baseline_y + core_min_y,
+            -core_center_x + core_max_x,
+            baseline_y + core_max_y,
+        )?
+        .canonical_centered_at_origin()?;
+        let bounds = GlyphBounds::new(
+            min_x.min(core_bounds.min_x()),
+            min_y.min(core_bounds.min_y()),
+            max_x.max(core_bounds.max_x()),
+            max_y.max(core_bounds.max_y()),
+        )?;
         LaidOutAtomLabel::new(
             runs,
-            GlyphBounds::new(
-                min_x.min(0.0),
-                min_y.min(0.0),
-                max_x.max(0.0),
-                max_y.max(0.0),
-            )?,
+            bounds,
+            AtomLabelAttachmentGeometry::new(core_bounds)?,
+            core_element_run_index,
         )
     }
 
@@ -747,6 +868,15 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
             layout.glyphs,
             scale,
         )
+    }
+}
+
+/// Place scripts in the renderer's y-down coordinates for every Telex caller.
+fn script_baseline_y(script: TextScript, baseline_y: f64, baseline: FontBaselineMetrics) -> f64 {
+    match script {
+        TextScript::Baseline => baseline_y,
+        TextScript::Subscript => baseline_y + baseline.descent() * 0.8,
+        TextScript::Superscript => baseline_y - baseline.ascent() * 0.55,
     }
 }
 

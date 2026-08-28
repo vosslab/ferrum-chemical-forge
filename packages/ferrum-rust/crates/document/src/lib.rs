@@ -17,7 +17,7 @@ mod attached_compact_group_v1;
 mod attached_cyclohexane_v1;
 mod authored_text_v1;
 mod authoring_capability_v1;
-mod bond_presentation_v1;
+mod bond_presentation;
 mod bond_properties_patch_v1;
 mod bracket_insertion_v1;
 mod bracket_pair_projection_v1;
@@ -54,7 +54,6 @@ mod document_direct_root_index_v1;
 mod document_explicit_fragment_api_v1;
 mod document_ingress_v1;
 mod document_object_identity_v1;
-mod document_smarts_snapshot_v1;
 mod drawing_standard_patch_v1;
 mod explicit_fragment_v1;
 mod free_compact_group_v1;
@@ -173,10 +172,10 @@ pub(crate) use authoring_capability_v1::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityClaimV1, AuthoringCapabilityIssuerV1,
     AuthoringGesturePairAccessErrorV1,
 };
-pub use bond_presentation_v1::DocumentBondPresentationV1;
+pub use bond_presentation::DocumentBondPresentationV1;
+pub(crate) use bond_presentation::project_source_bond_semantics;
 pub use bond_properties_patch_v1::{
-    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, DocumentBondStyleV1,
-    NonZeroFiniteV1,
+    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, NonZeroFiniteV1,
 };
 pub use bracket_insertion_v1::{BracketInsertionV1, BracketInsertionV1Error, BracketStyleV1};
 pub use bracket_properties_patch_v1::{
@@ -250,9 +249,6 @@ pub use document_ingress_v1::{
     load_document_file_for_publication_with_budget, load_document_file_with_budget,
     load_document_reader_with_budget, load_document_utf8_bytes_with_budget,
     read_regular_file_with_origin_with_budget,
-};
-pub use document_smarts_snapshot_v1::{
-    DocumentSmartsSnapshotErrorV1, DocumentSmartsTargetV1, PreparedDocumentSmartsSnapshotV1,
 };
 pub use drawing_standard_patch_v1::{
     DrawingStandardPatchV1, DrawingStandardPatchV1Error, DrawingStandardPropertyChangeV1,
@@ -399,14 +395,14 @@ pub use regular_ring_insertion_v1::{
     RegularRingSizeV1,
 };
 pub use rendering::{
-    CompleteDocumentRenderPlanErrorV1, DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1,
+    CompleteDocumentRenderPlanErrorV1, DOCUMENT_RENDER_OBSERVATION_SCHEMA_V2,
     DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentNativeArtifactErrorV1,
     DocumentNativeArtifactProfileV1, DocumentPdfArtifactErrorV1, DocumentPngArtifactErrorV1,
-    DocumentRenderObservationErrorV1, DocumentRenderObservationV1, DocumentRenderObservationWireV1,
+    DocumentRenderObservationErrorV1, DocumentRenderObservationV2, DocumentRenderObservationWireV2,
     DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1, DocumentSelectionSvgV1,
     DocumentSvgArtifactErrorV1, DocumentSvgSelectionV1, PreparedDocumentNativeArtifactV1,
     compose_complete_document_render_plan_v1,
-    derive_document_render_observation_from_accepted_operation_v1, observe_document_render_v1,
+    derive_document_render_observation_from_accepted_operation_v2, observe_document_render_v2,
     prepare_document_native_artifact_v1, publish_prepared_document_native_artifact_v1,
     render_document_selection_to_svg_v1, render_document_session_to_pdf_v1,
     render_document_session_to_png_v1, render_document_session_to_svg_v1,

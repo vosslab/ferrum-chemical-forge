@@ -612,7 +612,7 @@ fn assert_native_coordinate_v1(
 }
 
 fn assert_target_line_role_v1(
-    molecule_plan: &ferrum_render::MoleculeRenderPlan,
+    molecule_plan: &ferrum_render::MoleculeRenderPlanV4,
     bond_id: &DocumentObjectIdV1,
     order: ferrum_core::BondOrder,
 ) {
@@ -627,13 +627,11 @@ fn assert_target_line_role_v1(
             .iter()
             .any(|operation| matches!(operation, RenderOp::DoubleBondCarrierMark(_)))
     );
-    let mut lines = batch
-        .operations()
-        .iter()
-        .filter_map(|operation| match operation {
-            RenderOp::Line(line) => Some(line),
-            _ => None,
-        });
+    let operations = batch.operations();
+    let mut lines = operations.iter().filter_map(|operation| match operation {
+        RenderOp::Line(line) => Some(line),
+        _ => None,
+    });
     let first = lines
         .next()
         .expect("normal Phenyl bond emits an ordinary line");

@@ -9,14 +9,15 @@ use crate::draw_stream_v1::{
     DrawEllipseV1, DrawLineCapV1, DrawMetadataV1, DrawPathCommandV1, DrawPathV1, DrawRectV1,
     DrawSinkV1, DrawStreamErrorV1, DrawStrokeV1, DrawStyleV1, scoped_translate,
 };
+use crate::render_batch::RenderOperationRef;
 use crate::{
-    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlan, PathOpV3, RenderOp,
-    ScenePathCommandV3, VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
+    BatchSpace, EllipseOp, LineOp, MaskOp, MoleculeRenderPlanV4, PathOpV3, ScenePathCommandV3,
+    VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
 };
 
 /// Lower one molecule plan through the common private draw stream.
 pub(crate) fn lower_molecule_plan<S: DrawSinkV1>(
-    plan: &MoleculeRenderPlan,
+    plan: &MoleculeRenderPlanV4,
     face: &Face<'_>,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
@@ -27,7 +28,7 @@ pub(crate) fn lower_molecule_plan<S: DrawSinkV1>(
 }
 
 pub(crate) fn lower_molecule_batch<S: DrawSinkV1>(
-    batch: &crate::RenderBatch,
+    batch: &crate::RenderBatchV4,
     face: &Face<'_>,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
@@ -38,32 +39,29 @@ pub(crate) fn lower_molecule_batch<S: DrawSinkV1>(
     )
     .map_err(DrawStreamErrorV1::Sink)?;
     if let BatchSpace::AtomLocal { anchor } = batch.coordinate_space() {
-        scoped_translate(*anchor, sink, |sink| {
-            lower_molecule_operations(batch.operations(), face, sink)
+        scoped_translate(anchor, sink, |sink| {
+            lower_molecule_operations(batch, face, sink)
         })?;
     } else {
-        lower_molecule_operations(batch.operations(), face, sink)?;
+        lower_molecule_operations(batch, face, sink)?;
     }
     sink.end_molecule_batch().map_err(DrawStreamErrorV1::Sink)?;
     Ok(())
 }
 
 fn lower_molecule_operations<S: DrawSinkV1>(
-    operations: &[RenderOp],
+    batch: &crate::RenderBatchV4,
     face: &Face<'_>,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    for operation in operations {
-        match operation {
-            RenderOp::Line(line) => lower_line(line, sink)?,
-            RenderOp::Mask(mask) => lower_mask(mask, sink)?,
-            RenderOp::Ellipse(ellipse) => lower_ellipse(ellipse, sink)?,
-            RenderOp::Path(path) => lower_path(path, sink)?,
-            RenderOp::DoubleBondCarrierMark(mark) => lower_line(&mark.accent_line(), sink)?,
-            RenderOp::Text(text) => crate::draw_stream_v1::lower_text(text, face, sink)?,
-        }
-    }
-    Ok(())
+    batch.visit_operations(|operation| match operation {
+        RenderOperationRef::Line(line) => lower_line(line, sink),
+        RenderOperationRef::Mask(mask) => lower_mask(mask, sink),
+        RenderOperationRef::Ellipse(ellipse) => lower_ellipse(ellipse, sink),
+        RenderOperationRef::Path(path) => lower_path(path, sink),
+        RenderOperationRef::DoubleBondCarrierMark(mark) => lower_line(&mark.accent_line(), sink),
+        RenderOperationRef::Text(text) => crate::draw_stream_v1::lower_text(text, face, sink),
+    })
 }
 
 fn lower_path<S: DrawSinkV1>(

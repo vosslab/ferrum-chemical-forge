@@ -7,10 +7,11 @@ use ferrum_document_projection::{
     AtomProjectionV1, BondEndpointKindV1, BondEndpointV1, BondProjectionV1,
     DocumentDirectRootKindV1, DocumentDirectRootV1, DocumentHaworthPositionV1, DocumentObjectIdV1,
     DocumentProjectionProvenanceV1, DocumentProjectionV1, DocumentProjectionV1Error,
-    DrawingStandardV1, FontFactsV1, MoleculeProjectionV1, NonZeroFiniteV1, Point3V1,
-    PositiveFiniteV1, PresentationLengthV1, PresentationProjectionIssueV1,
-    PresentationRootProjectionV1, ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1,
-    Rgb24V1, RichTextV1, TransparentOrRgb24V1, VisibilityV1,
+    DrawingStandardV1, FontFactsV1, MoleculeProjectionChildrenV1, MoleculeProjectionV1,
+    NonAtomVertexKindV1, NonAtomVertexProjectionV1, NonZeroFiniteV1, Point3V1, PositiveFiniteV1,
+    PresentationLengthV1, PresentationProjectionIssueV1, PresentationRootProjectionV1,
+    ProjectionError, ProjectionIssueCodeV1, ProjectionIssueV1, Rgb24V1, RichTextV1,
+    TransparentOrRgb24V1, VisibilityV1,
 };
 
 use crate::atom_mark_projection::atom_marks;
@@ -219,6 +220,7 @@ fn molecule(
     let endpoints = endpoint_index(record)?;
     let mut atoms = Vec::new();
     let mut compact_groups = Vec::new();
+    let mut non_atom_vertices = Vec::new();
     let mut bonds = Vec::new();
     for nested in record.typed_children() {
         match nested.record().class() {
@@ -226,7 +228,16 @@ fn molecule(
                 let atom = atom(nested, issues)?;
                 atoms.push(atom);
             }
-            TypedClass::CompactGroup => compact_groups.push(compact_group(nested)?),
+            TypedClass::CompactGroup => {
+                compact_groups.push(compact_group(nested)?);
+                non_atom_vertices.push(non_atom_vertex(nested, NonAtomVertexKindV1::CompactGroup)?);
+            }
+            TypedClass::MoleculeText => {
+                non_atom_vertices.push(non_atom_vertex(nested, NonAtomVertexKindV1::MoleculeText)?)
+            }
+            TypedClass::Query => {
+                non_atom_vertices.push(non_atom_vertex(nested, NonAtomVertexKindV1::Query)?)
+            }
             TypedClass::Bond => {
                 bonds.push(bond(nested, version, &endpoints, issues)?);
             }
@@ -238,15 +249,32 @@ fn molecule(
         crate::projection_local_object_key_from_record_v1(record)?,
         record.attribute("id").map(str::to_owned),
         record.attribute("name").map(str::to_owned),
-        atoms,
-        compact_groups,
-        bonds,
+        MoleculeProjectionChildrenV1 {
+            atoms,
+            compact_groups,
+            non_atom_vertices,
+            bonds,
+        },
     )
     .map_err(|source| ProjectionError::InvalidValue {
         context: context(record),
         field: "molecule children",
         value: source.to_string(),
     })
+}
+
+fn non_atom_vertex(
+    child: &TypedChild,
+    kind: NonAtomVertexKindV1,
+) -> Result<NonAtomVertexProjectionV1, ProjectionError> {
+    let record = child.record();
+    Ok(NonAtomVertexProjectionV1::new(
+        crate::projection_identity_v1::projection_document_object_id_from_record_v1(record)?,
+        crate::projection_local_object_key_from_record_v1(record)?,
+        record.attribute("id").map(str::to_owned),
+        child.position(),
+        kind,
+    ))
 }
 
 #[derive(Clone)]
@@ -704,37 +732,35 @@ fn bond_semantics(version: Option<&str>, token: &str) -> (Option<BondOrder>, Opt
             _ => {}
         }
     }
-    let Some(digits) = token.get(1..) else {
-        return (None, None);
-    };
-    let order = if digits.is_empty() {
-        None
-    } else {
-        let Ok(number) = digits.parse() else {
-            return (None, None);
-        };
-        Some(match number {
-            1 => BondOrder::Single,
-            2 => BondOrder::Double,
-            3 => BondOrder::Triple,
-            4 => BondOrder::Aromatic,
-            other => BondOrder::Other(other),
-        })
-    };
-    let style = token.chars().next().map(|character| match character {
-        'n' => BondStyle::Normal,
-        'w' => BondStyle::Wedge,
-        'h' | 'l' | 'r' => BondStyle::Hashed,
-        'a' => BondStyle::Adder,
-        'b' => BondStyle::Bold,
-        'd' => BondStyle::Dashed,
-        'o' => BondStyle::Dotted,
-        's' => BondStyle::Wavy,
-        'q' => BondStyle::HaworthFront,
-        other => BondStyle::Other(other.to_string()),
-    });
-    (order, style)
+    crate::project_source_bond_semantics(token)
 }
 fn context(record: &TypedRecord) -> String {
     format!("{} at {}", record.class().name(), record.path())
+}
+
+#[cfg(test)]
+mod bond_semantics_tests {
+    use ferrum_core::{BondOrder, BondStyle};
+
+    use super::bond_semantics;
+
+    #[test]
+    fn projection_preserves_current_source_semantics_beyond_authoring_vocabulary() {
+        assert_eq!(
+            bond_semantics(Some("26.08"), "b1"),
+            (Some(BondOrder::Single), Some(BondStyle::Bold))
+        );
+        assert_eq!(
+            bond_semantics(Some("26.08"), "d1"),
+            (Some(BondOrder::Single), Some(BondStyle::Dashed))
+        );
+        assert_eq!(
+            bond_semantics(Some("26.08"), "b2"),
+            (Some(BondOrder::Double), Some(BondStyle::Bold))
+        );
+        assert_eq!(
+            bond_semantics(Some("26.08"), "n0"),
+            (Some(BondOrder::Other(0)), Some(BondStyle::Normal))
+        );
+    }
 }

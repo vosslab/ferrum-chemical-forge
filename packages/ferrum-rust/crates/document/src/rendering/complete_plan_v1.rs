@@ -1,7 +1,7 @@
 //! Shared admission of one complete whole-document render plan.
 
 use crate::DocumentSession;
-use crate::{DocumentRenderObservationErrorV1, observe_document_render_v1};
+use crate::{DocumentRenderObservationErrorV1, observe_document_render_v2};
 use ferrum_render::{DocumentRenderOutcomeV1, DocumentRenderPlanV1};
 use ferrum_render::{DocumentRenderPlanCompositionError, compose_document_render_plan_v1};
 use thiserror::Error;
@@ -14,7 +14,7 @@ pub fn compose_complete_document_render_plan_v1(
     session: &DocumentSession,
     expected_revision: u64,
 ) -> Result<DocumentRenderPlanV1, CompleteDocumentRenderPlanErrorV1> {
-    let observation = observe_document_render_v1(session, expected_revision)?;
+    let observation = observe_document_render_v2(session, expected_revision)?;
     let plan = compose_document_render_plan_v1(observation.resolved())?;
     if plan
         .outcomes()

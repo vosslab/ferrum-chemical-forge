@@ -4,7 +4,7 @@ use super::{
 use crate::{
     AuthoringCapabilityAccessErrorV1, AuthoringCapabilityIssuerV1, DocumentFenceV1,
     TextPlacementContentV1, TextPlacementErrorV1, TextPlacementGestureV1,
-    derive_document_render_observation_from_accepted_operation_v1,
+    derive_document_render_observation_from_accepted_operation_v2,
 };
 use ferrum_render::DocumentTextRenderV1;
 
@@ -71,7 +71,7 @@ pub(super) fn prepare(
     let snapshot = candidate.snapshot(!session.saved_baseline.is_current(&candidate));
     let observation = super::SessionDocumentObservationV1::from_snapshot(snapshot)
         .map_err(|_| TextPlacementErrorV1::SessionConflict)?;
-    let render = derive_document_render_observation_from_accepted_operation_v1(&observation)
+    let render = derive_document_render_observation_from_accepted_operation_v2(&observation)
         .map_err(|_| TextPlacementErrorV1::RenderPreparation)?;
     let overlay = render
         .resolved()

@@ -142,15 +142,17 @@ or full OASA/BKChem parity.
 ### Patch 2: Local Document Open controller
 
 Patch 2 is implemented and accepted at the code/automated-gate boundary. It
-replaces the stateful `local_document_open.py` mixin with four explicit modules:
+replaces the stateful `local_document_open.py` mixin with five explicit modules:
 `local_document_open_contract.py`, `local_document_open_composition.py`,
-`local_document_open_controller.py`, and `local_document_open_delivery.py`.
+`local_document_open_controller.py`, `local_document_open_delivery.py`, and
+`local_document_open_host.py`.
 The frozen contract owns immutable request, fence, intent, and closed-outcome
 facts plus a callback-only window port. Composition is the one adapter from
 that port to the public `MainWindow` host. The controller owns declaration,
 queue, actions, workers, exact source-tab leases, and terminal settlement. The
 delivery module owns one intent's staged worker facts and Qt-thread admission,
-replacement, dialog presentation, and outcome publication. It preserves
+replacement, dialog presentation, and outcome publication. The host module owns
+recoverable Qt publication/replacement and its irreversible commit boundary. It preserves
 `file.open`, `file.open_current`, and `file.open.cancel` QAction identities,
 shortcuts, and YAML/menu/ribbon clients.
 
@@ -175,27 +177,29 @@ Startup is transactional: incomplete provisional installation retires its
 worker/relay/product state before terminal failure. The lifecycle replacement
 transaction retains the same source lease through exact-ID/identity detach,
 typed rollback, and terminal settlement; the lease never transfers to the
-incoming tab. Once durable replacement is irreversible, `COMPLETED` remains
-the truthful outcome even if typed post-commit presentation fails; pre-commit
-invalid worker protocol or invariant errors complete safe cleanup and failed
-lease settlement, then propagate rather than being broadly masked.
+incoming tab. The host returns `None` and closes one exact resolution. Pre-commit
+refusal returns candidate ownership only after complete rollback. Irreversible
+publication or replacement records transfer, `COMPLETED`, and replacement-lease
+settlement before receipt validation. Any unresolved return or exception is an
+invariant fault and conservatively retains the candidate; finish callbacks are
+presentation-only. Invalid worker protocol and invariant errors propagate.
 
-Patch 2 production scope is the four new Local Open modules,
+Patch 2 production scope is the five Local Open modules,
 `main_window.py`, `main_window_lifecycle.py`, `operation_leases.py`,
 `tab_operations.py`, and `close_decision.py`; it deletes
 `local_document_open.py` and unused `native_app.py`. `MainWindow` is the sole
 product startup composition. The patch leaves `local_document_open_types.py`,
-resource YAML, Rust, and PyO3 unchanged. It adds no Rust/PyO3 cancellation
+resource YAML, Rust runtime/semantic APIs, and PyO3 unchanged. It adds no Rust/PyO3 cancellation
 contract, generic event bus, service locator, or simultaneous feature migration.
 
-Focused Local Open/lease/CDML evidence now passes 43 checks. `./build.sh` and
-`bash tests/e2e/run_all.sh` exit 0; the registered E2E lane includes
-`ferrum-local-document-open-lifecycle-e2e-v1`. `./all_test.sh` exits 0 with
-8,097 hygiene checks, registered E2Es, 294 PyO3 binding tests, and 395 Qt
-tests. The focused suite keeps unit-contract behavior in pytest and moves the
-public open/save/reopen, nested dirty-dialog, and post-commit recovery workflows
-to that E2E lane. Final independent architecture audit ACCEPT found no P1-P3.
-Native visual, VoiceOver, contrast, focus-ring review, remote CI, release,
+Acceptance proves resolution exactly once, validation faults after irreversible
+commit, conservative unresolved ownership, pre-commit rollback, and public recovery.
+`./build.sh` exited 0; focused Local Open passed 55; registered
+`ferrum-local-document-open-lifecycle-e2e-v1` reported `ok`; and `./all_test.sh`
+exited 0 with 8,218 hygiene, all registered E2Es, 294 PyO3, and 412 Qt. Repaired
+one-workspace `./check_rust.sh` fmt/check/strict-Clippy/test/doc exited 0; final
+architecture ACCEPT found no P1/P2/P3; independent screenshots ACCEPTed all 13.
+Human native accessibility, contrast, focus-ring review, remote CI, release,
 M5.A, and full parity remain separate and open.
 
 ## Interaction and accessibility boundary
@@ -230,8 +234,7 @@ native, and E2E commands recorded by the implementation change. At minimum:
 ./build.sh
 source source_me.sh && python3 -m pytest packages/ferrum-chem-qt.app/tests -q
 source source_me.sh && python3 tests/e2e/e2e_template_catalog_authoring.py
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+./check_rust.sh
 ./all_test.sh
 git diff --check
 git diff --cached --check

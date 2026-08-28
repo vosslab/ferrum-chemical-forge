@@ -18,9 +18,9 @@ pub(crate) use super::arrow_projection_binding::{
     PyArrowHeadShapeV1, PyArrowPathV1, PyArrowProjectionKindV1, PyArrowProjectionV1,
 };
 use super::atom_mark_binding::PyAtomMarkKindV1;
-use super::binding::{PyDocumentBondOrderV1, PyDocumentSnapshot};
-use super::bond_properties_binding::PyDocumentBondStyleV1;
+use super::binding::PyDocumentSnapshot;
 use super::bracket_binding::PyBracketPairProjectionV1;
+use super::document_session_binding::PyDocumentBondPresentationV1;
 use super::drawing_standard_binding::PyDrawingStandardV1;
 use super::paper_properties_binding::PyPaperLayoutProjectionV1;
 use super::presentation_root_binding::PyPresentationRootProjectionV1;
@@ -223,9 +223,7 @@ pub(crate) struct PyBondProjectionV1 {
     #[pyo3(get)]
     pub(crate) source_type: Option<String>,
     #[pyo3(get)]
-    pub(crate) order: Option<PyDocumentBondOrderV1>,
-    #[pyo3(get)]
-    pub(crate) style: Option<PyDocumentBondStyleV1>,
+    pub(crate) presentation: Option<PyDocumentBondPresentationV1>,
     #[pyo3(get)]
     pub(crate) haworth_position: Option<PyDocumentHaworthPositionV1>,
     #[pyo3(get)]
@@ -248,8 +246,11 @@ impl From<&BondProjectionV1> for PyBondProjectionV1 {
             start: value.start().into(),
             end: value.end().into(),
             source_type: value.source_type().map(str::to_owned),
-            order: value.order().and_then(py_bond_order),
-            style: value.style().and_then(py_bond_style),
+            presentation: value.order().and_then(|order| {
+                value
+                    .style()
+                    .and_then(|style| py_bond_presentation(order, style))
+            }),
             haworth_position: value.haworth_position().map(py_haworth_position),
             line_width: value.line_width().map(|width| width.value()),
             bond_width: value.bond_width().map(|width| width.value()),
@@ -267,27 +268,23 @@ fn py_haworth_position(value: DocumentHaworthPositionV1) -> PyDocumentHaworthPos
     }
 }
 
-fn py_bond_order(value: BondOrder) -> Option<PyDocumentBondOrderV1> {
-    match value {
-        BondOrder::Single => Some(PyDocumentBondOrderV1::Single),
-        BondOrder::Double => Some(PyDocumentBondOrderV1::Double),
-        BondOrder::Triple => Some(PyDocumentBondOrderV1::Triple),
-        BondOrder::Aromatic | BondOrder::Other(_) => None,
-    }
-}
-
-fn py_bond_style(value: &BondStyle) -> Option<PyDocumentBondStyleV1> {
-    match value {
-        BondStyle::Normal => Some(PyDocumentBondStyleV1::Normal),
-        BondStyle::Wedge => Some(PyDocumentBondStyleV1::Wedge),
-        BondStyle::Hashed => Some(PyDocumentBondStyleV1::HashedWedge),
-        BondStyle::Adder => Some(PyDocumentBondStyleV1::Adder),
-        BondStyle::Bold => Some(PyDocumentBondStyleV1::Bold),
-        BondStyle::Dashed => Some(PyDocumentBondStyleV1::Dashed),
-        BondStyle::Dotted => Some(PyDocumentBondStyleV1::Dotted),
-        BondStyle::Wavy => Some(PyDocumentBondStyleV1::Wavy),
-        BondStyle::HaworthFront => Some(PyDocumentBondStyleV1::HaworthFront),
-        BondStyle::Other(_) => None,
+fn py_bond_presentation(
+    order: BondOrder,
+    style: &BondStyle,
+) -> Option<PyDocumentBondPresentationV1> {
+    match (order, style) {
+        (BondOrder::Single, BondStyle::Normal) => Some(PyDocumentBondPresentationV1::NormalSingle),
+        (BondOrder::Double, BondStyle::Normal) => Some(PyDocumentBondPresentationV1::NormalDouble),
+        (BondOrder::Triple, BondStyle::Normal) => Some(PyDocumentBondPresentationV1::NormalTriple),
+        (BondOrder::Single, BondStyle::Wedge) => Some(PyDocumentBondPresentationV1::SolidWedge),
+        (BondOrder::Single, BondStyle::Hashed) => Some(PyDocumentBondPresentationV1::HashedWedge),
+        (BondOrder::Single, BondStyle::Bold) => Some(PyDocumentBondPresentationV1::Bold),
+        (BondOrder::Single, BondStyle::Dashed) => Some(PyDocumentBondPresentationV1::Dashed),
+        (BondOrder::Single, BondStyle::Wavy) => Some(PyDocumentBondPresentationV1::Wavy),
+        (BondOrder::Single, BondStyle::HaworthFront) => {
+            Some(PyDocumentBondPresentationV1::HaworthFront)
+        }
+        _ => None,
     }
 }
 

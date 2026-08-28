@@ -16,6 +16,7 @@ const SINGLE_ATOM_SDF_V1: &str = concat!(
 const TWO_ATOM_CML_V1: &str = r#"<cml xmlns="http://www.xml-cml.org/schema/cml2/core"><molecule><atomArray><atom id="a1" elementType="C" x2="0" y2="0"/><atom id="a2" elementType="O" x2="1" y2="0"/></atomArray><bondArray><bond atomRefs2="a1 a2" order="1"/></bondArray></molecule></cml>"#;
 const CDXML_WITH_DECLARED_LOSSES_V1: &str = r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd"><CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1"><fragment id="source-fragment"><n id="source-atom" p="0 0"/></fragment></page></CDXML>"#;
 const CDXML_UNREPRESENTED_SEMANTIC_V1: &str = r#"<CDXML><page><fragment id="source-fragment"><n id="source-atom" p="0 0" Radical="1"/></fragment></page></CDXML>"#;
+const CDXML_FIXED_SINGLE_PRESENTATIONS: &str = r#"<CDXML><page><fragment id="source-fragment"><n id="a" p="0 0"/><n id="b" p="20 0"/><b B="a" E="b" Display="Wavy"/><n id="c" p="40 0"/><b B="b" E="c" Display="Bold"/><n id="d" p="60 0"/><b B="c" E="d" Display="Dash"/></fragment></page></CDXML>"#;
 
 fn temporary_sdf_path() -> std::path::PathBuf {
     std::env::temp_dir().join(format!("ferrum-pyo3-sdf-{}.sdf", std::process::id()))
@@ -367,6 +368,149 @@ fn cdxml_descriptor_prepares_through_the_opaque_generic_route() {
             "cdxml"
         );
         fs::remove_file(path).expect("remove CDXML");
+    });
+}
+
+#[test]
+fn cdxml_opaque_route_retains_fixed_single_presentations_and_exact_provenance() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        let document_session = module.getattr("DocumentSession").expect("session type");
+        let descriptors = document_session
+            .call_method0("local_document_open_descriptors_v2")
+            .expect("descriptors issue");
+        let cdxml_handle = issued_descriptor(&descriptors, ".cdxml")
+            .getattr("route_handle")
+            .expect("CDXML route handle");
+        let path = temporary_cdxml_path("fixed-single-presentations");
+        fs::write(&path, CDXML_FIXED_SINGLE_PRESENTATIONS).expect("write CDXML");
+
+        let prepared = document_session
+            .call_method1(
+                "prepare_local_document_open_file_v2",
+                (path.to_string_lossy().as_ref(), cdxml_handle),
+            )
+            .expect("registered CDXML descriptor prepares a new document");
+        let admission = prepared
+            .call_method0("take_admission_v2")
+            .expect("redeem CDXML admission");
+        let session = admission.get_item(0).expect("admitted session");
+        let snapshot = session
+            .call_method0("snapshot")
+            .expect("committed snapshot");
+        let cdml = snapshot
+            .getattr("cdml")
+            .expect("canonical CDML")
+            .extract::<String>()
+            .expect("CDML text");
+        for token in ["s1", "b1", "d1"] {
+            assert!(cdml.contains(&format!("type=\"{token}\"")));
+        }
+        let render = admission.get_item(1).expect("render observation");
+        let document = render.getattr("document").expect("render document");
+        let projected_bonds = document
+            .getattr("projection")
+            .expect("render projection")
+            .getattr("molecules")
+            .expect("projected molecules")
+            .get_item(0)
+            .expect("one projected molecule")
+            .getattr("bonds")
+            .expect("projected bonds");
+        let presentations = projected_bonds
+            .try_iter()
+            .expect("projected bonds iterate")
+            .map(|bond| {
+                let presentation = bond
+                    .expect("projected bond")
+                    .getattr("presentation")
+                    .expect("one closed presentation");
+                presentation.to_string()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            presentations,
+            [
+                "DocumentBondPresentationV1.wavy",
+                "DocumentBondPresentationV1.bold",
+                "DocumentBondPresentationV1.dashed",
+            ]
+        );
+        let rendered_snapshot = document.getattr("snapshot").expect("render snapshot");
+        assert_eq!(
+            rendered_snapshot
+                .getattr("revision")
+                .expect("render revision")
+                .to_string(),
+            snapshot
+                .getattr("revision")
+                .expect("session revision")
+                .to_string(),
+        );
+        assert_eq!(
+            rendered_snapshot
+                .getattr("digest")
+                .expect("render digest")
+                .to_string(),
+            snapshot
+                .getattr("digest")
+                .expect("session digest")
+                .to_string(),
+        );
+        let plans = render.getattr("molecule_plans").expect("molecule plans");
+        for plan in plans.try_iter().expect("plans iterate") {
+            let plan = plan.expect("plan");
+            assert!(
+                plan.getattr("member_issues")
+                    .expect("member issues")
+                    .is_empty()
+                    .expect("member issue tuple supports emptiness")
+            );
+            assert!(
+                plan.getattr("plan")
+                    .expect("molecule render plan")
+                    .getattr("issues")
+                    .expect("render issues")
+                    .is_empty()
+                    .expect("render issue tuple supports emptiness")
+            );
+        }
+        fs::remove_file(path).expect("remove CDXML");
+    });
+}
+
+#[test]
+fn python_bond_properties_expose_one_closed_presentation_without_legacy_factories() {
+    Python::initialize();
+    Python::attach(|py| {
+        let module = PyModule::new(py, "ferrum_chem").expect("extension module");
+        super::super::binding::initialize(&module).expect("extension module registers");
+        let presentation = module
+            .getattr("DocumentBondPresentationV1")
+            .expect("closed presentation enum remains public");
+        let change = module
+            .getattr("DocumentBondPropertyChangeV1")
+            .expect("bond property change type");
+        assert!(
+            !module
+                .hasattr("DocumentBondStyleV1")
+                .expect("module surface is inspectable")
+        );
+        assert!(
+            !change
+                .hasattr("order")
+                .expect("property factory surface is inspectable")
+                && !change
+                    .hasattr("style")
+                    .expect("property factory surface is inspectable")
+        );
+        let bold = presentation.getattr("bold").expect("bold presentation");
+        assert!(
+            change.call_method1("presentation", (&bold,)).is_ok(),
+            "one closed presentation factory accepts the durable enum"
+        );
     });
 }
 

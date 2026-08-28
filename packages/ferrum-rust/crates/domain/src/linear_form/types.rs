@@ -4,6 +4,30 @@ use ferrum_core::RecordId;
 use ferrum_geometry::Point2;
 use thiserror::Error;
 
+/// Native point-space spacing for a Ferrum-generated linear-form bond.
+///
+/// This is private planner state represented exactly as the integral CDML token
+/// emitted by the document adapter; it is not a serialized protocol itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LinearFormBondLength(u16);
+
+impl LinearFormBondLength {
+    /// Ferrum's canonical native linear-form spacing in PostScript points.
+    pub const NATIVE: Self = Self(40);
+
+    /// Return the point-space spacing used to construct coordinates.
+    #[must_use]
+    pub const fn points(self) -> f64 {
+        self.0 as f64
+    }
+
+    /// Return the exact integral token written to CDML metadata.
+    #[must_use]
+    pub const fn cdml_integer(self) -> u16 {
+        self.0
+    }
+}
+
 /// One direct atom in durable document source order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinearFormAtomV1 {
@@ -101,15 +125,21 @@ impl LinearFormGraphV1 {
 pub struct LinearFormRequestV1 {
     selected_atoms: Vec<RecordId>,
     graph: LinearFormGraphV1,
+    bond_length: LinearFormBondLength,
 }
 
 impl LinearFormRequestV1 {
     /// Combine exact selected atom identities with one direct-root graph.
     #[must_use]
-    pub const fn new(selected_atoms: Vec<RecordId>, graph: LinearFormGraphV1) -> Self {
+    pub const fn new(
+        selected_atoms: Vec<RecordId>,
+        graph: LinearFormGraphV1,
+        bond_length: LinearFormBondLength,
+    ) -> Self {
         Self {
             selected_atoms,
             graph,
+            bond_length,
         }
     }
 
@@ -123,6 +153,12 @@ impl LinearFormRequestV1 {
     #[must_use]
     pub const fn graph(&self) -> &LinearFormGraphV1 {
         &self.graph
+    }
+
+    /// Return the native point-space spacing for the requested plan.
+    #[must_use]
+    pub const fn bond_length(&self) -> LinearFormBondLength {
+        self.bond_length
     }
 }
 
@@ -188,6 +224,7 @@ pub struct LinearFormPlanV1 {
     exterior_replacements: Vec<LinearFormPointReplacementV1>,
     hydrogen_visible_atoms: Vec<RecordId>,
     metadata: LinearFormMetadataShapeV1,
+    bond_length: LinearFormBondLength,
 }
 
 impl LinearFormPlanV1 {
@@ -198,6 +235,7 @@ impl LinearFormPlanV1 {
         exterior_replacements: Vec<LinearFormPointReplacementV1>,
         hydrogen_visible_atoms: Vec<RecordId>,
         metadata: LinearFormMetadataShapeV1,
+        bond_length: LinearFormBondLength,
     ) -> Self {
         Self {
             ordered_atoms,
@@ -206,6 +244,7 @@ impl LinearFormPlanV1 {
             exterior_replacements,
             hydrogen_visible_atoms,
             metadata,
+            bond_length,
         }
     }
 
@@ -221,7 +260,7 @@ impl LinearFormPlanV1 {
         &self.ordered_bonds
     }
 
-    /// Return fixed-10-point replacements for selected atoms.
+    /// Return native-spacing replacements for selected atoms.
     #[must_use]
     pub fn selected_replacements(&self) -> &[LinearFormPointReplacementV1] {
         &self.selected_replacements
@@ -243,6 +282,12 @@ impl LinearFormPlanV1 {
     #[must_use]
     pub const fn metadata(&self) -> &LinearFormMetadataShapeV1 {
         &self.metadata
+    }
+
+    /// Return the exact native spacing that produced this plan.
+    #[must_use]
+    pub const fn bond_length(&self) -> LinearFormBondLength {
+        self.bond_length
     }
 }
 

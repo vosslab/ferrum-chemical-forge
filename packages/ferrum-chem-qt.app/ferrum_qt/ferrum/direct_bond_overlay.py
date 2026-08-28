@@ -159,6 +159,7 @@ def _line_operation(value: object, engine: object,
 	path.lineTo(_point(value.end, engine, "line end"))
 	pen = PySide6.QtGui.QPen(_paint(palette, value.paint, "line paint"))
 	pen.setWidthF(_positive(value.width, "line width"))
+	pen.setCapStyle(PySide6.QtCore.Qt.PenCapStyle.FlatCap)
 	pen.setCosmetic(False)
 	return path, pen, PySide6.QtGui.QBrush(PySide6.QtCore.Qt.BrushStyle.NoBrush)
 
@@ -172,6 +173,7 @@ def _line_material(value: object, engine: object,
 		raise DirectBondOverlayError("direct-bond line operation has the wrong DTO type")
 	pen = PySide6.QtGui.QPen(_paint(palette, value.paint, "line paint"))
 	pen.setWidthF(_positive(value.width, "line width"))
+	pen.setCapStyle(PySide6.QtCore.Qt.PenCapStyle.FlatCap)
 	pen.setCosmetic(False)
 	return pen, PySide6.QtGui.QBrush(PySide6.QtCore.Qt.BrushStyle.NoBrush)
 

@@ -83,7 +83,8 @@ Use these terms for the responsibility they identify:
 | `facts` | Immutable, named data issued by an owner without authority to mutate it. |
 | `candidate` | Proposed mutation awaiting validation and renderer/session admission. |
 | `pending` | One-use accepted preparation that has not reached a terminal result. |
-| `receipt` | Durable outcome facts returned after a committed or completed operation. |
+| `resolution` | One-use host result that either returns ownership after rollback or accepts a commit. |
+| `receipt` | Durable outcome facts issued to the consuming boundary after a committed or completed operation. |
 | `artifact` | Produced local output with its own provenance and lifecycle, not live document state. |
 | `session` | Live, fence-aware owner of preparation, commit, history, and current document state. |
 

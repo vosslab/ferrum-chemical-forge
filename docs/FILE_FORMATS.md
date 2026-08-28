@@ -14,6 +14,24 @@ the CLI. The human-readable and JSON forms of `ferrum formats` expose the
 current conversion capability snapshot; scripts should query it instead of
 maintaining their own format table.
 
+### Implemented ownership boundary
+
+Every route documented on this page is implemented. A format mentioned only in
+an active plan or read-only reference tree is not a Ferrum capability. In
+particular, `OTHER_REPOS/` is migration evidence only: it is neither packaged
+nor consulted while Ferrum opens, converts, saves, imports, or renders a
+document.
+
+Rust owns the closed format descriptors, decoder choice, resource admission,
+candidate-document transaction, CDML serialization, and complete SVG, PDF, or
+PNG artifact construction. PyO3 transports Rust-issued descriptors, prepared
+sessions, observations, and artifact receipts; it is not a second decoder,
+format registry, or serializer. Qt chooses a user path and a Rust-issued
+descriptor, then owns tab and destination lifetime. It does not infer a
+format, reconstruct a route from a suffix, parse interchange text, or export
+its scene as a document artifact. The exact Python/Qt lifecycle contract is in
+[QT_CONTRACT.md](QT_CONTRACT.md).
+
 Every admitted local source is a regular, uncompressed file. Ferrum does not
 sniff suffixes, fetch external resources, or implicitly decompress input. A
 successful route produces a complete result or a typed refusal; it does not
@@ -37,18 +55,76 @@ profile rejects source facts that it cannot represent, rather than silently
 dropping them. CDXML additionally reports its declared conversion losses in
 the stable order `lexical_syntax`, then `document_view_metadata`.
 
+### CDXML simple-molecule depiction profile
+
+The CDXML profile is deliberately narrow. For a nondirected single CDXML bond,
+the only nonstereochemical `Display` values admitted as durable bond
+presentation are `Wavy`, `Bold`, and `Dash`. The CDXML decoder keeps those
+facts in its source-specific, bond-order-aligned carrier; the document adapter
+then maps them exactly to the closed CDML presentation tokens `s1`, `b1`, and
+`d1`, respectively. The carrier is not a general interchange presentation
+field and is not exposed as a second document schema.
+
+| CDXML `Display` | Preconditions | Durable Ferrum presentation | CDML token |
+| --- | --- | --- | --- |
+| `Wavy` | Single order and no bond direction | Wavy | `s1` |
+| `Bold` | Single order and no bond direction | Bold | `b1` |
+| `Dash` | Single order and no bond direction | Dashed | `d1` |
+
+`Display` omitted or `Solid` is ordinary presentation. `WedgeBegin` and
+`WedgedHashBegin` remain stereochemical directions, not entries in this
+presentation table. A selected presentation on a double or triple bond, on a
+directed bond, or any other unsupported CDXML semantic fact is a typed refusal;
+Ferrum never guesses a substitute style or discards the fact.
+
+The resulting CDML uses the closed authoring vocabulary documented in
+[CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md): `n1`, `n2`, `n3`, `w1`, `h1`,
+`q1`, `b1`, `d1`, and `s1`. In particular, this profile does not establish
+generic compatibility spellings or multi-order Bold, Dashed, or Wavy bonds.
+
+### Interchange publication transaction
+
+All interchange formats use one detached candidate-document transaction. The
+candidate is committed privately, then Ferrum requires an issue-free,
+unsuppressed Rust render observation at that candidate's exact current
+revision. Only then can a CLI response or desktop prepared tab receive the
+session. A decode, insertion, or render refusal drops the candidate: there is
+no partial tab, partial document, or retained current-tab mutation.
+
 The first Save or Save As for every interchange-imported document publishes
 CDML. Import does not establish the original interchange source as a future
 save destination. `ferrum open` follows the same new-document policy and
 requires an explicit named CDML output, for example:
 
 ```bash
-ferrum open molecule.cdxml --format cdxml --output result.cdml
+build/bin/ferrum open molecule.cdxml --format cdxml --output result.cdml
 ```
 
 Rust owns the desktop catalog, CML/CDXML/SDF decoder selection, and output
 ownership. The public protocol summary remains in
 [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md).
+
+## Conversion is not desktop File/Open
+
+`ferrum formats` describes the Rust conversion-capability registry. Its
+conversion inputs and targets are not an additional desktop File/Open list.
+For example, the CLI can declare molecular record formats such as SMILES,
+InChI, and MDL molfile for `ferrum convert`, but the desktop opens only the
+five suffix routes in the preceding table.
+
+The three interchange descriptors deliberately have different roles:
+
+| Interchange source | New-document import | `ferrum convert` | Conversion output |
+| --- | --- | --- | --- |
+| CML/CML2 | Yes | Yes | Canonical CML2 |
+| CDXML simple molecule | Yes | No | None |
+| SDF | Yes | Yes | SDF V2000 or V3000 |
+
+`ferrum open` selects only a `document_import_new` descriptor and always
+publishes a new CDML document. `ferrum convert` selects an input and an output
+from its separate registries; named input suffixes may select an input format,
+and `--from` declares one explicitly. Neither command turns a general
+interchange format into a desktop current-tab import route.
 
 ## Native CDML and CD-SVG
 
@@ -140,4 +216,4 @@ reader, CD-SVG exporter, or wrapper round-trip tool. CDX binary input, `.cdsvg`,
 `.svgz`, compressed containers, and CDXML outside the simple-molecule profile
 are refused without changing the current document. The current migration scope
 and its remaining work are tracked in
-[ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md).
+[FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).

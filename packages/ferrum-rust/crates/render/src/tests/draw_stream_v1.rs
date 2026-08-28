@@ -12,6 +12,7 @@ use crate::draw_stream_v1::{
     DrawSinkV1, DrawStreamErrorV1, DrawStyleV1, lower_direct_glycosidic_haworth_plan_to_sink_v1,
     lower_document_plan_to_sink_v1, lower_document_render_composite_to_sink_v1,
 };
+use crate::glyph_metrics::GlyphBounds;
 use crate::*;
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -30,23 +31,37 @@ fn target(id: u8) -> RenderTarget {
     RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
 }
 
+fn atom_label(z: i32) -> AtomLabelRenderV1 {
+    RenderBatchV4::test_atom_label_from_facts(
+        Some(
+            MaskOp::new(
+                point(-8.0, -8.0),
+                size(16.0),
+                size(16.0),
+                paint("ffffff"),
+                z - 1,
+            )
+            .expect("label mask"),
+        ),
+        AtomLabelFacts::new("C", None, 0, 0).expect("label facts"),
+        AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("102030")),
+        z,
+    )
+    .expect("verified atom label")
+}
+
 fn mixed_plan() -> DocumentRenderPlanV1 {
     let provenance = RenderProvenance::new(RenderRevision::new(1).expect("revision"), [42; 32]);
-    let molecule = MoleculeRenderPlan::new(
+    let molecule = MoleculeRenderPlanV4::new(
         provenance,
         vec![
-            RenderBatch::new(
+            RenderBatchV4::test_atom_target(
                 target(0x31),
                 1,
-                BatchSpace::AtomLocal {
-                    anchor: point(3.0, 4.0),
-                },
-                vec![
-                    RenderOp::Mask(
-                        MaskOp::new(point(-1.0, -1.0), size(2.0), size(2.0), paint("ffffff"), 1)
-                            .expect("mask"),
-                    ),
-                    RenderOp::Ellipse(
+                AtomRenderBatchV1::new(
+                    point(3.0, 4.0),
+                    atom_label(2),
+                    vec![AtomDecorationRenderOpV1::Ellipse(
                         EllipseOp::new(
                             point(0.0, 0.0),
                             size(1.0),
@@ -55,18 +70,17 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
                             Some(size(0.5)),
                             Some(paint("112233")),
                             Some(paint("aabbcc")),
-                            2,
+                            3,
                         )
                         .expect("ellipse"),
-                    ),
-                ],
-            )
-            .expect("local batch"),
-            RenderBatch::new(
+                    )],
+                )
+                .expect("atom content"),
+            ),
+            RenderBatchV4::bond_target(
                 target(0x32),
                 2,
-                BatchSpace::Scene,
-                vec![RenderOp::Line(
+                BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
                     LineOp::new(
                         point(1.0, 2.0),
                         point(5.0, 2.0),
@@ -75,9 +89,9 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
                         1,
                     )
                     .expect("line"),
-                )],
-            )
-            .expect("scene batch"),
+                )])
+                .expect("bond content"),
+            ),
         ],
         vec![],
     )
@@ -151,35 +165,16 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
     let selected_q = target(0x35);
     let retained_issue = target(0x36);
     let selected_w = target(0x37);
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("metrics");
-    let label = metrics
-        .layout_centered_plus(size(10.0), paint("102030"))
-        .expect("atom label")
-        .operation()
-        .clone();
-    let atom = RenderBatch::new(
+    let atom = RenderBatchV4::test_atom_target(
         target(0x38),
         1,
-        BatchSpace::AtomLocal {
-            anchor: point(3.0, 4.0),
-        },
-        vec![
-            RenderOp::Mask(
-                MaskOp::new(point(-1.0, -1.0), size(2.0), size(2.0), paint("ffffff"), 1)
-                    .expect("mask"),
-            ),
-            RenderOp::Text(label),
-        ],
-    )
-    .expect("atom batch");
+        AtomRenderBatchV1::new(point(3.0, 4.0), atom_label(2), Vec::new()).expect("atom content"),
+    );
     let line = |target: RenderTarget, paint_order: u32, x: f64| {
-        RenderBatch::new(
+        RenderBatchV4::bond_target(
             target,
             paint_order,
-            BatchSpace::Scene,
-            vec![RenderOp::Line(
+            BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
                 LineOp::new(
                     point(x, 0.0),
                     point(x + 1.0, 0.0),
@@ -188,11 +183,11 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
                     1,
                 )
                 .expect("line"),
-            )],
+            )])
+            .expect("bond content"),
         )
-        .expect("bond batch")
     };
-    let molecule = MoleculeRenderPlan::new(
+    let molecule = MoleculeRenderPlanV4::new(
         provenance,
         vec![
             atom,
@@ -742,7 +737,9 @@ fn private_stream_preserves_page_order_scopes_profiles_and_exclusions() {
     let glyph = sink
         .events
         .iter()
-        .position(|event| event.contains("MoleculeText"))
+        .enumerate()
+        .skip(background + 1)
+        .find_map(|(index, event)| event.contains("MoleculeText").then_some(index))
         .expect("Telex outline");
     assert!(text < background && background < glyph);
     assert!(

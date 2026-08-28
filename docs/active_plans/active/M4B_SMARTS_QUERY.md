@@ -4,6 +4,15 @@ Status: active implementation plan
 
 Date: 2026-08-20
 
+Automated Patch 3 acceptance (2026-08-28): `./check_rust.sh`, `./build.sh`,
+the public Rustdoc/Python isolation oracle, packaged raw/selected CLI, installed
+PyO3 receipt lifecycle/module isolation, and six-test offscreen Qt lifecycle
+lane are green. The public Python module registers only the durable closed live
+error/category/reason/recovery vocabulary; private SMARTS helper and capability
+PyClasses remain unregistered. Internal snapshot, target, lowerer, bridge, and
+capability names are unversioned. Real-window/human visual acceptance, CI,
+release, M4 completion, and full parity remain open.
+
 ## Patch 3 API-owned live SMARTS receipt correction
 
 ### Decision and ownership
@@ -18,7 +27,7 @@ both crates.
 
 `ferrum-api` owns the complete live SMARTS run, receipt, and redemption flow.
 The feature-neutral private snapshot/core lives in
-`ferrum_api::document_smarts_snapshot_v1`; its PyO3-only live attachment lives
+`ferrum_api::document_smarts_snapshot`; its PyO3-only live attachment lives
 beside the sole live `PyDocumentSession`. The attachment borrows that session's
 one `RenderInteractionSessionV1` and the packaged chemistry runtime
 synchronously; it constructs neither a second `DocumentSession` nor a second
@@ -29,51 +38,97 @@ ferrum-api -> ferrum-document-render -> ferrum-render -> ferrum-document
 ferrum-api -> ferrum-chemistry
 ```
 
+The first Patch 3 implementation is rejected because it recreated a public
+document graph-plus-durable-identity carrier under a generic name and eagerly
+lowered it for every observation. This correction is approved before any
+replacement implementation. Generic document observations remain graph-free;
+only the API owns a graph-plus-durable-identity SMARTS target.
+
+Add the downward-only `ferrum-graph-lowering` workspace crate. It depends only
+on `ferrum-core`, `ferrum-chemistry`, and `ferrum-document-projection`; both
+`ferrum-document` and `ferrum-api` depend on it. It has no document, session,
+renderer, API, PyO3, runtime, receipt, or mutation dependency. No Cargo reverse
+edge or cycle is permitted.
+
+`ferrum-document-projection` owns the capability-free
+`DirectMoleculeGraphFacts` value. Its closed endpoint/category and source-order
+facts contain no `DocumentObjectIdV1`, `RecordId`, source ID, selector, receipt,
+or graph/identity pair. The new `ferrum-graph-lowering` lowerer accepts those
+complete facts and returns only `MolGraph`, edge positions, and a closed lowerer
+error. It returns no durable identity. The value is public only as a pure,
+capability-free fact model and is not re-exported by document, API, protocol,
+CLI, or PyO3 facades.
+
+Before projection facts may feed that lowerer, extend every
+`MoleculeProjectionV1` with a closed `NonAtomVertexProjectionV1` inventory. It
+records each accepted compact group, molecule-text, or query child by kind,
+durable object ID, projection-local key, source order, and optional source ID.
+The projection validates strict source order and cross-kind uniqueness for atoms,
+non-atoms, and bonds. The document projection adapter emits every accepted typed
+non-atom child. This closes the existing absence-proof gap: standalone or bonded
+compact groups, molecule text, and queries remain explicit lowerer refusals.
+
 ### Private snapshot, run, and redemption contract
 
-Add feature-neutral, crate-private `document_smarts_snapshot_v1.rs` plus
-`python_binding/live_document_smarts_query_v1.rs`, imported only by the private
+Add feature-neutral, crate-private `document_smarts_snapshot.rs` plus a private
+PyO3 live-binding module, imported only by the private
 Python-binding module. The neutral module is the only constructor for the
 shared snapshot and is available to the default `ferrum-api` build, stateless
 protocol/CLI, and the optional PyO3 attachment. The private values are
 non-public, non-cloneable, non-debuggable, and non-serializable:
 
 ```text
-OwnedDocumentSmartsSnapshotV1 -> one observation plus owned direct targets
-OwnedSmartsTargetV1           -> RecordId, source order, MolGraph,
-                                 graph_position_to_record_id: Vec<RecordId>
-LiveDocumentSmartsRunV1       -> fence, origin, plan generation, native rows,
+OwnedDocumentSmartsSnapshot   -> one observation plus owned direct targets
+OwnedSmartsTarget             -> direct root DocumentObjectIdV1, source order,
+                                 MolGraph, graph_position_to_document_object_id:
+                                 Vec<DocumentObjectIdV1>
+LiveDocumentSmartsRun         -> fence, origin, plan generation, native rows,
                                  private durable joins
-LiveDocumentSmartsReceiptV1   -> opaque issuer/session key only; no liveness copy
-LiveSmartsReceiptLedgerV1     -> PyDocumentSession-owned mutable receipt rows
-LiveSmartsPlanGenerationV1    -> PyDocumentSession-owned monotonic generation
+LiveDocumentSmartsReceipt     -> opaque issuer/session key only; no liveness copy
+LiveSmartsReceiptLedger       -> PyDocumentSession-owned mutable receipt rows
+LiveSmartsPlanGeneration      -> PyDocumentSession-owned monotonic generation
 ```
 
-`OwnedDocumentSmartsSnapshotV1::from_accepted_observation_v1` consumes exactly
-one authenticated `SessionDocumentObservationV1` and, in one lowering loop per
-direct molecule, produces its complete `MolGraph` and equal-length
-`graph_position_to_record_id`. The vector is graph-position aligned, not
-source/projection ordered. It carries revision, digest, source order, direct
-molecule identity, and complete graph facts; it is shared by stateless and
-live execution. It is not raw CDML and is never a second session. The
-constructor rejects a missing, duplicate, foreign, non-atom, or surplus atom
-key and rejects a graph/key length mismatch before native dispatch. It must not
-repair a failed join by iterating `root.atoms()`, by source-order zipping, or by
-re-lowering/re-parsing. Selected SMARTS is derived privately from the selected
-target graph through the trusted `molecule_to_smarts` path.
+`OwnedDocumentSmartsSnapshot::from_accepted_observation` consumes exactly
+one authenticated `SessionDocumentObservationV1`. Generic observation creation
+remains `SessionDocumentObservationV1::from_snapshot(snapshot)` and performs no
+SMARTS lowering or graph caching. The snapshot constructor loops by direct root
+`DocumentObjectIdV1`, obtains that root's explicit paint order, preflights the
+target limit, builds complete facts from that single molecule projection, and
+calls the pure shared lowerer once. It then builds the durable atom vector by
+enumerating the exact atom vector carried in that same facts input, in the
+lowerer's documented graph-input order. It validates equal graph/map lengths,
+nonempty atoms, no duplicate IDs, and exact atom-set equality before storing its
+private target. No outer `zip`, separately obtained projection list, source-order
+join, raw CDML reparse, second session, or second runtime is permitted.
+
+The constructor rejects missing, duplicate, foreign, non-atom, surplus, and
+mismatched durable mappings before native dispatch. The durable vector is
+graph-position aligned, never source/projection-order aligned, and remains
+private to `OwnedSmartsTarget`; it is derived from the exact facts atom vector,
+not a separately iterated typed root. Selected SMARTS is derived privately from
+the selected target graph through the trusted `molecule_to_smarts` path.
+
+Move the canonical semantic lowering algorithm from
+`document_molecule_graph_v1.rs` behind the shared lowerer. The document façade
+first adapts its typed molecule to `DirectMoleculeGraphFacts`, calls the shared
+lowerer, then builds its existing graph-position-to-`RecordId` vector from that
+same typed atom iteration. Existing document call sites and their typed refusal
+contract remain unchanged; Patch 3 changes the implementation boundary, not
+their public contract.
 
 For live execution only, the API creates exactly one render observation using
 `derive_render_observation_from_accepted_operation_v1(&observation)` from that
 same accepted observation. It derives anchors only by looking up every
-`graph_position_to_record_id` in that one result's composed `AtomLocal` anchor
+`graph_position_to_document_object_id` in that one result's composed `AtomLocal` anchor
 map. The helper requires a one-to-one complete mapping for every target before
 any matcher call: missing, duplicate, foreign, non-atom, excluded, surplus, or
 mismatched keys fail the whole run as `unsupported_document`; no second
 projection, source-order join, or fallback traversal is allowed.
 
 `PyDocumentSession` is the authentic render-plan replacement owner. Its private
-`publish_live_render_plan_v1` transaction first clears all active Rust SMARTS
-receipts and its published plan, then increments `LiveSmartsPlanGenerationV1`, then
+`publish_live_render_plan` transaction first clears all active Rust SMARTS
+receipts and its published plan, then increments `LiveSmartsPlanGeneration`, then
 derives and publishes the new plan from the accepted observation. The increment
 and clear occur before every successful plan publication or reprojection,
 including initial publication, document mutation, viewport/layout or display
@@ -90,10 +145,12 @@ query summaries and, after redemption, finite identity-free paint bounds. It
 never returns a graph, record ID, native index, anchor, render plan, selector,
 row vector, generated SMARTS, receipt internals, origin, or fence.
 
-`_run_live_document_smarts_query_v1`,
-`_show_live_document_smarts_match_v1`, and
-`_clear_live_document_smarts_query_v1`, and
-`_clear_live_document_smarts_receipts_v1` are private, undocumented PyO3 bridge
+Private receipt, selected-query, summary, and paint helper PyClasses may exist
+inside the extension implementation but are never added to `ferrum_chem` and
+cannot be obtained through its public module surface. Only durable closed live
+error/category/reason/recovery enums retain `V1` in that Python boundary.
+
+The run, show, and clear operations are private, undocumented PyO3 bridge
 operations on the existing `PyDocumentSession`. Show accepts an opaque receipt
 and display-row ordinal only. The receipt key is non-forgeable and names no
 borrowed renderer or copied liveness flag. A foreign receipt is refused before
@@ -102,7 +159,7 @@ removes/reserves the requested row under its exclusive session mutation gate
 before any renderer, anchor, fence, generation, or paint-allocation work. The
 validation order is: issuer/session identity; atomic local reserve; immutable
 receipt target/row bounds; current revision/digest and origin; current plan
-generation; private graph-position/RecordId/anchor correspondence; renderer
+generation; private graph-position/DocumentObjectIdV1/anchor correspondence; renderer
 issuance validation; then finite identity-free paint allocation. A failure after
 reservation remains consumed and is never restored; neither success nor a
 post-lookup refusal can replay. Concurrent/reentrant show attempts contend for
@@ -133,7 +190,7 @@ bounded summary facts, and drops all target state. It creates no render
 observation, plan, receipt, or reveal capability. The default non-Python
 `ferrum-api`/CLI build must compile this path. A shared-observation fixture must
 prove that protocol and live construction produce identical private target
-record identities, source order, graph position keys, and `MolGraph` facts.
+durable identities, source order, graph position keys, and `MolGraph` facts.
 The Qt dock calls only the three private bridge operations; it never parses
 SMARTS, lowers molecules, runs chemistry, derives coordinates, or holds a
 redeemable selector.
@@ -146,8 +203,17 @@ aliases, globs, or re-exports. External fixtures must be unable to import,
 construct, debug, clone, serialize, dereference, or redeem any SMARTS renderer
 operation. Positive PyO3/API tests prove that only copied summary fields and
 issued identity-free paint bounds cross the private bridge. A source-derived Qt
-lifecycle oracle proves every plan publication/replacement reaches
-`publish_live_render_plan_v1`; direct renderer publication is rejected.
+lifecycle oracle proves every plan publication/replacement reaches the
+session-owned private publication transaction; direct renderer publication is
+rejected.
+
+The same isolation proof rejects `DirectMoleculeGraphObservationV1`, every
+public document-owned graph-plus-durable-ID carrier, document or
+document-render SMARTS snapshot/proof/redeem API, and eager SMARTS lowering on
+`SessionDocumentObservationV1`. It proves default-feature Clippy has no
+dead-code warnings and API/PyO3 expose neither a private target nor a live
+receipt. The PyO3 live issuer fails closed if secure random-key generation
+fails; a deterministic fallback key is forbidden.
 
 Deterministic live tests cover foreign receipt, stale revision/digest, stale
 plan generation, rerun, mutation, reprojection, every Qt plan-publication
@@ -157,6 +223,23 @@ rows, success replay, and post-lookup refusal replay. Both replay refusals emit
 no geometry; post-lookup refusal proves the row was consumed before renderer
 validation. Existing reaction, catalog, and vector interaction tests remain
 unchanged, proving generic interaction ownership did not move.
+
+Shared-lowerer tests prove typed-façade semantic parity for supported single,
+double, and triple bonds; charge, isotope, explicit-H, and coordinate fixtures;
+and every existing refusal category. Completeness tests refuse standalone and
+bonded compact groups, molecule text, and query vertices; empty/non-atom-only
+molecules; malformed endpoints; unsupported styles/orders; duplicate
+identities; unsupported atom facts; and invalid elements. Snapshot identity
+tests use missing, duplicate, foreign, non-atom, surplus, and mismatch fixtures
+to prove failure before chemistry/native dispatch and root paint order keyed by
+durable root ID, never an outer parallel-list `zip`.
+
+One-state tests prove generic `observe` returns its normal projection for an
+unsupported molecule without graph lowering. Stateless and live paths consume
+one accepted observation; they perform no `TypedDocument::parse`, source-ID
+lookup, second session, or second runtime after admission. They produce the
+same private graph, durable identity, and source-order facts. Packaged PyO3,
+raw and selected-root CLI, and Qt lifecycle/reveal E2E tests remain required.
 
 ## Purpose
 
@@ -185,10 +268,11 @@ not an independent chemistry operation and is not a CLI workflow.
    `complete` or `truncated`; the document traversal is `complete` or
    `incomplete`.
 5. The feature-neutral private API snapshot core owns one-pass
-   observation-derived target lowering (including graph-position-to-`RecordId`
+   observation-derived target lowering (including graph-position-to-
+   `DocumentObjectIdV1`
    identity), FCG1 construction, native execution, and the public completeness
    DTO. It never issues a reveal capability and is usable by default CLI and
-   optional PyO3 builds alike. The private `LiveDocumentSmartsQueryBridgeV1`
+   optional PyO3 builds alike. The private `LiveDocumentSmartsQueryBridge`
    beside `PyDocumentSession` owns live-tab runs, exact same-observation
    plan/anchor joins, an API-owned monotonic plan-publication generation,
    atomic one-use receipt reservation, and redemption. Qt consumes only
@@ -267,7 +351,7 @@ private native_engine::adapter_boundary -- FCQ1 --> ABI-5 adapter / pinned RDKit
 DocumentTab live Rust document/render-interaction session
                          |
                          v
-ferrum-api PyO3 attachment: LiveDocumentSmartsQueryBridgeV1
+ferrum-api PyO3 attachment: LiveDocumentSmartsQueryBridge
               - one PyDocumentSession / one RenderInteractionSessionV1
               - private exact plan/anchor join, receipt ledger, and redemption
               - session-owned plan-publication generation and clear gate
@@ -280,11 +364,11 @@ No RDKit graph/query/exception/lifetime, raw adapter path, native index, CDML,
 renderer object, geometry, renderer plan, raw wire bytes, or reveal capability
 is public JSON or the M4b typed SMARTS surface. The existing public typed
 general-chemistry adapter boundary is not a document-query authority.
-Documents own durable `RecordId`s; the private API run owns the live SMARTS
+Documents own durable `DocumentObjectIdV1` values; the private API run owns the live SMARTS
 receipt and derives identity-free paint bounds from the same live observation.
 
-`LiveDocumentSmartsQueryBridgeV1` is implemented in the private
-`ferrum_api::python_binding::live_document_smarts_query_v1` module as methods
+`LiveDocumentSmartsQueryBridge` is implemented in the private Python-binding
+module as methods
 on the existing `PyDocumentSession`. It calls neither renderer SMARTS methods
 nor document-render SMARTS methods because those surfaces are removed. There is
 no callback, borrowed session lease, unsafe pointer, second `PyDocumentSession`,
@@ -582,7 +666,7 @@ only. CLI and ordinary PyO3 data clients consume that result only.
 For one `DocumentTab`, its private API binding borrows the existing
 `PyDocumentSession.session: RenderInteractionSessionV1` and obtains one
 same-revision document observation plus one render observation. The shared
-`OwnedDocumentSmartsSnapshotV1` derives all direct target graphs from the
+`OwnedDocumentSmartsSnapshot` derives all direct target graphs from the
 document observation. The live run additionally derives and retains the exact
 graph-index -> durable atom -> composed `AtomLocal` join from the render
 observation. It uses the sealed runtime only after every target is admitted.
@@ -649,22 +733,29 @@ all explicit.
    raw/native lifetime escape. The existing public typed explicit-adapter
    construction remains outside document-query authority; its legacy error
    contract is not widened by M4b.
-4. **Document/protocol core:** fenced request schema, selected-root resolver and
-   private `molecule_to_smarts` lowering, public-bound admission, source-order
+4. **Projection and graph lowering:** closed non-atom inventory and validation,
+   capability-free `DirectMoleculeGraphFacts`, the pure downward-only graph
+   lowerer, and migration of the canonical typed lowering algorithm behind its
+   unchanged document façade.
+5. **Document/protocol core:** fenced request schema, selected-root resolver and
+   private `molecule_to_smarts` lowering, API-private target construction from
+   one accepted projection observation, public-bound admission, source-order
    traversal/cap allocation, private atom projection, and truthful public DTO.
-5. **Live bridge:** remove all renderer/document-render SMARTS proof exports;
-   add feature-neutral API `document_smarts_snapshot_v1` and the private PyO3
+6. **Live bridge:** remove all renderer/document-render SMARTS proof exports;
+   add feature-neutral API `document_smarts_snapshot` and the private PyO3
    module beside `PyDocumentSession`. The sole snapshot constructor performs
-   one-pass graph-position-to-`RecordId` lowering. Add exact same-observation
-   plan/anchor joins, the session-owned `publish_live_render_plan_v1`
+   one-pass graph-position-to-`DocumentObjectIdV1` lowering from its exact facts
+   atom vector. Add exact same-observation
+   plan/anchor joins, the session-owned `publish_live_render_plan`
    clear-plus-monotonic-generation transaction, a ledger with atomic
    reserve-before-validation receipt consumption, and one-use-issued
    identity-free Qt paint instructions.
-6. **CLI and PyO3:** one named stateless query executor through the existing
-   trusted runtime; CLI never invokes reveal; redaction mapping and fixtures.
-7. **Qt dock:** typed bridge acquisition from its source DocumentTab, observed
+7. **CLI and PyO3:** one named stateless query executor through the existing
+   trusted runtime; CLI never invokes reveal; redaction mapping and fixtures;
+   fail-closed live receipt issuance when entropy is unavailable.
+8. **Qt dock:** typed bridge acquisition from its source DocumentTab, observed
    root acquisition, source lifecycle, receipt-only reveal, and display states.
-8. **Docs/evidence:** API, CLI, GUI, ABI, cap, cancellation, profile, and
+9. **Docs/evidence:** API, CLI, GUI, ABI, cap, cancellation, profile, and
    changelog documentation with isolated-artifact proof.
 
 ## Test and evidence gates
@@ -698,7 +789,15 @@ all explicit.
    SMARTS reaches JSON, Python-visible summary fields, errors, logs, `Display`,
    or `Debug`; normal result summaries and identity-free issued paint bounds
    remain available for both forms.
-5. Live-bridge tests prove the default non-Python CLI/API build uses the same
+5. Projection/lowerer tests prove the complete non-atom inventory and its
+   cross-kind/source-order validation. They prove semantic parity between the
+   typed document façade and projection-facts lowerer, including all present
+   success and refusal classes. Generic observation tests prove no graph
+   lowering occurs until the API-private snapshot constructor runs. External
+   compile and rustdoc-JSON proofs reject public graph-plus-durable-ID carriers,
+   `DirectMoleculeGraphObservationV1`, old document SMARTS snapshots, renderer
+   proof/redeem surfaces, private targets, and live receipts.
+6. Live-bridge tests prove the default non-Python CLI/API build uses the same
    feature-neutral snapshot constructor as the PyO3 bridge, including an
    identical-observation target identity/source-order/graph-key/graph fixture.
    They prove atomic observation-derived admission across every
@@ -719,10 +818,10 @@ all explicit.
    only copied summaries and issued identity-free paint bounds. A direct
    chemistry consumer remains allowed only typed general-chemistry calls and
    is refused raw loader/buffer/wire access.
-6. CLI/PyO3 tests submit both complete request variants through one packaged
+7. CLI/PyO3 tests submit both complete request variants through one packaged
    runtime; CLI only queries; runtime/path/graph bypasses are unavailable or
    redacted.
-7. Qt tests prove no local chemistry/geometry or authorization, pending/
+8. Qt tests prove no local chemistry/geometry or authorization, pending/
    pre-dispatch cancellation, all display states, typed-receipt-only activation, and lifecycle
    invalidation. A fresh isolated Python 3.12 proof pairs sealed ABI-5 native
    and Qt wheels and exercises CLI, PyO3, and real Qt interaction.

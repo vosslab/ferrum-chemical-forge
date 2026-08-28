@@ -1,9 +1,10 @@
 # Ferrum contract
 
 Ferrum is a Qt Widgets document editor. This contract defines its durable
-Rust-native ownership boundary. It follows the active
-[ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md) and applies the repository
-principles "Fix the design, not the symptom" and "Long-term over short-term."
+Rust-native ownership boundary. It follows the canonical
+[active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md)
+and applies the repository principles "Fix the design, not the symptom" and
+"Long-term over short-term."
 
 ## Current composition
 
@@ -634,6 +635,33 @@ containment, retained notice, View lifecycle, undo/redo, and save/reopen. Compac
 Rust/binding/Qt tests are permanent evidence; local-runtime, screenshots, keyboard/accessibility,
 visual, corpus, and timing observations remain disposable.
 
+## Bond presentation editing
+
+One selected durable Rust bond exposes exactly one closed
+`DocumentBondPresentationV1` through `BondProjectionV1.presentation`.  Python
+does not combine an order field with a style field, reinterpret a CDML token, or
+keep a shadow bond model.  The dialog performs a display-only mapping from that
+one value to its controls and returns one replacement presentation intent.
+
+The only authorable choices are normal single, double, and triple (`n1`, `n2`,
+`n3`), solid wedge (`w1`), hashed wedge (`h1`), Haworth front edge (`q1`), bold
+(`b1`), dashed (`d1`), and wavy (`s1`).  Non-normal presentations are fixed to
+single order.  Changing a presentation produces one
+`DocumentBondPropertyChangeV1.presentation(...)`; it is never split into order
+and style changes.  The Qt adapter explicitly clears optional scalar facts that
+the replacement cannot retain: centering is only meaningful for a normal double
+bond, bond width for normal double or triple bonds, and wedge width for solid or
+hashed wedges.  Rust validates the whole patch atomically and returns the fresh
+authoritative observation, so a rejection leaves the document and the installed
+projection unchanged.
+
+This is an intentionally closed editing grammar, not a claim that every
+foreign source fact is authorable.  Rust may preserve or refuse unsupported
+source observations with a typed diagnostic; Qt neither normalizes those facts
+nor supplies a Python parser or renderer fallback.  The edited tab rebuilds
+only from the returned Rust render observation.  Its source presentation,
+geometry, and diagnostics therefore have one owner.
+
 ## Workers and UI thread
 
 The first render-plan slice is Qt-thread affine: `ferrum_chem` calls and all
@@ -669,11 +697,14 @@ until the worker finishes.
 `LocalDocumentOpenCatalogV2` is the sole Rust discovery authority for local
 File/Open. It issues opaque handles for native CDML, decoded CD-SVG, and each
 `DocumentImportNew` interchange descriptor. Qt retains one issued descriptor
-and calls one generic preparation API; it does not inspect a source kind or
-reselect an interchange parser from a suffix. File/Open's descriptor fact
-chooses current-tab replacement eligibility. `File > Import SDF Records into
-Current Drawing...` intentionally remains a distinct source-read/current-document
-insertion workflow using the catalog-issued SDF handle.
+and calls one generic preparation API; it does not inspect a source kind,
+reselect an interchange parser from a suffix, or synthesize a fallback
+document/render result. Rust admission prepares exactly one revision-bound,
+issue-free render observation before a new tab or replacement can be published.
+File/Open's descriptor fact chooses current-tab replacement eligibility.
+`File > Import SDF Records into Current Drawing...` intentionally remains a
+distinct source-read/current-document insertion workflow using the
+catalog-issued SDF handle.
 
 The local-CDML, decoded-CD-SVG, CML, and CDXML profiles retain the admitted regular descriptor
 long enough for Rust to mint an opaque equality-only origin token. The private one-use PyO3 receipt
@@ -687,12 +718,15 @@ Qt owns immutable Open intents and their dispositions. Interactive `File > Open.
 `ReplacePristineTarget` only for the explicitly marked, clean revision-zero bootstrap `Untitled`
 tab with no origin, content, selection, pending projection, worker, or canvas interaction. Rust
 admission and receipt authentication happen before Qt revalidates that target, its revision/digest,
-and canvas-idle fence, fully constructs the replacement, and atomically installs it at the target
-index. A stale or ineligible target instead receives the ordinary `NewTab` result. A busy target
+and canvas-idle fence, fully constructs the replacement from that one issue-free
+Rust observation, and atomically installs it at the target index. A stale or
+ineligible target instead receives the ordinary `NewTab` result. A busy target
 stays current while that new tab installs in the background, so its visible preview survives until
-the user resolves it. Failure, cancellation, shutdown, invalid receipt, and construction failure
-preserve all existing tabs. A matching origin token activates the existing tab, including for a
-hard-link alias, and disposes the newly admitted receipt.
+the user resolves it. Cancellation, shutdown, invalid admission receipts, and pre-commit
+construction failure preserve all existing tabs. After host resolution commits, later receipt
+validation or presentation faults retain the committed tab for recovery; they never roll it back
+or dispose it. A matching origin token activates the existing tab, including for a hard-link alias,
+and disposes the newly admitted receipt.
 
 For decoded CD-SVG, Qt keeps source display provenance separate from the tab's
 `file_path`. The source path and closed receipt kind provide truthful tooltip and
@@ -721,17 +755,21 @@ explicit `Remove from Recent Files` before the generic typed failure; cancellati
 retain the entry. `Clear Recent Files` clears settings only.
 `File -> Open in Current Tab...` is the separate, explicit ordinary-native replacement command. Its
 accessible text is `Open in Current Tab...` and its standard shortcut is `Ctrl+Shift+O`. It is enabled only
-for the selected registered ordinary-native tab with a complete current projection, no close/replacement,
-target-owned asynchronous work, or active canvas interaction; while a tool or target-owned operation is
-active its guidance is to finish, cancel, or let that work complete. It
+for the selected registered ordinary-native tab with a complete current
+projection, no close/replacement, target-owned asynchronous work, or active
+canvas interaction; while a tool or target-owned operation is active its
+guidance is to finish, cancel, or let that work complete. It
 captures an immutable target fence, prepares and authenticates the source first, then revalidates the
 registered current target before deciding anything destructive. A matching admitted descriptor token activates the
 already-open native tab and preserves the requested target. A clean saved populated target is constructed
 and swapped atomically at its captured index without a redundant confirmation. A dirty target alone offers
 Save (default), Replace, and Cancel: named Save uses native Save, unnamed Save uses native Save As, and a
-successful publication must establish and pass a fresh post-save fence before the swap. Stale, busy, close,
-cancel, admission, construction, or save failures discard the pending receipt, preserve the target's
-selection, tool, preview, and focus, and report an explicit retry; this command never becomes NewTab.
+successful publication must establish and pass a fresh post-save fence before the swap. Stale, busy,
+close, cancel, admission, pre-commit construction, issue-bearing render receipt,
+or save failures discard the pending receipt, preserve the target's selection,
+tool, preview, and focus, and report an explicit retry without document
+mutation; this command never becomes NewTab. A receipt-validation or presentation fault after irreversible replacement
+retains the committed new tab and reports recovery instead of restoring the disposed target.
 At a successful swap the old owner retires only after the complete incoming tab registers, and the new tab
 starts with its own clean selection and focus. A queued worker `finished` signal is deferred while this
 modal recovery decision is active, so it cannot retire the explicit intent inside the nested event loop.
@@ -802,3 +840,13 @@ Use a managed end-to-end receipt for staged-local-runtime and visual evidence. K
 the fast suite free of timing, private-wiring, fixture-heavy, and exact-count
 checks. Follow the repository source-file guidance rather than treating a line
 count as a functional acceptance gate.
+
+The focused tests establish this boundary: the dialog maps the one Rust
+presentation value, emits the one presentation patch with required clears, and
+the generic Open path accepts styled CDXML only through a clean Rust render
+receipt.  The real Qt window end-to-end check additionally covers Wavy, Bold,
+and Dashed import plus Current Tab refusal without mutation.  It is stronger
+than an offscreen unit test, but it is still local automated evidence.  Fresh
+human review of the captured window, accessibility review, CI execution on its
+supported runners, and release packaging are separate acceptance gates; none is
+implied by a green local test run.

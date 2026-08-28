@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use super::atom_mark_binding::{PyAtomMarkActionV1, PyAtomMarkKindV1};
 use super::atom_properties_binding::PyDocumentAtomPropertyChangeV1;
-use super::bond_properties_binding::{PyDocumentBondPropertyChangeV1, PyDocumentBondStyleV1};
+use super::bond_properties_binding::PyDocumentBondPropertyChangeV1;
 use super::bracket_binding::{
     PyBracketPairProjectionV1, PyDocumentBracketBoundsV1, PyDocumentBracketStyleV1,
     PyPreparedBracketInsertion,
@@ -156,15 +156,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         super::live_document_operation_binding::PyLiveCompactGroupMaterializationAvailabilityReceiptV1,
     >()?;
     module.add_class::<super::live_atom_chemistry_binding::PyLiveAtomOxidationObservationV1>()?;
-    module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceiptV1>()?;
-    module
-        .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>(
-        )?;
-    module
-        .add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsMoleculeSummaryV1>(
-        )?;
-    module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsRunSummaryV1>()?;
-    module.add_class::<super::live_document_smarts_query_v1::PyLiveDocumentSmartsPaintV1>()?;
     module.add_class::<super::document_ingress_binding::PyXmlInputBudgetV1>()?;
     module.add_class::<super::document_ingress_binding::PyLocalDocumentOpenDescriptorV2>()?;
     module.add_class::<super::document_ingress_binding::PyLocalDocumentOpenRouteHandleV2>()?;
@@ -254,7 +245,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPreparedBracketInsertion>()?;
     module.add_class::<PyDocumentBondOrderV1>()?;
     module.add_class::<PyDocumentBondPresentationV1>()?;
-    module.add_class::<PyDocumentBondStyleV1>()?;
     module.add_class::<super::direct_haworth_binding::PyDirectHaworthSourceV1>()?;
     module.add_class::<PyPublication>()?;
     module.add_class::<PySaveOutcome>()?;

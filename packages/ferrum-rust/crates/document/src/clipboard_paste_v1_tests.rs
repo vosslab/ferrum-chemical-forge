@@ -6,14 +6,14 @@ use super::{
 
 const FRAGMENT: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\" xmlns:vendor=\"urn:vendor\">",
-    "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/>",
+    "<molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"6\" y=\"12\"/>",
     "<vendor:extension link=\"a\"/></atom>",
-    "<atom id=\"b\" name=\"O\"><point x=\"11\" y=\"2\"/></atom>",
+    "<atom id=\"b\" name=\"O\"><point x=\"46\" y=\"12\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
     "<fragment id=\"f\" type=\"linear_form\"><name>linear_form</name>",
     "<bond id=\"ab\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-    "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
-    "</molecule><plus id=\"p\"><point x=\"31\" y=\"42\"/></plus></cdml>",
+    "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
+    "</molecule><plus id=\"p\"><point x=\"186\" y=\"252\"/></plus></cdml>",
 );
 
 fn budget() -> XmlInputBudgetV1 {
@@ -52,16 +52,16 @@ fn paste_remaps_every_declaration_and_exact_reference_then_translates_once() {
     );
     let projection = observation.projection();
     let molecule = &projection.molecules()[0];
-    assert!((molecule.atoms()[0].position().x() - 21.0).abs() < 0.02);
-    assert!((molecule.atoms()[0].position().y() - 22.0).abs() < 0.02);
-    assert!((molecule.atoms()[1].position().x() - 31.0).abs() < 0.02);
+    assert!((molecule.atoms()[0].position().x() - 26.0).abs() < 0.02);
+    assert!((molecule.atoms()[0].position().y() - 32.0).abs() < 0.02);
+    assert!((molecule.atoms()[1].position().x() - 66.0).abs() < 0.02);
     let super::PresentationRootProjectionV1::Plus { plus } =
         projection.presentation_stack().entries()[0].root()
     else {
         panic!("second pasted root must be a Plus");
     };
-    assert!((plus.anchor().x() - 51.0).abs() < 0.02);
-    assert!((plus.anchor().y() - 62.0).abs() < 0.02);
+    assert!((plus.anchor().x() - 206.0).abs() < 0.02);
+    assert!((plus.anchor().y() - 272.0).abs() < 0.02);
 
     let document = TypedDocument::parse(observation.snapshot().cdml()).expect("result must parse");
     let pasted_molecule_id = result.pasted_roots()[0].source_id().as_str();

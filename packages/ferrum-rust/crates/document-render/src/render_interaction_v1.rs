@@ -12,11 +12,10 @@ use std::{
 
 use ferrum_document::{
     CompleteDocumentIdentityFactsV1, DocumentFenceV1, DocumentObjectIdV1,
-    DocumentRenderObservationV1, DocumentSession, DocumentSessionError,
-    DocumentSmartsSnapshotErrorV1, PreparedDocumentSmartsSnapshotV1, PresentationCreationGestureV1,
-    PresentationGestureErrorV1, PresentationGestureKindV1, PresentationGesturePoint2V1,
-    PresentationGestureSnapPolicyV1, PresentationGestureStyleV1, PresentationRecordKindV1,
-    SessionOperationResultV1, TopLevelRootKindV1,
+    DocumentRenderObservationV2, DocumentSession, DocumentSessionError,
+    PresentationCreationGestureV1, PresentationGestureErrorV1, PresentationGestureKindV1,
+    PresentationGesturePoint2V1, PresentationGestureSnapPolicyV1, PresentationGestureStyleV1,
+    PresentationRecordKindV1, SessionOperationResultV1, TopLevelRootKindV1,
 };
 use ferrum_render::{
     DocumentRenderContentV1, DocumentRenderOutcomeV1, PathOpV3, PresentationRenderPlanV1,
@@ -648,8 +647,6 @@ pub enum RenderInteractionErrorV1 {
     InvalidCompactGroupDeletionSelection,
     #[error("the compact group deletion topology requires document repair before retry")]
     InvalidCompactGroupDeletionTopology,
-    #[error("the current document cannot supply a complete SMARTS target set")]
-    UnsupportedDocument,
 }
 
 #[derive(Debug)]

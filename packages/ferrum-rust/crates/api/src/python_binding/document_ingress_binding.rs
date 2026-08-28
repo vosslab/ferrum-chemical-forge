@@ -10,9 +10,9 @@ use ferrum_document::{
     prepare_local_cdml_file_with_origin_v1, prepare_local_decoded_cdsvg_file_with_origin_v1,
 };
 use ferrum_document::{
-    CdsvgExtractionError, DocumentRenderObservationErrorV1, DocumentRenderObservationV1,
+    CdsvgExtractionError, DocumentRenderObservationErrorV1, DocumentRenderObservationV2,
     DocumentSession, TypedDocumentError, XmlBudgetError, XmlInputBudgetV1, XmlInputError,
-    observe_document_render_v1,
+    observe_document_render_v2,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -88,7 +88,7 @@ impl PyLocalDocumentOpenDescriptorV2 {
 )]
 pub(crate) struct PyPreparedLocalDocumentOpenV2 {
     session: Option<DocumentSession>,
-    observation: Option<super::render_binding::PyRenderObservationV1>,
+    observation: Option<super::render_binding::PyRenderObservationV2>,
     origin: Option<PyLocalDocumentOriginTokenV2>,
     source_kind: Option<LocalDocumentSourceKindV2>,
     interchange_summary:
@@ -131,7 +131,7 @@ impl PyPreparedLocalDocumentOpenV2 {
         &mut self,
     ) -> PyResult<(
         PyDocumentSession,
-        super::render_binding::PyRenderObservationV1,
+        super::render_binding::PyRenderObservationV2,
         PyLocalDocumentOriginTokenV2,
         String,
         Option<super::document_interchange_receipt_binding::PyLocalInterchangeImportSummaryV1>,
@@ -392,7 +392,7 @@ fn prepare_interchange_local_document_open_file_v2(
                     crate::interchange_import_v1::InterchangeImportRefusalReasonV1::InternalFailure,
                 ),
             ))?;
-        let observation = observe_document_render_v1(&session, post_import_snapshot.revision())
+        let observation = observe_document_render_v2(&session, post_import_snapshot.revision())
             .map_err(LocalInterchangePreparationError::Render)?;
         Ok::<_, LocalInterchangePreparationError>((
             session,
@@ -497,12 +497,12 @@ fn prepare_native_local_document_open_file_v2(
             }
         };
         let (session, origin) = preparation.map_err(LocalDocumentOpenPreparationError::Ingress)?;
-        let observation = observe_document_render_v1(&session, 0)
+        let observation = observe_document_render_v2(&session, 0)
             .map_err(LocalDocumentOpenPreparationError::Render)?;
         Ok::<
             (
                 DocumentSession,
-                DocumentRenderObservationV1,
+                DocumentRenderObservationV2,
                 RetainedSourceFileGuardV1,
             ),
             LocalDocumentOpenPreparationError,

@@ -17,10 +17,10 @@ repository's Python 3.12 environment. It must be sourced, not executed.
 
 ### `source_me.sh` says that the local runtime is unavailable
 
-The development shell deliberately refuses to import a global or stale
-`ferrum_chem` extension. If it reports either `Ferrum local runtime is
-unavailable` message, rebuild the sealed local program, then source the shell
-setup again:
+The development shell requires the extension staged in this checkout and
+refuses a globally installed `ferrum_chem` extension. If it reports either
+`Ferrum local runtime is unavailable` message, rebuild the sealed local
+program, then source the shell setup again:
 
 ```bash
 ./build.sh
@@ -127,12 +127,65 @@ Use `QT_QPA_PLATFORM=offscreen` for tests, not as evidence that the desktop
 application has been visually accepted. Start `build/bin/ferrum-qt` in a macOS
 desktop session for a one-time visual and accessibility review.
 
+## Capture documentation screenshots
+
+### Screenshot capture cannot start or cannot find the staged extension
+
+The documentation tour captures the locally built application; it is not part
+of `all_test.sh` and it needs an active macOS desktop session. Rebuild the
+sealed local program, confirm the available scene names, then capture the full
+tour:
+
+```bash
+./build.sh
+./capture_gui_screenshots.sh --list
+./capture_gui_screenshots.sh
+```
+
+The capture command uses the same staged runtime that `source_me.sh` validates.
+Do not point it at a globally installed extension or set the offscreen Qt
+platform: the tour documents real visible windows. A complete run stages every
+scene before it replaces the stable PNG files in `docs/screenshots/`.
+
+### The screen-capture backend fails or crops Ferrum
+
+The default backend first tries the optional macOS `easy-screenshot` command,
+then falls back to a Qt capture of the visible Ferrum window. If the explicit
+`--backend easy-screenshot` route fails, grant the required macOS screen-capture
+permission or use the deterministic Qt route:
+
+```bash
+./capture_gui_screenshots.sh --backend qt
+```
+
+The capture harness requires a 1440 by 900 logical Ferrum window, confirms that
+the named authoring ribbon and status bar are visible widgets, and rejects a PNG
+whose dimensions are not a 16:10 full-window surface. It verifies those window
+and widget conditions, not every rendered pixel. For a backend geometry refusal,
+use `--backend qt` or configure the window-capture tool to capture only Ferrum's
+application surface, then rerun the full tour. Review the regenerated images
+manually; screenshot capture is documentation evidence, not a permanent
+pixel-equivalence test.
+
+### Refresh one screenshot while diagnosing a scene
+
+Use a named scene only for a focused diagnostic update:
+
+```bash
+./capture_gui_screenshots.sh --scene template_catalog
+```
+
+It publishes that one verified PNG and leaves the other tour images intact.
+After a documentation refresh, run the complete tour so the full set represents
+one current build and review the resulting images as described in
+[GUI_TOUR.md](GUI_TOUR.md).
+
 ## Run the operation protocol
 
 ### `protocol run` rejects a request
 
 Use `build/bin/ferrum protocol schema` to obtain the generated request shape,
-then submit one UTF-8 JSON request file with
+then submit one UTF-8 JSON request from a named file or standard input with
 `build/bin/ferrum protocol run request.json`. A decodable request refusal is a
 JSON error envelope; malformed JSON, an over-budget request, unreadable input,
 or a confirmed output-publication failure has no envelope and exits 1.
@@ -157,11 +210,20 @@ CDML through its Rust-native document flow.
 ### A chosen drawing is unsupported
 
 Ferrum's File > Open accepts uncompressed `.cdml` drawings, decoded `.svg` files
-that contain embedded CDML, bounded CML/CML2, and bounded input-only ChemDraw XML
-(`.cdxml`) simple-molecule input. CML and CDXML open as clean new documents and their
-first Save writes CDML. CDX, unsupported CDXML chemistry or presentation, namespaces,
-compressed CDML, `.cdsvg`, and CML outside the supported profile refuse without changing
-the current document. See [FILE_FORMATS.md](FILE_FORMATS.md) for the exact boundary.
+that contain embedded CDML, bounded CML/CML2, bounded input-only ChemDraw XML
+(`.cdxml`) simple-molecule input, and runtime-backed SDF inputs (`.sdf` and `.sd`).
+CML, CDXML, and SDF each open as a clean new CDML document in a new tab; their
+first Save writes CDML and does not retain the interchange source as the save
+destination. SDF requires the installed trusted chemistry runtime. CDX, unsupported
+CDXML chemistry or presentation, namespaces, compressed CDML, `.cdsvg`, and CML
+outside the supported profile refuse without changing the current document. The
+current CDXML profile accepts fixed-single Wavy, Bold, and Dash depictions; consult
+[FILE_FORMATS.md](FILE_FORMATS.md) for the exact format boundary.
+
+Interchange import publishes a new tab only after Rust produces a complete,
+issue-free render for the committed candidate. A refusal at that final admission
+step leaves no partial document or replacement tab to recover; retain the source
+and investigate it through the typed File/Open or CLI refusal instead.
 
 ### Make a recovery copy
 

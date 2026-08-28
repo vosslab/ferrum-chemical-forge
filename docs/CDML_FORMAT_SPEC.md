@@ -605,39 +605,44 @@ A chemical bond connecting two vertex elements.
 
 ### Bond type string format
 
-The `type` attribute is a string: `<type_char><order_digit>`.
+The authored-current `type` grammar is a closed vocabulary, not an independently
+composable `<style><order>` pair. New 26.07 CDML uses exactly one token from this
+table:
 
-**Type characters:**
+| Token | Persistent presentation | Chemical order |
+|-------|-------------------------|----------------|
+| `n1` | Normal single | Single |
+| `n2` | Normal double | Double |
+| `n3` | Normal triple | Triple |
+| `w1` | Solid wedge | Single |
+| `h1` | Hashed wedge | Single |
+| `q1` | Haworth front edge | Single |
+| `b1` | Bold line | Single |
+| `d1` | Dashed line | Single |
+| `s1` | Wavy line | Single |
 
-| Char | Meaning | Visual |
-|------|---------|--------|
-| `n` | Normal | Plain line(s) |
-| `w` | Wedge | Filled triangle (stereo up) |
-| `h` | Hashed | Dashed wedge (stereo down) |
-| `a` | Adder / unspecified stereochemistry | Established non-aromatic adder style |
-| `b` | Bold | Thick line |
-| `d` | Dashed | Dashed line |
-| `o` | Dotted | Dotted line |
-| `s` | Wavy | Squiggly/wave line |
-| `q` | Haworth front edge | Author only as `q1`; it is not a generic quadruple bond |
+`w1` and `h1` carry directed wedge depiction. `q1` is a Haworth front edge,
+not a generic quadruple bond. `b1`, `d1`, and `s1` are fixed-single
+presentations. Therefore `w2`, `h3`, `q2`, `b2`, `d3`, and `s2` are not
+authorable forms. Neither are the historical Adder (`a`), Dotted (`o`),
+left-hashed (`l`), or right-hashed (`r`) characters. A generic order `4` and a
+generic four-line bond are also outside the authored 26.07 profile.
 
-**Legacy type characters** (normalized on read):
+#### Compatible input and source observation
 
-| Legacy | Normalized to | Origin |
-|--------|---------------|--------|
-| `l` | `h` | Legacy left-hashed |
-| `r` | `h` | Legacy right-hashed |
+The closed authoring grammar does not erase a loaded document's literal source
+facts. Complete-document compatibility loading preserves an unsupported bond
+`type` token unchanged. Its read-only chemistry projection may observe a broader
+source vocabulary for diagnostics and typed refusal: `a`, `o`, `l`, and `r`
+characters, and numeric orders outside the authored set, remain identifiable as
+source facts. Observation never normalizes one of those facts into an authorable
+presentation or permits a mutation to emit it.
 
-**Ordinary authored order digit:** `1` (single), `2` (double), `3` (triple).
-`q1` is the established Haworth front-edge form. A generic order `4` and a
-generic four-line bond are not authored 26.07 features. Compatibility loading
-may preserve other historical values without assigning them new typed meaning.
-
-Examples: `n1` = normal single, `n2` = normal double, `n3` = normal triple,
-`w1` = wedge single, `h1` = hashed single, `a1` = adder single,
-`b1` = bold single, `d1` = dashed single, `o1` = dotted single, and
-`s1` = wavy single. Aromaticity is a separate chemical property of a
-Ferrum-Chem bond; `a` does not encode aromaticity.
+Version `0.8` has one explicit historical rule: bare `s` observes as a normal
+single bond and bare `d` observes as a normal double bond. That rule applies
+only when the root version is exactly `0.8`; bare tokens are not authored 26.07
+CDML and are not generalized to other versions. All other unsupported source
+tokens remain preservation content plus diagnostic input.
 
 ### Directed wedge endpoints
 
@@ -680,10 +685,10 @@ These are only written when their values differ from the document `<standard>`.
 | `double_ratio` | float (string) | from standard | Length ratio for double bond inner line |
 | `center` | enum | -- | `"yes"` or `"no"`; centered double bond |
 | `auto_sign` | int (string) | `"1"` | Double bond side selection; `"-1"` to flip |
-| `equithick` | int (string) | `"0"` | `"0"` or `"1"`; equal thickness for all lines |
-| `simple_double` | int (string) | `"1"` | `"0"` or `"1"`; simple double bond drawing |
+| `equithick` | int (string) | `"0"` | `"0"` or `"1"`; compatibility depiction field |
+| `simple_double` | int (string) | `"1"` | `"0"` or `"1"`; compatibility depiction field |
 | `color` | hex color | `"#000"` | Bond line color |
-| `wavy_style` | enum | -- | For `s*` bonds: `"sine"`, `"half-circle"`, `"box"`, `"triangle"` |
+| `wavy_style` | enum | -- | Compatibility depiction field for a wavy source bond |
 | `haworth_position` | enum | -- | `"front"` or `"back"`; Haworth depth metadata used with established Haworth styles |
 
 ### Direct-glycosidic Haworth profile
@@ -715,33 +720,13 @@ provenance only, not CDML child, map, or paint order. M14's local renderer may
 consume this handoff, but neither layer is an authoring, serialization, or
 document route.
 
-For `a*`, `d*`, and `o*`, the selected style always occupies the primary bond
-axis. Their additional lanes use the following matrix:
-
-| Order and centering | Primary axis | Additional lanes |
-|---------------------|--------------|------------------|
-| `1` | One styled lane | None |
-| `2`, `center` absent or `"no"` | One styled lane | One offset lane; plain when `simple_double="1"`, styled when `"0"` |
-| `2`, `center="yes"` | None | Two equal, full-length styled flanking lanes |
-| `3` | One styled lane | Two full-length outer lanes; plain when `simple_double="1"`, styled when `"0"` |
-
-An absent `simple_double` has the effective value `"1"` without becoming an
-authored attribute. A backend or frontend projection must retain that lexical
-absence. For styled triples, `center` is ignored and an authored structural
-operation retains or creates `simple_double` so the outer-lane choice remains
-persistent.
-
-`double_ratio` shortens only the added lane of an uncentered order-2 bond,
-symmetrically about its midpoint. Centered order-2 lanes and all order-3 lanes
-remain full length. `equithick` changes only adder (`a*`) amplitude:
-`"0"` is tapered and `"1"` is constant-width. It has no visual effect on
-`d*` or `o*`. A styled bond whose resolved endpoints coincide emits no
-rendering primitives.
-
-The `d*` family is an ordinary dashed depiction and uses the same length
-profile as the corresponding `n*` order. The separately named
-`dashed_hbond` length profile remains available for explicit hydrogen-bond
-semantics; CDML `d1` does not select it implicitly.
+The renderer consumes the closed presentation selected by the token table.
+Bold is one wider butt-capped line; dashed uses equal endpoint margins with
+three-line-width dashes and three-line-width gaps; wavy uses explicit cubic
+whole waves. Each fixed-single presentation refuses a non-single source rather
+than applying a style/order fallback. The document preserves unsupported source
+depiction attributes and reports their limits through the read-only projection;
+it does not reinterpret them as an expanded authoring grammar.
 
 ### Serialization order
 
@@ -930,11 +915,12 @@ ambiguous historical shapes, as read-only document content.
 The backend-authored narrow `linear_form` grammar is exactly a `fragment` with
 only `id` and `type="linear_form"`, a direct `<name>linear_form</name>`, path-
 ordered direct `bond` IDREF children, path-ordered direct `vertex` IDREF
-children, and one final `<property name="bond_length" value="10"
+children, and one final `<property name="bond_length" value="40"
 type="IntType"/>`. Only whitespace character data may surround direct child
-elements. This fixed 10 PostScript-point layout is persistent molecule geometry,
-not a renderer spacing promise. Richer or differently shaped imported linear
-forms remain preservation-only.
+elements. This fixed 40 PostScript-point layout is persistent molecule geometry,
+not a renderer spacing promise. `LinearFormBondLength::NATIVE` is the single
+domain owner used for both planned coordinates and this exact integral token.
+Richer or differently shaped imported linear forms remain preservation-only.
 
 ---
 

@@ -10,6 +10,19 @@ import PySide6.QtWidgets
 import ferrum_qt.dialogs.bond_dialog
 
 
+_PRESENTATION_DETAILS = {
+	"normal_single": (1, "n"),
+	"normal_double": (2, "n"),
+	"normal_triple": (3, "n"),
+	"solid_wedge": (1, "w"),
+	"hashed_wedge": (1, "h"),
+	"haworth_front": (1, "q"),
+	"bold": (1, "b"),
+	"dashed": (1, "d"),
+	"wavy": (1, "s"),
+}
+
+
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class FerrumNativeBondDialogModel:
@@ -39,16 +52,13 @@ def can_edit_selected_bond_properties(tab: object | None) -> bool:
 def dialog_model_from_projection(bond: object) -> FerrumNativeBondDialogModel:
 	"""Copy one exact Rust DTO into values faithfully representable by BondDialog.
 
-	The dialog has no automatic/absent controls.  Display defaults are therefore
-	used only for a comparison baseline: accepting without editing returns no
-	changes and cannot author absent CDML facts.  A source fact that the visual
-	form cannot show is rejected, rather than clamped or remapped.
+	Rust owns the closed presentation: Qt derives its order/style controls exactly
+	once for display and never accepts split transport facts.
 	"""
 	import ferrum_qt.ferrum.engine as engine
 	if type(bond) is not engine.BondProjectionV1:
 		raise TypeError("Ferrum bond properties require an exact Ferrum bond projection")
-	order = _dialog_order(bond.order, engine)
-	bond_type = _dialog_style(bond.style, engine)
+	order, bond_type = _dialog_presentation(bond.presentation, engine)
 	center = False if bond.center is None else bond.center
 	line_width = _optional_width(bond.line_width, 2.0, 20.0, "line width")
 	bond_width = _optional_width(bond.bond_width, 6.0, 40.0, "bond width")
@@ -67,81 +77,103 @@ def dialog_model_from_projection(bond: object) -> FerrumNativeBondDialogModel:
 def property_changes_from_dialog(
 		bond: object, changes: tuple[tuple[str, object], ...],
 		) -> tuple[object, ...]:
-	"""Map only visually supported BondDialog edits to frozen Rust changes."""
+	"""Map dialog edits to closed Rust property changes without split style/order."""
 	import ferrum_qt.ferrum.engine as engine
 	if type(bond) is not engine.BondProjectionV1:
 		raise TypeError("Ferrum bond properties require an exact Ferrum bond projection")
 	if type(changes) is not tuple:
 		raise TypeError("Ferrum bond property changes must be an exact tuple")
-	final_order = _dialog_order(bond.order, engine)
-	final_style = _dialog_style(bond.style, engine)
+	final_presentation = _dialog_presentation(bond.presentation, engine)
+	presentation_changed = False
 	for change in changes:
 		if type(change) is not tuple or len(change) != 2:
 			raise TypeError("Ferrum bond property changes must be exact field/value pairs")
 		field, value = change
-		if field == "order" and type(value) is int:
-			if value not in (1, 2, 3):
-				raise ValueError("Ferrum BondDialog supplied an unsupported property change")
-			final_order = value
-		if field == "type" and type(value) is str:
-			final_style = value
-	_validate_render_capabilities(changes, final_order, final_style)
-	converted: list[object] = []
-	for change in changes:
-		field, value = change
-		converted.append(_property_change(field, value, engine))
-	return tuple(converted)
+		if field == "presentation":
+			final_presentation = _validate_dialog_presentation(value)
+			presentation_changed = True
+	effective_changes = changes + _inapplicable_field_clears(
+		bond, changes, final_presentation, presentation_changed,
+	)
+	_validate_render_capabilities(effective_changes, final_presentation)
+	return tuple(_property_change(change, engine) for change in effective_changes)
+
+
+#============================================
+def _dialog_presentation(value: object, extension: object) -> tuple[int, str]:
+	"""Return one display pair from the one Rust-owned closed presentation fact."""
+	if type(value) is not extension.DocumentBondPresentationV1:
+		raise ValueError("selected Rust bond presentation is not representable by BondDialog")
+	name = getattr(value, "name", None)
+	if type(name) is not str or name not in _PRESENTATION_DETAILS:
+		raise ValueError("selected Rust bond presentation is not representable by BondDialog")
+	return _PRESENTATION_DETAILS[name]
+
+
+#============================================
+def _validate_dialog_presentation(value: object) -> tuple[int, str]:
+	"""Validate the sole editable presentation field before converting it once."""
+	if (
+		type(value) is not tuple or len(value) != 2
+		or type(value[0]) is not int or type(value[1]) is not str
+	):
+		raise ValueError("Ferrum BondDialog supplied an invalid bond presentation")
+	order, bond_type = value
+	if bond_type == "n" and order in (1, 2, 3):
+		return order, bond_type
+	if bond_type in ("w", "h", "q", "b", "d", "s") and order == 1:
+		return order, bond_type
+	raise ValueError("Ferrum BondDialog supplied an unsupported bond presentation")
 
 
 #============================================
 def _validate_render_capabilities(
-		changes: tuple[tuple[str, object], ...], final_order: int, final_style: str,
+		changes: tuple[tuple[str, object], ...], presentation: tuple[int, str],
 		) -> None:
-	"""Admit only form facts the closed Ferrum bond renderer can show faithfully."""
+	"""Admit scalar changes only where the selected presentation uses them."""
+	order, bond_type = presentation
 	for field, value in changes:
-		if field == "wedge_width" and final_style not in ("w", "h"):
-			raise ValueError(
-				"Choose a solid or hashed wedge before editing its wedge width.",
-			)
-		if field == "center" and (type(value) is not bool or not value or final_order != 2):
-			raise ValueError(
-				"Ferrum BondDialog supports centering only for a normal double bond",
-			)
-		if field == "bond_width" and final_order not in (2, 3):
+		if field == "wedge_width" and bond_type not in ("w", "h"):
+			if value is not None:
+				raise ValueError("Choose a solid or hashed wedge before editing its wedge width.")
+		if field == "center" and value is not None and (
+			type(value) is not bool or bond_type != "n" or order != 2
+	):
+			raise ValueError("Ferrum BondDialog supports centering only for a normal double bond")
+		if field == "bond_width" and value is not None and (
+			bond_type != "n" or order not in (2, 3)
+		):
 			raise ValueError(
 				"Ferrum BondDialog supports bond width only for a normal double or triple bond",
 			)
-	if final_style in ("w", "h") and final_order != 1:
-		raise ValueError("Solid and hashed wedges use the compatible Single order.")
 
 
 #============================================
-def _dialog_order(value: object, extension: object) -> int:
-	"""Return an editable normal covalent order without synthesizing a fallback."""
-	if type(value) is not extension.DocumentBondOrderV1:
-		raise ValueError("selected Rust bond order is not representable by BondDialog")
-	if value is extension.DocumentBondOrderV1.single:
-		return 1
-	if value is extension.DocumentBondOrderV1.double:
-		return 2
-	if value is extension.DocumentBondOrderV1.triple:
-		return 3
-	raise ValueError("selected Rust bond order is not representable by BondDialog")
+def _inapplicable_field_clears(
+		bond: object, changes: tuple[tuple[str, object], ...],
+		presentation: tuple[int, str], presentation_changed: bool,
+		) -> tuple[tuple[str, None], ...]:
+	"""Clear authored fields that the replacement presentation cannot retain.
 
-
-#============================================
-def _dialog_style(value: object, extension: object) -> str:
-	"""Return one closed Ferrum style the ordinary renderer can retain visibly."""
-	styles = extension.DocumentBondStyleV1
-	if value is styles.normal:
-		return "n"
-	if value is styles.wedge:
-		return "w"
-	if value is styles.hashed_wedge:
-		return "h"
-	raise ValueError(
-		"Select a Normal, Solid wedge, or Hashed wedge bond for Ferrum properties.",
-	)
+	The Rust document preserves authored optional facts unless an explicit patch
+	clears them.  A presentation replacement therefore owns the matching cleanup
+	in the adapter, rather than relying on disabled controls or normalization.
+	"""
+	if not presentation_changed:
+		return ()
+	order, bond_type = presentation
+	requested_fields = {field for field, _value in changes}
+	clears = []
+	if bond.center is not None and (bond_type != "n" or order != 2):
+		if "center" not in requested_fields:
+			clears.append(("center", None))
+	if bond.bond_width is not None and (bond_type != "n" or order not in (2, 3)):
+		if "bond_width" not in requested_fields:
+			clears.append(("bond_width", None))
+	if bond.wedge_width is not None and bond_type not in ("w", "h"):
+		if "wedge_width" not in requested_fields:
+			clears.append(("wedge_width", None))
+	return tuple(clears)
 
 
 #============================================
@@ -160,36 +192,27 @@ def _optional_width(value: object, default: float, maximum: float, label: str) -
 
 
 #============================================
-def _property_change(field: object, value: object, extension: object) -> object:
-	"""Convert one closed BondDialog field without accepting legacy-shaped input."""
-	if field == "order" and type(value) is int:
-		orders = extension.DocumentBondOrderV1
-		if value == 1:
-			return extension.DocumentBondPropertyChangeV1.order(orders.single)
-		if value == 2:
-			return extension.DocumentBondPropertyChangeV1.order(orders.double)
-		if value == 3:
-			return extension.DocumentBondPropertyChangeV1.order(orders.triple)
-	if field == "type" and type(value) is str:
-		styles = extension.DocumentBondStyleV1
-		if value == "n":
-			return extension.DocumentBondPropertyChangeV1.style(styles.normal)
-		if value == "w":
-			return extension.DocumentBondPropertyChangeV1.style(styles.wedge)
-		if value == "h":
-			return extension.DocumentBondPropertyChangeV1.style(styles.hashed_wedge)
-		raise ValueError(
-			"Choose Normal, Solid wedge, or Hashed wedge before submitting.",
+def _property_change(change: tuple[str, object], extension: object) -> object:
+	"""Convert one closed dialog fact without accepting legacy-shaped input."""
+	field, value = change
+	if field == "presentation":
+		order, bond_type = _validate_dialog_presentation(value)
+		name = next(
+			name for name, detail in _PRESENTATION_DETAILS.items()
+			if detail == (order, bond_type)
 		)
-	if field == "center" and type(value) is bool:
+		return extension.DocumentBondPropertyChangeV1.presentation(
+			getattr(extension.DocumentBondPresentationV1, name),
+		)
+	if field == "center" and (value is None or type(value) is bool):
 		return extension.DocumentBondPropertyChangeV1.center(value)
-	if field == "line_width" and type(value) is float:
+	if field == "line_width" and (value is None or type(value) is float):
 		return extension.DocumentBondPropertyChangeV1.line_width(value)
-	if field == "bond_width" and type(value) is float:
+	if field == "bond_width" and (value is None or type(value) is float):
 		return extension.DocumentBondPropertyChangeV1.bond_width(value)
-	if field == "wedge_width" and type(value) is float:
+	if field == "wedge_width" and (value is None or type(value) is float):
 		return extension.DocumentBondPropertyChangeV1.wedge_width(value)
-	if field == "color" and type(value) is str:
+	if field == "color" and (value is None or type(value) is str):
 		return extension.DocumentBondPropertyChangeV1.color(value)
 	raise ValueError("Ferrum BondDialog supplied an unsupported property change")
 
@@ -207,16 +230,13 @@ def run_bond_properties_dialog(window: object) -> None:
 		_refresh_window_actions(window)
 		window._show_edit_refusal(window._unavailable_edit_refusal(str(exc)))
 		return
-	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
-		model,
-		window,
-		ferrum_qt.dialogs.bond_dialog.NATIVE_RENDER_CAPABILITIES,
-	)
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model, window)
 	if dialog.exec() != PySide6.QtWidgets.QDialog.DialogCode.Accepted:
 		return
 	try:
 		changes = property_changes_from_dialog(bond, dialog.changes())
-		tab.apply_selected_bond_properties(changes)
+		if changes:
+			tab.apply_selected_bond_properties(changes)
 	except Exception as exc:
 		_refresh_window_actions(window)
 		window._show_edit_refusal(window._unavailable_edit_refusal(str(exc)))

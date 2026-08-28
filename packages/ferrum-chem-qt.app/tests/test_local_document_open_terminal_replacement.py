@@ -1,6 +1,7 @@
 """Terminal local-Open replacement lifecycle receipts."""
 
 # Standard Library
+import dataclasses
 import pathlib
 
 # PIP3 modules
@@ -13,6 +14,7 @@ import pytest
 import ferrum_qt.dialogs.refusal_presenter
 import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.document_tab
+import ferrum_qt.ferrum.local_document_open_contract
 import ferrum_qt.ferrum.operation_leases
 import ferrum_qt.main_window
 import ferrum_qt.themes.theme_manager
@@ -182,6 +184,65 @@ def _capture_terminal_receipts(
 
 
 #============================================
+def _capture_replacement_commit_receipts(
+		monkeypatch: pytest.MonkeyPatch,
+		window: ferrum_qt.main_window.MainWindow,
+		delivery: object,
+		) -> tuple[
+			list[ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt],
+			list[ferrum_qt.ferrum.operation_leases.OperationLease],
+		]:
+	"""Observe the public swap and its dedicated registry terminal receipt."""
+	commit_receipts: list[
+		ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt
+	] = []
+	terminal_receipts: list[ferrum_qt.ferrum.operation_leases.OperationLease] = []
+	commit = delivery._host.commit_open_replacement
+	complete = window._operation_leases.complete_prepared_terminal_replacement
+
+	def capture_commit(
+			old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
+			index: int,
+			capability: ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability,
+			lease: ferrum_qt.ferrum.operation_leases.OperationLease,
+			resolution: object,
+			) -> None:
+		class CaptureResolution:
+			"""Observe the exact host resolution before forwarding it."""
+
+			#============================================
+			def accept_replacement(self, receipt: object) -> None:
+				commit_receipts.append(receipt)
+				resolution.accept_replacement(receipt)
+
+			#============================================
+			def refuse_replacement(self) -> None:
+				"""Forward a recoverable host refusal."""
+				resolution.refuse_replacement()
+
+		commit(old, new, index, capability, lease, CaptureResolution())
+
+	def capture_terminal(
+			prepared: ferrum_qt.ferrum.operation_leases.PreparedTerminalReplacement,
+			observer: object,
+			) -> None:
+		def capture_observer(receipt: object) -> None:
+			terminal_receipts.append(receipt)
+			observer(receipt)
+
+		complete(prepared, capture_observer)
+
+	delivery._host = dataclasses.replace(
+		delivery._host, commit_open_replacement=capture_commit,
+	)
+	monkeypatch.setattr(
+		window._operation_leases, "complete_prepared_terminal_replacement", capture_terminal,
+	)
+	return commit_receipts, terminal_receipts
+
+
+#============================================
 def test_pristine_replacement_keeps_the_source_lease_until_worker_finish(
 		qapp: PySide6.QtWidgets.QApplication,
 		tmp_path: pathlib.Path,
@@ -193,11 +254,15 @@ def test_pristine_replacement_keeps_the_source_lease_until_worker_finish(
 	window = _make_window(qapp)
 	source = _current_tab(window)
 	worker = _hold_open(monkeypatch, window)
-	receipts = _capture_terminal_receipts(monkeypatch, window)
 	try:
 		assert window.open_file_path(str(path), interactive=True)
 		worker.wait_until_started()
 		lease = next(iter(window._operation_leases.active_for_tab(source)))
+		delivery = window._local_document_open_controller._local_document_open_delivery
+		assert delivery is not None
+		commit_receipts, terminal_receipts = _capture_replacement_commit_receipts(
+			monkeypatch, window, delivery,
+		)
 		_stage_prepared(window, worker, _prepared_cdml(path))
 		assert (
 			_current_tab(window) is source
@@ -207,13 +272,25 @@ def test_pristine_replacement_keeps_the_source_lease_until_worker_finish(
 		with pytest.raises(ferrum_qt.ferrum.operation_leases.OperationLeaseError):
 			window._operation_leases.unregister_tab(source)
 		_deliver_finished(qapp, worker)
+		candidate = _current_tab(window)
+		commit_receipt = commit_receipts[0]
+		terminal_receipt = terminal_receipts[0]
 		assert (
-			_current_tab(window) is not source
+			candidate is not source
+			and window._native_tabs_by_page.get(candidate) is candidate
 			and source.is_disposed
-			and receipts[-1].lease_id == lease.lease_id
-			and receipts[-1].tab_identity == lease.tab_identity
-			and receipts[-1].tab() is source
-			and receipts[-1].state is ferrum_qt.ferrum.operation_leases.LeaseState.COMPLETED
+			and len(commit_receipts) == len(terminal_receipts) == 1
+			and commit_receipt.old is source
+			and commit_receipt.new is candidate
+			and commit_receipt.index == window._tab_widget.indexOf(candidate)
+			and commit_receipt.lease_id == terminal_receipt.lease_id == lease.lease_id
+			and commit_receipt.tab_identity == terminal_receipt.tab_identity == lease.tab_identity
+			and terminal_receipt.tab() is source
+			and terminal_receipt.state
+			is ferrum_qt.ferrum.operation_leases.LeaseState.COMPLETED
+			and delivery.retired
+			and window._local_document_open_controller._local_document_open_delivery is None
+			and window._local_document_open_controller._local_document_open_intent is None
 		)
 	finally:
 		_deliver_finished(qapp, worker)

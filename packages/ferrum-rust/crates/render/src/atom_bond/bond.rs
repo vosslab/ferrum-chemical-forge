@@ -5,19 +5,117 @@ use std::collections::HashMap;
 use ferrum_core::{RecordId, RecordKind};
 use ferrum_geometry::Vector2;
 
+use crate::bond_presentation_geometry;
 use crate::bond_style::BondStyle;
 use crate::directed_stereo_bond::directed_stereo_operations;
+use crate::glyph_metrics::GlyphBounds;
 use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BatchSpace, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, GlyphBounds, LineOp,
-    PositiveFinite, RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPaintV3,
+    BondRenderBatchV1, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, LineOp,
+    PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind, RenderOp, RenderPaintV3,
     RenderTarget,
 };
 
 use super::{
-    EndpointClipGeometry, RenderEndpointGeometry, TargetVisibility, geometry_to_render_point,
+    BondInkClearance, EndpointClipGeometry, RenderEndpointGeometry, TargetVisibility,
+    geometry_to_render_point,
 };
+
+/// Exact final-normal-single endpoint clipping owned by bond lowering.
+///
+/// Attached compact-group pose admission uses this same value so a prepared
+/// pose is admitted against the final painted normal-bond envelope, not a
+/// weaker pre-lowering approximation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct NormalBondEndpointClipPolicy {
+    clearance: BondInkClearance,
+    footprint: BondInkFootprint,
+}
+
+impl NormalBondEndpointClipPolicy {
+    /// Resolve the normal-single final-ink envelope from depiction facts.
+    ///
+    /// This is the sole renderer owner of the font-derived label clearance.
+    pub(crate) fn from_depiction(
+        stroke_width: PositiveFinite,
+        font_size: PositiveFinite,
+    ) -> Result<Self, RenderIssueKind> {
+        let clearance =
+            BondInkClearance::new(PositiveFinite::new(font_size.get() * 0.125).map_err(|_| {
+                RenderIssueKind::UnrenderableTarget {
+                    reason: "normal bond label clearance is not representable".to_owned(),
+                }
+            })?);
+        Ok(Self {
+            clearance,
+            footprint: final_ink_footprint(&BondStyle::NormalSingle, stroke_width, stroke_width)?,
+        })
+    }
+
+    pub(crate) const fn clearance(self) -> BondInkClearance {
+        self.clearance
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_facts(
+        stroke_width: PositiveFinite,
+        clearance: BondInkClearance,
+    ) -> Result<Self, RenderIssueKind> {
+        Ok(Self {
+            clearance,
+            footprint: final_ink_footprint(&BondStyle::NormalSingle, stroke_width, stroke_width)?,
+        })
+    }
+
+    pub(crate) fn atom_label_forward_exit_distance(
+        self,
+        bounds: GlyphBounds,
+        direction: Vector2,
+    ) -> Result<f64, RenderIssueKind> {
+        self.endpoint_clip_distance(
+            &RenderEndpointGeometry {
+                kind: RecordKind::Atom,
+                position: ferrum_geometry::Point2::new(0.0, 0.0).map_err(|error| {
+                    RenderIssueKind::UnrenderableTarget {
+                        reason: format!(
+                            "atom label clipping position is not representable: {error}"
+                        ),
+                    }
+                })?,
+                clipping: EndpointClipGeometry::AtomLabelInk(bounds),
+            },
+            direction,
+            Vector2::new(0.0, 0.0).map_err(|error| RenderIssueKind::UnrenderableTarget {
+                reason: format!("atom label clipping origin is not representable: {error}"),
+            })?,
+        )
+    }
+
+    pub(crate) fn has_positive_visible_segment(
+        self,
+        center_distance: f64,
+        first_clip: f64,
+        second_clip: f64,
+    ) -> bool {
+        normal_bond_has_positive_visible_segment(center_distance, first_clip, second_clip)
+    }
+
+    fn endpoint_clip_distance(
+        self,
+        endpoint: &RenderEndpointGeometry,
+        direction: Vector2,
+        local_offset: Vector2,
+    ) -> Result<f64, RenderIssueKind> {
+        endpoint_clip_distance_with_footprint(
+            endpoint,
+            direction,
+            local_offset,
+            self.clearance,
+            self.footprint,
+        )
+    }
+}
 
 /// A bond with explicit endpoint atom identities and source style facts.
 #[derive(Clone, Debug, PartialEq)]
@@ -85,6 +183,10 @@ impl BondRenderTarget {
         &self.context
     }
 
+    pub(super) const fn endpoints(&self) -> (&RecordId, &RecordId) {
+        (&self.first_endpoint, &self.second_endpoint)
+    }
+
     /// Attach source-resolved stroke and parallel-lane facts for this bond only.
     #[must_use]
     pub fn with_appearance(
@@ -130,8 +232,9 @@ pub(super) fn build_bond_batch(
     stroke_width: PositiveFinite,
     lane_spacing: PositiveFinite,
     wedge_width: PositiveFinite,
+    resolved_normal_single_policy: NormalBondEndpointClipPolicy,
     paint: RenderPaintV3,
-) -> Result<RenderBatch, RenderIssueKind> {
+) -> Result<RenderBatchV4, RenderIssueKind> {
     let Some(first) = endpoints.get(&bond.first_endpoint) else {
         return Err(RenderIssueKind::UnrenderableTarget {
             reason: "first bond endpoint has no renderable geometry".to_owned(),
@@ -177,7 +280,10 @@ pub(super) fn build_bond_batch(
         BondStyle::SolidWedge
         | BondStyle::HashedWedge
         | BondStyle::HaworthFrontStroke
-        | BondStyle::HaworthFrontWedge => &[],
+        | BondStyle::HaworthFrontWedge
+        | BondStyle::Bold
+        | BondStyle::Dashed
+        | BondStyle::Wavy => &[],
         _ => unreachable!("unsupported styles are excluded before bond geometry"),
     };
     let perpendicular = direction.perpendicular_left();
@@ -188,8 +294,26 @@ pub(super) fn build_bond_batch(
         perpendicular,
         length,
     };
+    let normal_single_policy =
+        matches!(bond.style, BondStyle::NormalSingle).then_some(resolved_normal_single_policy);
+    let footprint = normal_single_policy.map_or_else(
+        || final_ink_footprint(&bond.style, stroke_width, wedge_width),
+        |policy| Ok(policy.footprint),
+    )?;
+    let clip = BondClipConfiguration {
+        clearance: resolved_normal_single_policy.clearance(),
+        footprint,
+        normal_single_policy,
+    };
     if matches!(bond.style, BondStyle::SolidWedge | BondStyle::HashedWedge) {
-        return build_directed_stereo_batch(bond, &line_context, stroke_width, wedge_width, paint);
+        return build_directed_stereo_batch(
+            bond,
+            &line_context,
+            stroke_width,
+            wedge_width,
+            clip,
+            paint,
+        );
     }
     if matches!(
         bond.style,
@@ -200,8 +324,32 @@ pub(super) fn build_bond_batch(
             &line_context,
             stroke_width,
             wedge_width,
+            clip,
             paint,
         );
+    }
+    if matches!(
+        bond.style,
+        BondStyle::Bold | BondStyle::Dashed | BondStyle::Wavy
+    ) {
+        let axis = build_bond_line(&line_context, 0.0, stroke_width, clip, paint, 10)?;
+        let operations = match &bond.style {
+            BondStyle::Bold => bond_presentation_geometry::bold(axis),
+            BondStyle::Dashed => bond_presentation_geometry::dashed(axis),
+            BondStyle::Wavy => bond_presentation_geometry::wavy(axis),
+            _ => unreachable!("styled bond branch admits only styled single-bond presentations"),
+        }?;
+        return RenderBatchV4::bond(
+            bond.context.clone(),
+            BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
+                RenderIssueKind::UnrenderableTarget {
+                    reason: error.to_string(),
+                }
+            })?,
+        )
+        .map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: format!("styled bond batch is not renderable: {error}"),
+        });
     }
     let mut operations = Vec::with_capacity(offsets.len());
     for (index, factor) in offsets.iter().enumerate() {
@@ -215,6 +363,7 @@ pub(super) fn build_bond_batch(
             &line_context,
             offset,
             stroke_width,
+            clip,
             paint.clone(),
             10 + i32::try_from(index).expect("bond line count fits i32"),
         )?;
@@ -236,11 +385,17 @@ pub(super) fn build_bond_batch(
         })?;
         operations.push(RenderOp::DoubleBondCarrierMark(operation));
     }
-    RenderBatch::from_context(bond.context.clone(), BatchSpace::Scene, operations).map_err(
-        |error| RenderIssueKind::UnrenderableTarget {
-            reason: format!("bond batch is not renderable: {error}"),
-        },
+    RenderBatchV4::bond(
+        bond.context.clone(),
+        BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
+            RenderIssueKind::UnrenderableTarget {
+                reason: error.to_string(),
+            }
+        })?,
     )
+    .map_err(|error| RenderIssueKind::UnrenderableTarget {
+        reason: format!("bond batch is not renderable: {error}"),
+    })
 }
 
 fn build_haworth_front_bond_batch(
@@ -248,9 +403,10 @@ fn build_haworth_front_bond_batch(
     context: &BondLineContext<'_>,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
+    clip: BondClipConfiguration,
     paint: RenderPaintV3,
-) -> Result<RenderBatch, RenderIssueKind> {
-    let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
+) -> Result<RenderBatchV4, RenderIssueKind> {
+    let center = build_bond_line(context, 0.0, stroke_width, clip, paint.clone(), 10)?;
     build_haworth_front_batch(HaworthFrontBondInput {
         target: bond.context.target().clone(),
         paint_order: bond.context.paint_order(),
@@ -269,9 +425,10 @@ fn build_directed_stereo_batch(
     context: &BondLineContext<'_>,
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
+    clip: BondClipConfiguration,
     paint: RenderPaintV3,
-) -> Result<RenderBatch, RenderIssueKind> {
-    let center = build_bond_line(context, 0.0, stroke_width, paint.clone(), 10)?;
+) -> Result<RenderBatchV4, RenderIssueKind> {
+    let center = build_bond_line(context, 0.0, stroke_width, clip, paint.clone(), 10)?;
     let tip = center.start();
     let base = center.end();
     let operations = directed_stereo_operations(
@@ -283,11 +440,17 @@ fn build_directed_stereo_batch(
         wedge_width,
         paint,
     )?;
-    RenderBatch::from_context(bond.context.clone(), BatchSpace::Scene, operations).map_err(
-        |error| RenderIssueKind::UnrenderableTarget {
-            reason: format!("directed bond batch is not renderable: {error}"),
-        },
+    RenderBatchV4::bond(
+        bond.context.clone(),
+        BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
+            RenderIssueKind::UnrenderableTarget {
+                reason: error.to_string(),
+            }
+        })?,
     )
+    .map_err(|error| RenderIssueKind::UnrenderableTarget {
+        reason: format!("directed bond batch is not renderable: {error}"),
+    })
 }
 
 struct BondLineContext<'a> {
@@ -302,6 +465,7 @@ fn build_bond_line(
     context: &BondLineContext<'_>,
     offset: f64,
     width: PositiveFinite,
+    clip: BondClipConfiguration,
     paint: RenderPaintV3,
     z: i32,
 ) -> Result<LineOp, RenderIssueKind> {
@@ -313,9 +477,13 @@ fn build_bond_line(
         reason: format!("bond line offset is not representable: {error}"),
     })?;
     let reverse = negated(context.direction)?;
-    let first_clip = endpoint_clip_distance(context.first, context.direction, local_offset)?;
-    let second_clip = endpoint_clip_distance(context.second, reverse, local_offset)?;
-    if !normal_bond_has_positive_visible_segment(context.length, first_clip, second_clip) {
+    let first_clip = clip.endpoint_clip_distance(context.first, context.direction, local_offset)?;
+    let second_clip = clip.endpoint_clip_distance(context.second, reverse, local_offset)?;
+    let has_positive_segment = clip.normal_single_policy.map_or_else(
+        || normal_bond_has_positive_visible_segment(context.length, first_clip, second_clip),
+        |policy| policy.has_positive_visible_segment(context.length, first_clip, second_clip),
+    );
+    if !has_positive_segment {
         return Err(RenderIssueKind::UnrenderableTarget {
             reason: "label clipping leaves no positive visible bond segment".to_owned(),
         });
@@ -348,25 +516,8 @@ fn build_bond_line(
     })
 }
 
-/// Return the zero-offset forward exit from an atom label's clipping envelope.
-///
-/// Attached compact-group admission shares this calculation with final bond
-/// lowering so its resolved pose cannot rely on a separate label-clearance rule.
-pub(crate) fn atom_label_forward_exit_distance(
-    bounds: GlyphBounds,
-    direction: Vector2,
-) -> Result<f64, RenderIssueKind> {
-    clip_glyph_distance(
-        bounds,
-        direction,
-        Vector2::new(0.0, 0.0).map_err(|error| RenderIssueKind::UnrenderableTarget {
-            reason: format!("atom label clipping origin is not representable: {error}"),
-        })?,
-    )
-}
-
 /// Return whether a normal bond retains a strictly positive visible segment.
-pub(crate) fn normal_bond_has_positive_visible_segment(
+fn normal_bond_has_positive_visible_segment(
     center_distance: f64,
     first_clip: f64,
     second_clip: f64,
@@ -375,15 +526,51 @@ pub(crate) fn normal_bond_has_positive_visible_segment(
     remaining_length.is_finite() && remaining_length > 0.0
 }
 
-fn endpoint_clip_distance(
+#[derive(Clone, Copy)]
+struct BondClipConfiguration {
+    clearance: BondInkClearance,
+    footprint: BondInkFootprint,
+    normal_single_policy: Option<NormalBondEndpointClipPolicy>,
+}
+
+impl BondClipConfiguration {
+    fn endpoint_clip_distance(
+        self,
+        endpoint: &RenderEndpointGeometry,
+        direction: Vector2,
+        local_offset: Vector2,
+    ) -> Result<f64, RenderIssueKind> {
+        self.normal_single_policy.map_or_else(
+            || {
+                endpoint_clip_distance_with_footprint(
+                    endpoint,
+                    direction,
+                    local_offset,
+                    self.clearance,
+                    self.footprint,
+                )
+            },
+            |policy| policy.endpoint_clip_distance(endpoint, direction, local_offset),
+        )
+    }
+}
+
+fn endpoint_clip_distance_with_footprint(
     endpoint: &RenderEndpointGeometry,
     direction: Vector2,
     local_offset: Vector2,
+    clearance: BondInkClearance,
+    footprint: BondInkFootprint,
 ) -> Result<f64, RenderIssueKind> {
-    match endpoint.clipping {
-        EndpointClipGeometry::OriginContainingGlyphEnvelope(bounds) => {
-            clip_glyph_distance(bounds, direction, local_offset)
-        }
+    match &endpoint.clipping {
+        EndpointClipGeometry::AtomLabelInk(bounds) => clip_glyph_distance(
+            inflate_glyph_bounds(
+                *bounds,
+                clearance.gap().get() + footprint.transverse_radius + footprint.axial_overhang,
+            )?,
+            direction,
+            local_offset,
+        ),
         EndpointClipGeometry::FixedConnectionPoint {
             label_ink_exclusion,
         } => {
@@ -402,6 +589,66 @@ fn endpoint_clip_distance(
             Ok(0.0)
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BondInkFootprint {
+    transverse_radius: f64,
+    axial_overhang: f64,
+}
+
+fn final_ink_footprint(
+    style: &BondStyle,
+    stroke_width: PositiveFinite,
+    wedge_width: PositiveFinite,
+) -> Result<BondInkFootprint, RenderIssueKind> {
+    let transverse_radius = match style {
+        BondStyle::Bold => stroke_width.get(),
+        BondStyle::Wavy => stroke_width.get() * 2.5,
+        BondStyle::SolidWedge
+        | BondStyle::HashedWedge
+        | BondStyle::HaworthFrontStroke
+        | BondStyle::HaworthFrontWedge => wedge_width.get() / 2.0,
+        _ => stroke_width.get() / 2.0,
+    };
+    let axial_overhang = match style {
+        // q1 pads its emitted centerline 0.35w toward each label after the
+        // shared axis has been clipped. Its round cap is already captured by
+        // the transverse radius, while this distinct fact reserves the pad.
+        BondStyle::HaworthFrontStroke => wedge_width.get() * 0.35,
+        _ => 0.0,
+    };
+    if transverse_radius.is_finite()
+        && transverse_radius >= 0.0
+        && axial_overhang.is_finite()
+        && axial_overhang >= 0.0
+    {
+        Ok(BondInkFootprint {
+            transverse_radius,
+            axial_overhang,
+        })
+    } else {
+        Err(RenderIssueKind::UnrenderableTarget {
+            reason: "final bond ink footprint is not representable".to_owned(),
+        })
+    }
+}
+
+fn inflate_glyph_bounds(bounds: GlyphBounds, amount: f64) -> Result<GlyphBounds, RenderIssueKind> {
+    if !amount.is_finite() || amount < 0.0 {
+        return Err(RenderIssueKind::UnrenderableTarget {
+            reason: "bond ink clearance is not representable".to_owned(),
+        });
+    }
+    GlyphBounds::new(
+        bounds.min_x() - amount,
+        bounds.min_y() - amount,
+        bounds.max_x() + amount,
+        bounds.max_y() + amount,
+    )
+    .map_err(|error| RenderIssueKind::UnrenderableTarget {
+        reason: format!("inflated atom-label ink is not representable: {error}"),
+    })
 }
 
 fn clip_glyph_distance(

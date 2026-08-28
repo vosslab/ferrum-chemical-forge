@@ -79,22 +79,26 @@ def test_bond_properties_reject_hostile_python_intent_without_mutation() -> None
 		pass
 
 	change_type = ferrum_chem.DocumentBondPropertyChangeV1
-	order = change_type.order(ferrum_chem.DocumentBondOrderV1.double)
+	presentation = change_type.presentation(
+		ferrum_chem.DocumentBondPresentationV1.normal_double,
+	)
 	session = ferrum_chem.DocumentSession.load(BOND_PROPERTIES_SOURCE)
 	before = session.snapshot()
 
 	with pytest.raises(TypeError):
-		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", [order])
+		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", [presentation])
 	with pytest.raises(TypeError):
 		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (object(),))
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		ferrum_chem.DocumentOperationV1.set_bond_properties(
-			"ab", TupleSubclass((order,)),
+			"ab", TupleSubclass((presentation,)),
 		)
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (order,) * 8)
+		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (presentation,) * 8)
 	with pytest.raises(ferrum_chem.OperationValidationError):
-		ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (order, order))
+		ferrum_chem.DocumentOperationV1.set_bond_properties(
+			"ab", (presentation, presentation),
+		)
 	for invalid in (0.0, float("nan"), float("inf")):
 		with pytest.raises(ferrum_chem.OperationValidationError):
 			change_type.bond_width(invalid)
@@ -105,14 +109,16 @@ def test_bond_properties_reject_hostile_python_intent_without_mutation() -> None
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		change_type.color("not-a-color")
 	with pytest.raises(AttributeError):
-		order.value = 2
+		presentation.value = ferrum_chem.DocumentBondPresentationV1.normal_single
 	with pytest.raises(ferrum_chem.RevisionConflictError):
 		session.apply_document_operation_v1(
-			1, ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (order,)),
+			1,
+			ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (presentation,)),
 		)
 	with pytest.raises(ferrum_chem.UnknownDocumentObjectError):
 		session.apply_document_operation_v1(
-			0, ferrum_chem.DocumentOperationV1.set_bond_properties("missing", (order,)),
+			0,
+			ferrum_chem.DocumentOperationV1.set_bond_properties("missing", (presentation,)),
 		)
 	unsupported = ferrum_chem.DocumentSession.load(
 		BOND_PROPERTIES_SOURCE.replace('type="n1"', 'type="l1"'),
@@ -120,7 +126,8 @@ def test_bond_properties_reject_hostile_python_intent_without_mutation() -> None
 	unsupported_before = unsupported.snapshot()
 	with pytest.raises(ferrum_chem.OperationValidationError):
 		unsupported.apply_document_operation_v1(
-			0, ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (order,)),
+			0,
+			ferrum_chem.DocumentOperationV1.set_bond_properties("ab", (presentation,)),
 		)
 	unsupported_after = unsupported.snapshot()
 	assert (unsupported_after.revision, unsupported_after.digest) == (

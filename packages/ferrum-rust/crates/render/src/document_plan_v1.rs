@@ -7,15 +7,16 @@
 use std::collections::HashSet;
 use std::ops::Deref;
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::{
-    DocumentVectorRootV1, GlyphBounds, MoleculeMemberDepictionIssueV1, MoleculeRenderPlan,
-    PresentationTextOp, RenderError, RenderPaintV3, RenderPoint, RenderProvenance, TextOp,
+    DocumentVectorRootV1, MoleculeMemberDepictionIssueV1, MoleculeRenderPlanV4, PresentationTextOp,
+    RenderError, RenderPaintV3, RenderPoint, RenderProvenance, TextOp,
 };
 
 /// Paintable molecule batches plus diagnostics owned by its direct-root molecule.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentMoleculeRenderContentV1 {
-    plan: MoleculeRenderPlan,
+    plan: MoleculeRenderPlanV4,
     member_issues: Vec<MoleculeMemberDepictionIssueV1>,
 }
 
@@ -23,7 +24,7 @@ impl DocumentMoleculeRenderContentV1 {
     /// Preserve one molecule plan and all diagnostics owned by its durable members.
     #[must_use]
     pub const fn new(
-        plan: MoleculeRenderPlan,
+        plan: MoleculeRenderPlanV4,
         member_issues: Vec<MoleculeMemberDepictionIssueV1>,
     ) -> Self {
         Self {
@@ -34,7 +35,7 @@ impl DocumentMoleculeRenderContentV1 {
 
     /// Return paintable molecule batches.
     #[must_use]
-    pub const fn plan(&self) -> &MoleculeRenderPlan {
+    pub const fn plan(&self) -> &MoleculeRenderPlanV4 {
         &self.plan
     }
 
@@ -46,7 +47,7 @@ impl DocumentMoleculeRenderContentV1 {
 }
 
 impl Deref for DocumentMoleculeRenderContentV1 {
-    type Target = MoleculeRenderPlan;
+    type Target = MoleculeRenderPlanV4;
 
     fn deref(&self) -> &Self::Target {
         &self.plan

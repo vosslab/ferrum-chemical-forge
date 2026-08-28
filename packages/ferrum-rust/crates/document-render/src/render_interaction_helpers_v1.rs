@@ -134,7 +134,7 @@ pub(super) fn toggle_structure_targets(
     current
 }
 pub(super) fn roots_from_render(
-    rendered: &DocumentRenderObservationV1,
+    rendered: &DocumentRenderObservationV2,
     presentation_plan: &PresentationRenderPlanV1,
     _identities: &CompleteDocumentIdentityFactsV1,
 ) -> (

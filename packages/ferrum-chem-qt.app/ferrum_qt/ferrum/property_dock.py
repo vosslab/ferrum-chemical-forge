@@ -109,8 +109,7 @@ def _bond_lines(bond: object) -> tuple[str, ...]:
 	start = bond.start.object_id or "Unresolved"
 	end = bond.end.object_id or "Unresolved"
 	return (
-		f"Order: {_value_label(bond.order)}",
-		f"Style: {_value_label(bond.style)}",
+		f"Presentation: {_value_label(bond.presentation)}",
 		f"Endpoints: {start} to {end}",
 	)
 

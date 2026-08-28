@@ -3,7 +3,7 @@
 mod artifact_v1;
 mod complete_plan_v1;
 mod native_artifact_v1;
-mod observation_v1;
+mod observation;
 mod selection_svg_v1;
 
 pub use artifact_v1::{
@@ -19,10 +19,10 @@ pub use native_artifact_v1::{
     PreparedDocumentNativeArtifactV1, prepare_document_native_artifact_v1,
     publish_prepared_document_native_artifact_v1,
 };
-pub use observation_v1::{
-    DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1, DocumentRenderObservationErrorV1,
-    DocumentRenderObservationV1, DocumentRenderObservationWireV1,
-    derive_document_render_observation_from_accepted_operation_v1, observe_document_render_v1,
+pub use observation::{
+    DOCUMENT_RENDER_OBSERVATION_SCHEMA_V2, DocumentRenderObservationErrorV1,
+    DocumentRenderObservationV2, DocumentRenderObservationWireV2,
+    derive_document_render_observation_from_accepted_operation_v2, observe_document_render_v2,
 };
 pub use selection_svg_v1::{
     DOCUMENT_SELECTION_SVG_SCHEMA_V1, DocumentSelectionSvgErrorV1, DocumentSelectionSvgRootV1,

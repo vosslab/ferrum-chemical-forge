@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// The sole persisted selector for a rendered document object.
 ///
 /// Source records and ordering are renderer-local lowering facts. They belong
-/// to [`RenderPlanEntryContextV1`], never to this public wire value.
+/// to the private render-plan entry context, never to this public wire value.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenderTarget {
@@ -74,10 +74,35 @@ mod tests {
     use ferrum_core::{Identifier, RecordKind};
 
     use super::*;
-    use crate::{BatchSpace, RenderBatch};
+    use crate::{
+        AtomLabelFacts, AtomLabelFontProfile, AtomLabelRenderV1, AtomRenderBatchV1, FontFace,
+        PositiveFinite, RenderBatchV4, RenderPaintV3, RenderPoint, Rgb24,
+    };
 
     fn durable_id(byte: u8) -> DocumentObjectIdV1 {
         DocumentObjectIdV1::from_entropy_bytes([byte; 16])
+    }
+
+    fn point(x: f64, y: f64) -> RenderPoint {
+        RenderPoint::new(x, y).expect("finite test point")
+    }
+
+    fn size(value: f64) -> PositiveFinite {
+        PositiveFinite::new(value).expect("positive test extent")
+    }
+
+    fn label() -> AtomLabelRenderV1 {
+        RenderBatchV4::test_atom_label_from_facts(
+            None,
+            AtomLabelFacts::new("C", None, 0, 0).expect("label facts"),
+            AtomLabelFontProfile::new(
+                FontFace::telex_regular(),
+                size(12.0),
+                RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("paint")),
+            ),
+            1,
+        )
+        .expect("verified atom label")
     }
 
     #[test]
@@ -107,8 +132,27 @@ mod tests {
             Some(durable_id(0x43)),
         );
 
-        let error = RenderBatch::from_context(context, BatchSpace::Scene, Vec::new())
-            .expect_err("atom source cannot create a scene bond batch");
-        assert!(error.to_string().contains("bond source record"));
+        let content =
+            AtomRenderBatchV1::new(point(0.0, 0.0), label(), Vec::new()).expect("atom content");
+        let batch =
+            RenderBatchV4::atom(context, content).expect("atom source accepts atom content");
+        assert_eq!(batch.paint_order(), 7);
+
+        let bond_context = RenderPlanEntryContextV1::new(
+            RenderTarget::document_object(durable_id(0x44)),
+            RecordId::new(
+                RecordKind::Bond,
+                Identifier::new("bond_source").expect("valid source identifier"),
+            )
+            .expect("valid bond record ID"),
+            8,
+            Some(durable_id(0x45)),
+        );
+        let error = RenderBatchV4::atom(
+            bond_context,
+            AtomRenderBatchV1::new(point(0.0, 0.0), label(), Vec::new()).expect("atom content"),
+        )
+        .expect_err("bond source cannot create atom content");
+        assert!(error.to_string().contains("content kind"));
     }
 }

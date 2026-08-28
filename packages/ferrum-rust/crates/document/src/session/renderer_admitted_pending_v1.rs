@@ -6,7 +6,6 @@ use ferrum_document_projection::{
 };
 use ferrum_render::{
     AcceptedCompleteRenderV1, AcceptedRenderOverlayRequestV1, admit_complete_document_render_v1,
-    admit_complete_document_render_with_resolved_v1,
 };
 use ferrum_render_contract::{
     CompleteDocumentSourceFenceV1, CompleteRenderPendingIdentityV1, CompleteRenderPrimitiveV1,
@@ -15,7 +14,7 @@ use ferrum_render_contract::{
 };
 
 use super::{DocumentSession, SessionDocumentObservationV1};
-use crate::derive_document_render_observation_from_accepted_operation_v1;
+use crate::derive_document_render_observation_from_accepted_operation_v2;
 
 /// Renderer acceptance bound to one document-session pending identity.
 #[derive(Debug)]
@@ -23,7 +22,14 @@ pub(super) struct RendererAdmittedPendingV1 {
     identity: CompleteRenderPendingIdentityV1,
     candidate: DocumentCompleteRenderCandidateV1,
     acceptance: AcceptedCompleteRenderV1,
-    render_observation: crate::DocumentRenderObservationV1,
+    policy: RendererAdmissionPolicy,
+}
+
+/// Private receipt policy chosen only by the shared transition lifecycle.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RendererAdmissionPolicy {
+    AuthoringDelta,
+    RetainedHistoryTarget,
 }
 
 impl RendererAdmittedPendingV1 {
@@ -31,27 +37,62 @@ impl RendererAdmittedPendingV1 {
         session: &mut DocumentSession,
         observation: &SessionDocumentObservationV1,
     ) -> Result<Self, RendererAdmittedPendingErrorV1> {
+        Self::admit_with_policy(
+            session,
+            observation,
+            RendererAdmissionPolicy::AuthoringDelta,
+        )
+    }
+
+    pub(super) fn admit_retained_history_target(
+        session: &mut DocumentSession,
+        observation: &SessionDocumentObservationV1,
+    ) -> Result<Self, RendererAdmittedPendingErrorV1> {
+        Self::admit_with_policy(
+            session,
+            observation,
+            RendererAdmissionPolicy::RetainedHistoryTarget,
+        )
+    }
+
+    fn admit_with_policy(
+        session: &mut DocumentSession,
+        observation: &SessionDocumentObservationV1,
+        policy: RendererAdmissionPolicy,
+    ) -> Result<Self, RendererAdmittedPendingErrorV1> {
         let identity = session.next_renderer_pending_identity_v1();
+        let source_observation = session
+            .document_observation()
+            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
         let candidate = candidate_from_observation_v1(
             observation,
             session.renderer_admission_issuer,
             identity,
         )?;
         let render_observation =
-            derive_document_render_observation_from_accepted_operation_v1(observation)
+            derive_document_render_observation_from_accepted_operation_v2(observation)
                 .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
-        let acceptance = admit_complete_document_render_v1(&candidate)
-            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let source_render_observation =
+            derive_document_render_observation_from_accepted_operation_v2(&source_observation)
+                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let baseline = match policy {
+            RendererAdmissionPolicy::AuthoringDelta => source_render_observation.resolved(),
+            RendererAdmissionPolicy::RetainedHistoryTarget => render_observation.resolved(),
+        };
+        let acceptance =
+            admit_complete_document_render_v1(&candidate, baseline, render_observation.resolved())
+                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
         Ok(Self {
             identity,
             candidate,
             acceptance,
-            render_observation,
+            policy,
         })
     }
 
     pub(super) fn verify(
         &self,
+        source_observation: &SessionDocumentObservationV1,
         observation: &SessionDocumentObservationV1,
     ) -> Result<(), RendererAdmittedPendingErrorV1> {
         let candidate = candidate_from_observation_v1(
@@ -62,11 +103,19 @@ impl RendererAdmittedPendingV1 {
         if candidate != self.candidate {
             return Err(RendererAdmittedPendingErrorV1::Admission);
         }
-        let _render_observation =
-            derive_document_render_observation_from_accepted_operation_v1(observation)
+        let render_observation =
+            derive_document_render_observation_from_accepted_operation_v2(observation)
                 .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
-        let reaccepted = admit_complete_document_render_v1(&candidate)
-            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let source_render_observation =
+            derive_document_render_observation_from_accepted_operation_v2(source_observation)
+                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+        let baseline = match self.policy {
+            RendererAdmissionPolicy::AuthoringDelta => source_render_observation.resolved(),
+            RendererAdmissionPolicy::RetainedHistoryTarget => render_observation.resolved(),
+        };
+        let reaccepted =
+            admit_complete_document_render_v1(&candidate, baseline, render_observation.resolved())
+                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
         (reaccepted == self.acceptance)
             .then_some(())
             .ok_or(RendererAdmittedPendingErrorV1::Admission)
@@ -76,13 +125,9 @@ impl RendererAdmittedPendingV1 {
         &self,
         request: &AcceptedRenderOverlayRequestV1,
     ) -> Result<ferrum_render::DocumentPrecommitOverlayV1, RendererAdmittedPendingErrorV1> {
-        admit_complete_document_render_with_resolved_v1(
-            &self.candidate,
-            self.render_observation.resolved(),
-        )
-        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?
-        .precommit_overlay_v1(request)
-        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
+        self.acceptance
+            .precommit_overlay_v1(request)
+            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
     }
 }
 
@@ -232,9 +277,7 @@ fn durable_identity_v1(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_render_contract::{
-        CompleteRenderAdmissionRefusalV1, CompleteRenderRootClassV1, RefusedRootReasonV1,
-    };
+    use ferrum_render_contract::{CompleteRenderRootClassV1, RefusedRootReasonV1};
 
     #[test]
     fn candidate_classifies_text_layout_and_missing_vector_primitives() {
@@ -260,13 +303,8 @@ mod tests {
             CompleteRenderRootLoweringV1::MissingRequiredPrimitive
         );
         assert!(matches!(
-            ferrum_render::admit_complete_document_render_v1(&candidate),
-            Err(CompleteRenderAdmissionRefusalV1::RootRefused {
-                class: CompleteRenderRootClassV1::Refused(
-                    RefusedRootReasonV1::MissingRequiredPrimitive
-                ),
-                ..
-            })
+            ferrum_render::classify_document_render_roots_v1(&candidate).roots()[1].class(),
+            CompleteRenderRootClassV1::Refused(RefusedRootReasonV1::MissingRequiredPrimitive)
         ));
     }
 

@@ -3,6 +3,7 @@
 //! Chemistry codecs and native adapters remain in `ferrum-chemistry`; this module
 //! owns the CDML/session side of their boundary.
 
+mod cdxml_record_insertion;
 mod clean_geometry_v1;
 mod complete_graph_document_preparation;
 mod document_atom_oxidation_observation_v1;
@@ -30,6 +31,7 @@ mod document_bond_capacity_v1_tests;
 #[cfg(test)]
 mod document_molecule_inspection_v1_tests;
 
+pub use cdxml_record_insertion::{CdxmlRecordBuildError, build_cdxml_record_batch_insertion};
 pub use clean_geometry_v1::{CleanGeometryBuildError, build_clean_geometry_update_v1};
 pub use complete_graph_document_preparation::{
     DocumentMoleculePreparationErrorV2, prepare_complete_graph_for_document_v2,

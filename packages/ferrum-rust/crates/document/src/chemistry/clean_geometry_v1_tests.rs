@@ -72,11 +72,11 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
         "<molecule id=\"first\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\" z=\"7\"/>",
         "<v:note>keep</v:note></atom>",
-        "<atom id=\"b\" name=\"N\"><point x=\"20\" y=\"0\"/></atom>",
+        "<atom id=\"b\" name=\"N\"><point x=\"60\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule>",
         "<molecule id=\"second\"><atom id=\"c\" name=\"C\">",
         "<point x=\"100\" y=\"20\"/></atom><atom id=\"d\" name=\"O\">",
-        "<point x=\"100\" y=\"60\"/></atom>",
+        "<point x=\"100\" y=\"80\"/></atom>",
         "<bond id=\"cd\" start=\"c\" end=\"d\" type=\"n1\"/></molecule></cdml>",
     );
     let engine = engine();
@@ -88,7 +88,7 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
         .iter()
         .map(|molecule| molecule.document_object_id().clone())
         .collect::<Vec<_>>();
-    let update = build_clean_geometry_update_v1(&engine, &observation, &molecule_ids, 10.0)
+    let update = build_clean_geometry_update_v1(&engine, &observation, &molecule_ids, 60.0)
         .expect("both layouts prepare");
     assert_eq!(engine.calls.get(), 2);
     let repaired = session
@@ -100,15 +100,15 @@ fn clean_geometry_commits_multiple_centroid_preserving_layouts_atomically() {
     let molecules = repaired.observation().projection().molecules();
     let first = molecules[0].atoms();
     let second = molecules[1].atoms();
-    assert_authored_close(first[0].position().x(), 10.0);
-    assert_authored_close(first[0].position().y(), 5.0);
-    assert_authored_close(first[1].position().x(), 10.0);
-    assert_authored_close(first[1].position().y(), -5.0);
+    assert_authored_close(first[0].position().x(), 30.0);
+    assert_authored_close(first[0].position().y(), 30.0);
+    assert_authored_close(first[1].position().x(), 30.0);
+    assert_authored_close(first[1].position().y(), -30.0);
     assert_eq!(first[0].position().z(), 7.0);
     assert_authored_close(second[0].position().x(), 100.0);
-    assert_authored_close(second[0].position().y(), 45.0);
+    assert_authored_close(second[0].position().y(), 80.0);
     assert_authored_close(second[1].position().x(), 100.0);
-    assert_authored_close(second[1].position().y(), 35.0);
+    assert_authored_close(second[1].position().y(), 20.0);
     assert_eq!(repaired.observation().snapshot().revision(), 1);
     let cdml = repaired.observation().snapshot().cdml();
     assert!(cdml.contains("<v:note>keep</v:note>"));
@@ -129,7 +129,7 @@ fn clean_geometry_validates_every_target_before_native_generation() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"good\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\">",
-        "<point x=\"10\" y=\"0\"/></atom>",
+        "<point x=\"60\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule>",
         "<molecule id=\"bad\"><atom id=\"c\" name=\"C\">",
         "<point x=\"20\" y=\"0\"/></atom><atom id=\"d\" name=\"O\">",
@@ -218,7 +218,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
         "<point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\">",
-        "<point x=\"10\" y=\"0\"/></atom>",
+        "<point x=\"60\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
     );
     let engine = engine();
@@ -227,7 +227,7 @@ fn clean_geometry_rejects_stale_preparation_without_mutation() {
     let molecule_id = observation.projection().molecules()[0]
         .document_object_id()
         .clone();
-    let update = build_clean_geometry_update_v1(&engine, &observation, &[molecule_id], 10.0)
+    let update = build_clean_geometry_update_v1(&engine, &observation, &[molecule_id], 60.0)
         .expect("clean geometry prepares");
     let changed = session
         .apply_document_operation_v1(

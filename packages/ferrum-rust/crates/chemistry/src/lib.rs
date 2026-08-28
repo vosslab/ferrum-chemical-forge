@@ -21,8 +21,9 @@ mod sdf;
 
 pub use crate::adapter::{ExplicitAdapterError, load_explicit_adapter};
 pub use crate::cdxml_decoder::{
-    CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1, CdxmlDecodedDocumentV1, CdxmlDecodedRecordV1,
-    CdxmlDecoderErrorV1, CdxmlLossCategoryV1, CdxmlRefusalReasonV1, decode_cdxml_bytes_v1,
+    CDXML_SIMPLE_MOLECULE_IMPORT_MAX_SOURCE_BYTES_V1, CdxmlBondPresentationV1,
+    CdxmlDecodedDocumentV1, CdxmlDecodedRecordV1, CdxmlDecoderErrorV1, CdxmlLossCategoryV1,
+    CdxmlRefusalReasonV1, decode_cdxml_bytes_v1,
 };
 pub use crate::cml::{
     CmlDecodedDocumentV1, CmlDecodedRecordV1, CmlDecoderErrorV1, CmlEncoderErrorV1,

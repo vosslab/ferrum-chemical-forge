@@ -7,22 +7,22 @@ use crate::{
     TypedDocumentError,
 };
 use ferrum_render::{
-    DepictionProfileV1, ResolvedDocumentRenderErrorV1, ResolvedDocumentRenderV1,
-    ResolvedDocumentRenderWireV1, resolve_document_render_v1,
+    DepictionProfileV1, ResolvedDocumentRenderErrorV2, ResolvedDocumentRenderV2,
+    ResolvedDocumentRenderWireV2, resolve_document_render_v2,
 };
 use thiserror::Error;
 
 /// Closed schema identifier for a session-authenticated render observation.
-pub const DOCUMENT_RENDER_OBSERVATION_SCHEMA_V1: &str = "ferrum-document-render-observation-v1";
+pub const DOCUMENT_RENDER_OBSERVATION_SCHEMA_V2: &str = "ferrum-document-render-observation-v2";
 
 /// One authoritative document observation paired with the exact pure render result.
 #[derive(Debug)]
-pub struct DocumentRenderObservationV1 {
+pub struct DocumentRenderObservationV2 {
     document: SessionDocumentObservationV1,
-    resolved: ResolvedDocumentRenderV1,
+    resolved: ResolvedDocumentRenderV2,
 }
 
-impl DocumentRenderObservationV1 {
+impl DocumentRenderObservationV2 {
     fn from_document(
         document: SessionDocumentObservationV1,
         profile: DepictionProfileV1,
@@ -33,7 +33,7 @@ impl DocumentRenderObservationV1 {
             return Err(DocumentRenderObservationErrorV1::ProvenanceMismatch);
         }
         let projection = projection_with_stereo_depictions(&document)?;
-        let resolved = resolve_document_render_v1(projection, profile)?;
+        let resolved = resolve_document_render_v2(projection, profile)?;
         if resolved.projection().revision() != document.snapshot().revision()
             || resolved.projection().digest() != document.snapshot().digest()
         {
@@ -50,13 +50,13 @@ impl DocumentRenderObservationV1 {
 
     /// Return the immutable pure renderer result authenticated to this observation.
     #[must_use]
-    pub const fn resolved(&self) -> &ResolvedDocumentRenderV1 {
+    pub const fn resolved(&self) -> &ResolvedDocumentRenderV2 {
         &self.resolved
     }
 
     /// Return the wire representation of the immutable resolver result.
     #[must_use]
-    pub fn wire(&self) -> ResolvedDocumentRenderWireV1 {
+    pub fn wire(&self) -> ResolvedDocumentRenderWireV2 {
         self.resolved.wire()
     }
 }
@@ -100,31 +100,31 @@ fn projection_with_stereo_depictions(
 }
 
 /// Derive a session-authenticated render observation from an accepted operation.
-pub fn derive_document_render_observation_from_accepted_operation_v1(
+pub fn derive_document_render_observation_from_accepted_operation_v2(
     observation: &SessionDocumentObservationV1,
-) -> Result<DocumentRenderObservationV1, DocumentRenderObservationErrorV1> {
-    DocumentRenderObservationV1::from_document(
+) -> Result<DocumentRenderObservationV2, DocumentRenderObservationErrorV1> {
+    DocumentRenderObservationV2::from_document(
         observation.clone(),
         DepictionProfileV1::ferrum_default(),
     )
 }
 
 /// Acquire and resolve the exact current revision of one document session.
-pub fn observe_document_render_v1(
+pub fn observe_document_render_v2(
     session: &DocumentSession,
     expected_revision: u64,
-) -> Result<DocumentRenderObservationV1, DocumentRenderObservationErrorV1> {
+) -> Result<DocumentRenderObservationV2, DocumentRenderObservationErrorV1> {
     let document = session.observe(expected_revision)?;
-    DocumentRenderObservationV1::from_document(document, DepictionProfileV1::ferrum_default())
+    DocumentRenderObservationV2::from_document(document, DepictionProfileV1::ferrum_default())
 }
 
 impl DocumentSession {
     /// Acquire the authoritative observation and its pure render result at one revision.
-    pub fn observe_render_v1(
+    pub fn observe_render_v2(
         &self,
         expected_revision: u64,
-    ) -> Result<DocumentRenderObservationV1, DocumentRenderObservationErrorV1> {
-        observe_document_render_v1(self, expected_revision)
+    ) -> Result<DocumentRenderObservationV2, DocumentRenderObservationErrorV1> {
+        observe_document_render_v2(self, expected_revision)
     }
 }
 
@@ -136,7 +136,7 @@ pub enum DocumentRenderObservationErrorV1 {
     Document(#[from] DocumentSessionError),
     /// The immutable renderer resolver refused the exact document projection.
     #[error(transparent)]
-    Render(#[from] ResolvedDocumentRenderErrorV1),
+    Render(#[from] ResolvedDocumentRenderErrorV2),
     /// Typed document stereo depiction observation failed.
     #[error(transparent)]
     StereoDepiction(#[from] TypedDocumentError),
@@ -155,4 +155,4 @@ pub enum DocumentRenderObservationErrorV1 {
 }
 
 /// The document-owned wire view is exactly the pure immutable renderer wire format.
-pub type DocumentRenderObservationWireV1 = ResolvedDocumentRenderWireV1;
+pub type DocumentRenderObservationWireV2 = ResolvedDocumentRenderWireV2;

@@ -5,16 +5,16 @@ use super::super::{
 
 const SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-    "</atom><atom id=\"b\" name=\"O\"><point x=\"20\" y=\"0\"/></atom>",
+    "</atom><atom id=\"b\" name=\"O\"><point x=\"60\" y=\"0\"/></atom>",
     "<bond id=\"ab\" type=\"n1\" start=\"a\" end=\"b\"/></molecule></cdml>",
 );
 
 const TWO_MOLECULE_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-    "</atom><atom id=\"b\" name=\"O\"><point x=\"20\" y=\"0\"/></atom>",
+    "</atom><atom id=\"b\" name=\"O\"><point x=\"60\" y=\"0\"/></atom>",
     "<bond id=\"ab\" type=\"n1\" start=\"a\" end=\"b\"/></molecule>",
-    "<molecule id=\"n\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"20\"/>",
-    "</atom><atom id=\"d\" name=\"O\"><point x=\"20\" y=\"20\"/></atom>",
+    "<molecule id=\"n\"><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"60\"/>",
+    "</atom><atom id=\"d\" name=\"O\"><point x=\"60\" y=\"60\"/></atom>",
     "<bond id=\"cd\" type=\"n1\" start=\"c\" end=\"d\"/></molecule></cdml>",
 );
 
@@ -169,7 +169,7 @@ fn repair_keeps_its_existing_id_without_installing_a_fragment_sequence() {
         .observation()
         .snapshot()
         .cdml()
-        .replace("x=\"10\"", "x=\"11\"");
+        .replace("x=\"40\"", "x=\"44\"");
     let mut repaired = DocumentSession::load(&damaged).expect("damaged source loads");
     let (molecule, atoms) = request(&repaired, 0);
     let PreparedLinearFormConvertResultV1::Pending(mut repair) = repaired

@@ -70,22 +70,47 @@ the applicable front door before handoff.
 | Change or question | Command | What it proves |
 | --- | --- | --- |
 | Rust package behavior | `cd packages/ferrum-rust && cargo test -p PACKAGE --locked` | Affected native contract |
-| Rust workspace boundary | `./check_rust.sh` | Formatting, checks, strict Clippy, tests, and docs for both Rust workspaces |
+| Rust workspace boundary | `./check_rust.sh` | One-workspace formatting, checks, strict Clippy, tests, and docs |
 | Repository policy or Python behavior | `source source_me.sh && python3 -B -m pytest tests/ -q -W error` | Fast repository checks; E2Es stay excluded |
 | Qt presentation behavior | `source source_me.sh && QT_QPA_PLATFORM=offscreen python3 -B -m pytest packages/ferrum-chem-qt.app/tests/ -q -W error` | Deterministic headless Qt behavior through the staged extension |
 | Product workflow | `./build.sh && bash tests/e2e/run_all.sh` | Registered CLI and Qt E2Es against the staged local program |
 | Local acceptance | `./build.sh && ./all_test.sh` | Hygiene, staged-runtime receipt, launcher smoke, registered E2Es, PyO3, and Qt suites |
 
-Run `./check_rust.sh` after Rust workspace changes. It uses lockfiles and a
-disposable `build/.cargo-check-target/` directory; it removes that work area
-when complete. Use an explicit Cargo target only when qualifying a platform or
-changing target-sensitive native code. Rust and boundary rules are in
+Run `./check_rust.sh` after Rust workspace changes. It verifies the sole workspace,
+including the `crates/api-python/` PyO3 crate, with lockfiles and a disposable
+`build/.cargo-check-target/` directory; it removes that work area when complete.
+Use an explicit Cargo target only when qualifying a platform or changing
+target-sensitive native code. Rust and boundary rules are in
 [RUST_STYLE.md](RUST_STYLE.md) and [RUST_PYO3_STYLE.md](RUST_PYO3_STYLE.md).
 
 Keep permanent pytest deterministic, offline, fast, and behavioral. A workflow
 with real subprocesses, multiple boundaries, visual review, or timing belongs
 in the explicit E2E or one-time evidence lane described by
 [PYTEST_STYLE.md](PYTEST_STYLE.md) and [FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md).
+
+## Change bounded CDXML bond presentation
+
+The Rust CDXML decoder owns imported bond presentation. Its bounded
+simple-molecule profile maps ChemDraw `Display="Wavy"`, `Display="Bold"`, and
+`Display="Dash"` to Ferrum's durable document presentation, then the renderer
+and PyO3 binding expose the resulting facts to Qt. Do not teach the Python
+frontend to parse CDXML attributes or recreate chemistry semantics.
+
+The authorable CDML vocabulary is deliberately closed: `n1`, `n2`, and `n3`
+are normal single, double, and triple bonds; `w1`, `h1`, and `q1` are the
+single-bond wedge presentations; and `b1`, `d1`, and `s1` are bold, dashed,
+and wavy single bonds. A styled non-single source is a typed refusal, not a
+best-effort conversion. The generic interchange route also prepares a clean,
+complete render before it publishes a new document, so a later invalid record
+cannot leave an earlier fragment installed.
+
+For this boundary, start with the affected Rust crate tests. Before handoff,
+run `./check_rust.sh`, rebuild, and run the registered E2Es. The CLI and Qt
+CDXML E2Es exercise successful Wavy, Bold, and Dash import plus refusal and
+nonmutation behavior. They establish automated contract evidence; they do not
+replace a real-window usability or accessibility review. See
+[FERRUM_E2E.md](FERRUM_E2E.md) for the owned E2E scope and
+[GUI_TOUR.md](GUI_TOUR.md) for the separate documentation-capture boundary.
 
 ## Verify packaged boundaries
 
@@ -105,7 +130,27 @@ The optional `tests/e2e/reference/` environment contains Python RDKit only for
 one-time maintainer measurements. Keep it out of product and routine developer
 dependencies.
 
-## Review documentation
+## Change the native render contract
+
+Rust owns chemistry semantics, label layout, bond clipping, final ink bounds,
+and all render-plan ordering. The current closed PyO3 route is
+`RenderObservationV2` with `DocumentMoleculeRenderPlanV4` and
+`RenderPlanV4` (`ferrum-render-plan-v4`). Qt validates and replays these frozen
+DTOs into disposable graphics items; it does not infer atom-label placement,
+complete a missing bond, reinterpret chemistry, or preserve a retired render
+schema. Keep a change within its owning Rust crate until the native contract is
+complete, then expose its exact immutable facts through PyO3 and add the
+matching Qt projection behavior.
+
+This pre-production repository has no compatibility obligation to retired
+OASA, BKChem, or earlier Ferrum contracts. Replace a superseded contract
+throughout its owned boundary and its focused tests instead of retaining an
+alias, fallback, or dual route. A `V1`, `V2`, or later suffix names one
+deliberate durable schema; it is not permission to keep older schemas alive.
+Use [FERRUM_API_CONTRACT.md](FERRUM_API_CONTRACT.md) and
+[QT_CONTRACT.md](QT_CONTRACT.md) for exact public facts and ownership.
+
+## Review documentation and capture visuals
 
 Keep durable Markdown ASCII-only, concise, and linked with paths relative to
 the document that contains them. Check documentation from the repository root:
@@ -116,5 +161,19 @@ git diff --check
 ```
 
 Run [MARKDOWN_STYLE.md](MARKDOWN_STYLE.md)'s link and encoding rules before
-handoff. Screenshots are one-time documentation evidence, not permanent visual
-regressions; capture and review them using [GUI_TOUR.md](GUI_TOUR.md).
+handoff.
+
+When a user-visible Qt change needs fresh documentation evidence, rebuild the
+local program and capture the complete GUI tour from an active desktop session:
+
+```bash
+./build.sh
+./capture_gui_screenshots.sh
+```
+
+The capture harness validates its staged scene postconditions and full-window
+PNG framing before it publishes the tour. Screenshots remain one-time
+documentation evidence, not permanent visual-regression tests, proof of native
+accessibility or focus behavior, human visual acceptance, or release readiness.
+Use [GUI_TOUR.md](GUI_TOUR.md) for the storyboard, capture backends, and review
+boundary.

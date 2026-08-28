@@ -58,6 +58,24 @@ or user/API documentation delivery.
   constructor, candidate, plan, verifier, identity, serialization, or
   session-redemption capability.
 
+## 2026-08-28 complete-realization precision amendment
+
+Direct-root classification remains necessary but is not sufficient admission.
+`ferrum-render` composes both the current and candidate complete resolved render
+plans and derives their private omission sets. Ordinary authoring admits only
+when every candidate root exclusion, plan issue, and member depiction issue was
+already present in the current plan. Existing imported diagnostics may remain
+or be repaired; introducing or replacing an omission is a typed atomic refusal.
+The accepted value retains the exact candidate realization for identifier-free
+preview paint, and redemption rederives that realization before commit.
+
+History navigation uses a separate document-private policy. Undo and redo
+authenticate and rederive the exact retained target state instead of applying
+the ordinary current-to-candidate omission delta. This lets an admitted repair
+remain undoable without creating an operation-specific escape hatch from the
+authoring invariant. Neither policy is a new public protocol version, and no
+compatibility alias or frontend fallback is introduced.
+
 ## Visibility amendment
 
 This approved amendment corrects the accepted-value visibility boundary without

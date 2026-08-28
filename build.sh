@@ -24,7 +24,6 @@ readonly LOCAL_RUNTIME_RECEIPT="${RUST_ROOT}/local_runtime_receipt.py"
 readonly OWNED_WHEEL_OUTPUT_ROOT="${REPO_ROOT}/output_native_wheel"
 readonly CLEANABLE_BUILD_CARGO_TARGET="${BUILD_ROOT}/cargo-target"
 readonly CLEANABLE_RUST_TARGET="${RUST_ROOT}/target"
-readonly CLEANABLE_PYO3_TARGET="${RUST_ROOT}/crates/api/python/target"
 readonly MAX_CHECKOUT_KIB=$((20 * 1024 * 1024))
 readonly BUILD_LOCK_PATH="${BUILD_ROOT}/.build.lock"
 readonly BUILD_LOCK_OWNER="${$}-${RANDOM}-${RANDOM}"
@@ -81,7 +80,7 @@ clean_noncurrent_owned_build_state() {
 		rm -rf -- "${STABLE_RUNTIME_ROOT}"
 	fi
 	rm -rf -- "${OWNED_WHEEL_OUTPUT_ROOT}" "${CLEANABLE_BUILD_CARGO_TARGET}" \
-		"${CLEANABLE_RUST_TARGET}" "${CLEANABLE_PYO3_TARGET}" \
+		"${CLEANABLE_RUST_TARGET}" \
 		"${BUILD_ROOT}"/.cargo-target "${BUILD_ROOT}"/.cargo-target-* \
 		"${BUILD_ROOT}"/.current-next-* \
 		"${BUILD_ROOT}"/.ferrum-local-build-* \
@@ -125,7 +124,7 @@ require_checkout_budget() {
 			"$(du -sh "${REPO_ROOT}" | awk '{print $1}')" >&2
 		printf 'Largest known build-owned categories after fixed-path cleanup:\n' >&2
 		for category in "${BUILD_ROOT}" "${OWNED_WHEEL_OUTPUT_ROOT}" \
-			"${CLEANABLE_RUST_TARGET}" "${CLEANABLE_PYO3_TARGET}"; do
+			"${CLEANABLE_RUST_TARGET}"; do
 			if [[ -e "${category}" ]]; then
 				category_kib="$(du -sk "${category}" | awk '{print $1}')"
 				printf '  %s: %s KiB\n' "${category}" "${category_kib}" >&2

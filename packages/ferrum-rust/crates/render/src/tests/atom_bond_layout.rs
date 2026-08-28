@@ -1,6 +1,8 @@
 use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_document_projection::DocumentObjectIdV1;
 
+use crate::atom_bond::build_atom_bond_plan;
+use crate::glyph_metrics::GlyphMetrics;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::*;
 
@@ -47,13 +49,13 @@ fn atom_target(entropy: u8, id: &str, paint_order: u32, x: f64, y: f64) -> AtomR
     AtomRenderTarget::new(
         context(entropy, RecordKind::Atom, id, paint_order),
         point(x, y),
-        AtomLabelFacts::new("N", 1, 2).expect("label facts"),
+        AtomLabelFacts::new("N", None, 1, 2).expect("label facts"),
         TargetVisibility::Visible,
     )
     .expect("atom target")
 }
 
-fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
+fn rendered_bond_operations(style: BondStyle) -> Vec<RenderOp> {
     let first = atom_target(0x11, "line-a1", 1, 0.0, 0.0);
     let second = atom_target(0x12, "line-a2", 3, 40.0, 0.0);
     let bond = BondRenderTarget::new(
@@ -71,19 +73,60 @@ fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
         atom_bond_font(),
         size(1.0),
         size(10.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("request");
     let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
     assert!(plan.issues().is_empty());
-    plan.batches()[1]
-        .operations()
-        .iter()
+    plan.batches()[1].operations().to_vec()
+}
+
+fn rendered_bond_lines(style: BondStyle) -> Vec<LineOp> {
+    rendered_bond_operations(style)
+        .into_iter()
         .map(|operation| match operation {
             RenderOp::Line(line) => line.clone(),
             _ => panic!("bond batch must contain only lines"),
         })
         .collect()
+}
+
+#[test]
+fn styled_single_bonds_share_normal_label_clipping_before_explicit_lowering() {
+    let normal = rendered_bond_lines(BondStyle::NormalSingle);
+    let normal = normal.first().expect("normal bond line");
+    let bold = rendered_bond_lines(BondStyle::Bold);
+    assert_eq!(bold.len(), 1);
+    assert!(bold[0].start().x() > normal.start().x());
+    assert!(bold[0].end().x() < normal.end().x());
+    assert_eq!(bold[0].width().get(), normal.width().get() * 2.0);
+
+    let dashes = rendered_bond_lines(BondStyle::Dashed);
+    assert!(dashes.len() > 1);
+    let first_margin = dashes.first().expect("first dash").start().x() - normal.start().x();
+    let final_margin = normal.end().x() - dashes.last().expect("last dash").end().x();
+    assert!(first_margin > 0.0);
+    assert!((first_margin - final_margin).abs() < 1.0e-12);
+    for pair in dashes.windows(2) {
+        assert!(pair[0].end().x() < pair[1].start().x());
+        assert!((pair[0].end().x() - pair[0].start().x() - 3.0).abs() < 1.0e-12);
+        assert!((pair[1].start().x() - pair[0].end().x() - 3.0).abs() < 1.0e-12);
+    }
+
+    let wave = rendered_bond_operations(BondStyle::Wavy);
+    assert_eq!(wave.len(), 1);
+    let RenderOp::Path(path) = &wave[0] else {
+        panic!("wavy bond lowers as one explicit path")
+    };
+    let ScenePathCommandV3::MoveTo(start) = path.commands()[0] else {
+        panic!("wave begins at clipped axis")
+    };
+    let ScenePathCommandV3::CubicTo { end, .. } = path.commands().last().expect("wave end") else {
+        panic!("wave ends in cubic")
+    };
+    assert!(start.x() > normal.start().x());
+    assert!(end.x() < normal.end().x());
 }
 
 fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<RenderOp> {
@@ -110,6 +153,7 @@ fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<Ren
         atom_bond_font(),
         size(1.0),
         size(10.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("directed request");
@@ -118,7 +162,7 @@ fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<Ren
     plan.batches()[1].operations().to_vec()
 }
 
-fn rendered_haworth_front_batch(style: BondStyle, reverse: bool) -> RenderBatch {
+fn rendered_haworth_front_batch(style: BondStyle, reverse: bool) -> RenderBatchV4 {
     let first = atom_target(0x11, "haworth-a", 1, 0.0, 0.0);
     let second = atom_target(0x12, "haworth-b", 3, 40.0, 0.0);
     let bond = BondRenderTarget::new(
@@ -143,6 +187,7 @@ fn rendered_haworth_front_batch(style: BondStyle, reverse: bool) -> RenderBatch 
         atom_bond_font(),
         size(1.0),
         size(10.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("Haworth request");
@@ -177,6 +222,7 @@ fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
         atom_bond_font(),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("request");
@@ -210,9 +256,9 @@ fn atom_bond_request_emits_structured_labels_and_metric_clipped_single_bonds() {
     assert!(line.end().x() < 40.0);
     assert!(label.runs()[0].origin().x() < 0.0);
     assert_eq!(label.runs()[0].scale(), size(1.0));
-    assert!(label.runs()[2].origin().y() < 0.0);
+    assert!(label.runs()[2].origin().y() > 0.0);
     assert_eq!(label.runs()[2].scale(), size(0.65));
-    assert!(label.runs()[3].origin().y() > 0.0);
+    assert!(label.runs()[3].origin().y() < 0.0);
     assert_eq!(label.runs()[3].scale(), size(0.65));
     assert!(
         label
@@ -246,6 +292,7 @@ fn ez_carrier_mark_emits_a_distinct_provenance_bearing_render_operation() {
         atom_bond_font(),
         size(1.0),
         size(10.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("carrier request");
@@ -298,6 +345,7 @@ fn shared_ez_carrier_emits_one_operation_for_each_central_double_bond() {
         atom_bond_font(),
         size(1.0),
         size(10.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("carrier request");
@@ -374,6 +422,7 @@ fn visible_atom_number_is_a_separate_explicit_text_operation() {
         atom_bond_font(),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("000000"),
     )
     .expect("request");
@@ -427,6 +476,7 @@ fn atom_marks_lower_to_closed_semantic_primitives_without_toolkit_defaults() {
             atom_bond_font(),
             size(1.0),
             size(6.0),
+            BondInkClearance::new(size(1.25)),
             paint("000000"),
         )
         .expect("request");
@@ -530,6 +580,14 @@ fn directed_stereo_bonds_widen_toward_the_authored_end() {
 
 #[test]
 fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
+    let label = atom_bond_metrics()
+        .layout_atom_label(
+            &AtomLabelFacts::new("N", None, 1, 2).expect("label facts"),
+            &atom_bond_font(),
+        )
+        .expect("label layout")
+        .bounds();
+    let gap = 1.25;
     let q = rendered_haworth_front_batch(BondStyle::HaworthFrontStroke, false);
     let w = rendered_haworth_front_batch(BondStyle::HaworthFrontWedge, false);
     let reversed_w = rendered_haworth_front_batch(BondStyle::HaworthFrontWedge, true);
@@ -542,6 +600,18 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
         if stroke.width() == size(6.0)
             && stroke.paint().export_rgb().as_str() == "224466"
             && stroke.line_cap() == VectorStrokeLineCapV1::Round));
+    let [
+        ScenePathCommandV3::MoveTo(q_start),
+        ScenePathCommandV3::LineTo(q_end),
+    ] = q_path.commands()
+    else {
+        panic!("q1/front has its explicit padded axis")
+    };
+    // q1's centerline moves 0.35w back after clipping and its round cap adds
+    // another 0.5w. The emitted ink, not merely the pre-lowered axis, ends
+    // exactly outside each label's required clearance.
+    assert!(q_start.x() - 3.0 >= label.max_x() + gap - 1.0e-12);
+    assert!(q_end.x() + 3.0 <= 40.0 + label.min_x() - gap + 1.0e-12);
 
     let RenderOp::Path(w_path) = &w.operations()[0] else {
         panic!("w1/front must lower to a selectable scene path");
@@ -575,6 +645,10 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
             && tip.x() < base.x()
             && reversed_tip.x() > reversed_base.x()
     );
+    // w1's filled base extends 0.25w after clipping. The existing 0.5w
+    // isotropic reserve keeps its actual painted endpoints outside the gap.
+    assert!(tip.x() >= label.max_x() + gap - 1.0e-12);
+    assert!(base.x() <= 40.0 + label.min_x() - gap + 1.0e-12);
 }
 
 #[test]
@@ -587,6 +661,7 @@ fn opaque_label_masks_have_explicit_paint_and_fixed_molecule_plane_order() {
         atom_bond_font().with_label_mask(paint("ffffff")),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("000000"),
     )
     .expect("request");
@@ -610,7 +685,7 @@ fn atom_bond_builder_returns_explicit_issues_for_invisible_unsupported_and_unren
     let hidden = AtomRenderTarget::new(
         context(0x12, RecordKind::Atom, "a2", 2),
         point(10.0, 0.0),
-        AtomLabelFacts::new("O", 0, 0).expect("label facts"),
+        AtomLabelFacts::new("O", None, 0, 0).expect("label facts"),
         TargetVisibility::Hidden {
             reason: "collapsed group".to_owned(),
         },
@@ -639,6 +714,7 @@ fn atom_bond_builder_returns_explicit_issues_for_invisible_unsupported_and_unren
         atom_bond_font(),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("000000"),
     )
     .expect("request");
@@ -694,6 +770,7 @@ fn atom_bond_builder_rejects_coincident_and_extreme_bond_geometry_without_partia
         atom_bond_font(),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("000000"),
     )
     .expect("request");
@@ -706,6 +783,75 @@ fn atom_bond_builder_rejects_coincident_and_extreme_bond_geometry_without_partia
             issue.kind(),
             RenderIssueKind::UnrenderableTarget { reason }
                 if reason.contains("coincident") || reason.contains("not representable")
+        ));
+    }
+}
+
+#[test]
+fn styled_bonds_refuse_degenerate_axes_without_a_normal_line_fallback() {
+    for style in [BondStyle::Bold, BondStyle::Dashed, BondStyle::Wavy] {
+        let first = atom_target(0x31, "styled-coincident-a", 1, 0.0, 0.0);
+        let second = atom_target(0x32, "styled-coincident-b", 3, 0.0, 0.0);
+        let bond = BondRenderTarget::new(
+            context(0x33, RecordKind::Bond, "styled-coincident-bond", 2),
+            record_id(RecordKind::Atom, "styled-coincident-a"),
+            record_id(RecordKind::Atom, "styled-coincident-b"),
+            style.clone(),
+            TargetVisibility::Visible,
+        )
+        .expect("bond target");
+        let request = AtomBondRenderRequest::new(
+            RenderProvenance::new(RenderRevision::new(12).expect("revision"), [0x31; 32]),
+            vec![first, second],
+            vec![bond],
+            atom_bond_font(),
+            size(1.0),
+            size(6.0),
+            BondInkClearance::new(size(1.25)),
+            paint("000000"),
+        )
+        .expect("request");
+        let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
+        assert_eq!(plan.batches().len(), 2, "{style:?}");
+        assert!(matches!(
+            plan.issues()[0].kind(),
+            RenderIssueKind::UnrenderableTarget { reason } if reason.contains("coincident")
+        ));
+    }
+}
+
+#[test]
+fn over_cap_styled_bonds_become_target_issues_without_partial_batches() {
+    for style in [BondStyle::Dashed, BondStyle::Wavy] {
+        let first = atom_target(0x41, "over-cap-a", 1, 0.0, 0.0);
+        let second = atom_target(0x42, "over-cap-b", 3, 1.0e100, 0.0);
+        let bond = BondRenderTarget::new(
+            context(0x43, RecordKind::Bond, "over-cap-bond", 2),
+            record_id(RecordKind::Atom, "over-cap-a"),
+            record_id(RecordKind::Atom, "over-cap-b"),
+            style.clone(),
+            TargetVisibility::Visible,
+        )
+        .expect("bond target");
+        let request = AtomBondRenderRequest::new(
+            RenderProvenance::new(RenderRevision::new(13).expect("revision"), [0x41; 32]),
+            vec![first, second],
+            vec![bond],
+            atom_bond_font(),
+            size(1.0),
+            size(6.0),
+            BondInkClearance::new(size(1.25)),
+            paint("000000"),
+        )
+        .expect("request");
+
+        let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
+        assert_eq!(plan.batches().len(), 2, "{style:?}");
+        assert_eq!(plan.issues().len(), 1, "{style:?}");
+        assert!(matches!(
+            plan.issues()[0].kind(),
+            RenderIssueKind::UnrenderableTarget { reason }
+                if reason.contains("primitive") && reason.contains("cap")
         ));
     }
 }
@@ -731,6 +877,7 @@ fn atom_bond_builder_rejects_touching_or_overlapping_label_clips_in_every_direct
             atom_bond_font(),
             size(1.0),
             size(6.0),
+            BondInkClearance::new(size(1.25)),
             paint("000000"),
         )
         .expect("request");
@@ -746,7 +893,7 @@ fn atom_bond_builder_rejects_touching_or_overlapping_label_clips_in_every_direct
 
 #[test]
 fn deterministic_layout_bounds_describe_the_same_positioned_runs_for_multi_unit_charge() {
-    let label = AtomLabelFacts::new("N", -3, 2).expect("facts");
+    let label = AtomLabelFacts::new("N", None, -3, 2).expect("facts");
     let layout = atom_bond_metrics()
         .layout_atom_label(&label, &atom_bond_font())
         .expect("layout");
@@ -759,19 +906,19 @@ fn deterministic_layout_bounds_describe_the_same_positioned_runs_for_multi_unit_
     assert!(layout.bounds().max_x() >= 0.0);
     assert!(layout.bounds().min_y() <= 0.0);
     assert!(layout.bounds().max_y() >= 0.0);
-    // GlyphBounds is the atom-anchor clipping envelope.  Superscript and
-    // subscript baselines may lie outside their visible outlines, so their run
-    // origins are not themselves bounds facts.
+    // GlyphBounds contains only the exact visible ink. Superscript and
+    // subscript baselines may lie outside their outlines, so run origins are
+    // deliberately not bounds facts.
 }
 
 #[test]
 fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts() {
-    assert!(AtomLabelFacts::new("cl", 0, 0).is_err());
+    assert!(AtomLabelFacts::new("cl", None, 0, 0).is_err());
     assert!(
         AtomRenderTarget::new(
             context(0x11, RecordKind::Bond, "b1", 1),
             point(0.0, 0.0),
-            AtomLabelFacts::new("C", 0, 0).expect("facts"),
+            AtomLabelFacts::new("C", None, 0, 0).expect("facts"),
             TargetVisibility::Visible,
         )
         .is_err()
@@ -787,6 +934,7 @@ fn atom_bond_request_requires_typed_kinds_unique_order_and_explicit_label_facts(
             atom_bond_font(),
             size(1.0),
             size(6.0),
+            BondInkClearance::new(size(1.25)),
             paint("000000"),
         )
         .is_err()
@@ -820,6 +968,7 @@ fn normal_atom_bonds_render_while_missing_compact_group_geometry_is_a_closed_iss
         atom_bond_font(),
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("000000"),
     )
     .expect("request");

@@ -124,8 +124,8 @@ impl MoleculeInsertionBondV1 {
 
     /// Construct one bond with its exact persisted presentation.
     ///
-    /// Directed wedge presentations remain single covalent bonds while retaining
-    /// their authored endpoint direction through CDML serialization.
+    /// Fixed single-bond presentations retain their authored depiction while
+    /// making a non-single order unrepresentable in this detached payload.
     #[must_use]
     pub const fn new_with_presentation(
         start: usize,
@@ -134,9 +134,12 @@ impl MoleculeInsertionBondV1 {
     ) -> Self {
         let order = match presentation {
             DocumentBondPresentationV1::Normal(order) => order,
-            DocumentBondPresentationV1::SolidWedge | DocumentBondPresentationV1::HashedWedge => {
-                DocumentBondOrderV1::Single
-            }
+            DocumentBondPresentationV1::SolidWedge
+            | DocumentBondPresentationV1::HashedWedge
+            | DocumentBondPresentationV1::Bold
+            | DocumentBondPresentationV1::Dashed
+            | DocumentBondPresentationV1::Wavy
+            | DocumentBondPresentationV1::HaworthFront => DocumentBondOrderV1::Single,
         };
         Self {
             start,

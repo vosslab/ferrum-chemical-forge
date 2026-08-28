@@ -1,20 +1,33 @@
-# M12 render ops and glyph metrics
+# Render operations and glyph metrics
 
 ## Verdict
 
-M12 is complete for the currently evidenced macOS arm64 Telex/PySide6 reference
-boundary. Rust owns the declarative operation and glyph facts; Ferrum-Qt consumes
-them without choosing a font, shaping text, or measuring advances. This is not
-pixel or byte equivalence, cross-platform coverage, a timing gate, or M13 backend
-work.
+Rust owns atom-label metrics, attachment, ink exclusion, and declarative drawing
+operations. The current renderer places the core structural-element ink center at
+the atom origin, preserves complete visible label ink for bond exclusion, and
+emits plans that Qt consumes without choosing an anchor, shaping replacement text,
+or measuring alternative advances. This report records the current contract; it
+does not close a parity milestone, cross-platform validation, or human visual
+acceptance.
 
-## Metric boundary
+## Current metric and attachment boundary
 
 - Rust reads the hash-verified embedded Telex Regular bytes through `ttf-parser`
   design units and converts them to scene `f64` values with no extra rounding.
-- Run and centered-plus bounds are true outline ink bounds. Atom-label clipping
-  alone expands its outline union to include the durable atom origin, because a
-  bond starts at that anchor.
+- `GlyphBounds` is the exact finite visible-ink rectangle for positioned runs.
+  It is not widened merely to contain an atom origin.
+- The typed element run determines unversioned `AtomLabelAttachmentGeometry`.
+  Its exact ink center must equal local `(0, 0)`; the complete element,
+  hydrogen, isotope, and charge union remains the clipping exclusion geometry.
+- One shared y-down script-baseline calculation puts subscripts below and
+  superscripts above the centered core element. Decorations therefore cannot
+  move a bond attachment point.
+- `BondInkClearance` is a required positive input. The clipped envelope expands
+  complete label ink by the requested gap and the final painted footprint:
+  half-width for ordinary and dashed lines, full base width for bold, amplitude
+  plus stroke for waves, and the relevant wedge or Haworth radius and axial
+  overhang. An empty remaining span is a typed render refusal, not an
+  overlapping line.
 - Glyph IDs and glyph origins are exact discrete facts. The V1 grammar remains
   unshaped; it does not promise fallback fonts, kerning, ligatures, bidi, or a
   general Unicode layout engine.
@@ -23,7 +36,7 @@ work.
   carried through round-trip JSON formatting. It adds no decimal quantum and does
   not treat JSON punctuation as a rendering contract.
 
-## One-time target evidence
+## Superseded metric evidence
 
 `devel/measure_m12_font_metrics.py` opened the exact embedded Telex bytes in
 Qt `QRawFont` 6.11.1 at 1000 px with `PreferNoHinting`, on macOS 26.6.1 arm64
@@ -37,15 +50,25 @@ compared the closed corpus `C`, `Cl`, `Br`, `H2`, `NH3+`, and `I`.
   scene units. It remains an observation, not a tolerance, CI threshold, or
   portability promise.
 
-A disposable current-wheel offscreen Qt proof consumed the Rust-issued iodine and
-plus glyph IDs and origins using `QRawFont.pathForGlyph`. It found nonempty
-outlines for both supplied glyphs and installed the projection. That proves the
-current PyO3-to-Qt consumer path, not a permanent GUI, screenshot, pixel, byte, or
-timing gate.
+Those measurements established the font asset and former Rust-to-Qt glyph replay
+boundary, but they predate the core-centered atom-label contract. They are not
+evidence that final bond ink clears the current labels. The current public render
+plan lacks read-only core-attachment and full-ink exclusion facts, so a durable Qt
+fidelity test is correctly blocked pending a closed observation DTO. Once that
+schema exists, a rebuilt extension can compare representative decorated-label
+paths against the issued attachment, exclusion, and bond-plan facts.
 
-## Permanent evidence and limits
+## Current automated evidence and remaining acceptance
 
-Semantic Cargo render/API tests and focused Qt projection tests remain the
-permanent evidence. The QRawFont comparison and current-wheel proof are
-implementation receipts only. M20 must refresh equivalent evidence for each added
-release target. Cairo raster/PDF and `xot` SVG remain M13 work.
+The renderer's deterministic Telex corpus now checks exact core centering,
+full-ink containment, y-down script placement, and style-aware final-footprint
+clearance, including the Haworth front axial extension. The focused local render
+lane passes 144 tests with formatting and strict Clippy clean. This is automated
+renderer evidence only.
+
+The following remain open: an approved closed read-only observation DTO, an
+installed Qt path/plan alignment receipt, a rebuilt Qt/CDXML end-to-end run, fresh
+13-scene screenshots with independent visual review, human accessibility review,
+a post-change aggregate repository gate, CI, release artifacts, and cross-platform
+font evidence. SVG, PDF, and PNG consume the same Rust plan, but their automated
+operation checks are not a substitute for visual acceptance.

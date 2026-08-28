@@ -358,11 +358,11 @@ fn scale_uses_aggregate_center_and_removes_invalid_generated_linear_forms_while_
  {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\"/></atom>",
+        "<atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
         "<bond id=\"ab\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-        "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
+        "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
         "<fragment id=\"richer\" type=\"linear_form\" retained=\"yes\">",
         "<name>linear_form</name><extension/></fragment></molecule>",
         "<plus id=\"p\"><point x=\"20\" y=\"0\"/></plus></cdml>",
@@ -381,14 +381,14 @@ fn scale_uses_aggregate_center_and_removes_invalid_generated_linear_forms_while_
         )
         .expect("scale succeeds");
     let projection = scaled.observation().projection();
-    assert_authored_close(projection.molecules()[0].atoms()[0].position().x(), -10.0);
-    assert_authored_close(projection.molecules()[0].atoms()[1].position().x(), 10.0);
+    assert_authored_close(projection.molecules()[0].atoms()[0].position().x(), -20.0);
+    assert_authored_close(projection.molecules()[0].atoms()[1].position().x(), 60.0);
     let PresentationRootProjectionV1::Plus { plus } =
         projection.presentation_stack().entries()[0].root()
     else {
         panic!("plus remains projected");
     };
-    assert_authored_close(plus.anchor().x(), 30.0);
+    assert_authored_close(plus.anchor().x(), 20.0);
     let cdml = scaled.observation().snapshot().cdml();
     assert!(!cdml.contains("id=\"owned\""));
     assert!(cdml.contains("id=\"richer\""));
@@ -413,11 +413,11 @@ fn scale_uses_aggregate_center_and_removes_invalid_generated_linear_forms_while_
 fn mirrors_share_one_pivot_and_preserve_valid_generated_linear_form_metadata() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"5\"/></atom>",
-        "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"5\"/></atom>",
+        "<atom id=\"b\" name=\"C\"><point x=\"40\" y=\"5\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
         "<bond id=\"ab\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-        "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
+        "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
         "</molecule><plus id=\"p\"><point x=\"20\" y=\"15\"/></plus></cdml>",
     );
     let mut horizontal = DocumentSession::load(source).expect("fixture loads");
@@ -458,7 +458,7 @@ fn mirrors_share_one_pivot_and_preserve_valid_generated_linear_form_metadata() {
         mirrored.observation().projection().molecules()[0].atoms()[0]
             .position()
             .x(),
-        20.0,
+        40.0,
     );
     assert!(
         mirrored

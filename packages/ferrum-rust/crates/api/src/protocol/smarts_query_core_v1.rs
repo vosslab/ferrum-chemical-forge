@@ -1,11 +1,11 @@
 //! Private, bounded document SMARTS execution over one owned snapshot.
 
 use ferrum_chemistry::{ChemEngine, SmartsMatchOptions};
-use ferrum_document::{DocumentObjectIdV1, DocumentSession, DocumentSmartsSnapshotErrorV1};
+use ferrum_document::{DocumentObjectIdV1, DocumentSession, DocumentSessionError};
 use ferrum_render::RenderTarget;
 
 use super::{
-    document_smarts_snapshot_v1::OwnedDocumentSmartsSnapshotV1,
+    document_smarts_snapshot::{OwnedDocumentSmartsSnapshot, SnapshotConstructionError},
     dto::{
         DocumentSmartsQueryInputV1, DocumentSmartsQueryMoleculeSummaryV1,
         DocumentSmartsQueryRequestV1, DocumentSmartsQuerySummaryV1,
@@ -38,10 +38,11 @@ pub(super) fn execute_document_smarts_query_v1<R: ChemistryRuntimeV1>(
             "match_caps_inconsistent".to_owned(),
         ));
     }
-    let snapshot = session
-        .prepare_smarts_snapshot_v1(request.document.expected_revision)
-        .map(OwnedDocumentSmartsSnapshotV1::from_prepared_snapshot_v1)
-        .map_err(map_document_preparation)?;
+    let observation = session
+        .observe(request.document.expected_revision)
+        .map_err(map_document_observation)?;
+    let snapshot = OwnedDocumentSmartsSnapshot::from_accepted_observation(observation)
+        .map_err(map_snapshot_construction)?;
     if snapshot.digest() != &digest {
         return Err(ExecutionFailureV1::document_invalid(
             "stale_document".to_owned(),
@@ -88,7 +89,7 @@ pub(super) fn execute_document_smarts_query_v1<R: ChemistryRuntimeV1>(
 
 fn execute_owned_snapshot(
     engine: &dyn ChemEngine,
-    snapshot: &OwnedDocumentSmartsSnapshotV1,
+    snapshot: &OwnedDocumentSmartsSnapshot,
     query_text: &str,
     per: u32,
     total: u32,
@@ -162,15 +163,21 @@ fn map_runtime(error: ChemistryRuntimeErrorV1) -> ExecutionFailureV1 {
     }
 }
 
-fn map_document_preparation(error: DocumentSmartsSnapshotErrorV1) -> ExecutionFailureV1 {
+fn map_document_observation(error: DocumentSessionError) -> ExecutionFailureV1 {
     match error {
-        DocumentSmartsSnapshotErrorV1::StaleRevision { .. } => {
+        DocumentSessionError::RevisionConflict { .. } => {
             ExecutionFailureV1::document_invalid("stale_document".to_owned())
         }
-        DocumentSmartsSnapshotErrorV1::TargetLimitExceeded => {
+        _ => ExecutionFailureV1::document_invalid("unsupported_document".to_owned()),
+    }
+}
+
+fn map_snapshot_construction(error: SnapshotConstructionError) -> ExecutionFailureV1 {
+    match error {
+        SnapshotConstructionError::TargetLimitExceeded => {
             ExecutionFailureV1::document_invalid("target_limit_exceeded".to_owned())
         }
-        DocumentSmartsSnapshotErrorV1::UnsupportedDocument => {
+        SnapshotConstructionError::UnsupportedDocument => {
             ExecutionFailureV1::document_invalid("unsupported_document".to_owned())
         }
     }

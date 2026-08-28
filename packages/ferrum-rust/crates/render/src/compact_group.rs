@@ -4,10 +4,11 @@ use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{CompactGroupProjectionV1, DocumentObjectIdV1};
 use ferrum_geometry::{Point2, Vector2};
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BatchSpace, GlyphBounds, LineOp, PositiveFinite, RenderBatch, RenderError, RenderOp,
-    RenderPaintV3, RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
+    CompactGroupRenderBatchV1, CompactGroupRenderOpV1, LineOp, PositiveFinite, RenderBatchV4,
+    RenderError, RenderPaintV3, RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
 };
 
 pub(crate) const GROUP_LABEL_SIZE_PT_V1: f64 = 14.0;
@@ -26,7 +27,7 @@ pub struct CompactGroupRenderPrimitiveV1 {
     attachment: RenderPoint,
     label_ink_bounds: GlyphBounds,
     bounds: GlyphBounds,
-    batch: RenderBatch,
+    batch: RenderBatchV4,
 }
 
 /// Finite group geometry used only as a normal exterior-bond endpoint.
@@ -172,13 +173,15 @@ impl CompactGroupRenderPrimitiveV1 {
             paint,
             10,
         )?;
-        let batch = RenderBatch::from_context(
+        let batch = RenderBatchV4::compact_group(
             context.clone(),
-            BatchSpace::AtomLocal { anchor },
-            vec![
-                RenderOp::Line(glyph),
-                RenderOp::Text(layout.operation().clone()),
-            ],
+            CompactGroupRenderBatchV1::new(
+                anchor,
+                vec![
+                    CompactGroupRenderOpV1::Line(glyph),
+                    CompactGroupRenderOpV1::Text(layout.operation().clone()),
+                ],
+            )?,
         )?;
         let bounds = union_bounds(layout.bounds(), marker_start, marker_end)?;
         let attachment =
@@ -226,7 +229,7 @@ impl CompactGroupRenderPrimitiveV1 {
 
     /// Return the one exact render batch used in the molecule plan.
     #[must_use]
-    pub fn batch(&self) -> &RenderBatch {
+    pub fn batch(&self) -> &RenderBatchV4 {
         &self.batch
     }
 
@@ -355,13 +358,17 @@ mod tests {
     };
 
     use super::*;
+    use crate::atom_bond::bond::NormalBondEndpointClipPolicy;
+    use crate::atom_bond::build_atom_bond_plan;
+    use crate::attached_compact_group_pose::{
+        AttachedCompactGroupAnchorRenderFacts, resolve_attached_compact_group_pose,
+    };
     use crate::render_target::RenderPlanEntryContextV1;
     use crate::{
         AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomRenderTarget,
-        AttachedCompactGroupAnchorRenderFactsV1, AttachedCompactGroupPlacementDispositionV1,
-        BondRenderTarget, BondStyle, FerrumFontEnvironmentV1, FontFace, RenderProvenance,
-        RenderRevision, Rgb24, TargetVisibility, build_atom_bond_plan,
-        resolve_attached_compact_group_pose_v1,
+        AttachedCompactGroupPlacementDispositionV1, BondInkClearance, BondRenderTarget, BondStyle,
+        FerrumFontEnvironmentV1, FontFace, RenderOp, RenderProvenance, RenderRevision, Rgb24,
+        TargetVisibility,
     };
 
     fn point(x: f64, y: f64) -> RenderPoint {
@@ -420,14 +427,17 @@ mod tests {
         CompactGroupProjectionV1::from_group(&group, 3)
     }
 
-    fn attached_compact_group_facts(
-        anchor: RenderPoint,
-    ) -> AttachedCompactGroupAnchorRenderFactsV1 {
-        AttachedCompactGroupAnchorRenderFactsV1::new(
+    fn attached_compact_group_facts(anchor: RenderPoint) -> AttachedCompactGroupAnchorRenderFacts {
+        AttachedCompactGroupAnchorRenderFacts::new(
             anchor,
-            AtomLabelFacts::new("C", 0, 0).expect("atom label facts"),
+            AtomLabelFacts::new("C", None, 0, 0).expect("atom label facts"),
             AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
             paint(),
+            NormalBondEndpointClipPolicy::from_test_facts(
+                positive(1.0),
+                BondInkClearance::new(positive(1.25)),
+            )
+            .expect("test normal-single clipping policy"),
         )
     }
 
@@ -435,7 +445,7 @@ mod tests {
     fn snapped_diagonal_attached_pose_lowers_an_exterior_bond_without_an_issue() {
         let metrics = metrics();
         let atom_position = point(0.0, 0.0);
-        let pose = resolve_attached_compact_group_pose_v1(
+        let pose = resolve_attached_compact_group_pose(
             &attached_compact_group_facts(atom_position),
             CompactGroupCatalogKeyV1::Methoxy,
             point(1.0, 1.0),
@@ -474,8 +484,11 @@ mod tests {
         .expect("exterior bond target");
         let atom = AtomRenderTarget::new(
             context(0x11, RecordKind::Atom, "anchor", 1),
+            // The final lowerer receives the same anchor used by pose
+            // admission. A short same-ray release therefore proves the shared
+            // normal-single policy emits an exterior bond after snapping.
             atom_position,
-            AtomLabelFacts::new("C", 0, 0).expect("atom label facts"),
+            AtomLabelFacts::new("C", None, 0, 0).expect("atom label facts"),
             TargetVisibility::Visible,
         )
         .expect("atom target");
@@ -486,6 +499,7 @@ mod tests {
             AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
             positive(1.0),
             positive(6.0),
+            BondInkClearance::new(positive(1.25)),
             paint(),
         )
         .expect("render request")
@@ -527,7 +541,7 @@ mod tests {
             let atom = AtomRenderTarget::new(
                 context(0x11, RecordKind::Atom, "anchor", 1),
                 atom_position,
-                AtomLabelFacts::new("C", 0, 0).expect("atom label facts"),
+                AtomLabelFacts::new("C", None, 0, 0).expect("atom label facts"),
                 TargetVisibility::Visible,
             )
             .expect("atom target");
@@ -557,6 +571,7 @@ mod tests {
                 AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
                 positive(1.0),
                 positive(6.0),
+                BondInkClearance::new(positive(1.25)),
                 paint(),
             )
             .expect("render request")
@@ -628,7 +643,7 @@ mod tests {
         let atom = AtomRenderTarget::new(
             context(0x11, RecordKind::Atom, "far-side-atom", 1),
             point(40.0, 0.0),
-            AtomLabelFacts::new("C", 0, 0).expect("atom label facts"),
+            AtomLabelFacts::new("C", None, 0, 0).expect("atom label facts"),
             TargetVisibility::Visible,
         )
         .expect("atom target");
@@ -659,6 +674,7 @@ mod tests {
                 AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
                 positive(1.0),
                 positive(6.0),
+                BondInkClearance::new(positive(1.25)),
                 paint(),
             )
             .expect("render request")

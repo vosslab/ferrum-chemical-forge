@@ -1,8 +1,8 @@
 # Ferrum GUI Tour
 
-The Ferrum GUI tour is a manual documentation-capture workflow. It proves completed
-user-visible states from the locally built Rust and PySide6 application without adding
-visual timing, image bytes, or display access to `all_test.sh`.
+The Ferrum GUI tour is a manual documentation-capture workflow. It records candidate
+user-visible states from the locally built PySide6 application without adding visual
+timing, image bytes, or display access to `all_test.sh`.
 
 ## Capture command
 
@@ -14,14 +14,15 @@ an active desktop session:
 ./capture_gui_screenshots.sh
 ```
 
-The command uses `source_me.sh`, the staged `build/runtime/python` native extension,
-and the PySide6 source application. It applies the light document theme transiently
+The command uses `source_me.sh` and the promoted `build/current` program through the
+stable `build/runtime/python` and `build/bin` links, then starts the PySide6 application.
+It applies the light document theme transiently
 for deterministic documentation contrast without changing the user's saved theme.
 Each scene receives a fresh temporary workspace,
 uses ordinary authored CDML input except for the bounded CDXML File/Open scene,
-and uses Ferrum's visible command and canvas
-workflows, checks an observable completed result, retires the active editing selection, frames the
-durable content on a high-contrast documentation canvas, hides the optional hex grid through its
+and uses Ferrum's visible command and canvas workflows, checks an observable
+completed result, retires transient pointer previews, preserves meaningful selection
+highlights, frames the durable content on a high-contrast documentation canvas, hides the optional hex grid through its
 visible action, and captures one fixed 1440 by 900 application window. The target is the full
 `QMainWindow` surface, including the visible ribbon and status bar; the canvas is framed within that
 surface and is not the aspect-ratio boundary. The harness requires a 1440 by 900 logical window and
@@ -56,77 +57,100 @@ may write one path, but it does not publish or validate the complete tour.
 
 | File | Completed visible capability |
 | --- | --- |
-| `docs/screenshots/workspace.png` | Editable chemical-document workspace with an ordinary carbonyl fragment. |
-| `docs/screenshots/atom_authoring.png` | Add Atom at Point command completed on the canvas. |
-| `docs/screenshots/direct_bond.png` | Draw Bond committed between ordinary authored atoms. |
-| `docs/screenshots/inserted_cyclohexane.png` | Detached cyclohexane insertion completed. |
-| `docs/screenshots/attached_cyclohexane.png` | Cyclohexane attachment completed from an authored carbon. |
-| `docs/screenshots/template_catalog.png` | Rust-owned Furan system template placed through the template chooser, with its catalog provenance visible beside the completed placement. |
-| `docs/screenshots/selected_atom_edit.png` | Selected carbon changed to nitrogen through Change Element. |
-| `docs/screenshots/smarts_result.png` | SMARTS query dock showing a completed carbon match. |
-| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed to the document. |
-| `docs/screenshots/presentation_vector.png` | Renderer-preflighted presentation line committed to the document. |
-| `docs/screenshots/cdxml_open.png` | Bounded ChemDraw XML opened through the Rust interchange registry as an editable document. |
-| `docs/screenshots/view_controls.png` | Visible status-bar reset and content-fit controls applied to the active canvas. |
-| `docs/screenshots/command_palette_reaction.png` | Command Palette finding the registered reaction-arrow action in a real window. |
+| `docs/screenshots/workspace.png` | Editable carbonyl document with two atoms and one double bond. |
+| `docs/screenshots/atom_authoring.png` | Carbonyl with an additional oxygen beneath it; Select Structure is the visible active mode. |
+| `docs/screenshots/direct_bond.png` | A committed C-O single bond remains selected. |
+| `docs/screenshots/inserted_cyclohexane.png` | Detached six-carbon cyclohexane beside the original carbon. |
+| `docs/screenshots/attached_cyclohexane.png` | Cyclohexane attached to a single C-O fragment. |
+| `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
+| `docs/screenshots/selected_atom_edit.png` | Nitrogen visible in the document. |
+| `docs/screenshots/smarts_result.png` | SMARTS Query dock showing `[C]` and one match in the carbonyl document. |
+| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed beside the authored carbon. |
+| `docs/screenshots/presentation_vector.png` | Presentation line committed beside the authored carbon. |
+| `docs/screenshots/cdxml_open.png` | ChemDraw XML opened as an editable centered C-O-N-F chain with Wavy, Bold, and Dashed bonds. |
+| `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside a readable carbonyl. |
+| `docs/screenshots/command_palette_reaction.png` | Command Palette query showing registered reaction commands above a reaction arrow. |
 
 ## Current capture status
 
-The complete 13-scene set was regenerated transactionally at 1440 by 900 on
-2026-08-27 after source review of the capture driver, Rust catalog route, and
-command-palette hierarchy. Every scene passed its semantic postcondition and an
-image-by-image visual review found the full Ferrum surface complete, legible, and
-uncropped. Imported CDXML is centered from Rust-owned page geometry; detached
-rings, arrows, and vectors are authored on the visible page; and the Properties
-dock reports facts that agree with the captured document.
+The complete 13-scene set was freshly regenerated transactionally at 1440 by 900 on
+2026-08-28 with `./capture_gui_screenshots.sh --backend qt` after the promoted Rust
+renderer atom-label alignment rebuild. Before publication, every staged scene passed its
+semantic postcondition and full-window surface check; the harness also requires the
+fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
+complete visible title. The current PNGs visibly include the top ribbon, document tabs,
+canvas, readable Properties title where relevant, and bottom status bar. The Command
+Palette frame preserves those application surfaces while showing its live query and
+results. A native-resolution documentation review found no clipping, stale product
+branding, render failure, or image-to-caption mismatch. That documentation review is not
+human visual or accessibility acceptance.
 
-The images below are the current reviewed candidate artifact group. Final human
-release sign-off remains distinct from this agent visual review. The aggregate,
-E2E, PyO3, Qt, and post-fix audit receipts are recorded separately because a
-screenshot run does not prove those gates.
+The documentation framing uses Ferrum's document-root content bounds and visible
+status-bar zoom client so completed chemistry remains legible in the application frame.
+Imported CDXML is centered through the Rust page-geometry boundary; the File/Open
+scene deliberately exercises the bounded CDXML importer. Detached rings, arrows, and
+vectors are authored on the visible page; the presentation-vector workflow invokes its
+renderer preflight before committing the line; and the Properties dock reports facts
+that agree with the captured document. The Template Catalog scene shows the selected
+entry supplied by Ferrum's Rust-backed catalog boundary before placement. Command
+Palette entries are registered from the ribbon's YAML command definitions; that
+configuration ownership is documented here rather than inferred from image alt text.
+
+The CDXML scene makes the repaired atom-label contract visible: each structural element
+core is centered on its connected bond axis, while visible glyph ink retains clearance
+from the Wavy, Bold, and Dashed painted bond footprints. This is visual documentation
+evidence for the Rust render plan, not a pixel-regression test.
+
+The reviewed frames make the current task state and available actions legible: named
+ribbon commands identify authoring modes, docks name query/catalog context, and the
+status bar reports the active mode and view scale. Final human native visual,
+accessibility, contrast, and focus acceptance remains distinct from this documentation
+review. The aggregate E2E, PyO3, Qt, and post-fix audit receipts are recorded
+separately because a screenshot run does not prove those gates.
 
 These are documentation evidence, not permanent visual-regression tests. The harness
 uses visible command actions and canvas events together with controlled application-level
 readiness and framing hooks. It does not represent a user-input-only E2E test. It captures
-completed artifacts rather than pointer previews or editing overlays. The template-catalog
-view uses Ferrum's actual selected catalog palette beside a completed placement, making the named
-catalog provenance observable. It does not create source files, application caches, or test
-artifacts in the repository.
+completed artifacts rather than transient pointer previews. Selection highlights may remain when
+they explain a completed editing state. The template-catalog
+view uses Ferrum's actual selected catalog palette before any placement, making the named catalog
+provenance observable without claiming an obscured canvas result. It does not create source files,
+application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete 2026-08-27 candidate tour. Focused diagnostic
+These embeds are the complete current 2026-08-28 documentation tour. Focused diagnostic
 captures remain outside this section.
 
-![Ferrum workspace showing an authored carbonyl fragment](screenshots/workspace.png)
+![Editable carbonyl fragment in the Ferrum workspace](screenshots/workspace.png)
 
-![Ferrum canvas after Add Atom at Point completed](screenshots/atom_authoring.png)
+![Carbonyl with an additional oxygen beneath it and Select Structure shown as the active mode](screenshots/atom_authoring.png)
 
-![Ferrum canvas after Draw Bond completed](screenshots/direct_bond.png)
+![Committed C-O single bond selected in the Ferrum canvas](screenshots/direct_bond.png)
 
-![Ferrum canvas after cyclohexane insertion](screenshots/inserted_cyclohexane.png)
+![Detached six-carbon cyclohexane beside the original carbon](screenshots/inserted_cyclohexane.png)
 
-![Ferrum canvas after cyclohexane attachment](screenshots/attached_cyclohexane.png)
+![Cyclohexane attached to a single C-O fragment](screenshots/attached_cyclohexane.png)
 
-![Ferrum selected template chooser beside a completed Rust-owned Furan system template](screenshots/template_catalog.png)
+![Alpha-D-glucofuranose selected in the Template Catalog before placement](screenshots/template_catalog.png)
 
-![Ferrum canvas after selected carbon changes to nitrogen](screenshots/selected_atom_edit.png)
+![Nitrogen visible in the Ferrum document](screenshots/selected_atom_edit.png)
 
-![Ferrum SMARTS query dock showing a completed carbon match](screenshots/smarts_result.png)
+![SMARTS Query dock showing one carbon match](screenshots/smarts_result.png)
 
-![Ferrum canvas after a reaction arrow is committed](screenshots/reaction_arrow.png)
+![Committed reaction arrow beside an authored carbon](screenshots/reaction_arrow.png)
 
-![Ferrum canvas after a presentation vector is committed](screenshots/presentation_vector.png)
+![Committed presentation line beside an authored carbon](screenshots/presentation_vector.png)
 
-![Ferrum after bounded ChemDraw XML opens as an editable centered document](screenshots/cdxml_open.png)
+![Centered C-O-N-F document opened from ChemDraw XML with wavy, bold, and dashed bonds](screenshots/cdxml_open.png)
 
-![Ferrum status-bar page and content view controls](screenshots/view_controls.png)
+![Visible status-bar zoom, Page, and Content controls beside a readable carbonyl](screenshots/view_controls.png)
 
-![Ferrum Command Palette showing reaction commands and YAML breadcrumbs](screenshots/command_palette_reaction.png)
+![Command Palette search results for registered reaction commands above a reaction arrow](screenshots/command_palette_reaction.png)
 
 ## Publishing screenshots in documentation
 
 The root [README.md](../README.md) has a managed `screenshot-docs` block populated
-from this inspected candidate tour.
+from this inspected current tour.
 Re-run this command and inspect the resulting images before changing its embeds. Reuse the exact
 paths above with descriptive Markdown alt text and never add placeholder images.

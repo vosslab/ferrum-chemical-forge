@@ -28,8 +28,8 @@ import ferrum_qt.themes.document_display_palette
 import ferrum_qt.themes.theme_loader
 
 
-_OBSERVATION_SCHEMA = "ferrum-document-render-observation-v1"
-_PLAN_SCHEMA = "ferrum-render-plan-v3"
+_OBSERVATION_SCHEMA = "ferrum-document-render-observation-v2"
+_PLAN_SCHEMA = "ferrum-render-plan-v4"
 _PAPER_SCHEMA = "ferrum-document-paper-layout-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _U32_RANGE = range(2**32)
@@ -60,7 +60,7 @@ PaperItemFactory = collections.abc.Callable[
 
 #============================================
 class FerrumRenderProjectionError(ValueError):
-	"""Raised when a copied render observation violates the V1 contract."""
+	"""Raised when a copied render observation violates the V2 contract."""
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -70,6 +70,7 @@ class RenderIssue:
 	category: str
 	document_object_id: str
 	detail: str
+	paint_order: int | None = None
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -559,6 +560,12 @@ def _validate_observation(observation: object,
 		]:
 	"""Return observation contents only after all cross-layer provenance agrees."""
 	validator(observation)
+	try:
+		import ferrum_qt.ferrum.engine as engine
+	except ImportError as error:
+		raise FerrumRenderProjectionError("Ferrum render observation binding is unavailable") from error
+	if type(observation) is not engine.RenderObservationV2:
+		raise FerrumRenderProjectionError("render observation has the wrong exact DTO type")
 	if not _is_frozen_dto(observation):
 		raise FerrumRenderProjectionError("render observation must be a frozen DTO")
 	if getattr(observation, "schema", None) != _OBSERVATION_SCHEMA:
@@ -610,10 +617,14 @@ def _build_plan(
 			tuple[RenderIssue, ...],
 		]:
 	"""Build one detached ownership hierarchy in exact source order."""
-	if not _is_frozen_dto(plan_entry):
-		raise FerrumRenderProjectionError("molecule render entry has the wrong DTO shape")
+	try:
+		import ferrum_qt.ferrum.engine as engine
+	except ImportError as error:
+		raise FerrumRenderProjectionError("Ferrum render plan binding is unavailable") from error
+	if type(plan_entry) is not engine.DocumentMoleculeRenderPlanV4:
+		raise FerrumRenderProjectionError("molecule render entry has the wrong exact DTO type")
 	plan = getattr(plan_entry, "plan", None)
-	if not _is_frozen_dto(plan) or getattr(plan, "schema", None) != _PLAN_SCHEMA:
+	if type(plan) is not engine.RenderPlanV4 or getattr(plan, "schema", None) != _PLAN_SCHEMA:
 		raise FerrumRenderProjectionError("unknown render plan schema")
 	provenance = getattr(plan, "provenance", None)
 	if _revision(getattr(provenance, "revision", None)) != revision:
@@ -623,9 +634,20 @@ def _build_plan(
 	batches = _ordered_dtos(getattr(plan, "batches", None), "render batches")
 	issues = _ordered_dtos(getattr(plan, "issues", None), "plan render issues")
 	seen_targets: set[RenderTargetKey] = set()
+	batch_paint_orders: set[int] = set()
+	previous_paint_order = -1
 	result = []
 	root = molecule_root_factory(molecule, getattr(plan_entry, "bounds", None))
 	for batch_index, batch in enumerate(batches):
+		if type(batch) is not engine.RenderBatchV4:
+			raise FerrumRenderProjectionError("render plan batch has the wrong exact DTO type")
+		paint_order = getattr(batch, "paint_order", None)
+		if type(paint_order) is not int or paint_order < 0 or paint_order >= 2**32:
+			raise FerrumRenderProjectionError("render batch paint order is invalid")
+		if paint_order <= previous_paint_order:
+			raise FerrumRenderProjectionError("render plan paint order is not strictly increasing")
+		previous_paint_order = paint_order
+		batch_paint_orders.add(paint_order)
 		target = _target(getattr(batch, "target", None))
 		if target in seen_targets:
 			raise FerrumRenderProjectionError("render plan has duplicate target")
@@ -637,7 +659,7 @@ def _build_plan(
 		layer_offset = {"ordinary": 0.0, "haworth_front_stroke": 0.1, "haworth_front_wedge": 0.2}[layer]
 		item.setZValue(layer_offset)
 		result.append((item, target))
-	plan_issues = _plan_issues(issues, seen_targets)
+	plan_issues = _plan_issues(issues, seen_targets, batch_paint_orders)
 	return root, tuple(result), plan_issues
 
 
@@ -676,13 +698,22 @@ def _presentation_target(value: object) -> RenderTargetKey:
 #============================================
 def _plan_issues(
 		values: tuple[object, ...], batch_targets: set[RenderTargetKey],
+		batch_paint_orders: set[int],
 		) -> tuple[RenderIssue, ...]:
 	"""Copy plan exclusions in backend order without allocating fallback graphics."""
+	try:
+		import ferrum_qt.ferrum.engine as engine
+	except ImportError as error:
+		raise FerrumRenderProjectionError("Ferrum render issue binding is unavailable") from error
 	seen_targets = set(batch_targets)
+	seen_paint_orders = set(batch_paint_orders)
+	# Rust owns separately ordered batches and issues; their globally unique
+	# paint orders may intentionally interleave between those two collections.
+	previous_paint_order = -1
 	result = []
 	for value in values:
-		if not _is_frozen_dto(value):
-			raise FerrumRenderProjectionError("plan render issue has the wrong DTO shape")
+		if type(value) is not engine.RenderIssueV1:
+			raise FerrumRenderProjectionError("plan render issue has the wrong exact DTO type")
 		target = _target(getattr(value, "target", None))
 		if target in seen_targets:
 			raise FerrumRenderProjectionError("plan render issues do not partition targets")
@@ -690,8 +721,15 @@ def _plan_issues(
 		detail = getattr(value, "detail", None)
 		if type(kind) is not str or not kind or type(detail) is not str or not detail:
 			raise FerrumRenderProjectionError("plan render issue is invalid")
+		paint_order = getattr(value, "paint_order", None)
+		if type(paint_order) is not int or paint_order < 0 or paint_order >= 2**32:
+			raise FerrumRenderProjectionError("plan render issue paint order is invalid")
+		if paint_order <= previous_paint_order or paint_order in seen_paint_orders:
+			raise FerrumRenderProjectionError("plan render issue paint order is not unique and ordered")
 		seen_targets.add(target)
-		result.append(RenderIssue(kind, target.document_object_id, detail))
+		seen_paint_orders.add(paint_order)
+		previous_paint_order = paint_order
+		result.append(RenderIssue(kind, target.document_object_id, detail, paint_order))
 	return tuple(result)
 
 
@@ -821,12 +859,12 @@ def _require_pyo3_observation(observation: object) -> None:
 	"""Accept only the extension-owned observation class on the production path."""
 	try:
 		import ferrum_qt.ferrum.engine as engine
-		observation_type = engine.RenderObservationV1
+		observation_type = engine.RenderObservationV2
 	except (ImportError, AttributeError) as exc:
 		raise FerrumRenderProjectionError(
 			"Ferrum render observation binding is unavailable",
 		) from exc
 	if type(observation) is not observation_type:
 		raise FerrumRenderProjectionError(
-			"render observation must be the frozen engine.RenderObservationV1 DTO",
+			"render observation must be the frozen engine.RenderObservationV2 DTO",
 		)

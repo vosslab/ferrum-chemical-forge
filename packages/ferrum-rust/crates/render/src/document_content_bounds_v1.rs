@@ -7,7 +7,7 @@ use crate::draw_stream_v1::{
     DrawStreamErrorV1, DrawStyleV1, lower_document_plan_to_sink_v1, lower_molecule_plan_to_sink_v1,
 };
 use crate::{
-    BatchSpace, DocumentRenderPlanV1, MoleculeRenderPlan, RenderError, RenderPoint,
+    BatchSpace, DocumentRenderPlanV1, MoleculeRenderPlanV4, RenderError, RenderPoint,
     RenderViewportV1,
 };
 
@@ -45,7 +45,7 @@ impl MoleculeContentBoundsV1 {
 
 /// Measure every painted primitive in one molecule plan.
 pub fn measure_molecule_render_plan_bounds_v1(
-    plan: &MoleculeRenderPlan,
+    plan: &MoleculeRenderPlanV4,
 ) -> Result<MoleculeContentBoundsV1, DocumentContentBoundsErrorV1> {
     let mut sink = ContentBoundsSinkV1::default();
     let page =
@@ -415,52 +415,37 @@ mod tests {
     fn target(id: u8) -> RenderTarget {
         RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([id; 16]))
     }
-    fn text() -> RenderOp {
-        let environment = FerrumFontEnvironmentV1::load().expect("verified Telex");
-        let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("metrics");
-        let glyphs = metrics
-            .v1_glyphs_for_run("N", size(12.0), size(1.0))
-            .expect("glyph placements");
-        RenderOp::Text(
-            TextOp::new(
-                point(0.0, 0.0),
-                vec![
-                    TextRun::new(
-                        "N",
-                        TextScript::Baseline,
-                        point(0.0, 0.0),
-                        glyphs,
-                        size(1.0),
-                    )
-                    .expect("run"),
-                ],
-                FontFace::telex_regular(),
-                size(12.0),
-                paint("000000"),
-                1,
-            )
-            .expect("text op"),
-        )
-    }
-
     #[test]
     fn molecule_measurement_encloses_text_mask_ellipse_line_and_path_paint() {
-        let plan = MoleculeRenderPlan::new(
+        let plan = MoleculeRenderPlanV4::new(
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
             vec![
-                RenderBatch::new(
+                RenderBatchV4::test_atom_target(
                     target(0x41),
                     1,
-                    BatchSpace::AtomLocal {
-                        anchor: point(10.0, 20.0),
-                    },
-                    vec![
-                        text(),
-                        RenderOp::Mask(
-                            MaskOp::new(point(20.0, 0.0), size(5.0), size(4.0), paint("ffffff"), 2)
+                    AtomRenderBatchV1::new(
+                        point(10.0, 20.0),
+                        RenderBatchV4::test_atom_label_from_facts(
+                            Some(
+                                MaskOp::new(
+                                    point(20.0, 0.0),
+                                    size(5.0),
+                                    size(4.0),
+                                    paint("ffffff"),
+                                    0,
+                                )
                                 .expect("mask"),
-                        ),
-                        RenderOp::Ellipse(
+                            ),
+                            AtomLabelFacts::new("N", None, 0, 0).expect("label facts"),
+                            AtomLabelFontProfile::new(
+                                FontFace::telex_regular(),
+                                size(12.0),
+                                paint("000000"),
+                            ),
+                            1,
+                        )
+                        .expect("verified label"),
+                        vec![AtomDecorationRenderOpV1::Ellipse(
                             EllipseOp::new(
                                 point(40.0, 0.0),
                                 size(5.0),
@@ -472,15 +457,14 @@ mod tests {
                                 3,
                             )
                             .expect("ellipse"),
-                        ),
-                    ],
-                )
-                .expect("atom batch"),
-                RenderBatch::new(
+                        )],
+                    )
+                    .expect("atom content"),
+                ),
+                RenderBatchV4::bond_target(
                     target(0x42),
                     2,
-                    BatchSpace::Scene,
-                    vec![RenderOp::Line(
+                    BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
                         LineOp::new(
                             point(-20.0, 0.0),
                             point(-10.0, 0.0),
@@ -489,14 +473,13 @@ mod tests {
                             1,
                         )
                         .expect("line"),
-                    )],
-                )
-                .expect("line batch"),
-                RenderBatch::new(
+                    )])
+                    .expect("line content"),
+                ),
+                RenderBatchV4::bond_target(
                     target(0x43),
                     3,
-                    BatchSpace::Scene,
-                    vec![RenderOp::Path(
+                    BondRenderBatchV1::new(vec![BondRenderOpV1::Path(
                         PathOpV3::new(
                             vec![
                                 ScenePathCommandV3::MoveTo(point(0.0, 50.0)),
@@ -511,9 +494,9 @@ mod tests {
                             1,
                         )
                         .expect("path"),
-                    )],
-                )
-                .expect("path batch"),
+                    )])
+                    .expect("path content"),
+                ),
             ],
             vec![],
         )

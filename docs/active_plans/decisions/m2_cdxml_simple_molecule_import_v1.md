@@ -2,15 +2,21 @@
 
 ## Decision
 
-Ferrum supports one bounded, Rust-owned **CDXML simple-molecule import V1**
-profile. It accepts a small, explicit XML CDXML grammar, imports each admitted
-fragment as one record into a new Ferrum document, and reports every admitted
-loss. It is an input-only interchange capability: CDXML has no Ferrum output
-encoder, save baseline, or round-trip fidelity claim.
+Ferrum defines one pre-production, Rust-owned **CDXML simple-molecule import V1**
+profile. It accepts a deliberately small CDXML grammar, imports every admitted
+fragment as one record into one new Ferrum document, and records only declared
+losses. It is input-only: CDML remains the local save format, and the profile has
+no CDXML encoder, source-save baseline, or round-trip-fidelity claim.
 
-This decision records delivered implementation and its present evidence. It
-does not close M2, full Rust/OASA/BKChem parity, or the manual 16:10 and
-accessibility evidence gates.
+The delivered profile includes one closed presentation slice:
+`Display="Wavy"`, `Display="Bold"`, and `Display="Dash"` are accepted only on a
+single, non-directed bond. They become durable CDML `s1`, `b1`, and `d1`,
+respectively, and must render cleanly before the new document is published.
+Rendering is admission, not optional client polish.
+
+The local implementation and focused acceptance evidence below establish this
+bounded slice. They do not close M2 or full parity, and they do not replace final
+post-change aggregate, CI, release, screenshot, or human acceptance evidence.
 
 ## Source basis
 
@@ -20,14 +26,10 @@ accessibility evidence gates.
 | [ChemDraw Suite 23.0 release notes](https://revvitysignals.com/sites/default/files/2024-02/rs-release-notes-DT-23.0-chemdraw.pdf) | Primary current-producer evidence | ChemDraw 23.0 writes the current Revvity DTD URL in CDXML DOCTYPE declarations. |
 | [CDX SDK simple example](https://chemapps.stolaf.edu/iupac/cdx/sdk/IntroExampleSimple.htm) | Corroborating historical example | Ordinary coordinate and omitted-order producer spelling. |
 
-The DTD and release notes are facts about the vendor grammar and current
-producer prolog. The profile decisions below are Ferrum inferences: they make
-that broad grammar into a safe, chemistry-only import contract. The historical
-example corroborates lexical patterns; it does not define current vendor policy.
+The vendor sources establish grammar facts. Ferrum owns the bounded semantic,
+resource, loss, and presentation contracts below.
 
 ## Accepted profile
-
-The accepted document shape is:
 
 ```text
 document := declaration? vendor_doctype? CDXML
@@ -38,67 +40,123 @@ page := fragment*
 fragment := n* b*
 ```
 
-The molecule tree uses literal, unprefixed `CDXML`, `page`, `fragment`, `n`,
-`b`, `t`, and `s` names. A default namespace or a prefix is outside V1. The
-profile admits a closed DTD-derived table of root/page view metadata and
-well-formed `fonttable`/`font` and `colortable`/`color` metadata when needed by
-ordinary producer files. Metadata does not become Ferrum document state.
+The molecule tree uses literal, unprefixed `CDXML`, `page`, `fragment`, `n`, `b`,
+`t`, and `s` names. A default namespace or a prefix is outside this profile.
+Closed root/page view metadata and well-formed `fonttable`/`font` and
+`colortable`/`color` metadata may be admitted when ordinary producer files require
+them, but never become Ferrum document state.
 
-Each direct admitted `fragment` becomes one imported record, in source order.
-An import creates one new document transaction for all records; it does not
-merge fragments, infer reaction roles, or retain CDXML source identifiers as
-Ferrum durable IDs.
+Each direct admitted `fragment` becomes one imported record in source order. One
+import creates one new-document transaction for all records. It does not merge
+fragments, infer reaction roles, or retain CDXML source identifiers as Ferrum IDs.
 
 ### Atoms and bonds
 
 - A node with no `Element` and no direct `t > s` element label is carbon.
-- `Element` is an unsigned decimal atomic number. A direct `t > s` label may
-  state an element symbol; when both are present they must agree.
+- `Element` is an unsigned decimal atomic number. A direct `t > s` label may state
+  an element symbol; when both are present they must agree.
 - Coordinates use the admitted finite two-number `p` spelling.
-- An omitted `Order` and `Order="1"` are normal single bonds; `Order="2"` and
+- Omitted `Order` and `Order="1"` are normal single bonds; `Order="2"` and
   `Order="3"` are normal double and triple bonds.
-- An absent or `Solid` display is normal bond depiction. `WedgeBegin` and
-  `WedgedHashBegin` map to Ferrum's authored begin-directed solid and hashed
-  single-bond depictions.
+- Absent or `Solid` display is normal depiction. `WedgeBegin` and
+  `WedgedHashBegin` are authored begin-directed solid and hashed single bonds.
+- `Wavy`, `Bold`, and `Dash` are accepted only with omitted `Order` or `Order="1"`
+  and no directional display. They become fixed-single document presentations
+  `Wavy`, `Bold`, and `Dashed`, serialized as `s1`, `b1`, and `d1`.
 
-This is an inference from vendor token names plus Ferrum's existing
-begin-directed depiction model. End-directed wedges, wavy/bold/dashed/hash
-display variants, unsupported orders, aromatic forms, and conflicting or
-non-single directional facts refuse instead of being normalized into a nearby
-meaning.
+All other `Display` tokens, end-directed wedges, hash variants, aromatic forms,
+unsupported orders, non-single presentation/order pairs, and conflicting directional
+facts refuse. Ferrum does not normalize them into nearby chemistry or depiction.
 
-### C2 atomic charge and isotope
+### Source carrier and document conversion
 
-Optional `Charge` and `Isotope` node attributes are admitted as bounded atom
-facts. The current vendor DTD establishes their names and optionality.
-Historical vendor CDX property material establishes non-fractional signed
-eight-bit charge and a sixteen-bit isotope field where zero means natural
-abundance. Ferrum owns the XML canonicalization below; the vendor material
-does not establish every whitespace or leading-zero spelling.
+`InterchangeRecordV1` stays format-neutral chemistry: graph, title, and properties
+only. It must not receive a CDXML-driven presentation vector or a bond-index side
+invariant that every CML, SDF, SMILES, and future codec must construct. `MolBond`
+also remains chemistry/stereochemistry, not a source-view display container.
+
+`ferrum-chemistry` owns the source-specific validated carrier
+`CdxmlDecodedRecordV1`. Its private fields pair the graph-bearing
+`InterchangeRecordV1` with presentation facts in graph-bond source order. Its
+constructor validates exact vector cardinality and permits a presentation only on a
+single, non-directed bond. `None` is the sole ordinary-presentation state.
+
+Parser state is an unversioned closed `ParsedBondDepiction`:
+`Ordinary`, `Stereo(BondDirection)`, or
+`Presentation(CdxmlBondPresentationV1)`. One CDXML `Display` attribute therefore
+cannot become both stereochemistry and presentation:
+
+```text
+none | Solid                 => Ordinary
+WedgeBegin                   => Stereo(BeginWedge)
+WedgedHashBegin              => Stereo(BeginDash)
+Wavy | Bold | Dash           => Presentation(...), only Order absent or "1"
+all other Display tokens     => UnrepresentedSemanticFact
+recognized presentation with non-single Order => InvalidScalar
+```
+
+`ferrum-document` owns the only source-to-document conversion. Its private,
+unversioned `cdxml_record_insertion` adapter reuses generic preparation for graph
+validation, aromaticity, coordinates, placement, reports, metadata, and row layout.
+It overlays the validated presentation on the detached insertion by the same bond
+index before durable IDs are allocated or CDML is mutated. It repeats cardinality,
+single-order, and no-direction validation and returns a concrete redacted error for
+an internal-contract breach.
+
+`DocumentBondPresentationV1` is the sole durable document representation. Its
+fixed-single variants own the only CDML conversion: `Wavy -> s1`, `Bold -> b1`, and
+`Dashed -> d1`. The insertion constructor derives `Single` from every fixed-single
+variant, making `s2`, `b2`, and `d2` unrepresentable. Typed bond properties and
+CDML parsing first validate into this same closed type.
+
+`V1` is retained only for durable serialized or cross-crate contracts:
+`CdxmlDecodedRecordV1`, `CdxmlBondPresentationV1`, and
+`DocumentBondPresentationV1`. Parser state, adapter functions, correspondence
+checks, and renderer geometry remain private and unversioned.
+
+### Charge and isotope
+
+Optional `Charge` and `Isotope` node attributes are bounded atom facts. Ferrum owns
+the XML canonicalization.
 
 | Attribute | Accepted ASCII token | Numeric range | Ferrum atom value |
 | --- | --- | ---: | --- |
 | `Charge` | `0` or `-?[1-9][0-9]*` | `-128..=127` | `0` and absence become no formal charge; otherwise `Some(i32)` |
 | `Isotope` | `0` or `[1-9][0-9]*` | `0..=32767` | `0` and absence become natural abundance; otherwise `Some(u16)` |
 
-The grammar admits decimal ASCII only. It rejects padding, plus signs, leading
-zeros other than `0`, negative zero, decimal points, exponents, embedded
-whitespace, and Unicode numerals. `Isotope` is admitted only where C1 already
-lowers the node to an elemental atom. Explicit neutral charge and
-natural-abundance isotope intentionally normalize to the same native value as
-absence: CDXML V1 imports chemistry meaning, not raw source spelling or
-provenance.
+The grammar rejects padding, plus signs, leading zeros other than `0`, negative
+zero, decimal points, exponents, embedded whitespace, and Unicode numerals.
 
-## Prolog and resource boundary
+## Renderer admission
 
-The parser accepts no DOCTYPE or exactly the `vendor_doctype` lexical marker
-above. It never fetches, loads, validates against, or resolves the DTD. It
-refuses `PUBLIC` identifiers, another system identifier, internal subsets,
-entity declarations/references, and any declaration after the root. This keeps
-current producer spelling compatible with offline parsing without treating the
-remote DTD as executable input.
+`ferrum-render` owns every styled-bond primitive. It consumes native projected
+style after complete visible-ink clipping with explicit bond clearance and final
+painted-footprint reserve; it never reads raw CDXML, accepts
+CDXML geometry, or delegates dash interpretation to Qt, SVG, PDF, or PNG. One
+private, unversioned styled-axis lowerer constructs a finite clipped axis and emits
+existing renderer-neutral `LineOp` and `PathOpV3` operations.
 
-Only resource limits that profile-valid input can reach first are public:
+Styled bonds initially require two atom endpoints. Compact-group exterior bonds stay
+normal single until they have their own correspondence contract.
+
+| Style | Required renderer policy |
+| --- | --- |
+| Bold | One butt-capped clipped `LineOp`, semantic bond paint, width `2 * base_width`. Source `BoldWidth` is not retained. |
+| Dashed | Explicit finite butt-capped `LineOp`s: period `6w`, dash `3w`, gap `3w`; whole dashes are symmetric after clipping; cap at 4096. No sink dash primitive or solid fallback. |
+| Wavy | One finite round-capped cubic `PathOpV3`: wavelength `12w`, amplitude `min(2w, span/6)`, ties-even whole-wave count capped at 4096, and exact clipped endpoints. |
+
+All primitives retain resolved `RenderPaintV3`, source paint order, ordinary display
+layer, and strictly increasing local z. Non-finite arithmetic, coincident anchors,
+total label overlap, or an operation-cap breach produces a typed render issue and no
+partial batch. Any renderer error or issue discards the private candidate; no CLI
+output, PyO3 result, or Qt tab is published.
+
+## Resource and publication boundary
+
+The parser accepts no DOCTYPE or exactly the documented vendor marker. It never
+fetches, loads, validates against, or resolves a DTD. It refuses `PUBLIC`
+identifiers, another system identifier, internal subsets, entity declarations or
+references, and declarations after the root.
 
 | Limit | Maximum |
 | --- | ---: |
@@ -110,92 +168,73 @@ Only resource limits that profile-valid input can reach first are public:
 | Atoms per record | 10,000 |
 | Bonds per record | 20,000 |
 
-The chemistry-owned source-byte cap, closed grammar, and element cap bound XML nesting,
-aggregate lexical content, and aggregate object count. They replace misleading
-separate limits for those unreachable categories.
+Only the CDXML branch of the existing generic new-document interchange route changes:
 
-## Loss and refusal
+```text
+admit source
+  -> decode CDXML into source-specific validated records
+  -> build CDXML record insertion
+  -> admit one new-document transition
+  -> observe and render the private committed candidate once
+  -> publish the generic result only when that observation is clean
+```
 
-Ferrum records `lexical_syntax` for an admitted XML declaration and
-`document_view_metadata` for admitted document/view metadata. These declared import losses
-use canonical category order: `lexical_syntax`, then `document_view_metadata`. Ferrum imports
-molecule semantics rather than a ChemDraw presentation document.
+CML and SDF continue through their graph-only builder. No new descriptor, CLI verb,
+Python parser, Qt branch, protocol field, or public route handle is introduced.
 
-Chemistry-bearing facts outside the profile refuse before document mutation.
-Examples include radical, hydrogen-count, non-element node types,
-query/list/alternative-group forms, external connections, attachment models,
-unsupported text-as-chemistry forms, unsupported bond order/display, and
-malformed or over-budget XML. A present malformed or out-of-range `Charge` or
-`Isotope` is the typed `InvalidScalar` refusal; unknown node attributes remain
-`AttributeUnsupported`. The public adapter maps closed decoder reasons to
-typed, redacted interchange refusals and reports no conversion outcome on
-refusal.
+## Exclusions and non-goals
 
-## Capability and clients
+- No generic CDXML presentation fidelity, presentation-bearing interchange record,
+  CDXML writer, raw `BoldWidth`, source layout, source identifier, or provenance store.
+- No end-directed wedges, namespace variants, reactions, arrows, annotations,
+  page layout, compact-group styled bonds, aromatic/dotted/adder styles, queries,
+  attachment models, or CDX binary decoding.
+- No sink-specific dash state, pixel-equivalence testing, or reuse of authored Wavy
+  presentation-root geometry.
+- No output on refusal and no replacement of an active Qt document on refusal.
 
-`ferrum formats` lists CDXML as canonical `.cdxml`, runtime-free, input-only, and eligible
-only for a new-document Open operation; the machine-readable catalog represents its output as
-`null`. `ferrum open --format cdxml --output result.cdml` and the generic document interchange route use the
-same Rust registry descriptor. PyO3 issues an opaque registry route handle and
-redeems it in Rust, so Python and Qt do not choose a parser by suffix or string.
+## Delivered local evidence and remaining completion gates
 
-`ferrum convert` refuses CDXML before source read because its descriptor does not advertise
-chemistry-conversion eligibility. Its recovery guidance directs the caller to `ferrum open`.
+Permanent, deterministic evidence proves:
 
-Qt File/Open discovers CDXML from that descriptor and passes it to the existing
-detached interchange worker. A successful receipt has typed `CDXML` provenance,
-is presented as an imported ChemDraw XML document, and has no source save
-baseline. Later save uses Ferrum's CDML document format. A refused import keeps
-the active document unchanged and uses the descriptor-neutral open-document
-recovery.
+- decoder token matrix, source-order correspondence, loss ordering, resource limits,
+  and typed refusals;
+- single, non-directed admission and exact `s1`/`b1`/`d1` persistence through history
+  and reopen, with a malformed later record leaving the candidate unpublished;
+- common clipping, finite geometry, translation/rotation equivariance, explicit
+  Bold/dash/wave invariants, and typed no-partial-batch failure;
+- clean generic CLI/PyO3/Qt results for each style and an unchanged active Qt tab
+  after refusal; and
+- affected Rust package gates, installed-wheel boundary test, registered CLI E2E,
+  Qt lane, and `./build.sh`.
 
-## Evidence and remaining work
+The local receipts at this checkpoint are: chemistry CDXML suite 22 tests,
+document suite 517 tests, render suite 144 tests, API/PyO3 suite 181 tests,
+installed Python suite 294 tests, focused Qt presentation suite 47 tests, and
+registered CLI and real Qt CDXML E2Es. `./check_rust.sh` and `./build.sh` exited
+0 for the delivered M2 slice. A prior `./all_test.sh` pass after the audit
+corrections is retained as M2 evidence; the subsequent atom-label clearance
+redesign requires a fresh aggregate rerun before a current end-state claim.
 
-Permanent evidence is deliberately semantic and offline:
+Real macOS 16:10 outer-window review, keyboard/accessibility walkthrough,
+screenshots, independent audit, CI, and release approval are separate acceptance
+evidence; they do not replace permanent contracts.
 
-- decoder grammar, loss/refusal, and exact/one-over reachable resource limits;
-- document record order, atomic admission, durable-ID reallocation, and redaction;
-- public `formats` input-only projection and PyO3 opaque-route behavior;
-- built CLI success/refusal E2E with inline temporary input; and
-- Qt local File/Open success, nonmutation refusal, and provenance boundaries.
+The alignment redesign's focused renderer receipt does not by itself prove the
+installed Qt consumer, fresh screenshots, human visual/accessibility review, CI,
+or release artifacts. Those gates remain open and are intentionally separate from
+the deterministic CDXML contract.
 
-C2 extends existing permanent evidence without a fixture catalog: decoder
-tests prove scalar boundaries, zero/absence equivalence, and the closed
-`InvalidScalar` refusal table; the public CLI E2E proves nonzero facts survive
-into CDML and malformed scalar input publishes no output. C2 adds no parser,
-API/protocol field, PyO3 or Qt route, CDXML encoder, source-provenance store,
-or save-format change.
+## Ownership boundaries
 
-One-time/release evidence remains separate: a real macOS 16:10 outer-window
-screenshot, keyboard/accessibility walkthrough, fresh repository-wide
-`all_test.sh`, and independent multi-reviewer audit. These validate the
-integrated local product; they are not parser fixtures, timing gates, or
-pixel-equivalence tests.
+| Owner | Responsibility |
+| --- | --- |
+| Chemistry | Parse the closed token grammar, retain source-specific presentation facts, and validate the carrier. |
+| Document | Convert one validated carrier into the sole durable presentation type and CDML tokens. |
+| Render | Build every clipped Bold/dashed/wavy primitive from native projected style. |
+| Document-render and API | Render-admit the unpublished candidate and publish only a clean generic result. |
+| PyO3, CLI, and Qt | Present or exercise issued generic facts only; add no presentation interpretation. |
 
-Final bounded receipts are: post-audit `./build.sh` exited 0; the registered
-`tests/e2e/run_all.sh` exited 0, including CDXML; staged Python bindings passed
-281 tests; Qt passed 238 tests with one intentional skip; focused chemistry and
-API libraries passed 124 and 117 tests; and `cargo check --workspace` passed.
-
-`./all_test.sh` is not aggregate-green. It recorded 7,759 passes and then
-stopped at five Markdown-link failures. Each canonical link targets this
-present decision artifact, which is absent only from the tracked-file catalog;
-the later aggregate phases therefore did not run through `all_test.sh`. Those
-later phases were run directly and passed as listed above. Real macOS 16:10
-outer-window and keyboard/accessibility evidence remains separate release
-evidence. The still-open evidence above prevents this bounded decision from
-closing full M2 or parity.
-
-Focused C2 receipts are: `cargo fmt -p ferrum-chemistry` exited 0; the initial
-CDXML-focused chemistry target passed 17 tests; the built CLI E2E exited 0;
-the completed scalar-contract target passed 3 tests; and the full chemistry
-library target passed 127 tests. These do not supersede the aggregate
-`all_test.sh` limitation or prove full M2, parity, or GUI evidence.
-
-## Explicit next extensions
-
-- CDX binary decoding.
-- Reaction, arrow, annotation, page-layout, and ChemDraw presentation import.
-- Namespace variants and end-directed wedge semantics, after corpus evidence.
-- Additional atom, bond, query, and attachment models, each with an owned loss
-  or refusal contract before implementation.
+The dependency direction remains chemistry to document, document to document-render,
+API to lower layers, and Qt as a presentation consumer. A later codec gets its own
+source adapter until evidence justifies a real cross-codec presentation contract.

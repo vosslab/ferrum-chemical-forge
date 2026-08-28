@@ -2,11 +2,12 @@
 
 use ferrum_core::RecordKind;
 
+use crate::glyph_metrics::{AtomLabelAttachmentGeometry, GlyphBounds, GlyphMetrics};
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BatchSpace, EllipseOp, FontFace, GlyphBounds, GlyphMetrics, LineOp, MaskOp, PositiveFinite,
-    RenderBatch, RenderError, RenderIssueKind, RenderOp, RenderPaintV3, RenderPoint, RenderTarget,
-    TextOp, TextScript,
+    AtomDecorationRenderOpV1, AtomLabelRenderV1, AtomRenderBatchV1, EllipseOp, FontFace,
+    InkBoundsV1, LineOp, MaskOp, PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind,
+    RenderPaintV3, RenderPoint, RenderTarget, TextOp, TextScript, VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_model::is_admitted_atom_symbol_v1;
 
@@ -61,6 +62,7 @@ impl AtomLabelFontProfile {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AtomLabelFacts {
     element: String,
+    isotope_mass_number: Option<u16>,
     formal_charge: i8,
     explicit_hydrogens: u8,
 }
@@ -145,6 +147,7 @@ impl AtomLabelFacts {
     /// Construct validated atom-label facts.
     pub fn new(
         element: impl Into<String>,
+        isotope_mass_number: Option<u16>,
         formal_charge: i8,
         explicit_hydrogens: u8,
     ) -> Result<Self, RenderError> {
@@ -155,8 +158,14 @@ impl AtomLabelFacts {
                     .to_owned(),
             ));
         }
+        if isotope_mass_number.is_some_and(|mass| !(1..=32_767).contains(&mass)) {
+            return Err(RenderError::InvalidRequest(
+                "atom isotope mass number must be in 1..=32767 when present".to_owned(),
+            ));
+        }
         Ok(Self {
             element,
+            isotope_mass_number,
             formal_charge,
             explicit_hydrogens,
         })
@@ -174,6 +183,12 @@ impl AtomLabelFacts {
         self.formal_charge
     }
 
+    /// Return the optional admitted isotope mass number.
+    #[must_use]
+    pub const fn isotope_mass_number(&self) -> Option<u16> {
+        self.isotope_mass_number
+    }
+
     /// Return the source model's explicit hydrogen count.
     #[must_use]
     pub const fn explicit_hydrogens(&self) -> u8 {
@@ -182,7 +197,11 @@ impl AtomLabelFacts {
 
     /// Return ordered source text segments before a metric provider lays them out.
     pub(crate) fn text_pieces(&self) -> Vec<(String, TextScript)> {
-        let mut runs = vec![(self.element.clone(), TextScript::Baseline)];
+        let mut runs = Vec::with_capacity(4);
+        if let Some(isotope) = self.isotope_mass_number {
+            runs.push((isotope.to_string(), TextScript::Superscript));
+        }
+        runs.push((self.element.clone(), TextScript::Baseline));
         if self.explicit_hydrogens > 0 {
             runs.push(("H".to_owned(), TextScript::Baseline));
             if self.explicit_hydrogens > 1 {
@@ -269,11 +288,14 @@ impl AtomRenderTarget {
     }
 }
 
-pub(super) fn build_atom_batch<M: GlyphMetrics>(
+pub(super) fn build_atom_batch(
     atom: &AtomRenderTarget,
     font: &AtomLabelFontProfile,
-    metrics: &M,
-) -> Result<Result<(RenderBatch, GlyphBounds), RenderIssueKind>, RenderError> {
+    metrics: &VerifiedTelexGlyphMetrics,
+) -> Result<
+    Result<(RenderBatchV4, GlyphBounds, AtomLabelAttachmentGeometry), RenderIssueKind>,
+    RenderError,
+> {
     let layout = match metrics.layout_atom_label(&atom.label, font) {
         Ok(layout) => layout,
         Err(error) => {
@@ -290,22 +312,30 @@ pub(super) fn build_atom_batch<M: GlyphMetrics>(
         font.paint.clone(),
         30,
     )?;
-    let mut operations = Vec::new();
-    if let Some(paint) = font.label_mask.clone() {
+    let mask = if let Some(paint) = font.label_mask.clone() {
         let width = PositiveFinite::new(layout.bounds().max_x() - layout.bounds().min_x())?;
         let height = PositiveFinite::new(layout.bounds().max_y() - layout.bounds().min_y())?;
-        operations.push(RenderOp::Mask(MaskOp::new(
+        Some(MaskOp::new(
             RenderPoint::new(layout.bounds().min_x(), layout.bounds().min_y())?,
             width,
             height,
             paint,
             20,
-        )?));
-    }
-    operations.push(RenderOp::Text(operation));
+        )?)
+    } else {
+        None
+    };
+    let label = AtomLabelRenderV1::new(
+        mask,
+        operation,
+        layout.core_element_run_index(),
+        InkBoundsV1::from_glyph_bounds(layout.bounds()),
+        InkBoundsV1::from_glyph_bounds(layout.attachment().core_element_ink_bounds()),
+    )?;
+    let mut decorations = Vec::new();
     if let Some(number) = &atom.number_label {
         let run = metrics.layout_atom_number(number.number, &number.font)?;
-        operations.push(RenderOp::Text(TextOp::new(
+        decorations.push(AtomDecorationRenderOpV1::Text(TextOp::new(
             number.origin,
             vec![run],
             number.font.face.clone(),
@@ -316,28 +346,25 @@ pub(super) fn build_atom_batch<M: GlyphMetrics>(
     }
     let mut next_mark_z = 50;
     for mark in &atom.marks {
-        append_mark_operations(mark, &mut operations, &mut next_mark_z)?;
+        append_mark_operations(mark, &mut decorations, &mut next_mark_z)?;
     }
-    let batch = RenderBatch::from_context(
+    let batch = RenderBatchV4::atom(
         atom.context.clone(),
-        BatchSpace::AtomLocal {
-            anchor: atom.position,
-        },
-        operations,
+        AtomRenderBatchV1::new(atom.position, label, decorations)?,
     )?;
-    Ok(Ok((batch, layout.bounds())))
+    Ok(Ok((batch, layout.bounds(), layout.attachment())))
 }
 
 fn append_mark_operations(
     mark: &AtomMarkRenderFacts,
-    operations: &mut Vec<RenderOp>,
+    operations: &mut Vec<AtomDecorationRenderOpV1>,
     next_z: &mut i32,
 ) -> Result<(), RenderError> {
     let radius = mark.size.get() / 2.0;
     match mark.kind {
         AtomMarkRenderKind::Plus | AtomMarkRenderKind::Minus => {
             if mark.draw_circle {
-                operations.push(RenderOp::Ellipse(EllipseOp::new(
+                operations.push(AtomDecorationRenderOpV1::Ellipse(EllipseOp::new(
                     mark.origin,
                     PositiveFinite::new(radius)?,
                     PositiveFinite::new(radius)?,
@@ -414,7 +441,7 @@ fn append_mark_operations(
                     mark.origin.x() - local_y * radians.sin(),
                     mark.origin.y() + local_y * radians.cos(),
                 )?;
-                operations.push(RenderOp::Ellipse(EllipseOp::new(
+                operations.push(AtomDecorationRenderOpV1::Ellipse(EllipseOp::new(
                     center,
                     PositiveFinite::new(lobe_width)?,
                     PositiveFinite::new(lobe_height)?,
@@ -436,13 +463,13 @@ fn perpendicular(angle_degrees: f64, length: f64) -> (f64, f64) {
 }
 
 fn push_filled_dot(
-    operations: &mut Vec<RenderOp>,
+    operations: &mut Vec<AtomDecorationRenderOpV1>,
     center: RenderPoint,
     radius: f64,
     paint: RenderPaintV3,
     z: i32,
 ) -> Result<(), RenderError> {
-    operations.push(RenderOp::Ellipse(EllipseOp::new(
+    operations.push(AtomDecorationRenderOpV1::Ellipse(EllipseOp::new(
         center,
         PositiveFinite::new(radius)?,
         PositiveFinite::new(radius)?,
@@ -456,14 +483,16 @@ fn push_filled_dot(
 }
 
 fn push_line(
-    operations: &mut Vec<RenderOp>,
+    operations: &mut Vec<AtomDecorationRenderOpV1>,
     start: RenderPoint,
     end: RenderPoint,
     width: PositiveFinite,
     paint: RenderPaintV3,
     z: i32,
 ) -> Result<(), RenderError> {
-    operations.push(RenderOp::Line(LineOp::new(start, end, width, paint, z)?));
+    operations.push(AtomDecorationRenderOpV1::Line(LineOp::new(
+        start, end, width, paint, z,
+    )?));
     Ok(())
 }
 

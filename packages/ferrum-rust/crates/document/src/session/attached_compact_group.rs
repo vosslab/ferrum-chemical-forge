@@ -20,9 +20,8 @@ use ferrum_chemistry::{
 use ferrum_document_model::materialization_recipe_v1;
 use ferrum_render::{
     AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetV1, DepictionProfileV1,
-    DocumentPrecommitOverlayV1, FerrumFontEnvironmentV1, RenderPoint,
-    ResolvedAttachedCompactGroupPoseV1, VerifiedTelexGlyphMetrics,
-    resolve_attached_compact_group_anchor_render_facts_v1, resolve_attached_compact_group_pose_v1,
+    DocumentPrecommitOverlayV1, RenderPoint, ResolvedAttachedCompactGroupPoseV1,
+    resolve_attached_compact_group_pose_v2,
 };
 
 /// Durable pair selected for one attached compact-group operation.
@@ -600,20 +599,16 @@ fn resolve_renderer_admitted_pose(
     request: AttachCompactGroupV1,
 ) -> Result<ResolvedAttachedCompactGroupPoseV1, AttachedCompactGroupSessionErrorV1> {
     let profile = DepictionProfileV1::ferrum_default();
-    let facts = resolve_attached_compact_group_anchor_render_facts_v1(
+    let raw_release = RenderPoint::new(request.release().x(), request.release().y())
+        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
+    resolve_attached_compact_group_pose_v2(
         observation.projection(),
         &resolved.atom,
         &profile,
+        request.catalog_key(),
+        raw_release,
     )
-    .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
-    let raw_release = RenderPoint::new(request.release().x(), request.release().y())
-        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
-    let environment = FerrumFontEnvironmentV1::load()
-        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)?;
-    resolve_attached_compact_group_pose_v1(&facts, request.catalog_key(), raw_release, &metrics)
-        .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)
+    .map_err(|_| AttachedCompactGroupSessionErrorV1::RendererAdmission)
 }
 
 fn resolve_anchor(

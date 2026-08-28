@@ -4,85 +4,14 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use super::{DocumentBondOrderV1, PersistentId, PositiveFiniteV1, Rgb24V1};
+use super::{DocumentBondPresentationV1, PersistentId, PositiveFiniteV1, Rgb24V1};
 pub use ferrum_document_projection::NonZeroFiniteV1;
-
-/// A closed CDML bond depiction prefix supported by the V1 editor.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DocumentBondStyleV1 {
-    /// Normal covalent depiction (`n`).
-    Normal,
-    /// Filled wedge (`w`).
-    Wedge,
-    /// Hashed wedge (`h`).
-    HashedWedge,
-    /// Adder (`a`).
-    Adder,
-    /// Bold (`b`).
-    Bold,
-    /// Dashed (`d`).
-    Dashed,
-    /// Dotted (`o`).
-    Dotted,
-    /// Wavy (`s`).
-    Wavy,
-    /// Haworth front (`q`).
-    HaworthFront,
-}
-
-impl DocumentBondStyleV1 {
-    /// Return whether this closed depiction style can author the supplied order.
-    ///
-    /// The CDML V1 grammar makes Haworth front a depiction token rather than a
-    /// generic bond-order prefix: only `q1` is authored. Other closed styles
-    /// retain the existing V1 orders until the format specifies otherwise.
-    pub(crate) const fn supports_order(self, order: DocumentBondOrderV1) -> bool {
-        !matches!(
-            (self, order),
-            (
-                Self::HaworthFront,
-                DocumentBondOrderV1::Double | DocumentBondOrderV1::Triple
-            )
-        )
-    }
-
-    pub(crate) const fn cdml_prefix(self) -> char {
-        match self {
-            Self::Normal => 'n',
-            Self::Wedge => 'w',
-            Self::HashedWedge => 'h',
-            Self::Adder => 'a',
-            Self::Bold => 'b',
-            Self::Dashed => 'd',
-            Self::Dotted => 'o',
-            Self::Wavy => 's',
-            Self::HaworthFront => 'q',
-        }
-    }
-
-    pub(crate) const fn from_cdml_prefix(value: char) -> Option<Self> {
-        match value {
-            'n' => Some(Self::Normal),
-            'w' => Some(Self::Wedge),
-            'h' => Some(Self::HashedWedge),
-            'a' => Some(Self::Adder),
-            'b' => Some(Self::Bold),
-            'd' => Some(Self::Dashed),
-            'o' => Some(Self::Dotted),
-            's' => Some(Self::Wavy),
-            'q' => Some(Self::HaworthFront),
-            _ => None,
-        }
-    }
-}
 
 /// One supported durable bond-property change.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BondPropertyChangeV1 {
-    /// Replace the bond order while retaining the source style.
-    Order(DocumentBondOrderV1),
-    /// Replace the bond style while retaining the source order.
-    Style(DocumentBondStyleV1),
+    /// Replace the complete closed bond presentation.
+    Presentation(DocumentBondPresentationV1),
     /// Replace or clear the authored centered-double-bond flag.
     Center(Option<bool>),
     /// Replace or clear the authored positive line width.
@@ -98,8 +27,7 @@ pub enum BondPropertyChangeV1 {
 impl BondPropertyChangeV1 {
     fn kind(&self) -> BondPropertyKindV1 {
         match self {
-            Self::Order(_) => BondPropertyKindV1::Order,
-            Self::Style(_) => BondPropertyKindV1::Style,
+            Self::Presentation(_) => BondPropertyKindV1::Presentation,
             Self::Center(_) => BondPropertyKindV1::Center,
             Self::LineWidth(_) => BondPropertyKindV1::LineWidth,
             Self::BondWidth(_) => BondPropertyKindV1::BondWidth,
@@ -111,8 +39,7 @@ impl BondPropertyChangeV1 {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum BondPropertyKindV1 {
-    Order,
-    Style,
+    Presentation,
     Center,
     LineWidth,
     BondWidth,
@@ -123,8 +50,7 @@ enum BondPropertyKindV1 {
 impl BondPropertyKindV1 {
     fn name(self) -> &'static str {
         match self {
-            Self::Order => "order",
-            Self::Style => "style",
+            Self::Presentation => "presentation",
             Self::Center => "center",
             Self::LineWidth => "line width",
             Self::BondWidth => "bond width",
@@ -158,19 +84,6 @@ impl BondPropertiesPatchV1 {
                 });
             }
         }
-        let order = changes.iter().find_map(|change| match change {
-            BondPropertyChangeV1::Order(value) => Some(*value),
-            _ => None,
-        });
-        let style = changes.iter().find_map(|change| match change {
-            BondPropertyChangeV1::Style(value) => Some(*value),
-            _ => None,
-        });
-        if let (Some(order), Some(style)) = (order, style)
-            && !style.supports_order(order)
-        {
-            return Err(BondPropertiesPatchV1Error::UnsupportedStyleOrder);
-        }
         Ok(Self { bond_id, changes })
     }
 
@@ -196,7 +109,4 @@ pub enum BondPropertiesPatchV1Error {
     /// One closed property appeared more than once in a single patch.
     #[error("bond property change is duplicated: {property}")]
     DuplicateChange { property: &'static str },
-    /// The supplied closed style/order pair has no authored V1 CDML form.
-    #[error("Haworth front bond style can only be authored with single order")]
-    UnsupportedStyleOrder,
 }

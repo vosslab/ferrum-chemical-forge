@@ -66,7 +66,7 @@ class _MutationFencedDocumentSessionV1:
 	def _reprojection_call(self) -> object:
 		"""Route legacy observation callers through the live-plan transaction."""
 		def call(*args: object, **kwargs: object) -> object:
-			return self._tab._publish_live_render_plan_v1(*args, **kwargs)
+			return self._tab._publish_live_render_plan_v2(*args, **kwargs)
 		return call
 
 
@@ -366,7 +366,7 @@ class FerrumLiveDocumentTransactionMixin:
 		"""Install an already-published plan without clearing its new Rust state.
 
 		The caller must obtain the observation from
-		`_publish_live_render_plan_v1()`.  That transaction has already invalidated the
+		`_publish_live_render_plan_v2()`.  That transaction has already invalidated the
 		obsolete Qt overlay and Rust receipt before publication.  A second native
 		invalidation here would clear the newly committed plan before a live query can
 		use it.
@@ -374,7 +374,7 @@ class FerrumLiveDocumentTransactionMixin:
 		return operation(*args, **kwargs)
 
 	#============================================
-	def _publish_live_render_plan_v1(self, expected_revision: int) -> object:
+	def _publish_live_render_plan_v2(self, expected_revision: int) -> object:
 		"""Publish one same-fence scene observation and renderer presentation plan."""
 		try:
 			snapshot = self._live_document_session_v1.snapshot()

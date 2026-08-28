@@ -326,6 +326,13 @@ mod tests {
     use crate::{SessionOperation, SessionOperationV1};
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
+    const HOST_BOND_SOURCE: &str = concat!(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
+        "<atom id=\"anchor\" name=\"C\"><point x=\"300\" y=\"360\"/></atom>",
+        "<atom id=\"oxygen\" name=\"O\"><point x=\"520\" y=\"360\"/></atom>",
+        "<bond id=\"host\" start=\"anchor\" end=\"oxygen\" type=\"n1\"/>",
+        "</molecule></cdml>",
+    );
 
     fn fence(session: &DocumentSession) -> DocumentFenceV1 {
         let snapshot = session.snapshot().expect("snapshot");
@@ -376,10 +383,47 @@ mod tests {
                 .count(),
             2
         );
+        let full_plan = crate::compose_complete_document_render_plan_v1(&session, after.revision())
+            .expect("accepted C6 candidate composes every host and generated member");
+        assert!(full_plan.outcomes().iter().all(|outcome| matches!(
+            outcome,
+            ferrum_render::DocumentRenderOutcomeV1::Root(root)
+                if matches!(root.content(), ferrum_render::DocumentRenderContentV1::Molecule(content)
+                    if content.plan().issues().is_empty() && content.member_issues().is_empty())
+        )));
         assert!(matches!(
             session.commit_attach_cyclohexane_v1(&mut pending),
             Err(AttachedCyclohexaneSessionErrorV1::Consumed)
         ));
+    }
+
+    #[test]
+    fn attached_c6_refuses_atomically_when_the_complete_host_plan_has_a_member_issue() {
+        let mut session = DocumentSession::load(HOST_BOND_SOURCE).expect("host source loads");
+        let before = session.snapshot().expect("before snapshot");
+        let anchor = session
+            .document_observation()
+            .expect("host observation")
+            .projection()
+            .molecules()[0]
+            .atoms()[0]
+            .document_object_id()
+            .clone();
+
+        assert!(matches!(
+            session.prepare_attach_cyclohexane_v1(
+                fence(&session),
+                anchor,
+                AttachedCyclohexaneReleaseV1::new(360.0, 360.0).expect("finite release"),
+            ),
+            Err(AttachedCyclohexaneSessionErrorV1::RendererAdmission)
+        ));
+        assert_eq!(session.snapshot().expect("refusal snapshot"), before);
+        assert_eq!(
+            session.snapshot().expect("refusal CDML").cdml(),
+            before.cdml(),
+            "refusal cannot persist a partial C6 candidate"
+        );
     }
 
     #[test]

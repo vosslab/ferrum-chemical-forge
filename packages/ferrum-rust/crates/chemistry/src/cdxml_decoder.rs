@@ -23,13 +23,53 @@ pub enum CdxmlLossCategoryV1 {
     DocumentViewMetadata,
 }
 
+/// A fixed-single CDXML bond depiction retained until document admission.
+///
+/// This source-specific fact is deliberately separate from stereochemical
+/// [`BondDirection`].  Its order is the source `MolGraph` bond order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CdxmlBondPresentationV1 {
+    Wavy,
+    Bold,
+    Dashed,
+}
+
 /// One source fragment converted into an owned chemistry record.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CdxmlDecodedRecordV1 {
-    pub(crate) source_fragment_id: String,
-    pub(crate) record: InterchangeRecordV1,
+    source_fragment_id: String,
+    record: InterchangeRecordV1,
+    bond_presentations: Vec<Option<CdxmlBondPresentationV1>>,
 }
 impl CdxmlDecodedRecordV1 {
+    /// Construct one internally validated CDXML record and its source-order
+    /// presentation carrier.
+    ///
+    /// `bond_presentations[index]` always describes `record.molecule().bonds()[index]`.
+    pub(crate) fn new(
+        source_fragment_id: String,
+        record: InterchangeRecordV1,
+        bond_presentations: Vec<Option<CdxmlBondPresentationV1>>,
+    ) -> Result<Self> {
+        let bonds = record.molecule().bonds();
+        if bond_presentations.len() != bonds.len()
+            || bond_presentations
+                .iter()
+                .zip(bonds)
+                .any(|(presentation, bond)| {
+                    presentation.is_some()
+                        && (bond.order() != BondOrder::Single
+                            || bond.direction() != BondDirection::None)
+                })
+        {
+            return refused(CdxmlRefusalReasonV1::InternalFailure);
+        }
+        Ok(Self {
+            source_fragment_id,
+            record,
+            bond_presentations,
+        })
+    }
     #[must_use]
     pub fn source_fragment_id(&self) -> &str {
         &self.source_fragment_id
@@ -37,6 +77,10 @@ impl CdxmlDecodedRecordV1 {
     #[must_use]
     pub fn record(&self) -> &InterchangeRecordV1 {
         &self.record
+    }
+    #[must_use]
+    pub fn bond_presentations(&self) -> &[Option<CdxmlBondPresentationV1>] {
+        &self.bond_presentations
     }
 }
 

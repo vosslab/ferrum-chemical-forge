@@ -8,13 +8,13 @@ const STRUCTURE_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.07\"><molecule id=\"m\" name=\"chain\">",
     "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
     "<vendor:fact xmlns:vendor=\"urn:vendor\" value=\"retained\"/></atom>",
-    "<atom id=\"b\" name=\"N\"><point x=\"10\" y=\"0\"/></atom>",
-    "<atom id=\"c\" name=\"O\"><point x=\"20\" y=\"0\"/></atom>",
+    "<atom id=\"b\" name=\"N\"><point x=\"40\" y=\"0\"/></atom>",
+    "<atom id=\"c\" name=\"O\"><point x=\"80\" y=\"0\"/></atom>",
     "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
     "<bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/>",
     "<fragment id=\"linear\" type=\"linear_form\"><name>linear_form</name>",
     "<bond id=\"ab\"/><bond id=\"bc\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-    "<vertex id=\"c\"/><property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
+    "<vertex id=\"c\"/><property name=\"bond_length\" value=\"40\" type=\"IntType\"/>",
     "</fragment></molecule></cdml>",
 );
 

@@ -1,46 +1,48 @@
 # Release history
 
+Ferrum has not published a consumer release. `26.08` is the synchronized
+pre-alpha development version, not a shipped release number. A release entry
+is added only after a human approves the release gate and creates its `v*` tag.
+
 ## Unreleased pre-alpha work
-
-- Ferrum remains pre-production. The repository builds and validates one local
-  CLI and PySide6 application under `build/`; it has no release or installation
-  workflow.
-
-## v26.08 - 2026-08-12
 
 ### Highlights
 
-- Added the standalone Rust `ferrum` command for typed CDML inspection and structural
-  rewriting, with explicit standard-input and standard-output behavior.
-- Added typed CDML storage that preserves assigned CDML records, unknown attributes,
-  ordered opaque children, and document identity and ordering facts.
-- Renamed the retained Qt frontend product and installed command to Ferrum and
-  `ferrum-qt` while keeping the existing application contracts explicit.
-- Added graph analysis for connected components, bridges, articulation points, matchings,
-  shortest paths, distances, diameter, and a deterministic fundamental-cycle basis.
+- Ferrum is becoming a Rust-first chemical editor: Rust owns the document,
+  chemistry, rendering, and cross-language contracts, while the PySide6 client
+  consumes typed native observations.
+- The local developer build produces the `ferrum` CLI and `ferrum-qt` desktop
+  application under `build/`. It is not an installation or consumer-release
+  workflow.
+- Native CDML editing, bounded interchange and export routes, typed CLI
+  operations, and a closed PyO3/Qt render-observation path are under active
+  development.
+- The current renderer now issues exact Telex label geometry, including a
+  centered element-core run and full visible-ink exclusion for bond clipping.
+  The alignment corpus covers isotope labels, decorations, bond styles, and
+  refusal when a final bond would cross another label.
 
 ### Notable fixes
 
-- Tightened the native build policy and provenance checks so declared RDKit inputs,
-  CMake settings, compiler tools, downloaded archives, and packaged Mach-O closure are
-  verified rather than inherited from the host environment.
-- Corrected CDML bond-token interpretation, document identity collisions, and typed
-  opaque-container handling so valid authored documents retain their structure.
-- Made Qt launch-file processing and controlled shutdown fail visibly instead of
-  publishing a successful smoke receipt after an incomplete open.
+- The Qt molecule renderer now consumes closed V4/V2 native observations and
+  preserves native paint order rather than inferring generic drawing meaning.
+- Attached compact-group placement and normal-single-bond clipping now use one
+  renderer-owned clearance policy.
+- The active migration removed the OASA compatibility host from the production
+  desktop route; read-only historical material remains only as provenance or
+  an oracle for parity work.
 
 ### Compatibility notes
 
-- Ferrum is the user-facing product name and `ferrum-qt` is the installed command.
-  Existing settings, templates, clipboard ownership value, and session identifiers
-  remain compatibility identifiers during the migration.
-- The native chemistry boundary remains intentionally narrow: macOS arm64 and
-  GraphMol kekulization. It is not a claim of complete Qt, CDML, coordinate,
-  cross-platform, or broad RDKit API replacement.
+- There is no supported upgrade path, released artifact, or compatibility
+  promise. Existing behavior may change as the pre-production contracts are
+  strengthened.
+- Full OASA/BKChem parity, human accessibility review, remote CI, release
+  verification, and the remaining parity milestones are open. See
+  [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
 
 ### Validation
 
-- The Rust workspace passed formatting, target checking, warnings-denied Clippy, and
-  unit and integration tests on `aarch64-apple-darwin`.
-- The local runtime validation recorded extension and dynamic-library closure
-  checks together with CLI and offscreen Qt smoke checks.
+- Current work records focused Rust, PyO3, and offscreen Qt evidence in
+  [CHANGELOG.md](CHANGELOG.md). Those receipts are development evidence, not
+  release acceptance.

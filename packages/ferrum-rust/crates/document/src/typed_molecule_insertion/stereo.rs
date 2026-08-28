@@ -571,6 +571,12 @@ pub(super) fn append_stereo_depictions(
                 DocumentBondPresentationV1::Normal(_) => {
                     return Err(TypedDocumentError::InvalidStereoSemantics);
                 }
+                DocumentBondPresentationV1::Bold
+                | DocumentBondPresentationV1::Dashed
+                | DocumentBondPresentationV1::Wavy
+                | DocumentBondPresentationV1::HaworthFront => {
+                    return Err(TypedDocumentError::InvalidStereoSemantics);
+                }
             },
         );
         tree.append(depiction_node, node)

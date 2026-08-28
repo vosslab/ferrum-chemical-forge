@@ -33,6 +33,7 @@ fn request(
             .map(|name| id(RecordKind::Atom, name))
             .collect(),
         LinearFormGraphV1::new(atoms, bonds),
+        LinearFormBondLength::NATIVE,
     )
 }
 
@@ -49,7 +50,7 @@ fn single_atom_keeps_its_point_and_enables_hydrogen() {
 }
 
 #[test]
-fn source_order_controls_direction_and_fixed_spacing() {
+fn source_order_controls_direction_and_native_spacing() {
     let plan = plan_linear_form_v1(&request(
         &["z", "a"],
         vec![atom("z", 90.0, 12.0), atom("a", -3.0, -8.0)],
@@ -62,8 +63,9 @@ fn source_order_controls_direction_and_fixed_spacing() {
     );
     assert_eq!(
         plan.selected_replacements()[1].point(),
-        Point2::new(100.0, 12.0).expect("finite")
+        Point2::new(130.0, 12.0).expect("finite")
     );
+    assert_eq!(plan.bond_length(), LinearFormBondLength::NATIVE);
     assert_eq!(plan.metadata().atom_members(), plan.ordered_atoms());
     assert_eq!(plan.metadata().bond_members(), plan.ordered_bonds());
 }
@@ -142,11 +144,11 @@ fn uniquely_anchored_exterior_component_translates_with_its_path_atom() {
     .expect("plan");
     assert_eq!(
         plan.exterior_replacements()[0].point(),
-        Point2::new(10.0, 5.0).expect("finite")
+        Point2::new(40.0, 5.0).expect("finite")
     );
     assert_eq!(
         plan.exterior_replacements()[1].point(),
-        Point2::new(13.0, 5.0).expect("finite")
+        Point2::new(43.0, 5.0).expect("finite")
     );
 }
 
@@ -177,14 +179,16 @@ fn rejects_duplicate_and_foreign_selected_atoms() {
     assert_eq!(
         plan_linear_form_v1(&LinearFormRequestV1::new(
             vec![id(RecordKind::Atom, "a"), id(RecordKind::Atom, "a")],
-            graph.clone()
+            graph.clone(),
+            LinearFormBondLength::NATIVE,
         )),
         Err(LinearFormPlanErrorV1::DuplicateAtomId)
     );
     assert_eq!(
         plan_linear_form_v1(&LinearFormRequestV1::new(
             vec![id(RecordKind::Atom, "foreign")],
-            graph
+            graph,
+            LinearFormBondLength::NATIVE,
         )),
         Err(LinearFormPlanErrorV1::UnknownOrForeignAtom)
     );

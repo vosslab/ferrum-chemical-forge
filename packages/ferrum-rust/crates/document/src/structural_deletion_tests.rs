@@ -2,10 +2,10 @@ use super::{DocumentSession, DocumentSessionError, SessionOperationError, TypedD
 
 const CHAIN: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" name=\"chain\">",
-    "<atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\"><point x=\"1\" y=\"0\"/></atom><atom id=\"c\"><point x=\"2\" y=\"0\"/></atom><atom id=\"d\"><point x=\"3\" y=\"0\"/></atom>",
-    "<bond id=\"ab\" start=\"a\" end=\"b\"/>",
-    "<bond id=\"bc\" start=\"b\" end=\"c\"/>",
-    "<bond id=\"cd\" start=\"c\" end=\"d\"/>",
+    "<atom id=\"a\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\"><point x=\"60\" y=\"0\"/></atom><atom id=\"c\"><point x=\"120\" y=\"0\"/></atom><atom id=\"d\"><point x=\"180\" y=\"0\"/></atom>",
+    "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
+    "<bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/>",
+    "<bond id=\"cd\" start=\"c\" end=\"d\" type=\"n1\"/>",
     "</molecule></cdml>",
 );
 

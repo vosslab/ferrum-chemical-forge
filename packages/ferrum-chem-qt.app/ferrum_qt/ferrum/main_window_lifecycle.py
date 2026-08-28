@@ -15,7 +15,6 @@ import ferrum_qt.ferrum.arrow_properties
 import ferrum_qt.ferrum.geometric_properties as native_geometric_properties
 import ferrum_qt.ferrum.wavy_properties as native_wavy_properties
 import ferrum_qt.ferrum.operation_leases
-import ferrum_qt.ferrum.local_document_open_contract
 
 #============================================
 class FerrumNativeMainWindowLifecycleMixin:
@@ -75,68 +74,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 		return tab
 
 	#============================================
-	def _publish_local_open_tab(
-			self, tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			) -> ferrum_qt.ferrum.local_document_open_contract.LocalOpenNewTabPublicationReceipt:
-		"""Commit a Local Open candidate without optional activation or display work."""
-		self._require_unregistered_native_tab(tab)
-		self._operation_leases.bind_tab(tab)
-		published = False
-		try:
-			with PySide6.QtCore.QSignalBlocker(self._tab_widget):
-				index = self._tab_widget.addTab(tab, tab.title)
-				self._finish_native_tab_registration(tab)
-			published = True
-		finally:
-			if not published:
-				self._unpublish_local_open_candidate(tab)
-		receipt = ferrum_qt.ferrum.local_document_open_contract.LocalOpenNewTabPublicationReceipt(
-			tab, index,
-		)
-		return receipt
-
-	#============================================
-	def _finish_local_open_publication(
-			self, receipt: ferrum_qt.ferrum.local_document_open_contract.LocalOpenNewTabPublicationReceipt,
-			activate: bool,
-			) -> None:
-		"""Apply optional activation after an already truthful new-tab publication."""
-		self._require_local_open_publication_receipt(receipt)
-		try:
-			if activate:
-				self._tab_widget.setCurrentIndex(receipt.index)
-			if self._active_native_tab() is receipt.tab and self._last_native_tab is not receipt.tab:
-				self._on_native_tab_changed(receipt.index)
-		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as error:
-			raise ferrum_qt.ferrum.local_document_open_contract.LocalOpenPostCommitPresentationError(
-				"Ferrum could not refresh the committed Local Open tab",
-			) from error
-
-	#============================================
-	def _require_unregistered_native_tab(
-			self, tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			) -> None:
-		"""Validate one candidate before any publication-specific mutation."""
-		if type(tab) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-			raise TypeError("Ferrum window requires an exact FerrumNativeDocumentTab")
-		if tab in self._native_tabs_by_page or tab.is_disposed:
-			raise ValueError("Ferrum Local Open candidate is already unavailable")
-		if self._tab_widget.indexOf(tab) >= 0:
-			raise ValueError("Ferrum Local Open candidate is already registered")
-
-	#============================================
-	def _require_local_open_publication_receipt(
-			self, receipt: ferrum_qt.ferrum.local_document_open_contract.LocalOpenNewTabPublicationReceipt,
-			) -> None:
-		"""Require the exact new tab and index committed by Local Open."""
-		if type(receipt) is not ferrum_qt.ferrum.local_document_open_contract.LocalOpenNewTabPublicationReceipt:
-			raise TypeError("Ferrum Local Open completion requires its publication receipt")
-		if self._native_tabs_by_page.get(receipt.tab) is not receipt.tab:
-			raise RuntimeError("Ferrum Local Open committed tab is no longer registered")
-		if self._tab_widget.indexOf(receipt.tab) != receipt.index:
-			raise RuntimeError("Ferrum Local Open committed tab moved before presentation")
-
-	#============================================
 	def _restore_registered_tab_after_provisional_refusal(
 			self,
 			prior_tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab | None,
@@ -178,105 +115,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 			) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
 		"""Replace one exact idle registered page through the sole tab lifecycle."""
 		return self._replace_registered_native_tab_transition(old, new, index)
-
-	#============================================
-	def _commit_local_open_replacement(
-			self, old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab, index: int,
-			capability: ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability,
-			lease: ferrum_qt.ferrum.operation_leases.OperationLease,
-			) -> ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt:
-		"""Commit a prepared Local Open swap without post-commit presentation work."""
-		self._validate_local_open_replacement(old, new, index, capability, lease)
-		self._publish_provisional_replacement_candidate(new, index)
-		prepared = self._prepare_local_open_source(capability, lease, old, new)
-		receipt = ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt(
-			old, new, index, lease.lease_id, lease.tab_identity,
-		)
-		self._dispose_or_restore_local_open_source(prepared, old, new)
-		self._close_local_open_replacement(prepared, old, index)
-		return receipt
-
-	#============================================
-	def _validate_local_open_replacement(
-			self, old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab, index: int,
-			capability: ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability,
-			lease: ferrum_qt.ferrum.operation_leases.OperationLease,
-			) -> None:
-		"""Complete every externally visible Local Open check before old disposal."""
-		if type(old) is not ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
-			raise TypeError("Ferrum replacement requires an exact old Ferrum tab")
-		self._require_unregistered_native_tab(new)
-		if self._native_tabs_by_page.get(old) is not old or old.is_disposed:
-			raise ValueError("Ferrum replacement target is no longer registered")
-		if self._tab_widget.indexOf(old) != index:
-			raise ValueError("Ferrum replacement target changed its tab position")
-		active_leases = self._operation_leases.active_for_tab(old)
-		if len(active_leases) != 1 or active_leases[0].lease_id != lease.lease_id:
-			raise ValueError("Ferrum Open replacement requires its sole active source lease")
-		if active_leases[0].state is not ferrum_qt.ferrum.operation_leases.LeaseState.ACTIVE:
-			raise ValueError("Ferrum Open replacement requires an active source lease")
-		if type(capability) is not ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability:
-			raise TypeError("Ferrum Open replacement requires its lease capability")
-
-	#============================================
-	def _publish_provisional_replacement_candidate(
-			self, new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab, index: int,
-			) -> None:
-		"""Integrate a recoverable replacement candidate without transferring ownership."""
-		self._operation_leases.bind_tab(new)
-		published = False
-		try:
-			with PySide6.QtCore.QSignalBlocker(self._tab_widget):
-				self._tab_widget.insertTab(index, new, new.title)
-				self._finish_native_tab_registration(new)
-			published = True
-		finally:
-			if not published:
-				self._unpublish_local_open_candidate(new)
-
-	#============================================
-	def _prepare_local_open_source(
-			self, capability: ferrum_qt.ferrum.operation_leases.LeaseOwnerCapability,
-			lease: ferrum_qt.ferrum.operation_leases.OperationLease,
-			old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			) -> ferrum_qt.ferrum.operation_leases.PreparedTerminalReplacement:
-		"""Prepare the exact source lease while replacement remains recoverable."""
-		try:
-			prepared = self._operation_leases.prepare_terminal_replacement(
-				capability, lease, old,
-			)
-		except ferrum_qt.ferrum.operation_leases.OperationLeaseError:
-			self._unpublish_local_open_candidate(new)
-			raise
-		return prepared
-
-	#============================================
-	def _dispose_or_restore_local_open_source(
-			self, prepared: ferrum_qt.ferrum.operation_leases.PreparedTerminalReplacement,
-			old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			new: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			) -> None:
-		"""Dispose the source or restore every recoverable ownership edge on refusal."""
-		try:
-			old.dispose()
-		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError:
-			self._operation_leases.restore_prepared_terminal_replacement(prepared, old)
-			self._unpublish_local_open_candidate(new)
-			raise
-
-	#============================================
-	def _close_local_open_replacement(
-			self, prepared: ferrum_qt.ferrum.operation_leases.PreparedTerminalReplacement,
-			old: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab, index: int,
-			) -> None:
-		"""Close only private registry and Qt structures after irreversible disposal."""
-		with PySide6.QtCore.QSignalBlocker(self._tab_widget):
-			self._tab_widget.removeTab(index + 1)
-			del self._native_tabs_by_page[old]
-		self._operation_leases.complete_prepared_terminal_replacement(prepared)
 
 	#============================================
 	def _replace_registered_native_tab_transition(
@@ -351,30 +189,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 		return new
 
 	#============================================
-	def _finish_local_open_replacement(
-			self, receipt: ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt,
-			) -> None:
-		"""Apply presentation cleanup after an already-settled Local Open commit."""
-		if type(receipt) is not ferrum_qt.ferrum.local_document_open_contract.LocalOpenReplacementCommitReceipt:
-			raise TypeError("Ferrum Local Open completion requires its commit receipt")
-		if self._native_tabs_by_page.get(receipt.new) is not receipt.new:
-			raise RuntimeError("Ferrum Local Open committed tab is no longer registered")
-		try:
-			self._cancel_native_view_controls_for_tab(receipt.old)
-		finally:
-			receipt.old.hide()
-			receipt.old.setParent(None)
-			receipt.old.deleteLater()
-		try:
-			self._tab_widget.setCurrentIndex(receipt.index)
-			self._last_native_tab = None
-			self._on_native_tab_changed(receipt.index)
-		except ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError as error:
-			raise ferrum_qt.ferrum.local_document_open_contract.LocalOpenPostCommitPresentationError(
-			"Ferrum could not refresh the committed Local Open tab",
-		) from error
-
-	#============================================
 	def _retire_provisional_native_tab(
 			self,
 			tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
@@ -396,21 +210,6 @@ class FerrumNativeMainWindowLifecycleMixin:
 			tab.hide()
 			tab.setParent(None)
 		tab.deleteLater()
-
-	#============================================
-	def _unpublish_local_open_candidate(
-			self, tab: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			) -> None:
-		"""Undo provisional Local Open integration while delivery retains the candidate."""
-		self._operation_leases.unregister_tab(tab)
-		self._remove_provisional_native_tab_integrations(tab)
-		with PySide6.QtCore.QSignalBlocker(self._tab_widget):
-			index = self._tab_widget.indexOf(tab)
-			if index >= 0:
-				self._tab_widget.removeTab(index)
-			self._native_tabs_by_page.pop(tab, None)
-			tab.hide()
-			tab.setParent(None)
 
 	#============================================
 	def _remove_provisional_native_tab_integrations(

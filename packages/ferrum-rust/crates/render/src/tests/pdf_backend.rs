@@ -1,3 +1,4 @@
+use crate::glyph_metrics::GlyphBounds;
 use crate::*;
 use ferrum_document_projection::DocumentObjectIdV1;
 
@@ -92,30 +93,27 @@ fn presentation_text_plan(
 }
 
 fn scene_path_document_plan() -> DocumentRenderPlanV1 {
-    let molecule = MoleculeRenderPlan::new(
+    let molecule = MoleculeRenderPlanV4::new(
         provenance(21),
-        vec![
-            RenderBatch::new(
-                target(0x21),
-                1,
-                BatchSpace::Scene,
-                vec![RenderOp::Path(
-                    PathOpV3::new(
-                        vec![
-                            ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
-                            ScenePathCommandV3::LineTo(point(12.0, 2.0)),
-                            ScenePathCommandV3::LineTo(point(7.0, 10.0)),
-                            ScenePathCommandV3::Close,
-                        ],
-                        Some(ScenePathStrokeV3::new(paint("112233"), width(1.0))),
-                        Some(paint("aabbcc")),
-                        0,
-                    )
-                    .expect("scene path"),
-                )],
-            )
-            .expect("scene path batch"),
-        ],
+        vec![RenderBatchV4::bond_target(
+            target(0x21),
+            1,
+            BondRenderBatchV1::new(vec![BondRenderOpV1::Path(
+                PathOpV3::new(
+                    vec![
+                        ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
+                        ScenePathCommandV3::LineTo(point(12.0, 2.0)),
+                        ScenePathCommandV3::LineTo(point(7.0, 10.0)),
+                        ScenePathCommandV3::Close,
+                    ],
+                    Some(ScenePathStrokeV3::new(paint("112233"), width(1.0))),
+                    Some(paint("aabbcc")),
+                    0,
+                )
+                .expect("scene path"),
+            )])
+            .expect("scene path content"),
+        )],
         vec![],
     )
     .expect("molecule plan");
@@ -138,16 +136,14 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
 fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics() {
     let source = provenance(8);
     let molecule_target = target(0x22);
-    let molecule = MoleculeRenderPlan::new(
+    let molecule = MoleculeRenderPlanV4::new(
         source,
-        vec![
-            RenderBatch::new(
-                molecule_target,
-                1,
-                BatchSpace::AtomLocal {
-                    anchor: point(0.0, 0.0),
-                },
-                vec![RenderOp::Ellipse(
+        vec![RenderBatchV4::test_compact_group_target(
+            molecule_target,
+            1,
+            CompactGroupRenderBatchV1::new(
+                point(0.0, 0.0),
+                vec![CompactGroupRenderOpV1::Ellipse(
                     EllipseOp::new(
                         point(50.0, 30.0),
                         width(6.0),
@@ -161,8 +157,8 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
                     .expect("rotated ellipse"),
                 )],
             )
-            .expect("ellipse batch"),
-        ],
+            .expect("compact-group content"),
+        )],
         vec![],
     )
     .expect("molecule plan");

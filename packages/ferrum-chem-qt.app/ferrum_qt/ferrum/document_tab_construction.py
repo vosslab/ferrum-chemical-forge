@@ -39,14 +39,14 @@ def create_admitted_local_document_tab(
 	"""Construct one tab without repeating worker-owned Rust observation."""
 	import ferrum_qt.ferrum.engine as engine
 	_validate_session_and_title(session, title)
-	if type(observation) is not engine.RenderObservationV1:
+	if type(observation) is not engine.RenderObservationV2:
 		raise TypeError(
 			"local CDML Open requires exact Ferrum session and observation values",
 		)
 	_validate_admitted_provenance(session, observation, error_type)
 	tab = _construct_tab(tab_class, session, title, palette)
 	try:
-		live_observation = tab._publish_live_render_plan_v1(
+		live_observation = tab._publish_live_render_plan_v2(
 			observation.document.snapshot.revision,
 		)
 		if not tab._install_observation(live_observation):

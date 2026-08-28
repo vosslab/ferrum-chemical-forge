@@ -109,7 +109,7 @@ class FerrumNativeDocumentMoleculeChoicesMixin:
 		self._require_mutable()
 		import ferrum_qt.ferrum.engine as engine
 		observation = self._render_observation
-		if type(observation) is not engine.RenderObservationV1:
+		if type(observation) is not engine.RenderObservationV2:
 			raise FerrumNativeDocumentTabError(
 				"Ferrum tab has no exact installed Rust render observation",
 			)

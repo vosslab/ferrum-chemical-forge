@@ -10,7 +10,7 @@ fn ring(size: u8, center: Point3V1) -> DetachedRegularRingInsertionV1 {
     DetachedRegularRingInsertionV1::new(
         RegularRingSizeV1::new(size).expect("closed-family test size"),
         center,
-        4.0,
+        40.0,
         RegularRingOrientationV1::FlatTop,
     )
     .expect("finite positive test ring")

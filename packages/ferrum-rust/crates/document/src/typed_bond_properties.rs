@@ -3,8 +3,8 @@
 use xot::{Node, Xot};
 
 use super::{
-    BondPropertiesPatchV1, BondPropertyChangeV1, CDML_NAMESPACE, DocumentBondOrderV1,
-    DocumentBondStyleV1, PersistentId, TypedDocument, TypedDocumentError, element_name,
+    BondPropertiesPatchV1, BondPropertyChangeV1, CDML_NAMESPACE, DocumentBondPresentationV1,
+    PersistentId, TypedDocument, TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -55,33 +55,38 @@ fn apply_changes(
     bond_id: &PersistentId,
     changes: &[BondPropertyChangeV1],
 ) -> Result<(), TypedDocumentError> {
-    let order = changes.iter().find_map(|change| match change {
-        BondPropertyChangeV1::Order(value) => Some(*value),
+    let replacement = changes.iter().find_map(|change| match change {
+        BondPropertyChangeV1::Presentation(value) => Some(*value),
         _ => None,
     });
-    let style = changes.iter().find_map(|change| match change {
-        BondPropertyChangeV1::Style(value) => Some(*value),
-        _ => None,
-    });
-    if order.is_some() || style.is_some() {
+    let requires_presentation = replacement.is_some()
+        || changes.iter().any(|change| {
+            matches!(
+                change,
+                BondPropertyChangeV1::Center(Some(_))
+                    | BondPropertyChangeV1::BondWidth(Some(_))
+                    | BondPropertyChangeV1::WedgeWidth(Some(_))
+            )
+        });
+    let presentation = if requires_presentation {
         let type_name = tree.add_name("type");
         let current = tree
             .get_attribute(bond, type_name)
+            .and_then(DocumentBondPresentationV1::from_cdml_token)
             .ok_or_else(|| TypedDocumentError::UnsupportedBondType(bond_id.clone()))?;
-        let (current_style, current_order) = parse_editable_type(current)
-            .ok_or_else(|| TypedDocumentError::UnsupportedBondType(bond_id.clone()))?;
-        let style = style.unwrap_or(current_style);
-        let order = order.unwrap_or(current_order);
-        if !style.supports_order(order) {
-            return Err(TypedDocumentError::UnsupportedBondStyleOrder(
-                bond_id.clone(),
-            ));
+        Some(replacement.unwrap_or(current))
+    } else {
+        None
+    };
+    if let Some(presentation) = presentation {
+        validate_presentation_properties(tree, bond, presentation, changes, bond_id)?;
+        if replacement.is_some() {
+            set(tree, bond, "type", presentation.cdml_token());
         }
-        set(tree, bond, "type", type_token(style, order));
     }
     for change in changes {
         match change {
-            BondPropertyChangeV1::Order(_) | BondPropertyChangeV1::Style(_) => {}
+            BondPropertyChangeV1::Presentation(_) => {}
             BondPropertyChangeV1::Center(value) => set_optional_bool(tree, bond, "center", *value),
             BondPropertyChangeV1::LineWidth(value) => {
                 set_optional_scalar(tree, bond, "line_width", *value)
@@ -101,20 +106,100 @@ fn apply_changes(
     Ok(())
 }
 
-fn parse_editable_type(value: &str) -> Option<(DocumentBondStyleV1, DocumentBondOrderV1)> {
-    let mut characters = value.chars();
-    let style = DocumentBondStyleV1::from_cdml_prefix(characters.next()?)?;
-    let order = match (characters.next()?, characters.next()) {
-        ('1', None) => DocumentBondOrderV1::Single,
-        ('2', None) => DocumentBondOrderV1::Double,
-        ('3', None) => DocumentBondOrderV1::Triple,
-        _ => return None,
-    };
-    Some((style, order))
+fn validate_presentation_properties(
+    tree: &mut Xot,
+    bond: Node,
+    presentation: DocumentBondPresentationV1,
+    changes: &[BondPropertyChangeV1],
+    bond_id: &PersistentId,
+) -> Result<(), TypedDocumentError> {
+    let center = final_optional_bool_is_authored(tree, bond, changes);
+    let bond_width = final_bond_width_is_authored(tree, bond, changes);
+    let wedge_width = final_wedge_width_is_authored(tree, bond, changes);
+    let center_compatible = matches!(
+        presentation,
+        DocumentBondPresentationV1::Normal(super::DocumentBondOrderV1::Double)
+    );
+    if center && !center_compatible {
+        return Err(TypedDocumentError::IncompatibleBondPresentationProperty {
+            bond_id: bond_id.clone(),
+            property: "center",
+        });
+    }
+    let bond_width_compatible = matches!(
+        presentation,
+        DocumentBondPresentationV1::Normal(
+            super::DocumentBondOrderV1::Double | super::DocumentBondOrderV1::Triple
+        )
+    );
+    if bond_width && !bond_width_compatible {
+        return Err(TypedDocumentError::IncompatibleBondPresentationProperty {
+            bond_id: bond_id.clone(),
+            property: "bond_width",
+        });
+    }
+    let wedge_width_compatible = matches!(
+        presentation,
+        DocumentBondPresentationV1::SolidWedge | DocumentBondPresentationV1::HashedWedge
+    );
+    if wedge_width && !wedge_width_compatible {
+        return Err(TypedDocumentError::IncompatibleBondPresentationProperty {
+            bond_id: bond_id.clone(),
+            property: "wedge_width",
+        });
+    }
+    Ok(())
 }
 
-fn type_token(style: DocumentBondStyleV1, order: DocumentBondOrderV1) -> String {
-    format!("{}{}", style.cdml_prefix(), &order.cdml_token()[1..])
+fn final_optional_bool_is_authored(
+    tree: &mut Xot,
+    bond: Node,
+    changes: &[BondPropertyChangeV1],
+) -> bool {
+    changes
+        .iter()
+        .find_map(|change| match change {
+            BondPropertyChangeV1::Center(value) => Some(value.is_some()),
+            _ => None,
+        })
+        .unwrap_or_else(|| {
+            let name = tree.add_name("center");
+            tree.get_attribute(bond, name).is_some()
+        })
+}
+
+fn final_bond_width_is_authored(
+    tree: &mut Xot,
+    bond: Node,
+    changes: &[BondPropertyChangeV1],
+) -> bool {
+    changes
+        .iter()
+        .find_map(|change| match change {
+            BondPropertyChangeV1::BondWidth(value) => Some(value.is_some()),
+            _ => None,
+        })
+        .unwrap_or_else(|| {
+            let name = tree.add_name("bond_width");
+            tree.get_attribute(bond, name).is_some()
+        })
+}
+
+fn final_wedge_width_is_authored(
+    tree: &mut Xot,
+    bond: Node,
+    changes: &[BondPropertyChangeV1],
+) -> bool {
+    changes
+        .iter()
+        .find_map(|change| match change {
+            BondPropertyChangeV1::WedgeWidth(value) => Some(value.is_some()),
+            _ => None,
+        })
+        .unwrap_or_else(|| {
+            let name = tree.add_name("wedge_width");
+            tree.get_attribute(bond, name).is_some()
+        })
 }
 
 fn set_optional_bool(tree: &mut Xot, node: Node, name: &str, value: Option<bool>) {

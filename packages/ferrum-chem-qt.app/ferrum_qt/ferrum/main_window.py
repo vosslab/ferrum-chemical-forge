@@ -41,6 +41,7 @@ import ferrum_qt.ferrum.direct_glycosidic_haworth_tool
 import ferrum_qt.ferrum.linear_form
 import ferrum_qt.ferrum.main_window_support
 import ferrum_qt.ferrum.main_window_lifecycle
+import ferrum_qt.ferrum.local_document_open_host
 import ferrum_qt.ferrum.explicit_fragments
 import ferrum_qt.ferrum.molecule_imports
 import ferrum_qt.ferrum.molecule_exports
@@ -90,6 +91,8 @@ class FerrumNativeMainWindow(
 		ferrum_qt.ferrum.molecule_diagnostics.FerrumNativeMoleculeDiagnosticsMixin,
 		ferrum_qt.ferrum.free_compact_group_placement.
 		FerrumNativeFreeCompactGroupPlacementWindowMixin,
+		ferrum_qt.ferrum.local_document_open_host.
+		FerrumNativeLocalDocumentOpenHostMixin,
 		ferrum_qt.ferrum.main_window_lifecycle.
 		FerrumNativeMainWindowLifecycleMixin,
 		ferrum_qt.ferrum.window_mode_sync.FerrumNativeWindowModeSyncMixin,

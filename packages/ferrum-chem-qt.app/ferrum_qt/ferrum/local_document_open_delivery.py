@@ -1,6 +1,7 @@
 """One Qt-thread delivery boundary for one immutable Local Open intent."""
 
 # Standard Library
+import enum
 import pathlib
 from collections.abc import Callable
 
@@ -55,14 +56,36 @@ class _LocalDocumentOpenWorkerRelay(PySide6.QtCore.QObject):
 
 
 #============================================
-class _AdmittedCandidateTransaction:
-	"""Own one display candidate until its host irrevocably adopts it."""
+class _HostResolutionState(enum.Enum):
+	"""Keep one host publication or replacement result visibly one-shot."""
+
+	PENDING = enum.auto()
+	REFUSED = enum.auto()
+	COMMITTED = enum.auto()
+
+
+#============================================
+class _AdmittedCandidateTransaction(
+		local_open_contract.LocalOpenPublicationResolution,
+		local_open_contract.LocalOpenReplacementResolution,
+		):
+	"""Resolve one candidate without guessing whether a host adopted it.
+
+	An unresolved host exit leaves ownership uncertain and therefore never permits
+	delivery-side disposal.  A host refusal permits disposal only after rollback.
+	"""
 
 	#============================================
 	def __init__(self, delivery: "LocalDocumentOpenDelivery") -> None:
 		"""Create an empty transaction for one admitted Rust receipt."""
 		self._delivery = delivery
 		self._candidate: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab | None = None
+		self._host_resolution_state = _HostResolutionState.PENDING
+		self._publication_receipt: local_open_contract.LocalOpenNewTabPublicationReceipt | None = None
+		self._replacement_receipt: local_open_contract.LocalOpenReplacementCommitReceipt | None = None
+		self._replacement_old: object | None = None
+		self._replacement_index: int | None = None
+		self._ownership_uncertain = False
 		self.transferred = False
 
 	#============================================
@@ -84,35 +107,105 @@ class _AdmittedCandidateTransaction:
 
 	#============================================
 	def publish_new_tab(self) -> local_open_contract.LocalOpenNewTabPublicationReceipt:
-		"""Transfer candidate ownership at the host's exact publication receipt."""
+		"""Ask the host to publish and require one closed resolution."""
 		candidate = self._require_candidate()
-		receipt = self._delivery._host.publish_open_tab(candidate)
-		self._validate_new_tab_receipt(receipt, candidate)
-		self.transferred = True
-		self._delivery.outcome = local_open_contract.LocalDocumentOpenOutcome.COMPLETED
+		try:
+			self._delivery._host.publish_open_tab(candidate, self)
+		finally:
+			if self._host_resolution_state is _HostResolutionState.PENDING:
+				self._ownership_uncertain = True
+		if self._host_resolution_state is _HostResolutionState.PENDING:
+			raise RuntimeError("Ferrum Local Open publication returned without resolution")
+		if self._host_resolution_state is _HostResolutionState.REFUSED:
+			raise RuntimeError("Ferrum Local Open publication returned after refusal")
+		receipt = self._publication_receipt
+		if receipt is None:
+			raise RuntimeError("Ferrum Local Open publication committed another receipt")
 		return receipt
 
 	#============================================
-	def replace_open_tab(self, old: object, index: int) -> object:
-		"""Transfer candidate ownership at the irreversible replacement commit."""
+	def replace_open_tab(
+			self, old: object, index: int,
+			) -> local_open_contract.LocalOpenReplacementCommitReceipt:
+		"""Ask the host to replace and require one closed resolution."""
 		if index < 0:
 			raise ValueError("Ferrum Open replacement target is no longer registered")
-		receipt = self._delivery._host.commit_open_replacement(
-			old, self._require_candidate(), index, self._delivery._capability,
-			self._delivery.intent.lease,
-		)
-		self._validate_replacement_receipt(receipt, old, index)
-		self.transferred = True
-		self._delivery.replacement_lease_settled = True
-		self._delivery.outcome = local_open_contract.LocalDocumentOpenOutcome.COMPLETED
+		self._replacement_old = old
+		self._replacement_index = index
+		try:
+			self._delivery._host.commit_open_replacement(
+				old, self._require_candidate(), index, self._delivery._capability,
+				self._delivery.intent.lease, self,
+			)
+		finally:
+			if self._host_resolution_state is _HostResolutionState.PENDING:
+				self._ownership_uncertain = True
+		if self._host_resolution_state is _HostResolutionState.PENDING:
+			raise RuntimeError("Ferrum Local Open replacement returned without resolution")
+		if self._host_resolution_state is _HostResolutionState.REFUSED:
+			raise RuntimeError("Ferrum Local Open replacement returned after refusal")
+		receipt = self._replacement_receipt
+		if receipt is None:
+			raise RuntimeError("Ferrum Local Open replacement committed another receipt")
 		return receipt
+
+	#============================================
+	def accept_publication(
+			self, receipt: local_open_contract.LocalOpenNewTabPublicationReceipt,
+			) -> None:
+		"""Accept one exact new-tab publication before receipt validation."""
+		self._resolve_committed(replacement=False)
+		self._publication_receipt = receipt
+		self._validate_new_tab_receipt(receipt, self._require_candidate())
+
+	#============================================
+	def refuse_publication(self) -> None:
+		"""Accept returned ownership after complete publication rollback."""
+		self._resolve_refused()
+
+	#============================================
+	def accept_replacement(
+			self, receipt: local_open_contract.LocalOpenReplacementCommitReceipt,
+			) -> None:
+		"""Accept one exact replacement commit before receipt validation."""
+		self._resolve_committed(replacement=True)
+		self._replacement_receipt = receipt
+		self._validate_replacement_receipt(receipt)
+
+	#============================================
+	def refuse_replacement(self) -> None:
+		"""Accept returned ownership after complete replacement rollback."""
+		self._resolve_refused()
 
 	#============================================
 	def dispose_uncommitted(self) -> None:
-		"""Dispose the one candidate still owned by this transaction."""
-		if self._candidate is None or self.transferred or self._candidate.is_disposed:
+		"""Dispose the candidate only while this transaction has certain ownership."""
+		if (
+				self._candidate is None
+				or self.transferred
+				or self._ownership_uncertain
+				or self._candidate.is_disposed
+			):
 			return
 		self._candidate.dispose()
+
+	#============================================
+	def _resolve_committed(self, *, replacement: bool) -> None:
+		"""Transfer ownership before receipt validation can report a contract fault."""
+		if self._host_resolution_state is not _HostResolutionState.PENDING:
+			raise RuntimeError("Ferrum Local Open host resolution was reused")
+		self._host_resolution_state = _HostResolutionState.COMMITTED
+		self.transferred = True
+		self._delivery.outcome = local_open_contract.LocalDocumentOpenOutcome.COMPLETED
+		if replacement:
+			self._delivery.replacement_lease_settled = True
+
+	#============================================
+	def _resolve_refused(self) -> None:
+		"""Keep candidate ownership after the host confirms complete rollback."""
+		if self._host_resolution_state is not _HostResolutionState.PENDING:
+			raise RuntimeError("Ferrum Local Open host resolution was reused")
+		self._host_resolution_state = _HostResolutionState.REFUSED
 
 	#============================================
 	def _require_candidate(self) -> ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab:
@@ -126,7 +219,7 @@ class _AdmittedCandidateTransaction:
 			self, receipt: object,
 			candidate: ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
 			) -> None:
-		"""Require exact candidate identity and insertion index before ownership transfer."""
+		"""Require exact candidate identity after terminal ownership is recorded."""
 		if type(receipt) is not local_open_contract.LocalOpenNewTabPublicationReceipt:
 			raise TypeError("Ferrum Local Open publication did not return its receipt")
 		if receipt.tab is not candidate or receipt.index < 0:
@@ -137,19 +230,21 @@ class _AdmittedCandidateTransaction:
 			raise RuntimeError("Ferrum Local Open candidate moved before transfer")
 
 	#============================================
-	def _validate_replacement_receipt(self, receipt: object, old: object, index: int) -> None:
-		"""Require exact swap facts before delivery records its completed terminal truth."""
+	def _validate_replacement_receipt(self, receipt: object) -> None:
+		"""Require exact swap facts after delivery records its completed terminal truth."""
 		candidate = self._require_candidate()
 		lease = self._delivery.intent.lease
 		if type(receipt) is not local_open_contract.LocalOpenReplacementCommitReceipt:
 			raise TypeError("Ferrum Local Open replacement did not return its receipt")
-		if receipt.old is not old or receipt.new is not candidate or receipt.index != index:
+		if receipt.old is not self._replacement_old or receipt.new is not candidate:
 			raise RuntimeError("Ferrum Local Open replacement returned another tab swap")
+		if receipt.index != self._replacement_index:
+			raise RuntimeError("Ferrum Local Open replacement returned another tab position")
 		if receipt.lease_id != lease.lease_id or receipt.tab_identity != lease.tab_identity:
 			raise RuntimeError("Ferrum Local Open replacement returned another source lease")
 		if not self._delivery._host.tab_is_registered(candidate):
 			raise RuntimeError("Ferrum Local Open replacement did not register its candidate")
-		if self._delivery._host.tab_widget_index(candidate) != index:
+		if self._delivery._host.tab_widget_index(candidate) != receipt.index:
 			raise RuntimeError("Ferrum Local Open replacement moved its candidate")
 
 

@@ -17,7 +17,7 @@ pub fn plan_linear_form_v1(
     let selected = selected_indices(request)?;
     let induced_bonds = induced_bonds(graph, &selected)?;
     let path = ordered_path(graph, &selected, &induced_bonds)?;
-    let selected_replacements = selected_replacements(graph, &path)?;
+    let selected_replacements = selected_replacements(graph, &path, request.bond_length())?;
     let exterior_replacements =
         exterior_replacements(graph, &selected, &path, &selected_replacements)?;
     build_plan(
@@ -26,6 +26,7 @@ pub fn plan_linear_form_v1(
         &induced_bonds,
         selected_replacements,
         exterior_replacements,
+        request.bond_length(),
     )
 }
 
@@ -196,6 +197,7 @@ fn ordered_path(
 fn selected_replacements(
     graph: &crate::linear_form::LinearFormGraphV1,
     path: &[usize],
+    bond_length: crate::linear_form::LinearFormBondLength,
 ) -> Result<Vec<LinearFormPointReplacementV1>, LinearFormPlanErrorV1> {
     let first = graph.atoms()[path[0]].point();
     let mut replacements = Vec::new();
@@ -204,7 +206,7 @@ fn selected_replacements(
         .map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?;
     for (index, atom_index) in path.iter().enumerate() {
         let offset = u32::try_from(index).map_err(|_| LinearFormPlanErrorV1::ResourceExhausted)?;
-        let x = first.x() + 10.0 * f64::from(offset);
+        let x = first.x() + bond_length.points() * f64::from(offset);
         let point = Point2::new(x, first.y()).map_err(|_| LinearFormPlanErrorV1::NonFinitePoint)?;
         replacements.push(LinearFormPointReplacementV1::new(
             graph.atoms()[*atom_index].atom_id().clone(),
@@ -315,6 +317,7 @@ fn build_plan(
     induced: &[usize],
     selected_replacements: Vec<LinearFormPointReplacementV1>,
     exterior_replacements: Vec<LinearFormPointReplacementV1>,
+    bond_length: crate::linear_form::LinearFormBondLength,
 ) -> Result<LinearFormPlanV1, LinearFormPlanErrorV1> {
     let mut ordered_atoms = Vec::new();
     let mut hydrogen_visible_atoms = Vec::new();
@@ -349,6 +352,7 @@ fn build_plan(
         exterior_replacements,
         hydrogen_visible_atoms,
         metadata,
+        bond_length,
     ))
 }
 

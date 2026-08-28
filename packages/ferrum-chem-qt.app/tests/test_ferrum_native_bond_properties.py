@@ -1,9 +1,9 @@
-"""Focused behavior tests for the Ferrum BondDialog adapter."""
+"""Focused behavior tests for the Ferrum closed bond-presentation dialog."""
 
 # Standard Library
+import enum
 import os
 import sys
-import enum
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -13,7 +13,6 @@ import PySide6.QtWidgets
 import pytest
 
 # local repo modules
-import ferrum_qt.themes.theme_loader
 import ferrum_qt.dialogs.bond_dialog
 import ferrum_qt.ferrum.bond_properties
 
@@ -35,15 +34,9 @@ class _Changes:
 
 	#============================================
 	@staticmethod
-	def order(value: int) -> _Change:
-		"""Build an order change."""
-		return _Change("order", value)
-
-	#============================================
-	@staticmethod
-	def style(value: str) -> _Change:
-		"""Build a style change."""
-		return _Change("style", value)
+	def presentation(value: object) -> _Change:
+		"""Build one complete presentation replacement."""
+		return _Change("presentation", value)
 
 	#============================================
 	@staticmethod
@@ -60,7 +53,7 @@ class _Changes:
 	#============================================
 	@staticmethod
 	def bond_width(value: float) -> _Change:
-		"""Build a signed bond-width change."""
+		"""Build a bond-width change."""
 		return _Change("bond_width", value)
 
 	#============================================
@@ -77,27 +70,18 @@ class _Changes:
 
 
 #============================================
-class _Order(enum.Enum):
-	"""Private exact stand-in for the frozen PyO3 bond-order enum."""
+class _Presentation(enum.Enum):
+	"""Private exact stand-in for the frozen PyO3 presentation enum."""
 
-	single = 1
-	double = 2
-	triple = 3
-
-
-#============================================
-class _Style(enum.Enum):
-	"""Private exact stand-in for the frozen PyO3 bond-style enum."""
-
-	normal = "n"
-	wedge = "w"
-	hashed_wedge = "h"
-	adder = "a"
-	bold = "b"
-	dashed = "d"
-	dotted = "o"
-	wavy = "s"
-	haworth_front = "q"
+	normal_single = "normal_single"
+	normal_double = "normal_double"
+	normal_triple = "normal_triple"
+	solid_wedge = "solid_wedge"
+	hashed_wedge = "hashed_wedge"
+	haworth_front = "haworth_front"
+	bold = "bold"
+	dashed = "dashed"
+	wavy = "wavy"
 
 
 #============================================
@@ -105,14 +89,13 @@ class _Bond:
 	"""Fake exact frozen bond projection."""
 
 	#============================================
-	def __init__(self, *, order: _Order = _Order.single, style: _Style = _Style.normal,
-			line_width: float | None = None,
+	def __init__(self, presentation: _Presentation = _Presentation.normal_single,
+			center: bool | None = None, line_width: float | None = None,
 			bond_width: float | None = None,
 			wedge_width: float | None = None) -> None:
 		"""Create a projection with deliberately absent optional CDML facts."""
-		self.order = order
-		self.style = style
-		self.center = None
+		self.presentation = presentation
+		self.center = center
 		self.line_width = line_width
 		self.bond_width = bond_width
 		self.wedge_width = wedge_width
@@ -125,8 +108,7 @@ class _FerrumChem:
 
 	BondProjectionV1 = _Bond
 	DocumentBondPropertyChangeV1 = _Changes
-	DocumentBondOrderV1 = _Order
-	DocumentBondStyleV1 = _Style
+	DocumentBondPresentationV1 = _Presentation
 
 
 #============================================
@@ -146,6 +128,31 @@ def _install_ferrum_module(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 #============================================
+@pytest.mark.parametrize(
+	("presentation", "order", "bond_type"),
+	(
+		(_Presentation.normal_single, 1, "n"),
+		(_Presentation.normal_double, 2, "n"),
+		(_Presentation.normal_triple, 3, "n"),
+		(_Presentation.solid_wedge, 1, "w"),
+		(_Presentation.hashed_wedge, 1, "h"),
+		(_Presentation.haworth_front, 1, "q"),
+		(_Presentation.bold, 1, "b"),
+		(_Presentation.dashed, 1, "d"),
+		(_Presentation.wavy, 1, "s"),
+	),
+)
+def test_closed_presentations_map_to_exact_dialog_values(
+		monkeypatch: pytest.MonkeyPatch, presentation: _Presentation, order: int,
+		bond_type: str,
+		) -> None:
+	"""Every PyO3 presentation maps once to its visible order/style controls."""
+	_install_ferrum_module(monkeypatch)
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond(presentation))
+	assert (model.order, model.type) == (order, bond_type)
+
+
+#============================================
 def test_absent_optional_facts_do_not_become_authored_on_an_unchanged_dialog(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
@@ -153,50 +160,184 @@ def test_absent_optional_facts_do_not_become_authored_on_an_unchanged_dialog(
 	del qapp
 	_install_ferrum_module(monkeypatch)
 	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
-	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		model,
+	)
 	assert dialog.changes() == ()
 	dialog.deleteLater()
 
 
 #============================================
-def test_dialog_keeps_its_full_bond_editing_vocabulary(
+def test_native_dialog_exposes_only_the_supported_closed_presentation_vocabulary(
 		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""The shared form keeps fields beyond the currently rendered subset."""
+	"""Adder and Dotted remain outside this renderer-backed property surface."""
 	del qapp
 	_install_ferrum_module(monkeypatch)
 	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
-	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
-	assert dialog._type_combo.count() > 1
-	assert dialog._type_combo.isEnabled()
-	assert dialog._wedge_width_spin.isEnabled()
-	assert dialog._center_check.isEnabled()
-	assert dialog._bond_width_spin.isEnabled()
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		model,
+	)
+	assert tuple(dialog._type_combo.itemData(index) for index in range(dialog._type_combo.count())) == (
+		"n", "w", "h", "b", "d", "s", "q",
+	)
 	dialog.deleteLater()
 
 
 #============================================
-def test_native_adapter_rejects_a_negative_width_the_shared_dialog_cannot_show(
-		monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("presentation", (
+	_Presentation.solid_wedge, _Presentation.hashed_wedge,
+	_Presentation.haworth_front, _Presentation.bold, _Presentation.dashed,
+	_Presentation.wavy,
+))
+def test_fixed_single_presentations_lock_incompatible_controls(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		presentation: _Presentation,
 		) -> None:
-	"""The adapter refuses to lose the directional negative bond-width sign."""
+	"""Non-normal render forms are intrinsically Single and reject order edits."""
+	del qapp
 	_install_ferrum_module(monkeypatch)
-	with pytest.raises(ValueError, match="bond width"):
-		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
-			_Bond(bond_width=-2.0),
-		)
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond(presentation))
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		model,
+	)
+	assert dialog._order_combo.currentText() == "Single"
+	assert not dialog._order_combo.isEnabled()
+	assert not dialog._center_check.isEnabled()
+	assert not dialog._bond_width_spin.isEnabled()
+	assert dialog._wedge_width_spin.isEnabled() == (presentation in (
+		_Presentation.solid_wedge, _Presentation.hashed_wedge,
+	))
+	dialog.deleteLater()
 
 
 #============================================
-def test_native_adapter_rejects_a_source_style_without_renderer_support(
+def test_switching_normal_double_to_wedge_submits_one_fixed_single_presentation(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""A style switch is one complete document presentation change, never two facts."""
+	del qapp
+	_install_ferrum_module(monkeypatch)
+	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
+		_Bond(_Presentation.normal_double),
+	)
+	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		model,
+	)
+	dialog._type_combo.setCurrentIndex(dialog._type_combo.findData("w"))
+	assert dialog._order_combo.currentText() == "Single"
+	assert not dialog._order_combo.isEnabled()
+	assert dialog.changes() == (("presentation", (1, "w")),)
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
+		_Bond(_Presentation.normal_double), dialog.changes(),
+	)
+	assert [(change.kind, change.value) for change in changes] == [
+		("presentation", _Presentation.solid_wedge),
+	]
+	dialog.deleteLater()
+
+
+#============================================
+def test_normal_double_and_triple_own_only_their_relevant_controls(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Center is double-only while bond width is normal double/triple-only."""
+	del qapp
+	_install_ferrum_module(monkeypatch)
+	double = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
+			_Bond(_Presentation.normal_double),
+		),
+	)
+	triple = ferrum_qt.dialogs.bond_dialog.BondDialog(
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
+			_Bond(_Presentation.normal_triple),
+		),
+	)
+	assert double._center_check.isEnabled() and double._bond_width_spin.isEnabled()
+	assert not double._wedge_width_spin.isEnabled()
+	assert not triple._center_check.isEnabled() and triple._bond_width_spin.isEnabled()
+	assert not triple._wedge_width_spin.isEnabled()
+	double.deleteLater()
+	triple.deleteLater()
+
+
+#============================================
+def test_presentation_and_scalar_changes_use_closed_factories(
 		monkeypatch: pytest.MonkeyPatch,
 		) -> None:
-	"""A retained style outside the closed Ferrum depiction profile is refused."""
+	"""One combined presentation factory accompanies independent scalar changes."""
 	_install_ferrum_module(monkeypatch)
-	with pytest.raises(ValueError, match="Normal, Solid wedge, or Hashed wedge"):
-		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
-			_Bond(style=_Style.adder),
-		)
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
+		_Bond(), (("presentation", (2, "n")), ("center", True),
+			("line_width", 1.5), ("bond_width", 2.5), ("color", "#123456")),
+	)
+	assert [(change.kind, change.value) for change in changes] == [
+		("presentation", _Presentation.normal_double), ("center", True),
+		("line_width", 1.5), ("bond_width", 2.5), ("color", "#123456"),
+	]
+
+
+#============================================
+def test_normal_double_accepts_both_explicit_center_values(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Centering is a normal-double boolean, not a true-only command."""
+	_install_ferrum_module(monkeypatch)
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
+		_Bond(_Presentation.normal_double, center=True), (("center", False),),
+	)
+	assert [(change.kind, change.value) for change in changes] == [("center", False)]
+
+
+#============================================
+def test_presentation_change_clears_inapplicable_authored_fields(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Presentation transitions clear retained facts that no longer have meaning."""
+	_install_ferrum_module(monkeypatch)
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
+		_Bond(_Presentation.normal_double, center=True, bond_width=2.5),
+		(("presentation", (1, "w")),),
+	)
+	assert [(change.kind, change.value) for change in changes] == [
+		("presentation", _Presentation.solid_wedge), ("center", None), ("bond_width", None),
+	]
+
+
+#============================================
+def test_leaving_a_wedge_clears_its_authored_width(
+		monkeypatch: pytest.MonkeyPatch,
+		) -> None:
+	"""Wedge width does not survive a replacement normal presentation."""
+	_install_ferrum_module(monkeypatch)
+	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
+		_Bond(_Presentation.solid_wedge, wedge_width=9.0),
+		(("presentation", (1, "n")),),
+	)
+	assert [(change.kind, change.value) for change in changes] == [
+		("presentation", _Presentation.normal_single), ("wedge_width", None),
+	]
+
+
+#============================================
+@pytest.mark.parametrize(
+	("changes", "message"),
+	(
+		((("presentation", (2, "w")),), "unsupported bond presentation"),
+		((("bond_width", 2.5),), "bond width only"),
+		((("wedge_width", 2.5),), "solid or hashed wedge"),
+		((("center", True),), "normal double"),
+	),
+)
+def test_adapter_refuses_invalid_control_combinations(
+		monkeypatch: pytest.MonkeyPatch, changes: tuple[tuple[str, object], ...],
+		message: str,
+		) -> None:
+	"""Programmatic callers cannot bypass the same closed UI combinations."""
+	_install_ferrum_module(monkeypatch)
+	with pytest.raises(ValueError, match=message):
+		ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(_Bond(), changes)
 
 
 #============================================
@@ -210,81 +351,8 @@ def test_native_adapter_rejects_widths_that_a_spin_box_would_change(
 	"""Out-of-range and non-tenth facts fail before a dialog can author a rewrite."""
 	_install_ferrum_module(monkeypatch)
 	kwargs = {field: value}
-	bond = _Bond(**kwargs)
 	with pytest.raises(ValueError, match="width"):
-		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(bond)
-
-
-#============================================
-def test_dialog_fields_map_to_closed_rust_property_factories(
-		monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Supported BondDialog fields become named frozen Rust property changes."""
-	_install_ferrum_module(monkeypatch)
-	changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
-		_Bond(), (("order", 2), ("type", "n"), ("center", True), ("line_width", 1.5),
-			("bond_width", 2.5), ("color", "#123456")),
-	)
-	assert [(change.kind, change.value) for change in changes] == [
-		("order", _Order.double), ("style", _Style.normal), ("center", True), ("line_width", 1.5),
-		("bond_width", 2.5), ("color", "#123456"),
-	]
-
-
-#============================================
-def test_unrelated_dialog_edit_preserves_absent_optional_facts(
-		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
-		) -> None:
-	"""Changing order does not convert absence-derived visual defaults into CDML facts."""
-	del qapp
-	_install_ferrum_module(monkeypatch)
-	model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond())
-	dialog = ferrum_qt.dialogs.bond_dialog.BondDialog(model)
-	dialog._order_combo.setCurrentIndex(1)
-	assert dialog.changes() == (("order", 2),)
-	dialog.deleteLater()
-
-
-#============================================
-def test_live_native_tab_submits_one_frozen_bond_patch_and_restores_selection(
-		qapp: PySide6.QtWidgets.QApplication,
-		) -> None:
-	"""The installed Rust DTO route keeps a durable selected bond after one edit."""
-	del qapp
-	ferrum_chem = pytest.importorskip("ferrum_chem")
-	import ferrum_qt.ferrum.document_tab
-	cdml = (
-		'<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="molecule-1">'
-		'<atom id="atom-c" name="C"><point x="0" y="0"/></atom>'
-		'<atom id="atom-o" name="O"><point x="30" y="0"/></atom>'
-		'</molecule></cdml>'
-	)
-	tab = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab(cdml, "bond", ferrum_qt.themes.theme_loader.get_document_display_palette("light"))
-	try:
-		atom_ids = tuple(
-			atom.document_object_id
-			for atom in tab.current_document_observation().projection.molecules[0].atoms
-		)
-		tab.select_atoms(atom_ids)
-		created = tab.add_single_bond_between_selected_atoms()
-		bond_id = created.observation.projection.molecules[0].bonds[0].document_object_id
-		tab.select_bond(bond_id)
-		model = ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(
-			tab.selected_bond_projection(),
-		)
-		assert model.order == 1 and model.type == "n"
-		changes = ferrum_qt.ferrum.bond_properties.property_changes_from_dialog(
-			tab.selected_bond_projection(), (("order", 2), ("center", True)),
-		)
-		assert all(type(change) is ferrum_chem.DocumentBondPropertyChangeV1 for change in changes)
-		tab.apply_selected_bond_properties(changes)
-		assert tab.has_one_selected_bond()
-		updated = tab.selected_bond_projection()
-		assert updated.document_object_id == bond_id
-		assert updated.order is ferrum_chem.DocumentBondOrderV1.double
-		assert updated.center is True
-	finally:
-		tab.dispose()
+		ferrum_qt.ferrum.bond_properties.dialog_model_from_projection(_Bond(**kwargs))
 
 
 #============================================

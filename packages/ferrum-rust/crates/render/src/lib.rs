@@ -1,19 +1,19 @@
 //! Declarative, validated molecule render plans.
 //!
-//! # V3 wire contract
+//! # V4 wire contract
 //!
-//! `MoleculeRenderPlan` is the sole JSON boundary between Ferrum's authoritative
+//! `MoleculeRenderPlanV4` is the sole JSON boundary between Ferrum's authoritative
 //! document projection and a disposable renderer. JSON accepts only
-//! `ferrum-render-plan-v3`; unknown fields, variants, and future schemas are
+//! `ferrum-render-plan-v4`; unknown fields, variants, and future schemas are
 //! rejected rather than guessed. A plan contains exactly one outcome for each
-//! supplied target: a complete `RenderBatch` or a `RenderIssue`, never both.
+//! supplied target: a complete `RenderBatchV4` or a `RenderIssue`, never both.
 //! Both outcome lists are strictly sorted by unique `source_order`, so a client
 //! can merge them deterministically without inventing a tie breaker.
 //!
 //! Coordinates are finite Ferrum scene units with the document origin and axes
 //! supplied by the authoritative projection. `Scene` line endpoints are scene
-//! points. `AtomLocal` text origins are offsets from that batch's `anchor` in
-//! the same coordinate system. The V3 grammar deliberately does not assign
+//! points. `AtomLocal` text origins are offsets from that batch's `atom_local_anchor` in
+//! the same coordinate system. The V4 grammar deliberately does not assign
 //! screen pixels, DPI, scaling, clipping, or toolkit defaults to a renderer.
 //! Every accepted zero coordinate serializes as `0.0`, never `-0.0`.
 //!
@@ -25,12 +25,13 @@
 //! `UnsupportedFeature` or `UnrenderableTarget` issue is displayed as an
 //! excluded target diagnostic and produces no batch.
 //!
-//! V3 carries source-owned finite scene paths and tagged semantic paint for bond batches. Future operations,
+//! V4 carries source-owned finite scene paths and tagged semantic paint for bond batches. Future operations,
 //! typography, and schema versions require a new validated grammar revision.
 
 mod atom_bond;
-mod attached_compact_group_pose_v1;
+mod attached_compact_group_pose;
 mod authored_direct_glycosidic_haworth;
+mod bond_presentation_geometry;
 mod bond_style;
 mod compact_group;
 mod complete_document_admission_v1;
@@ -57,6 +58,7 @@ mod model;
 mod pdf_backend;
 mod png_backend;
 mod presentation_path_v1;
+mod render_batch;
 mod render_paint_v3;
 mod render_target;
 mod scene_path_v3;
@@ -84,14 +86,13 @@ mod presentation {
 /// Atom and bond source facts plus their render-plan builder.
 pub use atom_bond::{
     AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts,
-    AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, TargetVisibility,
-    build_atom_bond_plan,
+    AtomMarkRenderKind, AtomNumberLabelFacts, AtomRenderTarget, BondInkClearance, BondRenderTarget,
+    TargetVisibility,
 };
-/// Renderer-owned placement of attached compact-group labels.
-pub use attached_compact_group_pose_v1::{
-    AttachedCompactGroupAnchorRenderFactsV1, AttachedCompactGroupPlacementDispositionV1,
-    AttachedCompactGroupPoseErrorV1, ResolvedAttachedCompactGroupPoseV1,
-    resolve_attached_compact_group_pose_v1,
+/// Renderer-owned placement result for attached compact-group labels.
+pub use attached_compact_group_pose::{
+    AttachedCompactGroupPlacementDispositionV1, AttachedCompactGroupPoseErrorV2,
+    ResolvedAttachedCompactGroupPoseV1,
 };
 /// In-process-only renderer profile for durable committed direct Haworth facts.
 pub use authored_direct_glycosidic_haworth::{
@@ -108,7 +109,7 @@ pub use complete_document_admission_v1::{
     AcceptedRenderOverlayRequestV1, AcceptedRenderOverlayTargetKindV1,
     AcceptedRenderOverlayTargetV1, COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1,
     CompleteDocumentAdmissionErrorV1, admit_complete_document_render_v1,
-    admit_complete_document_render_with_resolved_v1,
+    classify_document_render_roots_v1,
 };
 /// Internal desktop paint recording of an authenticated whole-document composite.
 pub use composite_recording_v1::{
@@ -128,13 +129,13 @@ pub use document::depiction_profile::{
     DEPICTION_PROFILE_SCHEMA_V1, DEPICTION_RESOLUTION_SCHEMA_V1, DepictionError,
     DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1, DepictionResolutionV1,
     DepictionSuppressionV1, DirectGlycosidicHaworthStyleV1, MoleculeMemberDepictionIssueV1,
-    render_document_projection_v1, resolve_attached_compact_group_anchor_render_facts_v1,
+    render_document_projection_v1, resolve_attached_compact_group_pose_v2,
     resolve_direct_glycosidic_haworth_style_v1,
 };
 pub use document::observation::{
-    DocumentMoleculeRenderPlanV3, MoleculeRenderRootV1, RESOLVED_DOCUMENT_RENDER_SCHEMA_V1,
-    RenderDocumentProvenanceV1, ResolvedDocumentRenderErrorV1, ResolvedDocumentRenderV1,
-    ResolvedDocumentRenderWireV1, resolve_document_render_v1,
+    DocumentMoleculeRenderPlanV4, MoleculeRenderRootV1, RESOLVED_DOCUMENT_RENDER_SCHEMA_V2,
+    RenderDocumentProvenanceV1, ResolvedDocumentRenderErrorV2, ResolvedDocumentRenderV2,
+    ResolvedDocumentRenderWireV2, resolve_document_render_v2,
 };
 pub use document::plan::{DocumentRenderPlanCompositionError, compose_document_render_plan_v1};
 /// Renderer-neutral receipt for a completed whole-page artifact.
@@ -170,8 +171,8 @@ pub use error::{RenderError, RenderIssue, RenderIssueKind};
 pub use font::telex::{VerifiedTelexRegularV1, verified_telex_regular_v1};
 /// Verified immutable Telex font asset environment.
 pub use font_environment::{FerrumFontEnvironmentV1, FerrumFontId, FontAssetDescriptor};
-/// Glyph-layout contract and exact layout bounds.
-pub use glyph_metrics::{GlyphBounds, GlyphMetrics};
+/// Exact finite visible-ink bounds shared by compact-group render consumers.
+pub use glyph_metrics::GlyphBounds;
 /// Closed Telex glyph identifiers, positions, and script roles.
 pub use glyph_placement::{GlyphPlacement, TextScript};
 /// Haworth fragment lowering into the closed V1 render-plan grammar.
@@ -180,9 +181,8 @@ pub use haworth::{HaworthRenderRequest, lower_haworth_fragment};
 pub use haworth_front_bond::build_haworth_front_preview_ops;
 /// Validated render-plan model and canonical JSON boundary.
 pub use model::{
-    BatchSpace, FontFace, LineOp, MaskOp, MoleculeRenderPlan, PositiveFinite, RenderBatch,
-    RenderDisplayLayerV1, RenderOp, RenderPoint, RenderProvenance, RenderRevision,
-    RenderSchemaVersion, TextOp, TextRun,
+    FontFace, LineOp, MaskOp, PositiveFinite, RenderOp, RenderPoint, RenderProvenance,
+    RenderRevision, RenderSchemaVersion, TextOp, TextRun,
 };
 /// In-memory, outline-only vector PDF V1 lowering with explicit caller-owned limits.
 pub use pdf_backend::{
@@ -214,6 +214,12 @@ pub use presentation::vector::lower_presentation_vector_v1;
 /// Toolkit-neutral lowering of authored control paths into frozen cubic commands.
 pub use presentation_path_v1::{
     PathKindV1, PresentationPathErrorV1, PresentationPathV1, lower_authored_control_path_v1,
+};
+/// Closed V4 atom, compact-group, bond, and whole-plan render contracts.
+pub use render_batch::{
+    AtomDecorationRenderOpV1, AtomLabelRenderV1, AtomRenderBatchV1, BatchSpace, BondRenderBatchV1,
+    BondRenderOpV1, CompactGroupRenderBatchV1, CompactGroupRenderOpV1, InkBoundsV1,
+    MoleculeRenderPlanV4, RenderBatchContentV4, RenderBatchV4, RenderDisplayLayerV1,
 };
 /// Tagged V3 paint values and Rust-owned headless export colors.
 pub use render_paint_v3::{

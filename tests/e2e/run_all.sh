@@ -63,6 +63,8 @@ run_e2e "Ferrum document SDF export E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_document_export_sdf_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum CLI CDXML open E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_cdxml_open_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum Qt CDXML open E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_cdxml_open_qt.py"
 run_e2e "Ferrum Qt SDF import E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_sdf_import.py"
 run_e2e "Ferrum Qt peptide sequence import E2E" \
@@ -97,6 +99,8 @@ run_e2e "Ferrum Qt template catalog authoring E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_authoring.py"
 run_e2e "Ferrum Qt SMARTS partial-result warning E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_smarts_partial_result_warning.py"
+run_e2e "Ferrum installed PyO3 SMARTS receipt E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_installed_pyo3_smarts_receipts.py"
 run_e2e "Ferrum Qt Local Document Open terminal lifecycle E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_local_document_open_lifecycle.py"
 printf '%s\n' \

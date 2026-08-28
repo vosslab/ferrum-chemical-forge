@@ -274,7 +274,7 @@ fn measure_document_plan_complexity_v1(
                         counter.add(PdfComplexityResourceV1::PlanItems, 1)?;
                         for operation in batch.operations() {
                             counter.add(PdfComplexityResourceV1::PlanItems, 1)?;
-                            measure_molecule_operation(operation, &face, &mut counter)?;
+                            measure_molecule_operation(&operation, &face, &mut counter)?;
                         }
                     }
                 }

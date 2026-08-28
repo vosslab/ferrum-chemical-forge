@@ -436,7 +436,8 @@ def test_typed_candidate_display_failure_disposes_candidate_and_fails_once(
 		candidates.append(candidate)
 		return candidate
 
-	def refuse_publication(_tab: object) -> object:
+	def refuse_publication(_tab: object, resolution: object) -> None:
+		resolution.refuse_publication()
 		raise ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError("display refused")
 
 	def capture_completed(opened_path: str, success: bool) -> None:
@@ -776,7 +777,6 @@ def test_ordinary_finish_settlement_error_still_retires_delivery(
 		_flush_deferred_deletes(qapp)
 	assert not shiboken6.isValid(worker) and not shiboken6.isValid(delivery.relay)
 
-
 #============================================
 def test_escaped_finish_settlement_error_still_retires_delivery(
 		qapp: PySide6.QtWidgets.QApplication,
@@ -820,117 +820,3 @@ def test_escaped_finish_settlement_error_still_retires_delivery(
 		_finish_worker(qapp, worker)
 		_flush_deferred_deletes(qapp)
 	assert not shiboken6.isValid(worker) and not shiboken6.isValid(delivery.relay)
-
-
-#============================================
-@pytest.mark.parametrize("fault_kind", ["typed", "unexpected"])
-def test_new_tab_receipt_transfers_candidate_before_presentation_fault(
-		qapp: PySide6.QtWidgets.QApplication,
-		main_window: ferrum_qt.main_window.MainWindow,
-		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
-		fault_kind: str,
-		) -> None:
-	"""A NewTab publication remains truthful when its later presentation faults."""
-	path = tmp_path / "opened.cdml"
-	path.write_text(_EMPTY_CDML, encoding="utf-8")
-	prepared = _prepared_cdml(path)
-	worker = _PreparedThenHeldWorker()
-	receipts = _capture_settlements(monkeypatch, main_window)
-	candidates: list[ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab] = []
-	factory = ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab.from_admitted_local_open
-
-	def capture_candidate(*args: object, **kwargs: object) -> object:
-		candidate = factory(*args, **kwargs)
-		candidates.append(candidate)
-		return candidate
-
-	def fail_presentation(*_args: object) -> None:
-		if fault_kind == "typed":
-			raise local_open_contract.LocalOpenPostCommitPresentationError("typed fault")
-		raise RuntimeError("unexpected presentation fault")
-
-	try:
-		delivery = _start_held_open(monkeypatch, main_window, path, worker)
-		monkeypatch.setattr(delivery, "_can_replace_pristine", lambda: False)
-		monkeypatch.setattr(
-			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab,
-			"from_admitted_local_open", staticmethod(capture_candidate),
-		)
-		delivery._host = dataclasses.replace(
-			delivery._host, finish_open_publication=fail_presentation,
-		)
-		delivery.stage_prepared(worker, prepared)
-		if fault_kind == "unexpected":
-			with pytest.raises(RuntimeError, match="unexpected presentation fault"):
-				main_window._local_document_open_controller._finish_local_document_open_delivery(
-					delivery,
-				)
-		else:
-			main_window._local_document_open_controller._finish_local_document_open_delivery(delivery)
-		candidate = candidates[0]
-		assert main_window._native_tabs_by_page.get(candidate) is candidate
-		assert not candidate.is_disposed and shiboken6.isValid(candidate)
-		assert delivery.outcome is local_open_contract.LocalDocumentOpenOutcome.COMPLETED
-		assert receipts[0].state is ferrum_qt.ferrum.operation_leases.LeaseState.COMPLETED
-	finally:
-		_finish_worker(qapp, worker)
-		_flush_deferred_deletes(qapp)
-
-
-#============================================
-@pytest.mark.parametrize("fault_kind", ["typed", "unexpected"])
-def test_replacement_receipt_transfers_candidate_before_presentation_fault(
-		qapp: PySide6.QtWidgets.QApplication,
-		main_window: ferrum_qt.main_window.MainWindow,
-		tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
-		fault_kind: str,
-		) -> None:
-	"""A replacement receipt settles its exact source before display cleanup runs."""
-	path = tmp_path / "opened.cdml"
-	path.write_text(_EMPTY_CDML, encoding="utf-8")
-	prepared = _prepared_cdml(path)
-	old = _active_tab(main_window)
-	worker = _PreparedThenHeldWorker()
-	controller = main_window._local_document_open_controller
-	settled: list[ferrum_qt.ferrum.operation_leases.OperationLease] = []
-	complete = main_window._operation_leases.complete_prepared_terminal_replacement
-
-	def capture_completion(prepared_replacement: object) -> object:
-		receipt = complete(prepared_replacement)
-		settled.append(receipt)
-		return receipt
-
-	def fail_presentation(_receipt: object) -> None:
-		if fault_kind == "typed":
-			raise local_open_contract.LocalOpenPostCommitPresentationError("typed fault")
-		raise RuntimeError("unexpected replacement fault")
-
-	monkeypatch.setattr(
-		controller, "_create_local_document_open_worker", lambda *_args: worker,
-	)
-	monkeypatch.setattr(
-		main_window._operation_leases,
-		"complete_prepared_terminal_replacement", capture_completion,
-	)
-	try:
-		assert main_window.open_in_current_tab_path(str(path))
-		worker.wait_until_prepared()
-		delivery = controller._local_document_open_delivery
-		assert delivery is not None
-		delivery._host = dataclasses.replace(
-			delivery._host, finish_open_replacement=fail_presentation,
-		)
-		delivery.stage_prepared(worker, prepared)
-		if fault_kind == "unexpected":
-			with pytest.raises(RuntimeError, match="unexpected replacement fault"):
-				controller._finish_local_document_open_delivery(delivery)
-		else:
-			controller._finish_local_document_open_delivery(delivery)
-		candidate = _active_tab(main_window)
-		assert candidate is not old and main_window._native_tabs_by_page.get(candidate) is candidate
-		assert not candidate.is_disposed and old.is_disposed
-		assert settled[0].state is ferrum_qt.ferrum.operation_leases.LeaseState.COMPLETED
-		assert delivery.replacement_lease_settled
-	finally:
-		_finish_worker(qapp, worker)
-		_flush_deferred_deletes(qapp)

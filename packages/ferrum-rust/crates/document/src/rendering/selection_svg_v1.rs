@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     DocumentRenderObservationErrorV1, SessionDocumentObservationV1,
-    derive_document_render_observation_from_accepted_operation_v1,
+    derive_document_render_observation_from_accepted_operation_v2,
 };
 use ferrum_document_projection::{DocumentObjectIdV1, MoleculeProjectionV1};
 use ferrum_render::{
@@ -136,7 +136,7 @@ pub fn render_document_selection_to_svg_v1(
     authenticate_observation(observation)?;
     let selected = resolve_selection(observation, selection.objects())?;
     let render_observation =
-        derive_document_render_observation_from_accepted_operation_v1(observation)?;
+        derive_document_render_observation_from_accepted_operation_v2(observation)?;
     let complete_plan = compose_document_render_plan_v1(render_observation.resolved())?;
     let selected_plan = select_plan_roots(&complete_plan, &selected.root_targets)?;
     let fitted_plan = fit_document_render_plan_to_content_v1(&selected_plan)?;

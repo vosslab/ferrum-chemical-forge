@@ -1,7 +1,8 @@
 //! API-owned verified glyph layout for direct-root plus signs.
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::{
-    GlyphBounds, PositiveFinite, RenderError, RenderPaintV3, RenderPoint, Rgb24, TextOp,
+    PositiveFinite, RenderError, RenderPaintV3, RenderPoint, Rgb24, TextOp,
     VerifiedTelexGlyphMetrics,
 };
 use ferrum_document_projection::{

@@ -51,6 +51,25 @@ def _close_test_window(
 
 
 #============================================
+class _ReplacementResolution:
+	"""Record the exact one-shot replacement result for lifecycle failures."""
+
+	#============================================
+	def __init__(self) -> None:
+		"""Create one pending test resolution."""
+		self.refused = False
+
+	#============================================
+	def accept_replacement(self, _receipt: object) -> None:
+		"""Accept only if an unexpected post-commit path reaches this test double."""
+
+	#============================================
+	def refuse_replacement(self) -> None:
+		"""Record complete rollback and returned candidate ownership."""
+		self.refused = True
+
+
+#============================================
 def test_registered_replacement_rolls_back_after_shared_registration_failure(
 		qapp: PySide6.QtWidgets.QApplication,
 		monkeypatch: pytest.MonkeyPatch,
@@ -174,6 +193,11 @@ def test_registered_replacement_rolls_back_after_old_disposal_refusal(
 	window = _make_window(qapp)
 	old = _current_native_tab(window)
 	new = window._create_empty_native_tab()
+	capability = window._local_document_open_controller._local_document_open_capability
+	lease = window._operation_leases.acquire(
+		capability, tab=old,
+		close_policy=ferrum_qt.ferrum.operation_leases.ClosePolicy.BLOCK_UNTIL_SETTLED,
+	)
 
 	def refuse_old_disposal() -> None:
 		raise ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError(
@@ -181,18 +205,31 @@ def test_registered_replacement_rolls_back_after_old_disposal_refusal(
 		)
 
 	monkeypatch.setattr(old, "dispose", refuse_old_disposal)
+	resolution = _ReplacementResolution()
 	try:
 		with pytest.raises(
 			ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTabError,
 			match="forced old disposal refusal",
 		):
-			window._replace_registered_native_tab(old, new, 0)
-		assert _current_native_tab(window) is old and not old.is_disposed
-		assert new.is_disposed and window._tab_widget.indexOf(new) < 0
-		assert window._template_catalog_controller.start_placement(object(), "rollback")
-		assert window._template_catalog_controller.cancel_for_tab(old, "test_cleanup")
+			window._commit_local_open_replacement(
+				old, new, 0, capability, lease, resolution,
+			)
+		assert (
+			_current_native_tab(window) is old
+			and not old.is_disposed
+			and window._native_tabs_by_page.get(old) is old
+			and not new.is_disposed
+			and window._tab_widget.indexOf(new) < 0
+			and window._operation_leases.active_for_tab(old) == (lease,)
+			and resolution.refused
+		)
 	finally:
 		monkeypatch.undo()
+		if not new.is_disposed:
+			new.dispose()
+		window._operation_leases.settle(
+			capability, lease, ferrum_qt.ferrum.operation_leases.LeaseState.FAILED,
+		)
 		_close_test_window(qapp, window)
 
 

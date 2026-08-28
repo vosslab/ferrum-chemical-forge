@@ -12,6 +12,7 @@ members = [
     "crates/document-model",
     "crates/domain",
     "crates/geometry",
+    "crates/graph-lowering",
     "crates/render",
     "crates/render-contract",
 ]

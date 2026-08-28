@@ -92,6 +92,7 @@ mod tests {
     use ferrum_document::DocumentBondOrderV1;
 
     const SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"atom-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"atom-c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom></molecule></cdml>";
+    const SINGLE_ATOM_SOURCE: &str = "<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"><molecule id=\"m\"><atom id=\"atom-a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom></molecule></cdml>";
 
     fn fence(session: &DocumentSession) -> DocumentFenceV1 {
         let snapshot = session.snapshot().expect("snapshot");
@@ -164,12 +165,12 @@ mod tests {
             let start = if start_existing {
                 direct_atom(&session, 0)
             } else {
-                no_hit(-40.0, 0.0)
+                no_hit(-40.0, 40.0)
             };
             let end = if end_existing {
                 direct_atom(&session, 1)
             } else {
-                no_hit(80.0, 0.0)
+                no_hit(80.0, 40.0)
             };
             let gesture = begin_direct_bond_gesture(
                 &session,
@@ -285,6 +286,8 @@ mod tests {
             ))
         ));
 
+        let mut transform_session =
+            DocumentSession::load(SINGLE_ATOM_SOURCE).expect("single-atom session");
         let zoom =
             DirectBondViewportToScene::new(0.5, 0.0, 0.0, 0.5, 0.0, 0.0).expect("two x zoom");
         let zoom_probe =
@@ -292,27 +295,27 @@ mod tests {
                 .expect("zoom probe");
         let identity_probe = no_hit(80.0, 0.0);
         let zoom_gesture = begin_direct_bond_gesture(
-            &session,
-            fence(&session),
-            direct_atom(&session, 0),
+            &transform_session,
+            fence(&transform_session),
+            direct_atom(&transform_session, 0),
             DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
             "C".to_owned(),
             DirectBondSnapPolicyV1::free(),
         )
         .expect("zoom begin");
         let identity_gesture = begin_direct_bond_gesture(
-            &session,
-            fence(&session),
-            direct_atom(&session, 0),
+            &transform_session,
+            fence(&transform_session),
+            direct_atom(&transform_session, 0),
             DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
             "C".to_owned(),
             DirectBondSnapPolicyV1::free(),
         )
         .expect("identity begin");
-        let zoom_admission =
-            resolve_and_prepare(&mut session, zoom_gesture, zoom_probe).expect("zoom admission");
+        let zoom_admission = resolve_and_prepare(&mut transform_session, zoom_gesture, zoom_probe)
+            .expect("zoom admission");
         let identity_admission =
-            resolve_and_prepare(&mut session, identity_gesture, identity_probe)
+            resolve_and_prepare(&mut transform_session, identity_gesture, identity_probe)
                 .expect("identity admission");
         assert_eq!(
             preview_primitives(&zoom_admission),
@@ -322,6 +325,32 @@ mod tests {
         let mut grid_session =
             DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"/>")
                 .expect("empty session");
+        let before_short_candidate = grid_session.snapshot().expect("short candidate snapshot");
+        let short_grid_gesture = begin_direct_bond_gesture(
+            &grid_session,
+            fence(&grid_session),
+            no_hit(0.0, 0.0),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::new(true, None, None).expect("grid policy"),
+        )
+        .expect("short grid begin");
+        assert!(matches!(
+            resolve_and_prepare(&mut grid_session, short_grid_gesture, no_hit(14.0, 6.0)),
+            Err(DirectBondAdmissionError::Refusal(
+                DirectBondAdmissionRefusal::UnrenderableCandidate
+            ))
+        ));
+        let after_short_candidate = grid_session.snapshot().expect("short candidate snapshot");
+        assert_eq!(
+            after_short_candidate.revision(),
+            before_short_candidate.revision()
+        );
+        assert_eq!(
+            after_short_candidate.digest(),
+            before_short_candidate.digest()
+        );
+
         let grid_gesture = begin_direct_bond_gesture(
             &grid_session,
             fence(&grid_session),
@@ -332,7 +361,7 @@ mod tests {
         )
         .expect("grid begin");
         let mut grid_transition =
-            resolve_and_prepare(&mut grid_session, grid_gesture, no_hit(14.0, 6.0))
+            resolve_and_prepare(&mut grid_session, grid_gesture, no_hit(54.0, 6.0))
                 .expect("grid admission");
         let exact_grid_gesture = begin_direct_bond_gesture(
             &grid_session,
@@ -344,7 +373,7 @@ mod tests {
         )
         .expect("exact grid point begins");
         let exact_grid_admission =
-            resolve_and_prepare(&mut grid_session, exact_grid_gesture, no_hit(10.0, 10.0))
+            resolve_and_prepare(&mut grid_session, exact_grid_gesture, no_hit(50.0, 10.0))
                 .expect("exact grid candidate");
         assert_eq!(
             preview_primitives(&grid_transition),
@@ -353,6 +382,30 @@ mod tests {
         grid_session
             .commit_session_operation_transition_v1(&mut grid_transition)
             .expect("grid commit");
+    }
+
+    #[test]
+    fn pointer_probe_refuses_a_bond_crossing_a_non_endpoint_label_without_mutation() {
+        let mut session = DocumentSession::load(SOURCE).expect("session");
+        let before = session.snapshot().expect("before snapshot");
+        let gesture = begin_direct_bond_gesture(
+            &session,
+            fence(&session),
+            direct_atom(&session, 0),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::free(),
+        )
+        .expect("gesture begins");
+        assert!(matches!(
+            resolve_and_prepare(&mut session, gesture, no_hit(80.0, 0.0)),
+            Err(DirectBondAdmissionError::Refusal(
+                DirectBondAdmissionRefusal::UnrenderableCandidate
+            ))
+        ));
+        let after = session.snapshot().expect("after snapshot");
+        assert_eq!(after.revision(), before.revision());
+        assert_eq!(after.digest(), before.digest());
     }
 
     #[test]

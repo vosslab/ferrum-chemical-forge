@@ -21,6 +21,11 @@ historical milestone and receipt status into this ledger before approving or
 closing the next parity milestone; dated receipts below prove only the slices
 and runs they name.
 
+Pre-production naming rule: a `V1` suffix is reserved for a durable serialized,
+public protocol, cross-language, or cross-crate contract. Private helpers,
+modules, projections, and test fixtures use unversioned names. This is a
+correctness and ownership rule, not a compatibility layer.
+
 ## Objectives
 
 - Deliver an ordinary Ferrum window in which users author, revise, inspect,
@@ -85,25 +90,42 @@ remain typed refusals. The focused chemistry, document, and API-library
 receipts are recorded in the active CML contract; they do not close M2, full
 parity, or the manual 16:10 keyboard/accessibility walkthrough.
 
-The bounded CDXML simple-molecule import profile is delivered through the
-Rust decoder, descriptor registry, generic CLI/PyO3 ingress, and existing Qt
+The bounded CDXML simple-molecule import profile is delivered through the Rust
+decoder, descriptor registry, generic CLI/PyO3 ingress, and existing Qt
 interchange worker. It is an input-only `.cdxml` capability with typed loss,
-typed provenance, and no CDXML save baseline or encoder. The exact grammar,
-security boundary, resource limits, evidence, and exclusions are frozen in
-[m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
-Its chemistry/API/binding/workspace/build/CLI/Qt receipts support this bounded
-claim only. The following delivery-time receipt is retained as historical
-evidence and is superseded by the current 2026-08-27 checkpoint below. At that
-time, post-audit `./build.sh` exited 0; the registered
-`tests/e2e/run_all.sh` exited 0, including CDXML; staged Python bindings passed
-281 tests; Qt passed 238 tests with one intentional skip; focused chemistry and
-API libraries passed 124 and 117 tests; and `cargo check --workspace` passed.
-`./all_test.sh` was not aggregate-green: it recorded 7,759 passes before five
-Markdown-link failures stopped later aggregate phases. All five canonical links
-targeted the present CDXML decision artifact, which was absent only from the
-tracked-file catalog. The skipped later phases were run directly and passed as
-listed above. Real 16:10 accessibility evidence, M2, and full parity remain
-open.
+typed provenance, no CDXML save baseline, and no encoder. The current profile
+also imports ChemDraw `Wavy`, `Bold`, and `Dash` single-bond display facts as
+the document's one durable `DocumentBondPresentationV1` vocabulary. Chemistry
+validates source facts; document admission owns the durable presentation;
+rendering owns explicit sink-independent geometry; API and Qt are clients.
+The authorable CDML grammar is intentionally closed: `n1`, `n2`, `n3`, `w1`,
+`h1`, `q1`, `b1`, `d1`, and `s1`. `b1`, `d1`, and `s1` are fixed single-bond
+presentations, not generic order/style combinations. Broader source observation
+remains private so unsupported or foreign facts are preserved for diagnostic
+refusal rather than silently normalized into authorable state.
+
+The renderer now also has a settled atom-label/bond attachment contract: the
+typed core-element run is centered at the atom origin, full visible label ink is
+the exclusion geometry, and an explicit positive clearance plus the final
+style-specific ink footprint determines every clipped bond endpoint. This removes
+baseline- and decoration-dependent attachment while keeping Qt a plan consumer.
+The focused render lane passes 144 tests with format and strict-Clippy checks.
+The public plan does not yet expose the read-only core-attachment and full-ink
+exclusion facts required for a durable Qt fidelity test, so the closed observation
+DTO, rebuilt Qt path/plan proof, rebuilt CDXML E2E, fresh screenshot review, human
+accessibility review, and post-change aggregate gate all remain open. This is
+renderer stabilization evidence, not a claim of visual acceptance or parity.
+
+The exact grammar, security boundary, resource limits, evidence, and exclusions
+are frozen in [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
+This bounded claim has current local automated evidence: `./check_rust.sh` and
+`./build.sh` exit 0; the chemistry CDXML suite passes 22 tests; document passes
+517 tests; render passes 144 tests; the API/PyO3 suite passes 181 tests; the
+installed Python suite passes 294 tests; focused Qt presentation tests pass 47
+tests; and both the CLI and real Qt CDXML E2Es pass. A subsequent aggregate
+`./all_test.sh` pass is recorded after the audit corrections. These receipts do
+not close M2, human real-window/accessibility review, CI/release verification,
+or full parity.
 
 The current checkpoint also contains four bounded Rust-first slices. M2.B
 unifies File/Open discovery and preparation in `LocalDocumentOpenCatalogV2`;
@@ -207,7 +229,12 @@ cyclohexane. The renderer supplies `DocumentPrecommitOverlayV1` only as an
 identifier-free paint value for the relevant UI previews. Route-specific
 prepared receipts and migration-history fixture/catalog checks are retired;
 wavy and bracket bindings keep their supported semantics. This records an
-implemented M0 authority boundary. The authoritative
+implemented M0 authority boundary. Admission now compares complete resolved
+renderings: ordinary authoring may preserve or repair existing imported
+diagnostics but cannot introduce a new root exclusion, plan issue, or member
+depiction issue. Undo/redo privately authenticate the exact retained history
+target so a diagnostic repair remains honestly reversible without weakening
+ordinary authoring. The authoritative
 [m0_complete_render_admission_v1.md](../decisions/m0_complete_render_admission_v1.md)
 records M0 closure on 2026-08-24 with fresh aggregate exit evidence.
 
@@ -284,8 +311,10 @@ source kind nor selects a parser from a suffix. File/Open creates a new document
 or uses the explicit replacement fact, while **File > Import SDF Records into
 Current Drawing...** retains its separate source-read and insertion workflow.
 Focused PyO3, Qt File/Open, and visible Import-SDF E2E evidence are recorded in
-the current checkpoint. M2 remains open for the declared corpus-backed graph and
-interchange scope.
+the current checkpoint. The delivered Wavy/Bold/Dashed CDXML slice additionally
+proves decoder-to-document-to-render-to-CLI-to-Qt ownership and atomic refusal
+when a later CDXML record is invalid. M2 remains open for the declared
+corpus-backed graph and interchange scope.
 
 ### M3: P1 presentation grammar
 
@@ -416,9 +445,9 @@ bonds with pointer start as CDML tip and pointer end as base. A pointer-probe
 error and a post-resolution document refusal have distinct typed nonmodal recovery;
 a valid same-atom attempt is `self_loop` / `adjust_endpoint`.
 `UnrenderableCandidate` is `ChangePresentation`. Escape and every typed refusal
-remain mutation-free. Existing Bond Properties retains its independently
-supported broader bond-style vocabulary; M3.P6 does not narrow that unrelated
-editor.
+remain mutation-free. Existing Bond Properties uses the same closed durable
+presentation vocabulary; it does not carry a second order/style model or a
+legacy compatibility palette.
 
 M3.P6 excludes generic stereo/CIP semantics or inference, E/Z semantics,
 arbitrary bond styles or orders, and stereo import/export expansion. A fresh
@@ -632,6 +661,15 @@ terminal user outcome. In particular, clearing successful results remains
 visibly confirmed as completed after the control state refreshes. A public Qt
 widget regression covers that visible terminal-status behavior.
 
+`PARITY-M4.B` SMARTS Patch 3 is delivered as a bounded Rust-first lowering
+repair, not M4 completion. The new `ferrum-graph-lowering` crate owns closed
+graph projections and non-atom inventory; API joins durable graph and document
+IDs privately, emits graph-free observations, and returns entropy-backed
+receipts. PyO3 exposes the reviewed public facts without private helper
+surfaces. Local `./check_rust.sh`, `./build.sh`, the aggregate suite, and the
+installed SMARTS E2E passed. Real-window human review, CI/release proof, the
+remaining M4 report/diagnostic/query corpus, and full parity remain open.
+
 Done when users can describe, validate, search, and where admitted expand
 structures; ambiguous, unavailable, and resource-bounded calls return typed
 outcomes, never guesses.
@@ -656,31 +694,28 @@ It exposes only `chemistry.template.catalog`, with no scanner, plan, payload, re
 OS-error authority. Its automated evidence is accepted green; M5.A remains open for native human
 accessibility/visual acceptance and broader milestone work.
 
-The automated M5.A receipt is green: `./build.sh` produced CLI and GUI; focused catalog, API,
-PyO3, and Qt suites passed 13, 164, 8, and 18 tests; the public authoring E2E schema
-`ferrum-template-catalog-authoring-e2e-v2` reported `ok`; workspace test and strict Clippy both
-exited 0; and `./all_test.sh` exited 0 with 8,092 hygiene checks, all registered E2Es, 294
-installed PyO3, and 344 Qt tests. Three independent final reviews found no P1/P2/P3. Manual
-native accessibility/contrast/focus review and a fresh real-dialog screenshot with human acceptance
-remain open, so M5.A, M5, and full parity do not advance to complete.
+The recorded M5.A checkpoint produced CLI/GUI, focused catalog/API/PyO3/Qt evidence, and its
+public authoring E2E. The repaired one-workspace `./check_rust.sh` now exits 0, but that gate
+does not replace native accessibility/contrast/focus review or a fresh real-dialog screenshot with
+human acceptance. M5.A, M5, and full parity do not advance to complete.
 
 Before more high-coupling concurrent Qt tools, preserve accepted [Patch 1](../decisions/qt_operation_lease_registry.md),
 which migrates Template Catalog placement to an explicit controller/pure Qt lifecycle registry,
 deletes both catalog mixins and `CATALOG_PLACEMENT_BLOCKED`, and changes neither Rust nor PyO3.
 Architecture/Qt-HCI/tests-docs review found no P1-P3; fresh build, E2E, and aggregate evidence passed.
-Patch 2 replaces Local Document Open's mixin with four modules: immutable contract facts,
-callback-only composition, source-tab controller, and per-intent delivery with a named queued relay.
-`LOCAL_DOCUMENT_OPEN` uses `BLOCK_UNTIL_SETTLED`; cancellation waits for worker finish, stale sources
-refuse without reanchoring, and completion cannot steal focus. Delivery owns worker staging, QWidget-owned
-dirty-dialog rechecks, transactional startup/terminal cleanup, and exact replacement identity. Invalid
-worker protocol/invariant failures settle `FAILED` after cleanup and propagate; typed post-commit
-presentation failure retains truthful `COMPLETED` after irreversible commit. Rust, PyO3, YAML, and
-`local_document_open_types.py` are unchanged; the old mixin and `native_app.py` are deleted. Final evidence:
-43 focused; build/E2E exit 0 including `ferrum-local-document-open-lifecycle-e2e-v1`; all-test exits 0
-(8,097 hygiene, registered E2Es, 294 PyO3, 395 Qt); architecture audit ACCEPT has no P1-P3. Public
-open/save/reopen, nested dirty-dialog, and post-commit recovery are E2E; focused pytest keeps contracts.
-Patch 1's pristine replacement repair and shared close adapter remain separate. Human visual, VoiceOver,
-contrast/focus, remote CI, release, M5.A, and parity stay open.
+Patch 2 replaces Local Document Open's mixin with five modules: immutable contract facts,
+callback-only composition, source-tab controller, per-intent delivery, and a Qt host transaction.
+`LOCAL_DOCUMENT_OPEN` uses `BLOCK_UNTIL_SETTLED`; cancellation waits for worker
+finish, stale sources refuse without reanchoring, and completion cannot steal focus.
+The host returns `None` and closes one resolution. Pre-commit refusal returns
+ownership only after rollback; an irreversible commit transfers completed truth
+before receipt validation. Unresolved exits retain candidates conservatively.
+`./build.sh` exit 0; focused Local Open 55 passed; registered E2E status `ok`; `./all_test.sh` exit 0
+with 8,218 hygiene, all registered E2Es, 294 PyO3, and 412 Qt; repaired one-workspace `./check_rust.sh`
+exit 0; and final architecture ACCEPT with no P1/P2/P3. Independent screenshots ACCEPTed all 13 frames.
+Rust runtime/semantic APIs, PyO3, YAML, and `local_document_open_types.py` are
+unchanged. The old mixin and `native_app.py` are deleted; Patch 1 stays separate.
+Human accessibility, remote CI, release, M5.A, and parity stay open.
 The shipped `catalog.list.v1` / `catalog.insert.v1` contract and lease-backed E2E
 are completed prerequisites: bounded discovery, fenced insertion, and typed stale refusal;
 they do not complete M5's palette, reaction, provenance, corpus, or user-workflow parity.
@@ -926,11 +961,12 @@ full Rust/OASA/BKChem parity, nor the manual 16:10 keyboard/accessibility
 walkthrough.
 
 CDXML simple-molecule V1 is no longer a decoder or client-routing queue item.
-Its fresh `./all_test.sh`, independent audit, and agent-reviewed real 16:10
-File/Open evidence are complete. Human keyboard/accessibility release sign-off
-remains separate. CDX binary, reaction/presentation/layout import, namespace
-variants, end-directed wedges, and wider chemistry forms remain separate
-corpus-backed M2 decisions rather than implied CDXML V1 compatibility.
+Its Wavy/Bold/Dashed single-bond import extension is likewise delivered with
+strict renderer preflight, clean-render publication, CLI and real-Qt E2Es, and
+typed no-mutation refusal coverage. Human keyboard/accessibility release
+sign-off remains separate. CDX binary, reactions, unsupported layout grammar,
+namespace variants, end-directed wedges, and wider chemistry forms remain
+separate corpus-backed M2 decisions rather than implied CDXML compatibility.
 
 Implementation reports state: `Milestone`, `Work package`, `Contracts`, `User
 workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency`.

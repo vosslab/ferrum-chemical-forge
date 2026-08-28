@@ -24,6 +24,80 @@ authoritative code or contract document, rather than a person.
 
 ## Software design
 
+### Core-element anchors and full-ink bond clearance
+
+**Decision.** Atom-label layout derives unversioned
+`AtomLabelAttachmentGeometry` from the typed structural element run. Its exact
+ink center is the local atom origin. `LaidOutAtomLabel` separately retains the
+complete visible-ink bounds of the element, hydrogens, isotopes, and charge
+annotations. Every atom-bond render request supplies an explicit positive
+`BondInkClearance`; lowering clips against full label ink expanded by that
+clearance and the final style-specific painted footprint.
+
+**Why.** Centering a whole decorated label or attaching an axis to its text
+baseline makes bond placement depend on incidental hydrogen and charge text.
+Clipping only an abstract axis leaves visible stroke caps, bold widths, waves,
+and Haworth extensions able to enter glyph ink. Structural element identity and
+font measurements are already Rust-owned facts, so the renderer can establish
+one geometry contract before Qt, SVG, PDF, or PNG consume its plan.
+
+**Consequence.** The renderer uses one y-down script-baseline calculation,
+centers the core-element ink for every admitted label, and treats full visible
+ink as exclusion geometry. It reserves the resolved gap plus each style's
+transverse radius and any axial overhang, refusing an unrenderable target rather
+than emitting intersecting or partial ink. Qt replays the issued glyph and bond
+operations without choosing a text anchor, recomputing glyph bounds, or relaxing
+clearance. A closed read-only cross-language observation is still required before
+Qt can independently prove core-attachment and clearance fidelity.
+
+**Owner.** `packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
+`packages/ferrum-rust/crates/render/src/verified_telex_glyph_metrics.rs`, and
+`packages/ferrum-rust/crates/render/src/atom_bond/`.
+
+### Complete rendering is an atomic authoring invariant
+
+**Decision.** Generic authoring compares the complete resolved candidate render
+with the current resolved render. A candidate may retain or remove an existing
+omission, but may not introduce a new root exclusion, plan issue, or member
+depiction issue. The opaque admission value retains the exact candidate
+realization and generic commit rederives it before mutation. A separate private
+history policy authenticates an exact retained undo/redo target rather than
+applying the current-to-target authoring delta.
+
+**Why.** Root-level classification alone allowed a generated overlay to look
+valid while an existing host bond disappeared behind a newly inserted atom
+label. Requiring every document to be completely clean would make imported
+diagnostic content impossible to repair or undo honestly.
+
+**Consequence.** Ordinary operations are atomic across authored state and
+visible state: an attached ring cannot commit if it suppresses the host C--O
+bond. Imported diagnostics may be retained or repaired, and a repair remains
+undoable, but no operation-specific bypass or Qt fallback may admit new missing
+ink.
+
+**Owner.** `packages/ferrum-rust/crates/render/src/complete_document_admission_v1.rs`
+and `packages/ferrum-rust/crates/document/src/session/renderer_admitted_pending_v1.rs`.
+
+### Native linear-form spacing has one domain owner
+
+**Decision.** The unversioned `LinearFormBondLength::NATIVE` value owns the
+40-PostScript-point bond length for Ferrum-generated linear forms. The planner
+uses it for coordinates and the document adapter writes and recognizes exactly
+`<property name="bond_length" value="40" type="IntType"/>`.
+
+**Why.** The previous duplicated 10-point constants produced generated
+hydrogen-bearing forms whose labels and bonds could not be rendered completely.
+Spacing is a durable construction choice, not a renderer exception or fixture
+scale.
+
+**Consequence.** There is no alternative writable 10-point grammar, layout
+fallback, or admission bypass. Differently shaped imported forms remain
+preservation-only, while every Ferrum-generated form uses the same domain value
+through planning, metadata, validation, history, and save/reopen.
+
+**Owner.** `packages/ferrum-rust/crates/domain/src/linear_form/types.rs` and
+`packages/ferrum-rust/crates/document/src/typed_linear_form_metadata.rs`.
+
 ### Rust owns the local File/Open catalog
 
 **Decision.** `LocalDocumentOpenCatalogV2` is the sole File/Open discovery and

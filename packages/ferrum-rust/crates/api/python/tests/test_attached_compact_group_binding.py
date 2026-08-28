@@ -107,21 +107,17 @@ def test_generic_methoxy_attachment_materializes_to_neutral_oxygen_first_topolog
 	assert (
 		atoms_by_id[oxygen_id].element,
 		atoms_by_id[oxygen_id].formal_charge,
-		anchor_bond.order,
-		anchor_bond.style,
+		anchor_bond.presentation,
 		atoms_by_id[carbon_id].element,
 		atoms_by_id[carbon_id].formal_charge,
-		oxygen_bond.order,
-		oxygen_bond.style,
+		oxygen_bond.presentation,
 	) == (
 		"O",
 		None,
-		ferrum_chem.DocumentBondOrderV1.single,
-		ferrum_chem.DocumentBondStyleV1.normal,
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
 		"C",
 		None,
-		ferrum_chem.DocumentBondOrderV1.single,
-		ferrum_chem.DocumentBondStyleV1.normal,
+		ferrum_chem.DocumentBondPresentationV1.normal_single,
 	)
 
 
@@ -222,10 +218,7 @@ def test_generic_ethyl_attachment_materializes_to_neutral_carbon_topology() -> N
 		if bond.start.document_object_id != anchor and bond.end.document_object_id != anchor]
 	assert len(internal_bonds) == 1
 	internal_bond = internal_bonds[0]
-	assert (internal_bond.order, internal_bond.style) == (
-		ferrum_chem.DocumentBondOrderV1.single,
-		ferrum_chem.DocumentBondStyleV1.normal,
-	)
+	assert internal_bond.presentation is ferrum_chem.DocumentBondPresentationV1.normal_single
 	internal_atom_ids = {
 		internal_bond.start.document_object_id,
 		internal_bond.end.document_object_id,

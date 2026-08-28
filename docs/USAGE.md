@@ -2,7 +2,9 @@
 
 Ferrum works from this checkout's local program. Use the Rust CLI for document
 and molecular-interchange work, and the PySide6 application for interactive
-CDML drawing. Build first as described in [INSTALL.md](INSTALL.md).
+CDML drawing. Build first as described in [INSTALL.md](INSTALL.md). The
+canonical selected program is `build/current`; `build/bin` is its stable
+shorter launcher path.
 
 ## Quick start
 
@@ -19,6 +21,13 @@ build/bin/ferrum-qt
 build/bin/ferrum-qt drawing.cdml
 ```
 
+For repository Python tools or tests, first select the staged extension from
+the same local program:
+
+```bash
+source source_me.sh && python3 -m pytest
+```
+
 ## CLI discovery
 
 ```bash
@@ -27,8 +36,8 @@ build/bin/ferrum formats
 build/bin/ferrum formats --json
 ```
 
-`formats` reports declared format eligibility without reading a source or
-starting the chemistry runtime. Use `--json` for the versioned response.
+`formats` reports declared input and output eligibility without reading a
+source. Use `--json` for the versioned response.
 
 ## Common document tasks
 
@@ -56,8 +65,8 @@ See [FILE_FORMATS.md](FILE_FORMATS.md) for the authoritative file contract.
 
 ## Molecular interchange
 
-Convert one declared molecular-interchange source through the local chemistry
-runtime. Use `--from` for standard input or an ambiguous filename.
+Convert one declared molecular-interchange source through the local program.
+Use `--from` for standard input or to override suffix-based detection.
 
 ```bash
 build/bin/ferrum convert aspirin.smi --to sdf_v2000 --output aspirin.sdf
@@ -80,9 +89,17 @@ and refused formats.
 ## Desktop drawing
 
 Use File > Open to load an eligible local document and author through the
-visible tool and menu commands. Save and Save As publish CDML; export commands
-produce SVG, PDF, or transparent PNG. Native editing supports Undo/Redo and
-typed refusals without changing the active document.
+visible tool and menu commands. Native CDML and decoded CD-SVG can replace a
+pristine tab or open a new tab; CML, CDXML, and SDF always create a clean new
+CDML tab. Save and Save As publish CDML; export commands produce SVG, PDF, or
+transparent PNG. Native editing supports Undo/Redo and typed refusals without
+changing the active document.
+
+The bounded CDXML simple-molecule workflow preserves ordinary, wavy, bold, and
+dashed single-bond presentation in the new editable document. Use the regular
+File > Open dialog for a `.cdxml` file, then Save or Save As to choose its first
+CDML destination. [FILE_FORMATS.md](FILE_FORMATS.md) owns the precise admission
+grammar, conversion losses, limits, and refused CDXML features.
 
 For an interactive tour, see [GUI_TOUR.md](GUI_TOUR.md). For exact external
 operation envelopes and machine-facing result categories, see

@@ -1,7 +1,7 @@
 use crate::RenderInteractionSessionV1;
 use ferrum_document::{
     CreateAtomV1, CreateBondV1, DocumentBondOrderV1, DocumentBondPresentationV1,
-    DocumentRenderObservationV1, DocumentSession, PendingCreateWavy, Point3V1, SessionOperation,
+    DocumentRenderObservationV2, DocumentSession, PendingCreateWavy, Point3V1, SessionOperation,
     SessionOperationTransitionRequestV1, SessionOperationV1, TransitionAuthorizationV1,
 };
 use pyo3::prelude::*;
@@ -16,7 +16,7 @@ use super::molecule_coordinate_binding::{
     PyPreparedCleanGeometryV1, PyPreparedMoleculeCoordinatesV1,
 };
 use super::projection_binding::PySessionDocumentObservationV1;
-use super::render_binding::{self, PyRenderObservationV1};
+use super::render_binding::{self, PyRenderObservationV2};
 use super::session_operation_result_binding::PySessionOperationResultV1;
 use super::session_publication_binding::PyDocumentSnapshot;
 
@@ -82,6 +82,14 @@ pub(crate) enum PyDocumentBondPresentationV1 {
     SolidWedge,
     /// A directed hashed wedge from start atom to end atom.
     HashedWedge,
+    /// A bold single bond.
+    Bold,
+    /// A dashed single bond.
+    Dashed,
+    /// A wavy single bond.
+    Wavy,
+    /// A Haworth-front single bond.
+    HaworthFront,
 }
 
 impl From<PyDocumentBondPresentationV1> for DocumentBondPresentationV1 {
@@ -92,6 +100,10 @@ impl From<PyDocumentBondPresentationV1> for DocumentBondPresentationV1 {
             PyDocumentBondPresentationV1::NormalTriple => Self::Normal(DocumentBondOrderV1::Triple),
             PyDocumentBondPresentationV1::SolidWedge => Self::SolidWedge,
             PyDocumentBondPresentationV1::HashedWedge => Self::HashedWedge,
+            PyDocumentBondPresentationV1::Bold => Self::Bold,
+            PyDocumentBondPresentationV1::Dashed => Self::Dashed,
+            PyDocumentBondPresentationV1::Wavy => Self::Wavy,
+            PyDocumentBondPresentationV1::HaworthFront => Self::HaworthFront,
         }
     }
 }
@@ -105,7 +117,7 @@ impl From<PyDocumentBondPresentationV1> for DocumentBondPresentationV1 {
 #[pyclass(unsendable, name = "DocumentSession")]
 pub(crate) struct PyDocumentSession {
     pub(crate) session: RenderInteractionSessionV1,
-    live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1,
+    live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridge,
     pub(crate) published_presentation_plan: Option<ferrum_render::PresentationRenderPlanV1>,
 }
 
@@ -113,22 +125,20 @@ impl PyDocumentSession {
     pub(crate) fn from_session(session: DocumentSession) -> Self {
         Self {
             session: RenderInteractionSessionV1::new(session),
-            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridge::new(),
             published_presentation_plan: None,
         }
     }
 
     /// Publish one renderer observation, presentation plan, and live SMARTS
     /// bridge from the same accepted document observation.
-    pub(crate) fn publish_live_render_plan_v1(
+    pub(crate) fn publish_live_render_plan_v2(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
-    ) -> PyResult<DocumentRenderObservationV1> {
+    ) -> PyResult<DocumentRenderObservationV2> {
         let accepted = document_result(py, self.session.observe(expected_revision))?;
-        let observation = self
-            .live_smarts
-            .publish_from_observation(&self.session, accepted)?;
+        let observation = self.live_smarts.publish_from_observation(accepted)?;
         let plan =
             match super::presentation_render_plan_binding::plan_from_observation(&observation) {
                 Ok(plan) => plan,
@@ -154,7 +164,7 @@ impl PyDocumentSession {
         let session = document_result(py, DocumentSession::create_empty_document_v1())?;
         Ok(Self {
             session: RenderInteractionSessionV1::new(session),
-            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridge::new(),
             published_presentation_plan: None,
         })
     }
@@ -168,7 +178,7 @@ impl PyDocumentSession {
         let session = document_result(py, DocumentSession::load(cdml))?;
         Ok(Self {
             session: RenderInteractionSessionV1::new(session),
-            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridgeV1::new(),
+            live_smarts: super::live_document_smarts_query_v1::LiveDocumentSmartsBridge::new(),
             published_presentation_plan: None,
         })
     }
@@ -207,7 +217,7 @@ impl PyDocumentSession {
                 max_total_matches,
             )?;
             let engine = super::super::staged_extension_native_engine_v1().map_err(|_| {
-                super::live_document_smarts_query_v1::LiveFailureV1::Unavailable(
+                super::live_document_smarts_query_v1::LiveFailure::Unavailable(
                     super::live_document_smarts_query_v1::PyLiveDocumentSmartsReasonV1::NativeRuntimeUnavailable,
                 )
                 .into_pyerr()
@@ -225,9 +235,9 @@ impl PyDocumentSession {
                 .map(|value| value.into_any());
         }
         let selection = query
-            .extract::<PyRef<'_, super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQueryV1>>()
+            .extract::<PyRef<'_, super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQuery>>()
             .map_err(|_| {
-                super::live_document_smarts_query_v1::LiveFailureV1::Refused(
+                super::live_document_smarts_query_v1::LiveFailure::Refused(
                     super::live_document_smarts_query_v1::PyLiveDocumentSmartsReasonV1::SelectedRootEmpty,
                 )
                 .into_pyerr()
@@ -239,7 +249,7 @@ impl PyDocumentSession {
             max_total_matches,
         )?;
         let engine = super::super::staged_extension_native_engine_v1().map_err(|_| {
-            super::live_document_smarts_query_v1::LiveFailureV1::Unavailable(
+            super::live_document_smarts_query_v1::LiveFailure::Unavailable(
                 super::live_document_smarts_query_v1::PyLiveDocumentSmartsReasonV1::NativeRuntimeUnavailable,
             )
             .into_pyerr()
@@ -263,8 +273,7 @@ impl PyDocumentSession {
         &self,
         py: Python<'_>,
         selection: PyRef<'_, super::direct_root_interaction_binding::PySelection>,
-    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQueryV1>>
-    {
+    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQuery>> {
         self.live_smarts
             .capture_selected_query(py, &self.session, &selection)
     }
@@ -276,9 +285,9 @@ impl PyDocumentSession {
         py: Python<'_>,
         selection: PyRef<
             '_,
-            super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQueryV1,
+            super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedQuery,
         >,
-    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadinessV1>>
+    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsSelectedReadiness>>
     {
         Py::new(
             py,
@@ -291,9 +300,9 @@ impl PyDocumentSession {
     fn _show_live_document_smarts_match_v1(
         &mut self,
         py: Python<'_>,
-        receipt: PyRef<'_, super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceiptV1>,
+        receipt: PyRef<'_, super::live_document_smarts_query_v1::PyLiveDocumentSmartsReceipt>,
         row_index: usize,
-    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsPaintV1>> {
+    ) -> PyResult<Py<super::live_document_smarts_query_v1::PyLiveDocumentSmartsPaint>> {
         self.live_smarts.show(py, &self.session, receipt, row_index)
     }
 
@@ -312,12 +321,12 @@ impl PyDocumentSession {
 
     /// Private Qt publication seam: the returned render observation and the
     /// receipt plan are derived from the exact same accepted observation.
-    fn _publish_live_render_plan_v1(
+    fn _publish_live_render_plan_v2(
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
-    ) -> PyResult<PyRenderObservationV1> {
-        let observation = self.publish_live_render_plan_v1(py, expected_revision)?;
+    ) -> PyResult<PyRenderObservationV2> {
+        let observation = self.publish_live_render_plan_v2(py, expected_revision)?;
         render_binding::observation(py, observation)
     }
 
@@ -335,8 +344,8 @@ impl PyDocumentSession {
         &mut self,
         py: Python<'_>,
         expected_revision: u64,
-    ) -> PyResult<PyRenderObservationV1> {
-        let observation = self.publish_live_render_plan_v1(py, expected_revision)?;
+    ) -> PyResult<PyRenderObservationV2> {
+        let observation = self.publish_live_render_plan_v2(py, expected_revision)?;
         render_binding::observation(py, observation)
     }
 

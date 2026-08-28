@@ -2,57 +2,77 @@
 
 ## What is Ferrum?
 
-Ferrum is a pre-production chemical-document application. Ferrum-Chem is the
-Rust owner of chemistry, document state, history, rendering, admission, and
-typed refusals. Ferrum Qt is the PySide6 interaction client. See
+Ferrum is a pre-production chemical-document application. Its Rust backend is
+the sole owner of chemistry, document state, history, rendering, admission,
+file-format decisions, and typed refusals. Ferrum Qt is the PySide6 desktop
+client: it presents Rust-issued facts and sends bounded user intent; it does
+not own a second chemistry or document model. See
 [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) for the ownership boundary.
 
-## Does Ferrum replace OASA and BKChem?
+## How does Ferrum use historical migration evidence?
 
-That is the intended direction, not a completion claim. Ferrum replaces product
-OASA behavior with Rust contracts and a bounded native chemistry adapter; it does
-not port the historical Python backend or restore a Python document model.
-Historical OASA and BKChem material is read-only provenance and migration-oracle
-evidence, never a runtime dependency or compatibility authority. The remaining
-scope and acceptance evidence are in
+Ferrum is being built as the replacement direction, but complete migration
+parity is not yet claimed. Historical OASA and BKChem material is read-only
+migration evidence: Ferrum reimplements needed behavior as Rust-owned
+contracts instead of retaining a Python chemistry or document model. That
+material is not a runtime dependency, compatibility target, or fallback. The
+remaining scope and acceptance ledger is
 [FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
 
-## How do the CLI and desktop relate?
+## How do the command line and desktop relate?
 
-`ferrum` is the Rust command-line tool. `ferrum-qt` is the bounded PySide6
-drawing application. Both use the same Rust-owned document and chemistry
-contracts; the desktop client does not fall back to OASA or another editor.
-Build the checkout with `./build.sh`, then run the two local launchers from
-`build/bin/`. [USAGE.md](USAGE.md) gives the supported commands and keyboard
-workflow.
+`ferrum` is the Rust command-line tool and `ferrum-qt` is the PySide6 desktop
+application. Both use the same Rust-owned chemistry and document contracts.
+Build the checkout with `./build.sh`, then use the launchers in `build/bin/`.
+[USAGE.md](USAGE.md) lists supported commands and desktop workflows.
 
-## Which formats can I use?
+## Which file formats can I use?
 
-Use `build/bin/ferrum formats` to inspect the current descriptor-declared
-formats and operation eligibility. CDML is Ferrum's editable and save format.
-The desktop can also admit bounded CD-SVG, CML/CML2 simple-molecule input, and
-the input-only CDXML simple-molecule profile. Chemistry conversion accepts only
-the declared conversion profiles; it is not a general file converter.
+Use `build/bin/ferrum formats` as the current machine-readable and
+human-readable capability source. CDML is Ferrum's editable/save format. The
+desktop additionally has bounded File/Open profiles for CD-SVG, CML/CML2,
+SDF, and input-only CDXML simple molecules. The conversion registry is a
+separate, declared capability; Ferrum is not a general chemical file converter.
 
-CDX, compressed input, `.cdsvg`, `.svgz`, arbitrary SVG, and CDXML outside the
-bounded profile are refused without changing the current document. See
-[FILE_FORMATS.md](FILE_FORMATS.md) for the exact input, output, loss, and
+An accepted interchange import becomes a new clean CDML document only after
+the complete Rust render observation has no suppression, plan issues, or member
+issues. A refusal therefore publishes neither a new desktop tab nor a CLI
+output artifact. CDX, compressed input, arbitrary SVG, and CDXML outside the
+declared simple-molecule profile are refused. See
+[FILE_FORMATS.md](FILE_FORMATS.md) for exact profiles, limits, losses, and
 publication rules.
+
+## How are Wavy, Bold, and Dashed CDXML bonds imported?
+
+The bounded CDXML importer accepts `Display="Wavy"`, `Display="Bold"`, and
+`Display="Dash"` only on an ordinary single bond: `Order` must be omitted or
+`"1"`, and the bond cannot also carry stereochemical direction. Ferrum stores
+the result as its own fixed-single presentation: `s1` (Wavy), `b1` (Bold), or
+`d1` (Dashed). It does not retain raw CDXML display data or source layout.
+
+The Rust renderer generates the corresponding geometry for every target,
+including SVG, PDF, PNG, and the Qt projection. A non-single or otherwise
+unsupported displayed bond receives a typed refusal before publication. The
+exact grammar, render geometry, losses, and atomicity rules are in
+[the CDXML import decision](active_plans/decisions/m2_cdxml_simple_molecule_import_v1.md).
 
 ## What can I edit in Ferrum Qt?
 
-The native desktop route supports a growing, bounded set of Rust-owned document
-workflows, including atom and normal-bond edits, selected-root work, regular
-rings, reactions, compact groups, coordinate work, Undo/Redo, CDML publication,
-and SVG/PDF/PNG artifact export. Unsupported features produce typed refusals
-with recovery guidance rather than silently switching to a legacy route.
+Ferrum Qt currently exposes a growing bounded set of Rust-owned workflows,
+including atom and bond authoring, supported bond presentations, selection,
+rings, reactions, templates, Undo/Redo, CDML publication, and SVG/PDF/PNG
+artifact export. The current visible routes are documented in
+[GUI_TOUR.md](GUI_TOUR.md). Unsupported requests receive typed refusals and
+recovery guidance; the desktop does not delegate them to legacy code.
 
-For step-by-step desktop workflows, use [USAGE.md](USAGE.md). The feature work
-that remains before full parity is tracked in
-[FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
+For step-by-step workflows, use [USAGE.md](USAGE.md). The parity ledger is the
+source of truth for work that remains.
 
-## Is Ferrum ready for a production workflow?
+## Is Ferrum ready for production work?
 
-No. Ferrum is currently a local-checkout, pre-production build. The supported
-native route is macOS arm64 with Rust 1.97.1 or newer and Python 3.12. Build,
-runtime, and verification requirements are in [INSTALL.md](INSTALL.md).
+No. Ferrum is a local-checkout, pre-production build. Automated Rust, Python,
+and end-to-end evidence covers bounded behavior, but human desktop/accessibility
+review, remote CI, release validation, and complete migration parity remain
+open. The supported local route is macOS arm64 with Rust 1.97.1 or newer and
+Python 3.12; [INSTALL.md](INSTALL.md) defines the exact build and runtime
+environment.

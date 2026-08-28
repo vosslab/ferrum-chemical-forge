@@ -1,8 +1,5 @@
 """Bond properties dialog."""
 
-# Standard Library
-import dataclasses
-
 # PIP3 modules
 import PySide6.QtGui
 import PySide6.QtWidgets
@@ -22,25 +19,6 @@ _ORDER_VALUES = {v: k for k, v in _ORDER_LABELS.items()}
 
 
 #============================================
-@dataclasses.dataclass(frozen=True, slots=True)
-class BondDialogCapabilities:
-	"""Optional visual limits for a route with a smaller rendering vocabulary."""
-
-	normal_style_only: bool = False
-	wedge_width_available: bool = True
-	dynamic_native_widths: bool = False
-	allowed_style_chars: tuple[str, ...] = ()
-
-
-#============================================
-NATIVE_RENDER_CAPABILITIES = BondDialogCapabilities(
-	allowed_style_chars=("n", "w", "h"),
-	wedge_width_available=True,
-	dynamic_native_widths=True,
-)
-
-
-#============================================
 class BondDialog(FerrumAccessibleDialog):
 	"""Dialog for editing bond properties.
 
@@ -48,27 +26,23 @@ class BondDialog(FerrumAccessibleDialog):
 	line width, bond width, wedge width, and color.
 
 	Args:
-		bond_model: The BondModel whose properties to edit.
+		bond_model: Frozen Rust-derived display values owned by the native adapter.
 		parent: Optional parent widget.
 	"""
 
 	#============================================
 	def __init__(
 			self, bond_model: object, parent: object | None = None,
-			capabilities: BondDialogCapabilities | None = None,
 			) -> None:
 		"""Initialize a detached bond-properties value editor.
 
 		Args:
-			bond_model: The BondModel whose properties to edit.
+			bond_model: Frozen Rust-derived display values owned by the native adapter.
 			parent: Optional parent widget.
-			capabilities: Optional route-specific visual limits.  Omitted preserves
-				the complete legacy form.
 		"""
 		super().__init__(parent)
-		self._capabilities = capabilities or BondDialogCapabilities()
 		# Copy every display scalar before constructing Qt controls.  The accepted
-		# backend patch can replace the projected BondModel while this dialog still
+		# backend patch can replace the projected bond while this dialog still
 		# exists, so it must never retain or later inspect that transient wrapper.
 		self._initial_values = {
 			"order": bond_model.order,
@@ -145,48 +119,33 @@ class BondDialog(FerrumAccessibleDialog):
 		button_box.rejected.connect(self.reject)
 		layout.addWidget(button_box)
 		self._order_combo.currentIndexChanged.connect(self._refresh_capability_controls)
-		self._configure_static_capability_controls()
+		self._type_combo.currentIndexChanged.connect(self._refresh_capability_controls)
+		self._refresh_capability_controls()
 
 	#============================================
 	def _type_choices(self) -> tuple[tuple[str, str], ...]:
-		"""Return only the bond-style choices available on this visual route."""
-		choices = ferrum_qt.bond_presentation.choices_for_display(
-			self._initial_values["type"],
-		)
-		if self._capabilities.normal_style_only:
-			return tuple(choice for choice in choices if choice[0] == "n")
-		if self._capabilities.allowed_style_chars:
-			return tuple(
-				choice for choice in choices
-				if choice[0] in self._capabilities.allowed_style_chars
-			)
-		return choices
-
-	#============================================
-	def _configure_static_capability_controls(self) -> None:
-		"""Make unsupported route features unavailable before the user submits."""
-		if self._capabilities.normal_style_only:
-			self._type_combo.setEnabled(False)
-			self._type_combo.setToolTip(
-				"rendering currently supports Normal bond style only.",
-			)
-		if not self._capabilities.wedge_width_available:
-			self._wedge_width_spin.setEnabled(False)
-			self._wedge_width_spin.setToolTip(
-				"wedge rendering is not available, so wedge width cannot be edited.",
-			)
-		self._refresh_capability_controls()
+		"""Return the sole closed native presentation vocabulary."""
+		return ferrum_qt.bond_presentation.native_authorable_choices()
 
 	#============================================
 	def _refresh_capability_controls(self) -> None:
 		"""Keep order-dependent Ferrum controls honest as the user changes order."""
-		if not self._capabilities.dynamic_native_widths:
-			return
+		bond_type = self._type_combo.currentData()
+		fixed_single = bond_type in ("w", "h", "q", "b", "d", "s")
+		if fixed_single:
+			self._set_single_order()
+		self._order_combo.setEnabled(not fixed_single)
+		self._order_combo.setToolTip(
+			"This presentation is intrinsically a Single bond."
+			if fixed_single else "",
+		)
 		order = _ORDER_VALUES.get(self._order_combo.currentText(), 1)
-		center_available = order == 2
-		bond_width_available = order in (2, 3)
+		center_available = bond_type == "n" and order == 2
+		bond_width_available = bond_type == "n" and order in (2, 3)
+		wedge_width_available = bond_type in ("w", "h")
 		self._center_check.setEnabled(center_available)
 		self._bond_width_spin.setEnabled(bond_width_available)
+		self._wedge_width_spin.setEnabled(wedge_width_available)
 		if not center_available:
 			self._center_check.setToolTip(
 				"rendering supports centering only for a double bond.",
@@ -199,6 +158,22 @@ class BondDialog(FerrumAccessibleDialog):
 			)
 		else:
 			self._bond_width_spin.setToolTip("")
+		if not wedge_width_available:
+			self._wedge_width_spin.setToolTip(
+				"Wedge width applies only to solid and hashed wedges.",
+			)
+		else:
+			self._wedge_width_spin.setToolTip("")
+
+	#============================================
+	def _set_single_order(self) -> None:
+		"""Select Single without emitting a recursive order refresh."""
+		index = self._order_combo.findText("Single")
+		if index < 0 or self._order_combo.currentIndex() == index:
+			return
+		blocked = self._order_combo.blockSignals(True)
+		self._order_combo.setCurrentIndex(index)
+		self._order_combo.blockSignals(blocked)
 
 	#============================================
 	def _populate_from_model(self) -> None:
@@ -266,33 +241,19 @@ class BondDialog(FerrumAccessibleDialog):
 		"""Return only deliberate value changes using backend CDML field names."""
 		values = self.get_values()
 		current = {
-			"order": values["order"], "type": values["type"],
+			"presentation": (values["order"], values["type"]),
 			"center": values["center"], "line_width": values["line_width"],
 			"bond_width": values["bond_width"], "wedge_width": values["wedge_width"],
 			"color": values["line_color"],
 		}
-		return tuple(
-			(name, value) for name, value in current.items()
-			if value != self._initial_values[name]
+		initial_presentation = (
+			self._initial_values["order"], self._initial_values["type"],
 		)
-
-	#============================================
-	@staticmethod
-	def edit_bond(bond_model: object, parent: object | None = None) -> bool:
-		"""Convenience: show dialog, apply changes if accepted.
-
-		Args:
-			bond_model: The BondModel to edit.
-			parent: Optional parent widget.
-
-		Returns:
-			True if changes were accepted and applied, False otherwise.
-		"""
-		dialog = BondDialog(bond_model, parent)
-		result = dialog.exec()
-		if result != PySide6.QtWidgets.QDialog.DialogCode.Accepted:
-			return False
-		values = dialog.get_values()
-		for key, value in values.items():
-			setattr(bond_model, key, value)
-		return bool(dialog.changes())
+		changes = []
+		if current["presentation"] != initial_presentation:
+			changes.append(("presentation", current["presentation"]))
+		changes.extend(
+			(name, value) for name, value in current.items()
+			if name != "presentation" and value != self._initial_values[name]
+		)
+		return tuple(changes)

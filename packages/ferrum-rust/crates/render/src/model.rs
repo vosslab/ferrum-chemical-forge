@@ -1,20 +1,16 @@
 //! Closed, ownership-first wire grammar for immutable render plans.
 
-use std::collections::HashSet;
-
-use ferrum_core::RecordKind;
 use serde::{Deserialize, Serialize};
 
-use crate::render_target::RenderPlanEntryContextV1;
-use crate::{RenderError, RenderIssue, RenderPaintV3, RenderTarget};
+use crate::{RenderError, RenderPaintV3};
 
-const SCHEMA_V3: &str = "ferrum-render-plan-v3";
+const SCHEMA_V4: &str = "ferrum-render-plan-v4";
 
 /// The only schema accepted by the active native render-plan slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RenderSchemaVersion {
-    /// Declarative Ferrum render-plan grammar with scene paths.
-    V3,
+    /// Declarative Ferrum render-plan grammar with typed batch content.
+    V4,
 }
 
 impl Serialize for RenderSchemaVersion {
@@ -22,7 +18,7 @@ impl Serialize for RenderSchemaVersion {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(SCHEMA_V3)
+        serializer.serialize_str(SCHEMA_V4)
     }
 }
 
@@ -32,8 +28,8 @@ impl<'de> Deserialize<'de> for RenderSchemaVersion {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        if value == SCHEMA_V3 {
-            Ok(Self::V3)
+        if value == SCHEMA_V4 {
+            Ok(Self::V4)
         } else {
             Err(serde::de::Error::custom("unknown render-plan schema"))
         }
@@ -580,7 +576,7 @@ impl<'de> Deserialize<'de> for LineOp {
     }
 }
 
-/// The V2 closed operation grammar, including source-owned scene paths.
+/// The closed generic operation grammar used inside a typed V4 batch.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     deny_unknown_fields,
@@ -601,338 +597,4 @@ pub enum RenderOp {
     Path(crate::PathOpV3),
     /// A stored E/Z carrier accent linked to its central double-bond provenance.
     DoubleBondCarrierMark(crate::DoubleBondCarrierMarkOp),
-}
-
-impl RenderOp {
-    fn z(&self) -> i32 {
-        match self {
-            Self::Text(operation) => operation.z(),
-            Self::Line(operation) => operation.z(),
-            Self::Mask(operation) => operation.z(),
-            Self::Ellipse(operation) => operation.z(),
-            Self::Path(operation) => operation.z(),
-            Self::DoubleBondCarrierMark(operation) => operation.z(),
-        }
-    }
-}
-
-/// The coordinate space in which a batch is interpreted.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
-pub enum BatchSpace {
-    /// Annotation operations move with a finite durable object anchor.
-    AtomLocal { anchor: RenderPoint },
-    /// Bond operations use accepted document-scene coordinates directly.
-    Scene,
-}
-
-/// Rust-selected display tier for complete target geometry.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RenderDisplayLayerV1 {
-    /// Ordinary atom, bond, and back-face content.
-    Ordinary,
-    /// Padded Haworth q1 front strokes.
-    HaworthFrontStroke,
-    /// Filled Haworth w1 front shoulders.
-    HaworthFrontWedge,
-}
-
-impl RenderDisplayLayerV1 {
-    /// Return the toolkit-independent ordering tier.
-    #[must_use]
-    pub const fn z_tier(self) -> i32 {
-        match self {
-            Self::Ordinary => 0,
-            Self::HaworthFrontStroke => 1,
-            Self::HaworthFrontWedge => 2,
-        }
-    }
-}
-
-/// An immutable target-specific operation batch.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct RenderBatch {
-    target: RenderTarget,
-    paint_order: u32,
-    coordinate_space: BatchSpace,
-    operations: Vec<RenderOp>,
-    display_layer: RenderDisplayLayerV1,
-}
-
-impl RenderBatch {
-    /// Construct one complete durable-target batch from public plan facts.
-    pub fn new(
-        target: RenderTarget,
-        paint_order: u32,
-        coordinate_space: BatchSpace,
-        operations: Vec<RenderOp>,
-    ) -> Result<Self, RenderError> {
-        if operations.is_empty() {
-            return Err(RenderError::InvalidRequest(
-                "render batch must not be empty".to_owned(),
-            ));
-        }
-        if operations.windows(2).any(|pair| pair[0].z() >= pair[1].z()) {
-            return Err(RenderError::InvalidRequest(
-                "render batch operations must have strictly increasing z".to_owned(),
-            ));
-        }
-        match &coordinate_space {
-            BatchSpace::AtomLocal { .. }
-                if operations.iter().all(|op| {
-                    matches!(
-                        op,
-                        RenderOp::Text(_)
-                            | RenderOp::Mask(_)
-                            | RenderOp::Line(_)
-                            | RenderOp::Ellipse(_)
-                    )
-                }) => {}
-            BatchSpace::Scene
-                if operations.iter().all(|op| {
-                    matches!(
-                        op,
-                        RenderOp::Line(_) | RenderOp::Path(_) | RenderOp::DoubleBondCarrierMark(_)
-                    )
-                }) => {}
-            BatchSpace::AtomLocal { .. } => {
-                return Err(RenderError::InvalidRequest(
-                    "object-local batch requires annotation operations".to_owned(),
-                ));
-            }
-            BatchSpace::Scene => {
-                return Err(RenderError::InvalidRequest(
-                    "scene batch requires line or path operations".to_owned(),
-                ));
-            }
-        }
-        Ok(Self {
-            target,
-            paint_order,
-            coordinate_space,
-            operations,
-            display_layer: RenderDisplayLayerV1::Ordinary,
-        })
-    }
-
-    /// Construct one complete batch from private lowering context.
-    pub(crate) fn from_context(
-        context: RenderPlanEntryContextV1,
-        coordinate_space: BatchSpace,
-        operations: Vec<RenderOp>,
-    ) -> Result<Self, RenderError> {
-        match (&coordinate_space, context.record_id().kind()) {
-            (BatchSpace::AtomLocal { .. }, RecordKind::Atom | RecordKind::Group)
-            | (BatchSpace::Scene, RecordKind::Bond) => {}
-            (BatchSpace::AtomLocal { .. }, _) => {
-                return Err(RenderError::InvalidRequest(
-                    "object-local batch requires an atom or compact-group source record".to_owned(),
-                ));
-            }
-            (BatchSpace::Scene, _) => {
-                return Err(RenderError::InvalidRequest(
-                    "scene batch requires a bond source record".to_owned(),
-                ));
-            }
-        }
-        Self::new(
-            context.target().clone(),
-            context.paint_order(),
-            coordinate_space,
-            operations,
-        )
-    }
-
-    /// Attach the source-owned paint tier without changing target identity.
-    #[must_use]
-    pub fn with_display_layer(mut self, display_layer: RenderDisplayLayerV1) -> Self {
-        self.display_layer = display_layer;
-        self
-    }
-
-    /// Return the durable target.
-    #[must_use]
-    pub fn target(&self) -> &RenderTarget {
-        &self.target
-    }
-    /// Return the contractual paint order for this batch.
-    #[must_use]
-    pub const fn paint_order(&self) -> u32 {
-        self.paint_order
-    }
-    /// Return the explicit coordinate interpretation.
-    #[must_use]
-    pub fn coordinate_space(&self) -> &BatchSpace {
-        &self.coordinate_space
-    }
-    /// Return immutable operation data.
-    #[must_use]
-    pub fn operations(&self) -> &[RenderOp] {
-        &self.operations
-    }
-    /// Return the emitted display tier for this target batch.
-    #[must_use]
-    pub const fn display_layer(&self) -> RenderDisplayLayerV1 {
-        self.display_layer
-    }
-}
-
-impl<'de> Deserialize<'de> for RenderBatch {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct WireBatch {
-            target: RenderTarget,
-            paint_order: u32,
-            coordinate_space: BatchSpace,
-            operations: Vec<RenderOp>,
-            display_layer: RenderDisplayLayerV1,
-        }
-        let wire = WireBatch::deserialize(deserializer)?;
-        Self::new(
-            wire.target,
-            wire.paint_order,
-            wire.coordinate_space,
-            wire.operations,
-        )
-        .map(|batch| batch.with_display_layer(wire.display_layer))
-        .map_err(serde::de::Error::custom)
-    }
-}
-
-/// A complete immutable response from one document-projection revision.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct MoleculeRenderPlan {
-    schema: RenderSchemaVersion,
-    provenance: RenderProvenance,
-    batches: Vec<RenderBatch>,
-    issues: Vec<RenderIssue>,
-}
-
-impl MoleculeRenderPlan {
-    /// Construct a plan with one ordered outcome for every supplied target.
-    ///
-    /// A durable target appears exactly once as either a complete batch or an
-    /// exclusion issue. Every paint order is unique across both outcome lists;
-    /// each list is strictly paint ordered, allowing consumers to merge them without
-    /// inventing a tie breaker.
-    pub fn new(
-        provenance: RenderProvenance,
-        batches: Vec<RenderBatch>,
-        issues: Vec<RenderIssue>,
-    ) -> Result<Self, RenderError> {
-        let mut targets = HashSet::new();
-        let mut paint_orders = HashSet::new();
-        let mut previous_batch_paint_order = None;
-        for batch in &batches {
-            if !targets.insert(batch.target.document_object_id().clone()) {
-                return Err(RenderError::InvalidRequest(
-                    "render plan has duplicate batch targets".to_owned(),
-                ));
-            }
-            if !paint_orders.insert(batch.paint_order) {
-                return Err(RenderError::InvalidRequest(
-                    "render plan has duplicate target paint order".to_owned(),
-                ));
-            }
-            if let Some(previous) = previous_batch_paint_order
-                && batch.paint_order <= previous
-            {
-                return Err(RenderError::InvalidRequest(
-                    "render plan batches must have strictly increasing paint order".to_owned(),
-                ));
-            }
-            previous_batch_paint_order = Some(batch.paint_order);
-        }
-        let mut previous_issue_paint_order = None;
-        for issue in &issues {
-            issue.validate()?;
-            let target = issue.target();
-            if !targets.insert(target.document_object_id().clone()) {
-                return Err(RenderError::InvalidRequest(
-                    "render plan target cannot have both a batch and an issue".to_owned(),
-                ));
-            }
-            if !paint_orders.insert(issue.paint_order()) {
-                return Err(RenderError::InvalidRequest(
-                    "render plan has duplicate target paint order".to_owned(),
-                ));
-            }
-            if let Some(previous) = previous_issue_paint_order
-                && issue.paint_order() <= previous
-            {
-                return Err(RenderError::InvalidRequest(
-                    "render plan issues must have strictly increasing paint order".to_owned(),
-                ));
-            }
-            previous_issue_paint_order = Some(issue.paint_order());
-        }
-        Ok(Self {
-            schema: RenderSchemaVersion::V3,
-            provenance,
-            batches,
-            issues,
-        })
-    }
-
-    /// Return the accepted schema marker.
-    #[must_use]
-    pub const fn schema(&self) -> RenderSchemaVersion {
-        self.schema
-    }
-    /// Return the exact source projection revision.
-    #[must_use]
-    pub const fn revision(&self) -> RenderRevision {
-        self.provenance.revision()
-    }
-    /// Return the exact document revision and digest that produced this plan.
-    #[must_use]
-    pub const fn provenance(&self) -> RenderProvenance {
-        self.provenance
-    }
-    /// Return immutable target batches in source order.
-    #[must_use]
-    pub fn batches(&self) -> &[RenderBatch] {
-        &self.batches
-    }
-    /// Return non-fatal excluded-target diagnostics.
-    #[must_use]
-    pub fn issues(&self) -> &[RenderIssue] {
-        &self.issues
-    }
-    /// Serialize deterministic canonical JSON for the closed grammar.
-    pub fn to_canonical_json(&self) -> Result<String, RenderError> {
-        serde_json::to_string(self).map_err(|error| RenderError::Serialization(error.to_string()))
-    }
-    /// Parse and validate the exact current grammar with no compatibility aliases.
-    pub fn from_json(input: &str) -> Result<Self, RenderError> {
-        serde_json::from_str(input).map_err(|error| RenderError::InvalidJson(error.to_string()))
-    }
-}
-
-impl<'de> Deserialize<'de> for MoleculeRenderPlan {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct WirePlan {
-            schema: RenderSchemaVersion,
-            provenance: RenderProvenance,
-            batches: Vec<RenderBatch>,
-            issues: Vec<RenderIssue>,
-        }
-        let wire = WirePlan::deserialize(deserializer)?;
-        if wire.schema != RenderSchemaVersion::V3 {
-            return Err(serde::de::Error::custom("unsupported render-plan schema"));
-        }
-        Self::new(wire.provenance, wire.batches, wire.issues).map_err(serde::de::Error::custom)
-    }
 }

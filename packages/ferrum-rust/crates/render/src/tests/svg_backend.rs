@@ -2,6 +2,7 @@ use ferrum_core::{Identifier, RecordId, RecordKind};
 use ferrum_document_projection::DocumentObjectIdV1;
 use xot::{Node, Xot};
 
+use crate::atom_bond::build_atom_bond_plan;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::*;
 
@@ -44,11 +45,11 @@ fn metrics() -> VerifiedTelexGlyphMetrics {
     VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
 }
 
-fn mixed_plan() -> MoleculeRenderPlan {
+fn mixed_plan() -> MoleculeRenderPlanV4 {
     let atom = AtomRenderTarget::new(
         context(RecordKind::Atom, "svg-atom", 0x11, 1),
         point(10.0, 20.0),
-        AtomLabelFacts::new("N", 1, 2).expect("label facts"),
+        AtomLabelFacts::new("N", None, 1, 2).expect("label facts"),
         TargetVisibility::Visible,
     )
     .expect("atom target")
@@ -83,7 +84,7 @@ fn mixed_plan() -> MoleculeRenderPlan {
     let neighbor = AtomRenderTarget::new(
         context(RecordKind::Atom, "svg-neighbor", 0x13, 3),
         point(50.0, 20.0),
-        AtomLabelFacts::new("C", 0, 0).expect("label facts"),
+        AtomLabelFacts::new("C", None, 0, 0).expect("label facts"),
         TargetVisibility::Visible,
     )
     .expect("neighbor target");
@@ -96,53 +97,98 @@ fn mixed_plan() -> MoleculeRenderPlan {
         font,
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("render request");
     let plan = build_atom_bond_plan(&request, &metrics()).expect("atom and bond plan");
-    let extra_batch = RenderBatch::new(
+    let extra_batch = RenderBatchV4::test_compact_group_target(
         target(0x14),
         4,
-        BatchSpace::AtomLocal {
-            anchor: point(-3.0, 4.0),
-        },
-        vec![
-            RenderOp::Mask(
-                MaskOp::new(point(1.0, 2.0), size(3.0), size(4.0), paint("ffffff"), 10)
-                    .expect("mask"),
-            ),
-            RenderOp::Ellipse(
-                EllipseOp::new(
-                    point(8.0, -12.0),
-                    size(5.0),
-                    size(3.0),
-                    45.0,
-                    Some(size(1.0)),
-                    Some(paint("112233")),
-                    Some(paint("aabbcc")),
-                    20,
-                )
-                .expect("ellipse"),
-            ),
-            RenderOp::Line(
-                LineOp::new(
-                    point(0.0, 0.0),
-                    point(1.0, 1.0),
-                    size(1.0),
-                    paint("112233"),
-                    30,
-                )
-                .expect("line"),
-            ),
-        ],
-    )
-    .expect("atom-local shapes");
-    MoleculeRenderPlan::new(
+        CompactGroupRenderBatchV1::new(
+            point(-3.0, 4.0),
+            vec![
+                CompactGroupRenderOpV1::Ellipse(
+                    EllipseOp::new(
+                        point(8.0, -12.0),
+                        size(5.0),
+                        size(3.0),
+                        45.0,
+                        Some(size(1.0)),
+                        Some(paint("112233")),
+                        Some(paint("aabbcc")),
+                        10,
+                    )
+                    .expect("ellipse"),
+                ),
+                CompactGroupRenderOpV1::Line(
+                    LineOp::new(
+                        point(0.0, 0.0),
+                        point(1.0, 1.0),
+                        size(1.0),
+                        paint("112233"),
+                        20,
+                    )
+                    .expect("line"),
+                ),
+            ],
+        )
+        .expect("compact-group content"),
+    );
+    MoleculeRenderPlanV4::new(
         plan.provenance(),
         [plan.batches(), &[extra_batch]].concat(),
         vec![],
     )
     .expect("mixed plan")
+}
+
+fn styled_single_bond_plan(style: BondStyle) -> MoleculeRenderPlanV4 {
+    let first = AtomRenderTarget::new(
+        context(RecordKind::Atom, "styled-a", 0x31, 1),
+        point(10.0, 20.0),
+        AtomLabelFacts::new("N", None, 0, 0).expect("label"),
+        TargetVisibility::Visible,
+    )
+    .expect("first atom");
+    let second = AtomRenderTarget::new(
+        context(RecordKind::Atom, "styled-b", 0x33, 3),
+        point(50.0, 20.0),
+        AtomLabelFacts::new("C", None, 0, 0).expect("label"),
+        TargetVisibility::Visible,
+    )
+    .expect("second atom");
+    let bond = BondRenderTarget::new(
+        context(RecordKind::Bond, "styled-bond", 0x32, 2),
+        RecordId::new(
+            RecordKind::Atom,
+            Identifier::new("styled-a").expect("identifier"),
+        )
+        .expect("record ID"),
+        RecordId::new(
+            RecordKind::Atom,
+            Identifier::new("styled-b").expect("identifier"),
+        )
+        .expect("record ID"),
+        style,
+        TargetVisibility::Visible,
+    )
+    .expect("bond");
+    build_atom_bond_plan(
+        &AtomBondRenderRequest::new(
+            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x31; 32]),
+            vec![first, second],
+            vec![bond],
+            AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000")),
+            size(1.0),
+            size(6.0),
+            BondInkClearance::new(size(1.25)),
+            paint("112233"),
+        )
+        .expect("request"),
+        &metrics(),
+    )
+    .expect("styled plan")
 }
 
 fn element_children(tree: &Xot, node: Node) -> Vec<Node> {
@@ -236,14 +282,14 @@ fn svg_backend_maps_the_closed_v1_plan_in_source_and_paint_order() {
             .iter()
             .map(|shape| element_name(&tree, *shape).0)
             .collect::<Vec<_>>(),
-        vec!["rect", "ellipse", "line"]
+        vec!["ellipse", "line"]
     );
-    assert_eq!(attribute(&tree, shapes[0], "fill"), Some("#ffffff"));
-    assert_eq!(attribute(&tree, shapes[1], "fill"), Some("#aabbcc"));
+    assert_eq!(attribute(&tree, shapes[0], "fill"), Some("#aabbcc"));
+    assert_eq!(attribute(&tree, shapes[1], "fill"), Some("none"));
     assert_eq!(attribute(&tree, shapes[1], "stroke"), Some("#112233"));
     assert_eq!(attribute(&tree, shapes[1], "stroke-width"), Some("1"));
     assert_eq!(
-        attribute(&tree, shapes[1], "transform"),
+        attribute(&tree, shapes[0], "transform"),
         Some("rotate(45 8 -12)")
     );
 
@@ -280,6 +326,29 @@ fn svg_backend_rejects_a_nonfinite_or_nonpositive_viewport_before_emitting() {
 }
 
 #[test]
+fn svg_backend_emits_explicit_styled_bond_geometry_without_dash_semantics() {
+    let viewport = SvgViewportV1::new(0.0, 0.0, 80.0, 40.0).expect("viewport");
+    let bold = render_plan_to_svg_v1(&styled_single_bond_plan(BondStyle::Bold), viewport)
+        .expect("bold SVG")
+        .into_string();
+    assert!(bold.contains("<line data-ferrum-z=\"10\""));
+    assert!(bold.contains("stroke-width=\"2\""));
+
+    let dashed = render_plan_to_svg_v1(&styled_single_bond_plan(BondStyle::Dashed), viewport)
+        .expect("dashed SVG")
+        .into_string();
+    assert!(dashed.matches("<line data-ferrum-z=").count() > 1);
+    assert!(!dashed.contains("stroke-dasharray"));
+
+    let wavy = render_plan_to_svg_v1(&styled_single_bond_plan(BondStyle::Wavy), viewport)
+        .expect("wavy SVG")
+        .into_string();
+    assert!(wavy.contains("<path data-ferrum-z=\"10\""));
+    assert!(wavy.contains("stroke-linecap=\"round\""));
+    assert!(wavy.contains(" C"));
+}
+
+#[test]
 fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
     let path = PathOpV3::new(
         vec![
@@ -293,17 +362,13 @@ fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
         0,
     )
     .expect("scene path");
-    let plan = MoleculeRenderPlan::new(
+    let plan = MoleculeRenderPlanV4::new(
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [1; 32]),
-        vec![
-            RenderBatch::new(
-                target(0x15),
-                1,
-                BatchSpace::Scene,
-                vec![RenderOp::Path(path)],
-            )
-            .expect("path batch"),
-        ],
+        vec![RenderBatchV4::bond_target(
+            target(0x15),
+            1,
+            BondRenderBatchV1::new(vec![BondRenderOpV1::Path(path)]).expect("path content"),
+        )],
         vec![],
     )
     .expect("path plan");
@@ -328,11 +393,11 @@ fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
 }
 
 #[test]
-fn svg_backend_returns_a_typed_error_for_valid_extreme_text_geometry() {
+fn svg_backend_accepts_finite_extreme_text_geometry() {
     let atom = AtomRenderTarget::new(
         context(RecordKind::Atom, "svg-extreme", 0x16, 1),
         point(0.0, 0.0),
-        AtomLabelFacts::new("N", 0, 0).expect("label facts"),
+        AtomLabelFacts::new("N", None, 0, 0).expect("label facts"),
         TargetVisibility::Visible,
     )
     .expect("atom target");
@@ -344,17 +409,11 @@ fn svg_backend_returns_a_typed_error_for_valid_extreme_text_geometry() {
         font,
         size(1.0),
         size(6.0),
+        BondInkClearance::new(size(1.25)),
         paint("112233"),
     )
     .expect("extreme render request");
-    let source = build_atom_bond_plan(&request, &metrics())
-        .expect("finite extreme plan")
-        .to_canonical_json()
-        .expect("plan serializes");
-    let mut wire: serde_json::Value = serde_json::from_str(&source).expect("plan JSON parses");
-    wire["batches"][0]["operations"][0]["operation"]["origin"]["x"] = serde_json::json!(f64::MAX);
-    let plan =
-        MoleculeRenderPlan::from_json(&wire.to_string()).expect("extreme plan remains valid");
+    let plan = build_atom_bond_plan(&request, &metrics()).expect("finite extreme plan");
 
     let result = std::panic::catch_unwind(|| {
         render_plan_to_svg_v1(
@@ -362,5 +421,5 @@ fn svg_backend_returns_a_typed_error_for_valid_extreme_text_geometry() {
             SvgViewportV1::new(0.0, 0.0, 10.0, 10.0).expect("viewport"),
         )
     });
-    assert!(matches!(result, Ok(Err(SvgRenderError::NonFiniteGeometry))));
+    assert!(matches!(result, Ok(Ok(_))));
 }

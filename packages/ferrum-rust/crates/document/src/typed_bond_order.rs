@@ -3,8 +3,8 @@
 use xot::Xot;
 
 use super::{
-    CDML_NAMESPACE, DocumentBondOrderV1, PersistentId, TypedDocument, TypedDocumentError,
-    element_name,
+    CDML_NAMESPACE, DocumentBondOrderV1, DocumentBondPresentationV1, PersistentId, TypedDocument,
+    TypedDocumentError, element_name,
 };
 
 impl TypedDocument {
@@ -42,13 +42,25 @@ impl TypedDocument {
             return Ok(None);
         };
         let type_name = indexed.xml.tree.add_name("type");
-        if indexed.xml.tree.get_attribute(bond, type_name) == Some(order.cdml_token()) {
+        let current = indexed
+            .xml
+            .tree
+            .get_attribute(bond, type_name)
+            .and_then(DocumentBondPresentationV1::from_cdml_token)
+            .ok_or_else(|| TypedDocumentError::UnsupportedBondType(identifier.clone()))?;
+        let presentation = DocumentBondPresentationV1::Normal(order);
+        if !matches!(current, DocumentBondPresentationV1::Normal(_)) {
+            return Err(TypedDocumentError::UnsupportedBondPresentationOrder(
+                identifier.clone(),
+            ));
+        }
+        if indexed.xml.tree.get_attribute(bond, type_name) == Some(presentation.cdml_token()) {
             return Ok(Some(candidate));
         }
         indexed
             .xml
             .tree
-            .set_attribute(bond, type_name, order.cdml_token());
+            .set_attribute(bond, type_name, presentation.cdml_token());
         let serialized = candidate.to_xml()?;
         Self::parse(&serialized).map(Some)
     }

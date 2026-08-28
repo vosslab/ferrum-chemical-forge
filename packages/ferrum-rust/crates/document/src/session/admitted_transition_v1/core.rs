@@ -409,9 +409,12 @@ impl DocumentSession {
                 .take()
                 .expect("the consumed check established the no-change result invariant")),
             PreparedSessionTransitionKindV1::Changed(changed) => {
+                let source_observation = self
+                    .document_observation()
+                    .map_err(|_| AdmittedSessionTransitionRefusalV1::RendererAdmission)?;
                 changed
                     .renderer_admission
-                    .verify(&changed.observation)
+                    .verify(&source_observation, &changed.observation)
                     .map_err(|_| AdmittedSessionTransitionRefusalV1::RendererAdmission)?;
                 changed
                     .effects
@@ -730,8 +733,15 @@ impl DocumentSession {
         let snapshot = state.snapshot(!self.saved_baseline.is_current(&state));
         let observation = SessionDocumentObservationV1::from_snapshot(snapshot)
             .map_err(DocumentSessionError::Projection)?;
-        let renderer_admission = RendererAdmittedPendingV1::admit(self, &observation)
-            .map_err(|_| DocumentSessionError::RendererAdmission)?;
+        let renderer_admission = match commit {
+            ChangedTransitionCommitV1::Append => {
+                RendererAdmittedPendingV1::admit(self, &observation)
+            }
+            ChangedTransitionCommitV1::Navigate(_) => {
+                RendererAdmittedPendingV1::admit_retained_history_target(self, &observation)
+            }
+        }
+        .map_err(|_| DocumentSessionError::RendererAdmission)?;
         effects.verify_provisional_token(self)?;
         if commit == ChangedTransitionCommitV1::Append {
             self.admitted_history.ensure_append_slot().map_err(|_| {

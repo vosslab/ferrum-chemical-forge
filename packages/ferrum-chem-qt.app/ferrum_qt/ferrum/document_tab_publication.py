@@ -37,7 +37,7 @@ class FerrumNativeDocumentTabPublicationMixin:
 		publication = self._session.save_atomic(path, snapshot.revision)
 		if not publication.outcome.is_confirmed:
 			return publication
-		observation = self._publish_live_render_plan_v1(publication.snapshot.revision)
+		observation = self._publish_live_render_plan_v2(publication.snapshot.revision)
 		if not self._install_observation(observation):
 			raise FerrumNativeDocumentTabSavePresentationError(path, publication)
 		self._file_path = pathlib.Path(path)

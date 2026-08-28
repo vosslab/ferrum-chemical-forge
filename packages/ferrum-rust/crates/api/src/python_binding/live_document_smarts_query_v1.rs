@@ -9,16 +9,15 @@ use ferrum_chemistry::{
     ChemEngine, ChemistryError, SmartsMatchOptions, SmartsMatchUnavailableReason,
 };
 use ferrum_document::{
-    DocumentRenderObservationV1, SessionDocumentObservationV1,
-    derive_document_render_observation_from_accepted_operation_v1,
+    DocumentRenderObservationV2, SessionDocumentObservationV1,
+    derive_document_render_observation_from_accepted_operation_v2,
 };
 use ferrum_render::{BatchSpace, RenderTarget};
 use getrandom::fill;
 use pyo3::{create_exception, prelude::*};
 
 use crate::{
-    RenderInteractionSessionV1,
-    protocol::document_smarts_snapshot_v1::OwnedDocumentSmartsSnapshotV1,
+    RenderInteractionSessionV1, protocol::document_smarts_snapshot::OwnedDocumentSmartsSnapshot,
 };
 
 const MAX_QUERY_BYTES: usize = 8_192;
@@ -98,7 +97,7 @@ pub(crate) enum PyLiveDocumentSmartsRecoveryV1 {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum LiveFailureV1 {
+pub(crate) enum LiveFailure {
     InvalidQuery(PyLiveDocumentSmartsReasonV1),
     UnsupportedDocument(PyLiveDocumentSmartsReasonV1),
     ResourceLimit(PyLiveDocumentSmartsReasonV1),
@@ -107,7 +106,7 @@ pub(crate) enum LiveFailureV1 {
     Refused(PyLiveDocumentSmartsReasonV1),
 }
 
-impl LiveFailureV1 {
+impl LiveFailure {
     const fn facts(
         self,
     ) -> (
@@ -169,15 +168,15 @@ impl LiveFailureV1 {
 }
 
 #[derive(Eq, Hash, PartialEq, Clone)]
-struct LiveSmartsIssuerV1([u8; 32]);
+struct LiveSmartsIssuer([u8; 32]);
 #[derive(Eq, Hash, PartialEq, Clone)]
-struct LiveSmartsReceiptKeyV1([u8; 32]);
+struct LiveSmartsReceiptKey([u8; 32]);
 
-struct LiveSmartsPlanV1 {
+struct LiveSmartsPlan {
     generation: u64,
     revision: u64,
     digest: [u8; 32],
-    snapshot: OwnedDocumentSmartsSnapshotV1,
+    snapshot: OwnedDocumentSmartsSnapshot,
     atom_points_by_graph_position: Vec<Vec<(f64, f64)>>,
 }
 
@@ -186,26 +185,26 @@ struct LiveSmartsPlanV1 {
 /// A render observation may be accepted while excluding a molecule from the
 /// V1 depiction profile. That document remains openable, but live SMARTS must
 /// not claim a paintable plan that the renderer did not produce.
-enum LiveSmartsReadinessV1 {
+enum LiveSmartsReadiness {
     Unpublished,
     UnsupportedDocument { revision: u64, digest: [u8; 32] },
-    Ready(LiveSmartsPlanV1),
+    Ready(LiveSmartsPlan),
 }
 
 #[derive(Clone)]
-struct LiveSmartsRowV1 {
+struct LiveSmartsRow {
     target_index: usize,
     positions: Vec<usize>,
 }
-enum LiveSmartsReceiptRowV1 {
-    Available(LiveSmartsRowV1),
+enum LiveSmartsReceiptRow {
+    Available(LiveSmartsRow),
     Reserved,
 }
-struct LiveSmartsReceiptStateV1 {
+struct LiveSmartsReceiptState {
     generation: u64,
     revision: u64,
     digest: [u8; 32],
-    rows: Vec<LiveSmartsReceiptRowV1>,
+    rows: Vec<LiveSmartsReceiptRow>,
 }
 
 /// Opaque, nonconstructible session receipt. It has no key, issuer, integer,
@@ -214,12 +213,12 @@ struct LiveSmartsReceiptStateV1 {
     frozen,
     unsendable,
     module = "ferrum_chem",
-    name = "_LiveDocumentSmartsReceiptV1",
+    name = "_LiveDocumentSmartsReceipt",
     skip_from_py_object
 )]
-pub(crate) struct PyLiveDocumentSmartsReceiptV1 {
-    issuer: LiveSmartsIssuerV1,
-    key: LiveSmartsReceiptKeyV1,
+pub(crate) struct PyLiveDocumentSmartsReceipt {
+    issuer: LiveSmartsIssuer,
+    key: LiveSmartsReceiptKey,
 }
 
 /// Opaque selected-query capability minted by one document session. Generic
@@ -230,11 +229,11 @@ pub(crate) struct PyLiveDocumentSmartsReceiptV1 {
     frozen,
     unsendable,
     module = "ferrum_chem",
-    name = "_LiveDocumentSmartsSelectedQueryV1",
+    name = "_LiveDocumentSmartsSelectedQuery",
     skip_from_py_object
 )]
-pub(crate) struct PyLiveDocumentSmartsSelectedQueryV1 {
-    issuer: LiveSmartsIssuerV1,
+pub(crate) struct PyLiveDocumentSmartsSelectedQuery {
+    issuer: LiveSmartsIssuer,
     selection: ferrum_document_render::RenderInteractionSelectionV1,
 }
 
@@ -246,10 +245,10 @@ pub(crate) struct PyLiveDocumentSmartsSelectedQueryV1 {
 #[pyclass(
     frozen,
     module = "ferrum_chem",
-    name = "_LiveDocumentSmartsSelectedReadinessV1",
+    name = "_LiveDocumentSmartsSelectedReadiness",
     skip_from_py_object
 )]
-pub(crate) struct PyLiveDocumentSmartsSelectedReadinessV1 {
+pub(crate) struct PyLiveDocumentSmartsSelectedReadiness {
     #[pyo3(get)]
     available: bool,
     #[pyo3(get)]
@@ -262,49 +261,60 @@ pub(crate) struct PyLiveDocumentSmartsSelectedReadinessV1 {
 
 #[pyclass(
     frozen,
-    name = "_LiveDocumentSmartsMoleculeSummaryV1",
+    name = "_LiveDocumentSmartsMoleculeSummary",
     skip_from_py_object
 )]
-pub(crate) struct PyLiveDocumentSmartsMoleculeSummaryV1 {
+pub(crate) struct PyLiveDocumentSmartsMoleculeSummary {
     #[pyo3(get)]
     match_count: u32,
     #[pyo3(get)]
     completeness: String,
 }
-#[pyclass(frozen, name = "_LiveDocumentSmartsRunSummaryV1", skip_from_py_object)]
-pub(crate) struct PyLiveDocumentSmartsRunSummaryV1 {
+#[pyclass(frozen, name = "_LiveDocumentSmartsRunSummary", skip_from_py_object)]
+pub(crate) struct PyLiveDocumentSmartsRunSummary {
     #[pyo3(get)]
-    receipt: Py<PyLiveDocumentSmartsReceiptV1>,
+    receipt: Py<PyLiveDocumentSmartsReceipt>,
     #[pyo3(get)]
     traversal: String,
     #[pyo3(get)]
-    molecules: Vec<Py<PyLiveDocumentSmartsMoleculeSummaryV1>>,
+    molecules: Vec<Py<PyLiveDocumentSmartsMoleculeSummary>>,
 }
-#[pyclass(frozen, name = "_LiveDocumentSmartsPaintV1", skip_from_py_object)]
-pub(crate) struct PyLiveDocumentSmartsPaintV1 {
+#[pyclass(frozen, name = "_LiveDocumentSmartsPaint", skip_from_py_object)]
+pub(crate) struct PyLiveDocumentSmartsPaint {
     #[pyo3(get)]
     atom_bounds: Vec<(f64, f64, f64, f64)>,
 }
 
-pub(crate) struct LiveDocumentSmartsBridgeV1 {
-    issuer: LiveSmartsIssuerV1,
+pub(crate) struct LiveDocumentSmartsBridge {
+    issuer: Option<LiveSmartsIssuer>,
     next_generation: u64,
-    readiness: LiveSmartsReadinessV1,
-    receipts: HashMap<LiveSmartsReceiptKeyV1, LiveSmartsReceiptStateV1>,
+    readiness: LiveSmartsReadiness,
+    receipts: HashMap<LiveSmartsReceiptKey, LiveSmartsReceiptState>,
 }
 
-impl LiveDocumentSmartsBridgeV1 {
+impl LiveDocumentSmartsBridge {
     pub(crate) fn new() -> Self {
+        // Secure entropy mints every opaque live capability. If it is absent,
+        // this bridge remains display-only and all capability issuance refuses.
         Self {
-            issuer: LiveSmartsIssuerV1(random_bytes().unwrap_or([0; 32])),
+            issuer: random_bytes().ok().map(LiveSmartsIssuer),
             next_generation: 0,
-            readiness: LiveSmartsReadinessV1::Unpublished,
+            readiness: LiveSmartsReadiness::Unpublished,
+            receipts: HashMap::new(),
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn new_without_entropy() -> Self {
+        Self {
+            issuer: None,
+            next_generation: 0,
+            readiness: LiveSmartsReadiness::Unpublished,
             receipts: HashMap::new(),
         }
     }
     pub(crate) fn clear_published_plan(&mut self) {
         self.clear_receipts();
-        self.readiness = LiveSmartsReadinessV1::Unpublished;
+        self.readiness = LiveSmartsReadiness::Unpublished;
     }
 
     /// Invalidate every derived display capability while retaining the immutable
@@ -322,11 +332,11 @@ impl LiveDocumentSmartsBridgeV1 {
         &mut self,
         session: &RenderInteractionSessionV1,
         expected_revision: u64,
-    ) -> PyResult<DocumentRenderObservationV1> {
+    ) -> PyResult<DocumentRenderObservationV2> {
         let observation = session
             .observe(expected_revision)
             .map_err(|_| unavailable_failure().into_pyerr())?;
-        self.publish_from_observation(session, observation)
+        self.publish_from_observation(observation)
     }
 
     /// Initialize this private bridge from an observation already admitted by
@@ -334,23 +344,21 @@ impl LiveDocumentSmartsBridgeV1 {
     /// observation and SMARTS snapshot.
     pub(crate) fn publish_from_observation(
         &mut self,
-        session: &RenderInteractionSessionV1,
         observation: SessionDocumentObservationV1,
-    ) -> PyResult<DocumentRenderObservationV1> {
+    ) -> PyResult<DocumentRenderObservationV2> {
         self.clear_published_plan();
         self.next_generation = self
             .next_generation
             .checked_add(1)
             .ok_or_else(|| unavailable_failure().into_pyerr())?;
-        let rendered = derive_document_render_observation_from_accepted_operation_v1(&observation)
+        let rendered = derive_document_render_observation_from_accepted_operation_v2(&observation)
             .map_err(|_| unavailable_failure().into_pyerr())?;
-        let document = observation.snapshot();
-        let revision = document.revision();
-        let digest = *document.digest();
-        let snapshot = match session.prepare_smarts_snapshot_v1(revision) {
-            Ok(prepared) => OwnedDocumentSmartsSnapshotV1::from_prepared_snapshot_v1(prepared),
+        let revision = observation.snapshot().revision();
+        let digest = *observation.snapshot().digest();
+        let snapshot = match OwnedDocumentSmartsSnapshot::from_accepted_observation(observation) {
+            Ok(snapshot) => snapshot,
             Err(_) => {
-                self.readiness = LiveSmartsReadinessV1::UnsupportedDocument { revision, digest };
+                self.readiness = LiveSmartsReadiness::UnsupportedDocument { revision, digest };
                 return Ok(rendered);
             }
         };
@@ -379,7 +387,7 @@ impl LiveDocumentSmartsBridgeV1 {
             }
         }
         if anchors.len() != expected.len() {
-            self.readiness = LiveSmartsReadinessV1::UnsupportedDocument {
+            self.readiness = LiveSmartsReadiness::UnsupportedDocument {
                 revision: snapshot.revision(),
                 digest: *snapshot.digest(),
             };
@@ -403,7 +411,7 @@ impl LiveDocumentSmartsBridgeV1 {
             }
             atom_points_by_graph_position.push(points);
         }
-        self.readiness = LiveSmartsReadinessV1::Ready(LiveSmartsPlanV1 {
+        self.readiness = LiveSmartsReadiness::Ready(LiveSmartsPlan {
             generation: self.next_generation,
             revision: snapshot.revision(),
             digest: *snapshot.digest(),
@@ -421,7 +429,12 @@ impl LiveDocumentSmartsBridgeV1 {
         query: String,
         per: u32,
         total: u32,
-    ) -> PyResult<Py<PyLiveDocumentSmartsRunSummaryV1>> {
+    ) -> PyResult<Py<PyLiveDocumentSmartsRunSummary>> {
+        // Fail before query execution or receipt-state mutation when secure
+        // entropy could not establish this bridge's capability namespace.
+        if self.issuer.is_none() {
+            return Err(unavailable_failure().into_pyerr());
+        }
         self.validate_raw_request(session, &query, per, total)?;
         self.receipts.clear();
         let plan = self.validate_plan_current(session)?;
@@ -465,14 +478,14 @@ impl LiveDocumentSmartsBridgeV1 {
                 if positions.is_empty() {
                     return Err(unavailable_failure().into_pyerr());
                 }
-                rows.push(LiveSmartsReceiptRowV1::Available(LiveSmartsRowV1 {
+                rows.push(LiveSmartsReceiptRow::Available(LiveSmartsRow {
                     target_index,
                     positions,
                 }));
             }
             molecules.push(Py::new(
                 py,
-                PyLiveDocumentSmartsMoleculeSummaryV1 {
+                PyLiveDocumentSmartsMoleculeSummary {
                     match_count: count,
                     completeness: if result.truncated() {
                         "truncated"
@@ -484,26 +497,24 @@ impl LiveDocumentSmartsBridgeV1 {
             )?);
         }
         let key =
-            LiveSmartsReceiptKeyV1(random_bytes().map_err(|_| unavailable_failure().into_pyerr())?);
+            LiveSmartsReceiptKey(random_bytes().map_err(|_| unavailable_failure().into_pyerr())?);
         self.receipts.insert(
             key.clone(),
-            LiveSmartsReceiptStateV1 {
+            LiveSmartsReceiptState {
                 generation: plan.generation,
                 revision: plan.revision,
                 digest: plan.digest,
                 rows,
             },
         );
-        let receipt = Py::new(
-            py,
-            PyLiveDocumentSmartsReceiptV1 {
-                issuer: self.issuer.clone(),
-                key,
-            },
-        )?;
+        let issuer = self
+            .issuer
+            .clone()
+            .ok_or_else(|| unavailable_failure().into_pyerr())?;
+        let receipt = Py::new(py, PyLiveDocumentSmartsReceipt { issuer, key })?;
         Py::new(
             py,
-            PyLiveDocumentSmartsRunSummaryV1 {
+            PyLiveDocumentSmartsRunSummary {
                 receipt,
                 traversal: if incomplete {
                     "total_match_budget_reached"
@@ -521,10 +532,10 @@ impl LiveDocumentSmartsBridgeV1 {
         py: Python<'_>,
         session: &RenderInteractionSessionV1,
         engine: &dyn ChemEngine,
-        selection: &PyLiveDocumentSmartsSelectedQueryV1,
+        selection: &PyLiveDocumentSmartsSelectedQuery,
         per: u32,
         total: u32,
-    ) -> PyResult<Py<PyLiveDocumentSmartsRunSummaryV1>> {
+    ) -> PyResult<Py<PyLiveDocumentSmartsRunSummary>> {
         let target_index = self.prepare_selected_request(session, selection, per, total)?;
         let target = self
             .validate_plan_current(session)?
@@ -543,16 +554,20 @@ impl LiveDocumentSmartsBridgeV1 {
         py: Python<'_>,
         session: &RenderInteractionSessionV1,
         selection: &super::direct_root_interaction_binding::PySelection,
-    ) -> PyResult<Py<PyLiveDocumentSmartsSelectedQueryV1>> {
+    ) -> PyResult<Py<PyLiveDocumentSmartsSelectedQuery>> {
         self.selected_target_index(
             session,
             super::direct_root_interaction_binding::selection_value_v1(selection),
         )
-        .map_err(LiveFailureV1::into_pyerr)?;
+        .map_err(LiveFailure::into_pyerr)?;
+        let issuer = self
+            .issuer
+            .clone()
+            .ok_or_else(|| unavailable_failure().into_pyerr())?;
         Py::new(
             py,
-            PyLiveDocumentSmartsSelectedQueryV1 {
-                issuer: self.issuer.clone(),
+            PyLiveDocumentSmartsSelectedQuery {
+                issuer,
                 selection: super::direct_root_interaction_binding::selection_value_v1(selection)
                     .clone(),
             },
@@ -576,12 +591,12 @@ impl LiveDocumentSmartsBridgeV1 {
     pub(crate) fn prepare_selected_request(
         &self,
         session: &RenderInteractionSessionV1,
-        selection: &PyLiveDocumentSmartsSelectedQueryV1,
+        selection: &PyLiveDocumentSmartsSelectedQuery,
         per: u32,
         total: u32,
     ) -> PyResult<usize> {
         self.selected_admission(session, selection, per, total)
-            .map_err(LiveFailureV1::into_pyerr)
+            .map_err(LiveFailure::into_pyerr)
     }
 
     /// Report the exact selected-token admission state without consuming any
@@ -589,10 +604,10 @@ impl LiveDocumentSmartsBridgeV1 {
     pub(crate) fn selected_readiness(
         &self,
         session: &RenderInteractionSessionV1,
-        selection: &PyLiveDocumentSmartsSelectedQueryV1,
-    ) -> PyLiveDocumentSmartsSelectedReadinessV1 {
+        selection: &PyLiveDocumentSmartsSelectedQuery,
+    ) -> PyLiveDocumentSmartsSelectedReadiness {
         match self.selected_admission(session, selection, 1, 1) {
-            Ok(_) => PyLiveDocumentSmartsSelectedReadinessV1 {
+            Ok(_) => PyLiveDocumentSmartsSelectedReadiness {
                 available: true,
                 category: None,
                 reason: None,
@@ -600,7 +615,7 @@ impl LiveDocumentSmartsBridgeV1 {
             },
             Err(failure) => {
                 let (category, reason, recovery) = failure.facts();
-                PyLiveDocumentSmartsSelectedReadinessV1 {
+                PyLiveDocumentSmartsSelectedReadiness {
                     available: false,
                     category: Some(category),
                     reason: Some(reason),
@@ -614,13 +629,13 @@ impl LiveDocumentSmartsBridgeV1 {
     fn selected_admission(
         &self,
         session: &RenderInteractionSessionV1,
-        selection: &PyLiveDocumentSmartsSelectedQueryV1,
+        selection: &PyLiveDocumentSmartsSelectedQuery,
         per: u32,
         total: u32,
-    ) -> Result<usize, LiveFailureV1> {
+    ) -> Result<usize, LiveFailure> {
         self.validate_caps_failure(per, total)?;
-        if selection.issuer != self.issuer {
-            return Err(LiveFailureV1::Refused(
+        if self.issuer.as_ref() != Some(&selection.issuer) {
+            return Err(LiveFailure::Refused(
                 PyLiveDocumentSmartsReasonV1::ForeignSelection,
             ));
         }
@@ -631,19 +646,19 @@ impl LiveDocumentSmartsBridgeV1 {
         &self,
         session: &RenderInteractionSessionV1,
         selection: &ferrum_document_render::RenderInteractionSelectionV1,
-    ) -> Result<usize, LiveFailureV1> {
+    ) -> Result<usize, LiveFailure> {
         let selected = super::direct_root_interaction_binding::selected_direct_root_from_value_v1(
             session, selection,
         )
         .map_err(map_selection_failure)?;
         let identifier = match selected {
             super::direct_root_interaction_binding::SelectedDirectRootV1::Empty => {
-                return Err(LiveFailureV1::Refused(
+                return Err(LiveFailure::Refused(
                     PyLiveDocumentSmartsReasonV1::SelectedRootEmpty,
                 ));
             }
             super::direct_root_interaction_binding::SelectedDirectRootV1::Multiple => {
-                return Err(LiveFailureV1::Refused(
+                return Err(LiveFailure::Refused(
                     PyLiveDocumentSmartsReasonV1::SelectedRootMultiple,
                 ));
             }
@@ -654,7 +669,7 @@ impl LiveDocumentSmartsBridgeV1 {
         let target = plan
             .snapshot
             .selected_target_by_render_target(&render_target)
-            .ok_or(LiveFailureV1::UnsupportedDocument(
+            .ok_or(LiveFailure::UnsupportedDocument(
                 PyLiveDocumentSmartsReasonV1::SelectedTargetNotMolecule,
             ))?;
         plan.snapshot
@@ -666,12 +681,12 @@ impl LiveDocumentSmartsBridgeV1 {
 
     fn validate_caps(&self, per: u32, total: u32) -> PyResult<()> {
         self.validate_caps_failure(per, total)
-            .map_err(LiveFailureV1::into_pyerr)
+            .map_err(LiveFailure::into_pyerr)
     }
 
-    fn validate_caps_failure(&self, per: u32, total: u32) -> Result<(), LiveFailureV1> {
+    fn validate_caps_failure(&self, per: u32, total: u32) -> Result<(), LiveFailure> {
         if per == 0 || per > MAX_PER_MOLECULE || total == 0 || total > MAX_TOTAL || per > total {
-            return Err(LiveFailureV1::ResourceLimit(
+            return Err(LiveFailure::ResourceLimit(
                 PyLiveDocumentSmartsReasonV1::MatchCapsInconsistent,
             ));
         }
@@ -681,35 +696,35 @@ impl LiveDocumentSmartsBridgeV1 {
     fn validate_plan_current(
         &self,
         session: &RenderInteractionSessionV1,
-    ) -> PyResult<&LiveSmartsPlanV1> {
+    ) -> PyResult<&LiveSmartsPlan> {
         self.validate_plan_current_failure(session)
-            .map_err(LiveFailureV1::into_pyerr)
+            .map_err(LiveFailure::into_pyerr)
     }
 
     fn validate_plan_current_failure(
         &self,
         session: &RenderInteractionSessionV1,
-    ) -> Result<&LiveSmartsPlanV1, LiveFailureV1> {
+    ) -> Result<&LiveSmartsPlan, LiveFailure> {
         let current = session
             .snapshot()
-            .map_err(|_| LiveFailureV1::Stale(PyLiveDocumentSmartsReasonV1::StaleDocument))?;
+            .map_err(|_| LiveFailure::Stale(PyLiveDocumentSmartsReasonV1::StaleDocument))?;
         match &self.readiness {
-            LiveSmartsReadinessV1::Unpublished => Err(LiveFailureV1::Unavailable(
+            LiveSmartsReadiness::Unpublished => Err(LiveFailure::Unavailable(
                 PyLiveDocumentSmartsReasonV1::PlanNotPublished,
             )),
-            LiveSmartsReadinessV1::UnsupportedDocument { revision, digest } => {
+            LiveSmartsReadiness::UnsupportedDocument { revision, digest } => {
                 if current.revision() != *revision || current.digest() != digest {
-                    return Err(LiveFailureV1::Stale(
+                    return Err(LiveFailure::Stale(
                         PyLiveDocumentSmartsReasonV1::StaleDocument,
                     ));
                 }
-                Err(LiveFailureV1::UnsupportedDocument(
+                Err(LiveFailure::UnsupportedDocument(
                     PyLiveDocumentSmartsReasonV1::UnsupportedDocument,
                 ))
             }
-            LiveSmartsReadinessV1::Ready(plan) => {
+            LiveSmartsReadiness::Ready(plan) => {
                 if current.revision() != plan.revision || current.digest() != &plan.digest {
-                    return Err(LiveFailureV1::Stale(
+                    return Err(LiveFailure::Stale(
                         PyLiveDocumentSmartsReasonV1::StaleDocument,
                     ));
                 }
@@ -722,10 +737,10 @@ impl LiveDocumentSmartsBridgeV1 {
         &mut self,
         py: Python<'_>,
         session: &RenderInteractionSessionV1,
-        receipt: PyRef<'_, PyLiveDocumentSmartsReceiptV1>,
+        receipt: PyRef<'_, PyLiveDocumentSmartsReceipt>,
         row_index: usize,
-    ) -> PyResult<Py<PyLiveDocumentSmartsPaintV1>> {
-        if receipt.issuer != self.issuer {
+    ) -> PyResult<Py<PyLiveDocumentSmartsPaint>> {
+        if self.issuer.as_ref() != Some(&receipt.issuer) {
             return Err(receipt_failure().into_pyerr());
         }
         if !self.receipts.contains_key(&receipt.key) {
@@ -745,14 +760,14 @@ impl LiveDocumentSmartsBridgeV1 {
                 .rows
                 .get_mut(row_index)
                 .ok_or_else(|| receipt_failure().into_pyerr())?;
-            let LiveSmartsReceiptRowV1::Available(available_row) = receipt_row else {
+            let LiveSmartsReceiptRow::Available(available_row) = receipt_row else {
                 return Err(receipt_failure().into_pyerr());
             };
             let row = available_row.clone();
-            *receipt_row = LiveSmartsReceiptRowV1::Reserved;
+            *receipt_row = LiveSmartsReceiptRow::Reserved;
             (state.generation, state.revision, state.digest, row)
         };
-        let LiveSmartsReadinessV1::Ready(plan) = &self.readiness else {
+        let LiveSmartsReadiness::Ready(plan) = &self.readiness else {
             return Err(stale_failure().into_pyerr());
         };
         let current = session
@@ -786,7 +801,7 @@ impl LiveDocumentSmartsBridgeV1 {
             }
             atom_bounds.push(bounds);
         }
-        let paint = Py::new(py, PyLiveDocumentSmartsPaintV1 { atom_bounds })
+        let paint = Py::new(py, PyLiveDocumentSmartsPaint { atom_bounds })
             .map_err(|_| paint_failure().into_pyerr())?;
         Ok(paint)
     }
@@ -794,9 +809,9 @@ impl LiveDocumentSmartsBridgeV1 {
 
 fn valid_query(value: String) -> PyResult<String> {
     if value.is_empty() {
-        Err(LiveFailureV1::InvalidQuery(PyLiveDocumentSmartsReasonV1::EmptyQuery).into_pyerr())
+        Err(LiveFailure::InvalidQuery(PyLiveDocumentSmartsReasonV1::EmptyQuery).into_pyerr())
     } else if value.len() > MAX_QUERY_BYTES || value.contains('\0') {
-        Err(LiveFailureV1::InvalidQuery(PyLiveDocumentSmartsReasonV1::QueryTooLong).into_pyerr())
+        Err(LiveFailure::InvalidQuery(PyLiveDocumentSmartsReasonV1::QueryTooLong).into_pyerr())
     } else {
         Ok(value)
     }
@@ -806,45 +821,45 @@ fn random_bytes() -> Result<[u8; 32], getrandom::Error> {
     fill(&mut value)?;
     Ok(value)
 }
-fn unavailable_failure() -> LiveFailureV1 {
-    LiveFailureV1::Unavailable(PyLiveDocumentSmartsReasonV1::MatchUnavailable)
+fn unavailable_failure() -> LiveFailure {
+    LiveFailure::Unavailable(PyLiveDocumentSmartsReasonV1::MatchUnavailable)
 }
 
-fn receipt_failure() -> LiveFailureV1 {
-    LiveFailureV1::Unavailable(PyLiveDocumentSmartsReasonV1::ReceiptUnavailable)
+fn receipt_failure() -> LiveFailure {
+    LiveFailure::Unavailable(PyLiveDocumentSmartsReasonV1::ReceiptUnavailable)
 }
 
-fn stale_failure() -> LiveFailureV1 {
-    LiveFailureV1::Stale(PyLiveDocumentSmartsReasonV1::StaleDocument)
+fn stale_failure() -> LiveFailure {
+    LiveFailure::Stale(PyLiveDocumentSmartsReasonV1::StaleDocument)
 }
 
-fn paint_failure() -> LiveFailureV1 {
-    LiveFailureV1::Unavailable(PyLiveDocumentSmartsReasonV1::PaintUnavailable)
+fn paint_failure() -> LiveFailure {
+    LiveFailure::Unavailable(PyLiveDocumentSmartsReasonV1::PaintUnavailable)
 }
 
-fn map_chemistry_error(error: ChemistryError) -> LiveFailureV1 {
+fn map_chemistry_error(error: ChemistryError) -> LiveFailure {
     match error {
         ChemistryError::SmartsMatchUnavailable {
             reason: SmartsMatchUnavailableReason::NativeRejected,
-        } => LiveFailureV1::InvalidQuery(PyLiveDocumentSmartsReasonV1::InvalidQuery),
+        } => LiveFailure::InvalidQuery(PyLiveDocumentSmartsReasonV1::InvalidQuery),
         ChemistryError::SmartsMatchUnavailable { .. } => unavailable_failure(),
         _ => unavailable_failure(),
     }
 }
 
-fn map_selection_failure(error: ferrum_document_render::RenderInteractionErrorV1) -> LiveFailureV1 {
+fn map_selection_failure(error: ferrum_document_render::RenderInteractionErrorV1) -> LiveFailure {
     use ferrum_document_render::RenderInteractionErrorV1;
 
     match error {
         RenderInteractionErrorV1::ForeignSession => {
-            LiveFailureV1::Refused(PyLiveDocumentSmartsReasonV1::ForeignSelection)
+            LiveFailure::Refused(PyLiveDocumentSmartsReasonV1::ForeignSelection)
         }
         RenderInteractionErrorV1::StaleRevision
         | RenderInteractionErrorV1::StaleDigest
         | RenderInteractionErrorV1::SelectionChanged => {
-            LiveFailureV1::Stale(PyLiveDocumentSmartsReasonV1::StaleSelection)
+            LiveFailure::Stale(PyLiveDocumentSmartsReasonV1::StaleSelection)
         }
-        _ => LiveFailureV1::UnsupportedDocument(PyLiveDocumentSmartsReasonV1::UnsupportedDocument),
+        _ => LiveFailure::UnsupportedDocument(PyLiveDocumentSmartsReasonV1::UnsupportedDocument),
     }
 }
 
@@ -856,12 +871,6 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyLiveDocumentSmartsCategoryV1>()?;
     module.add_class::<PyLiveDocumentSmartsReasonV1>()?;
     module.add_class::<PyLiveDocumentSmartsRecoveryV1>()?;
-    module.add_class::<PyLiveDocumentSmartsReceiptV1>()?;
-    module.add_class::<PyLiveDocumentSmartsSelectedQueryV1>()?;
-    module.add_class::<PyLiveDocumentSmartsSelectedReadinessV1>()?;
-    module.add_class::<PyLiveDocumentSmartsMoleculeSummaryV1>()?;
-    module.add_class::<PyLiveDocumentSmartsRunSummaryV1>()?;
-    module.add_class::<PyLiveDocumentSmartsPaintV1>()?;
     Ok(())
 }
 

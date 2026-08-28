@@ -1,5 +1,5 @@
 use super::*;
-use crate::{BondDirection, BondOrder};
+use crate::{BondDirection, BondOrder, CdxmlBondPresentationV1};
 
 const VENDOR_DTD: &str = "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd";
 const BASIC: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -114,6 +114,113 @@ fn cdxml_c1_preserves_fragment_order_orders_and_hash_direction() {
     assert_eq!(
         decoded.records()[1].record().molecule().bonds()[0].direction(),
         BondDirection::BeginDash
+    );
+}
+
+#[test]
+fn cdxml_c1_preserves_exact_fixed_single_presentations_in_source_bond_order() {
+    let input = two_atoms(
+        "<b B=\"a\" E=\"b\" Display=\"Wavy\"/><n id=\"c\" p=\"2 0\"/><b B=\"b\" E=\"c\" Display=\"Bold\"/><n id=\"d\" p=\"3 0\"/><b B=\"c\" E=\"d\" Display=\"Dash\"/>",
+    );
+    let decoded = decode_cdxml_bytes_v1(input.as_bytes()).expect("closed presentations");
+    let record = &decoded.records()[0];
+    assert_eq!(
+        record.bond_presentations(),
+        &[
+            Some(CdxmlBondPresentationV1::Wavy),
+            Some(CdxmlBondPresentationV1::Bold),
+            Some(CdxmlBondPresentationV1::Dashed),
+        ]
+    );
+    assert!(
+        record.record().molecule().bonds().iter().all(
+            |bond| bond.order() == BondOrder::Single && bond.direction() == BondDirection::None
+        )
+    );
+}
+
+#[test]
+fn cdxml_c1_keeps_ordinary_and_stereo_bonds_as_absent_presentations() {
+    let input = two_atoms(
+        "<b B=\"a\" E=\"b\"/><n id=\"c\" p=\"2 0\"/><b B=\"b\" E=\"c\" Display=\"Solid\"/><n id=\"d\" p=\"3 0\"/><b B=\"c\" E=\"d\" Display=\"WedgeBegin\"/>",
+    );
+    let decoded = decode_cdxml_bytes_v1(input.as_bytes()).expect("ordinary and stereo");
+    assert_eq!(
+        decoded.records()[0].bond_presentations(),
+        &[None, None, None]
+    );
+}
+
+#[test]
+fn cdxml_c1_refuses_presentation_tokens_on_non_single_bonds_before_other_losses() {
+    for display in ["Wavy", "Bold", "Dash"] {
+        let input = two_atoms(&format!(
+            "<b B=\"a\" E=\"b\" Order=\"2\" Display=\"{display}\"/>"
+        ));
+        assert_refusal(input.as_bytes(), CdxmlRefusalReasonV1::InvalidScalar);
+    }
+}
+
+#[test]
+fn cdxml_c1_refuses_unrepresented_display_tokens_regardless_of_order() {
+    for (display, order) in [
+        ("WedgeEnd", "1"),
+        ("WedgedHashEnd", "1"),
+        ("DashBegin", "1"),
+        ("Unknown", "1"),
+        ("WedgeEnd", "2"),
+    ] {
+        let input = two_atoms(&format!(
+            "<b B=\"a\" E=\"b\" Order=\"{order}\" Display=\"{display}\"/>"
+        ));
+        assert_refusal(
+            input.as_bytes(),
+            CdxmlRefusalReasonV1::UnrepresentedSemanticFact,
+        );
+    }
+}
+
+#[test]
+fn cdxml_decoded_record_carrier_refuses_misaligned_or_conflicting_presentations() {
+    let ordinary = decode_cdxml_bytes_v1(two_atoms("<b B=\"a\" E=\"b\"/>").as_bytes())
+        .expect("ordinary carrier")
+        .records()[0]
+        .record()
+        .clone();
+    assert_refused_carrier(ordinary.clone(), Vec::new());
+    assert_refused_carrier(
+        ordinary,
+        vec![
+            Some(CdxmlBondPresentationV1::Wavy),
+            Some(CdxmlBondPresentationV1::Bold),
+        ],
+    );
+
+    let double = decode_cdxml_bytes_v1(two_atoms("<b B=\"a\" E=\"b\" Order=\"2\"/>").as_bytes())
+        .expect("double graph")
+        .records()[0]
+        .record()
+        .clone();
+    assert_refused_carrier(double, vec![Some(CdxmlBondPresentationV1::Dashed)]);
+
+    let directed =
+        decode_cdxml_bytes_v1(two_atoms("<b B=\"a\" E=\"b\" Display=\"WedgeBegin\"/>").as_bytes())
+            .expect("directed graph")
+            .records()[0]
+            .record()
+            .clone();
+    assert_refused_carrier(directed, vec![Some(CdxmlBondPresentationV1::Bold)]);
+}
+
+fn assert_refused_carrier(
+    record: crate::InterchangeRecordV1,
+    presentations: Vec<Option<CdxmlBondPresentationV1>>,
+) {
+    assert_eq!(
+        CdxmlDecodedRecordV1::new("test".to_owned(), record, presentations)
+            .expect_err("invalid internal presentation carrier")
+            .reason(),
+        CdxmlRefusalReasonV1::InternalFailure,
     );
 }
 

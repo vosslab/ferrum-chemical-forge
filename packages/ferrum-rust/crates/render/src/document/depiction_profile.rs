@@ -3,7 +3,6 @@
 use crate::{
     AtomBondRenderRequest, CompactGroupRenderPrimitiveV1, FerrumFontEnvironmentV1, PositiveFinite,
     RenderPaintV3, RenderProvenance, RenderRevision, VerifiedTelexGlyphMetrics,
-    build_atom_bond_plan,
 };
 use ferrum_document_projection::{
     DocumentObjectIdV1, DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
@@ -14,9 +13,10 @@ use thiserror::Error;
 
 use super::depiction_profile_resolution::{
     apply_double_bond_carrier_marks, positive, resolve_atom, resolve_bond,
-    resolved_default_bond_lane_spacing, resolved_font, resolved_line_paint, resolved_line_width,
+    resolve_normal_single_clip_policy, resolved_default_bond_lane_spacing, resolved_font,
+    resolved_line_paint, resolved_line_width,
 };
-use crate::{DocumentMoleculeRenderPlanV3, DocumentPlusRenderV1, DocumentTextRenderV1};
+use crate::{DocumentMoleculeRenderPlanV4, DocumentPlusRenderV1, DocumentTextRenderV1};
 
 /// Closed schema identifier for the Ferrum V1 depiction profile.
 pub const DEPICTION_PROFILE_SCHEMA_V1: &str = "ferrum-depiction-profile-v1";
@@ -78,14 +78,41 @@ pub fn resolve_direct_glycosidic_haworth_style_v1(
     })
 }
 
-/// Resolve the renderer facts used to admit one attached compact-group pose.
-pub fn resolve_attached_compact_group_anchor_render_facts_v1(
+/// Resolve one attached compact-group pose from the projection/profile boundary.
+///
+/// This is the sole public admission path. It resolves document depiction,
+/// opens the verified resource, and applies the final normal-single clipping
+/// policy before returning an anchor that can commit without a later geometry
+/// disagreement.
+pub fn resolve_attached_compact_group_pose_v2(
     projection: &DocumentProjectionV1,
     atom: &ferrum_document_projection::AtomProjectionV1,
     profile: &DepictionProfileV1,
-) -> Result<crate::AttachedCompactGroupAnchorRenderFactsV1, DepictionIssueV1> {
-    super::depiction_profile_resolution::resolve_attached_compact_group_anchor_render_facts_v1(
-        projection, atom, profile,
+    catalog_key: ferrum_document_model::CompactGroupCatalogKeyV1,
+    raw_release: crate::RenderPoint,
+) -> Result<crate::ResolvedAttachedCompactGroupPoseV1, crate::AttachedCompactGroupPoseErrorV2> {
+    let facts =
+        super::depiction_profile_resolution::resolve_attached_compact_group_anchor_render_facts(
+            projection, atom, profile,
+        )
+        .map_err(|issue| crate::AttachedCompactGroupPoseErrorV2::Depiction {
+            detail: issue.detail().to_owned(),
+        })?;
+    let environment = FerrumFontEnvironmentV1::load().map_err(|error| {
+        crate::AttachedCompactGroupPoseErrorV2::FontResource {
+            detail: error.to_string(),
+        }
+    })?;
+    let metrics = VerifiedTelexGlyphMetrics::new(&environment).map_err(|error| {
+        crate::AttachedCompactGroupPoseErrorV2::FontResource {
+            detail: error.to_string(),
+        }
+    })?;
+    crate::attached_compact_group_pose::resolve_attached_compact_group_pose(
+        &facts,
+        catalog_key,
+        raw_release,
+        &metrics,
     )
 }
 
@@ -219,7 +246,7 @@ pub struct DepictionResolutionV1 {
     profile: &'static str,
     projection_revision: u64,
     projection_digest: [u8; 32],
-    plans: Vec<DocumentMoleculeRenderPlanV3>,
+    plans: Vec<DocumentMoleculeRenderPlanV4>,
     plus_renders: Vec<DocumentPlusRenderV1>,
     text_renders: Vec<DocumentTextRenderV1>,
     suppression: Option<DepictionSuppressionV1>,
@@ -245,7 +272,7 @@ impl<'de> Deserialize<'de> for DepictionResolutionV1 {
             profile: String,
             projection_revision: u64,
             projection_digest: [u8; 32],
-            plans: Vec<DocumentMoleculeRenderPlanV3>,
+            plans: Vec<DocumentMoleculeRenderPlanV4>,
             plus_renders: Vec<DocumentPlusRenderV1>,
             text_renders: Vec<DocumentTextRenderV1>,
             suppression: Option<DepictionSuppressionV1>,
@@ -415,7 +442,13 @@ fn render_with_verified_telex_metrics(
                 issue.detail(),
             ));
         }
-        let request = AtomBondRenderRequest::new(
+        let normal_single_clip_policy = resolve_normal_single_clip_policy(
+            line_width,
+            font.size(),
+            owner_molecule_object_id.as_str(),
+        )
+        .map_err(|issue| crate::RenderError::InvalidRequest(issue.detail().to_owned()))?;
+        let request = AtomBondRenderRequest::new_with_normal_single_clip_policy(
             RenderProvenance::new(
                 RenderRevision::new(projection.revision())?,
                 *projection.digest(),
@@ -425,6 +458,7 @@ fn render_with_verified_telex_metrics(
             font,
             line_width,
             bond_lane_spacing,
+            normal_single_clip_policy,
             line_paint.clone(),
         )?
         .with_compact_group_endpoints(
@@ -433,20 +467,20 @@ fn render_with_verified_telex_metrics(
                 .map(CompactGroupRenderPrimitiveV1::bond_endpoint)
                 .collect::<Result<Vec<_>, _>>()?,
         )?;
-        let base_plan = build_atom_bond_plan(&request, metrics)?;
+        let base_plan = crate::atom_bond::build_atom_bond_plan(&request, metrics)?;
         let mut batches = base_plan.batches().to_vec();
         batches.extend(
             compact_group_primitives
                 .iter()
                 .map(|group| group.batch().clone()),
         );
-        batches.sort_by_key(crate::RenderBatch::paint_order);
-        let plan = crate::MoleculeRenderPlan::new(
+        batches.sort_by_key(crate::RenderBatchV4::paint_order);
+        let plan = crate::MoleculeRenderPlanV4::new(
             base_plan.provenance(),
             batches,
             base_plan.issues().to_vec(),
         )?;
-        plans.push(DocumentMoleculeRenderPlanV3::from_document_object_id(
+        plans.push(DocumentMoleculeRenderPlanV4::from_document_object_id(
             owner_molecule_object_id.clone(),
             plan,
             compact_group_primitives,
@@ -526,7 +560,7 @@ impl DepictionResolutionV1 {
     pub fn new(
         projection_revision: u64,
         projection_digest: [u8; 32],
-        plans: Vec<DocumentMoleculeRenderPlanV3>,
+        plans: Vec<DocumentMoleculeRenderPlanV4>,
     ) -> Self {
         Self {
             schema: DEPICTION_RESOLUTION_SCHEMA_V1,
@@ -552,7 +586,7 @@ impl DepictionResolutionV1 {
     }
     /// Return complete per-molecule plans.
     #[must_use]
-    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV3] {
+    pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV4] {
         &self.plans
     }
     /// Return exact verified-Telex layouts for supported direct-root plus signs.

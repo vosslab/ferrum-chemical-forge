@@ -11,8 +11,8 @@ const TEMPLATE: &str = concat!(
     "<standard line_width=\"9\"/>",
     "<paper id=\"template-paper\" type=\"A4\"/>",
     "<molecule id=\"source-molecule\" name=\"  Example molecule  \">",
-    "<atom id=\"source-a\" name=\"C\"><point x=\"0\" y=\"2\"/></atom>",
-    "<atom id=\"source-b\" name=\"O\"><point x=\"10\" y=\"4\"/></atom>",
+    "<atom id=\"source-a\" name=\"C\"><point x=\"0\" y=\"12\"/></atom>",
+    "<atom id=\"source-b\" name=\"O\"><point x=\"60\" y=\"24\"/></atom>",
     "<bond id=\"source-bond\" start=\"source-a\" end=\"source-b\" type=\"n1\"/>",
     "<vendor:data id=\"source-opaque\" link=\"source-a\"/>",
     "</molecule></cdml>",
@@ -34,7 +34,7 @@ fn inspection_keeps_application_context_out_of_the_template_plan() {
         .expect("one eligible molecule with optional context must prepare");
 
     assert_eq!(plan.display_name(), Some("Example molecule"));
-    assert_eq!(plan.atom_centroid(), Point2::new(5.0, 3.0).unwrap());
+    assert_eq!(plan.atom_centroid(), Point2::new(30.0, 18.0).unwrap());
 }
 
 #[test]
@@ -60,8 +60,8 @@ fn insertion_places_only_the_molecule_with_fresh_ids_as_one_history_step() {
     let atom_b = molecule.atoms()[1].position();
     assert!(((atom_a.x() + atom_b.x()) / 2.0 - 100.0).abs() < 0.02);
     assert!(((atom_a.y() + atom_b.y()) / 2.0 - 50.0).abs() < 0.02);
-    assert!((atom_b.x() - atom_a.x() - 10.0).abs() < 0.02);
-    assert!((atom_b.y() - atom_a.y() - 2.0).abs() < 0.02);
+    assert!((atom_b.x() - atom_a.x() - 60.0).abs() < 0.02);
+    assert!((atom_b.y() - atom_a.y() - 12.0).abs() < 0.02);
 
     let inserted_document =
         TypedDocument::parse(inserted.snapshot().cdml()).expect("inserted CDML must parse");

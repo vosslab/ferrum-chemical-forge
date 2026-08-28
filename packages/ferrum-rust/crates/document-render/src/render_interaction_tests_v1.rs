@@ -12,21 +12,6 @@ fn fence(session: &RenderInteractionSessionV1) -> DocumentFenceV1 {
 }
 
 #[test]
-fn render_session_exposes_revision_bound_smarts_preparation() {
-    let session = RenderInteractionSessionV1::new(DocumentSession::load(SOURCE).expect("load"));
-    let snapshot = session.snapshot().expect("snapshot");
-    let prepared = session
-        .prepare_smarts_snapshot_v1(snapshot.revision())
-        .expect("prepare current revision");
-    assert_eq!(prepared.revision(), snapshot.revision());
-    assert_eq!(prepared.digest(), snapshot.digest());
-    assert!(matches!(
-        session.prepare_smarts_snapshot_v1(snapshot.revision() + 1),
-        Err(DocumentSmartsSnapshotErrorV1::StaleRevision { .. })
-    ));
-}
-
-#[test]
 fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\">",
@@ -67,6 +52,10 @@ fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
             .iter()
             .any(|target| target.kind() == StructureTargetKindV1::Bond)
     );
+    // The final clipped diagonal reaches the proven point at (10, 10), so a
+    // marquee ending before that point excludes a verified portion of the
+    // painted stroke.  This guards stroke containment rather than the raw
+    // atom-to-atom bounding box.
     let clipped = session
         .select_structure_interaction_v1(
             &observation,
@@ -74,8 +63,8 @@ fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
             StructureInteractionQueryV1::Marquee {
                 left: 0.0,
                 top: 0.0,
-                right: 20.0,
-                bottom: 20.0,
+                right: 9.0,
+                bottom: 9.0,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -91,10 +80,10 @@ fn structural_line_hit_and_marquee_follow_the_rendered_stroke_not_its_box() {
             &observation,
             None,
             StructureInteractionQueryV1::Marquee {
-                left: -1.0,
-                top: -1.0,
-                right: 21.0,
-                bottom: 21.0,
+                left: 0.0,
+                top: 0.0,
+                right: 20.0,
+                bottom: 20.0,
                 modifier: RenderInteractionModifierV1::Replace,
             },
         )
@@ -118,7 +107,7 @@ fn compact_group_render_primitive_is_visible_and_selectable_without_changing_ato
     let session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
     let rendered = session
-        .observe_render_v1(snapshot.revision())
+        .observe_render_v2(snapshot.revision())
         .expect("render");
     let plan = rendered
         .resolved()
@@ -199,7 +188,7 @@ fn typed_compact_group_exterior_bond_reaches_the_complete_document_render_plan()
     let session = RenderInteractionSessionV1::new(DocumentSession::load(source).expect("load"));
     let snapshot = session.snapshot().expect("snapshot");
     let rendered = session
-        .observe_render_v1(snapshot.revision())
+        .observe_render_v2(snapshot.revision())
         .expect("render");
     let molecule = rendered
         .resolved()

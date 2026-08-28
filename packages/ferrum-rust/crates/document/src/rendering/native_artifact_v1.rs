@@ -12,7 +12,7 @@ use crate::{
         ArtifactPublicationErrorV1, ArtifactPublicationOutcomeV1, ArtifactPublicationRequestV1,
         RetainedSourceFileGuardV1, publish_artifact_v1,
     },
-    derive_document_render_observation_from_accepted_operation_v1,
+    derive_document_render_observation_from_accepted_operation_v2,
 };
 use ferrum_render::{
     DocumentRenderOutcomeV1, DocumentRenderPlanCompositionError, LOCAL_PDF_COMPLETED_BYTES_V1,
@@ -107,7 +107,7 @@ pub fn prepare_document_native_artifact_v1(
         return Err(DocumentNativeArtifactErrorV1::ProvenanceMismatch);
     }
     let render_observation =
-        derive_document_render_observation_from_accepted_operation_v1(observation)?;
+        derive_document_render_observation_from_accepted_operation_v2(observation)?;
     let plan = compose_document_render_plan_v1(render_observation.resolved())?;
     if plan
         .outcomes()

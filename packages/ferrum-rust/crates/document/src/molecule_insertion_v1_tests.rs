@@ -19,7 +19,7 @@ const SOURCE: &str = concat!(
 fn atom(element: &str, x: f64) -> MoleculeInsertionAtomV1 {
     MoleculeInsertionAtomV1::new(
         element,
-        Point3V1::new(x, 20.0, 0.0).expect("finite test position"),
+        Point3V1::new(x * 3.0, 60.0, 0.0).expect("finite test position"),
         None,
         None,
         None,
@@ -456,7 +456,7 @@ fn generic_ez_stereo_round_trip_preserves_typed_semantics_and_depiction() {
         Some(depictions)
     );
     let render = reopened
-        .observe_render_v1(0)
+        .observe_render_v2(0)
         .expect("persisted E/Z depiction resolves through the normal render observation");
     let plan = render.resolved().molecule_plans()[0].plan();
     let carrier_batch = plan
@@ -465,8 +465,8 @@ fn generic_ez_stereo_round_trip_preserves_typed_semantics_and_depiction() {
         .find(|batch| batch.target().document_object_id() == &carrier_bond_id)
         .expect("E/Z carrier bond admits one durable render target");
     assert_eq!(carrier_batch.paint_order(), 5);
-    let Some(RenderOp::DoubleBondCarrierMark(mark)) = carrier_batch
-        .operations()
+    let carrier_operations = carrier_batch.operations();
+    let Some(RenderOp::DoubleBondCarrierMark(mark)) = carrier_operations
         .iter()
         .find(|operation| matches!(operation, RenderOp::DoubleBondCarrierMark(_)))
     else {

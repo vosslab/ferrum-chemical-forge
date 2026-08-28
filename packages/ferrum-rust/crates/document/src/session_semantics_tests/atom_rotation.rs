@@ -25,11 +25,11 @@ fn selected_atoms_rotate_in_one_history_entry_and_preserve_valid_generated_and_a
  {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"b\" name=\"C\"><point x=\"10\" y=\"0\" z=\"2\"/></atom>",
+        "<atom id=\"b\" name=\"C\"><point x=\"40\" y=\"0\" z=\"2\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
         "<bond id=\"ab\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-        "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
+        "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
         "<fragment id=\"richer\" type=\"linear_form\" retained=\"yes\"><extension/>",
         "</fragment></molecule></cdml>",
     );
@@ -48,7 +48,7 @@ fn selected_atoms_rotate_in_one_history_entry_and_preserve_valid_generated_and_a
     assert_authored_close(atoms[0].position().x(), 0.0);
     assert_authored_close(atoms[0].position().y(), 0.0);
     assert_authored_close(atoms[1].position().x(), 0.0);
-    assert_authored_close(atoms[1].position().y(), 10.0);
+    assert_authored_close(atoms[1].position().y(), 40.0);
     assert_eq!(atoms[1].position().z(), 2.0);
     let cdml = rotated.observation().snapshot().cdml();
     assert!(cdml.contains("id=\"owned\""));
@@ -60,7 +60,7 @@ fn selected_atoms_rotate_in_one_history_entry_and_preserve_valid_generated_and_a
         undone.observation().projection().molecules()[0].atoms()[1]
             .position()
             .x(),
-        10.0
+        40.0
     );
     let zero = AtomRotationV1::new(vec![target("m", "a")], 0.0, 0.0, 0.0)
         .expect("zero rotation intent is valid");

@@ -8,12 +8,8 @@
 - docs/NAMING_CONVENTIONS.md
 - docs/CHANGELOG.md
 
-## Required workflow
+## Workflow and environment
 
-- When making edits, document them in docs/CHANGELOG.md.
-- Do not change the Git index; a human owns staging and commits.
-
-## Python environment
-
-AI agents (Codex/Claude) must run Python using `source source_me.sh && python3` (use Python 3.12 only).
-On this user's macOS (Homebrew Python 3.12), Python modules are installed to `/opt/homebrew/lib/python3.12/site-packages/`.
+- Record edits in docs/CHANGELOG.md; humans own Git staging and commits.
+- Run Python as `source source_me.sh && python3` with Python 3.12.
+- Homebrew Python modules are in `/opt/homebrew/lib/python3.12/site-packages/`.

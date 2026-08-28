@@ -3,23 +3,24 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::{
     DocumentMoleculeRenderContentV1, DocumentRenderContentV1, DocumentRenderExclusionV1,
     DocumentRenderOutcomeV1, DocumentRenderPlanV1, DocumentRenderRootV1, DocumentTextOpV1,
-    GlyphBounds, RenderError, RenderProvenance, RenderRevision, RenderTarget, RenderViewportV1,
+    RenderError, RenderProvenance, RenderRevision, RenderTarget, RenderViewportV1,
 };
 use ferrum_document_projection::{DocumentDirectRootKindV1, PresentationRootProjectionV1};
 use thiserror::Error;
 
 use crate::presentation::vector::lower_presentation_vector_v1;
-use crate::{DepictionSuppressionV1, ResolvedDocumentRenderV1};
+use crate::{DepictionSuppressionV1, ResolvedDocumentRenderV2};
 
 /// Compose one authoritative observation into a renderer-neutral page plan.
 ///
 /// This in-process boundary owns the merge of direct document roots. It never reads
 /// CDML, re-lays out text, or infers a visual replacement for an excluded root.
 pub fn compose_document_render_plan_v1(
-    observation: &ResolvedDocumentRenderV1,
+    observation: &ResolvedDocumentRenderV2,
 ) -> Result<DocumentRenderPlanV1, DocumentRenderPlanCompositionError> {
     if let Some(suppression) = observation.suppression() {
         return Err(DocumentRenderPlanCompositionError::Suppressed { suppression });

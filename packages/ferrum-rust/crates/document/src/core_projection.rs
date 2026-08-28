@@ -510,42 +510,7 @@ fn bond_semantics(
 }
 
 fn current_bond_semantics(source_type: &str) -> (Option<BondOrder>, Option<BondStyle>) {
-    let Some(digits) = source_type.get(1..) else {
-        return (None, None);
-    };
-    let order = if digits.is_empty() {
-        None
-    } else {
-        let value: u8 = match digits.parse() {
-            Ok(value) => value,
-            Err(_) => return (None, None),
-        };
-        Some(match value {
-            1 => BondOrder::Single,
-            2 => BondOrder::Double,
-            3 => BondOrder::Triple,
-            4 => BondOrder::Aromatic,
-            other => BondOrder::Other(other),
-        })
-    };
-    (order, bond_style(source_type))
-}
-
-fn bond_style(source_type: &str) -> Option<BondStyle> {
-    let character = source_type.chars().next()?;
-    let style = match character {
-        'n' => BondStyle::Normal,
-        'w' => BondStyle::Wedge,
-        'h' | 'l' | 'r' => BondStyle::Hashed,
-        'a' => BondStyle::Adder,
-        'b' => BondStyle::Bold,
-        'd' => BondStyle::Dashed,
-        'o' => BondStyle::Dotted,
-        's' => BondStyle::Wavy,
-        'q' => BondStyle::HaworthFront,
-        other => BondStyle::Other(other.to_string()),
-    };
-    Some(style)
+    crate::project_source_bond_semantics(source_type)
 }
 
 fn record_context(record: &TypedRecord) -> String {
@@ -569,7 +534,7 @@ mod tests {
     }
 
     #[test]
-    fn current_tokens_keep_order_and_depiction_separate() {
+    fn current_source_projection_preserves_non_authorable_semantics() {
         assert_eq!(
             bond_semantics(Some("26.07"), "s1"),
             (Some(BondOrder::Single), Some(BondStyle::Wavy))
@@ -581,6 +546,10 @@ mod tests {
         assert_eq!(
             bond_semantics(Some("26.07"), "l2"),
             (Some(BondOrder::Double), Some(BondStyle::Hashed))
+        );
+        assert_eq!(
+            bond_semantics(Some("26.07"), "n0"),
+            (Some(BondOrder::Other(0)), Some(BondStyle::Normal))
         );
     }
 }

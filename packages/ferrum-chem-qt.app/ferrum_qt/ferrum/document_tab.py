@@ -692,7 +692,7 @@ class FerrumNativeDocumentTab(
 		if self._pending_snapshot is None:
 			return True
 		try:
-			observation = self._publish_live_render_plan_v1(self._pending_snapshot.revision)
+			observation = self._publish_live_render_plan_v2(self._pending_snapshot.revision)
 			installed = self._install_observation(observation)
 		except FerrumNativeDocumentTabError:
 			return False
@@ -723,7 +723,7 @@ class FerrumNativeDocumentTab(
 	def _refresh_from_current_revision(self) -> None:
 		"""Observe the current Rust revision and install it only if projection succeeds."""
 		snapshot = self._session.snapshot()
-		observation = self._publish_live_render_plan_v1(snapshot.revision)
+		observation = self._publish_live_render_plan_v2(snapshot.revision)
 		if not self._install_observation(observation):
 			raise FerrumNativeDocumentTabError(
 				"Ferrum tab could not install its render observation",
@@ -803,7 +803,7 @@ class FerrumNativeDocumentTab(
 		self._pending_focus_atom_object_id = focus_atom_object_id
 		self.clear_structure_action_selection_v1()
 		try:
-			observation = self._publish_live_render_plan_v1(authoritative.snapshot.revision)
+			observation = self._publish_live_render_plan_v2(authoritative.snapshot.revision)
 		except FerrumNativeDocumentTabError as exc:
 			raise FerrumNativeDocumentTabMutationPresentationError(result) from exc
 		try:

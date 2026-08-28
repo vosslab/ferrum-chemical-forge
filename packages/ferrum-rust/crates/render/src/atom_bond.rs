@@ -5,17 +5,19 @@
 
 mod atom;
 pub(crate) mod bond;
+mod final_ink_collision;
 
 use std::collections::{HashMap, HashSet};
 
 use ferrum_core::RecordKind;
 use ferrum_geometry::Point2;
 
+use crate::glyph_metrics::GlyphBounds;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    CompactGroupBondEndpointV1, GlyphBounds, GlyphMetrics, MoleculeRenderPlan, PositiveFinite,
-    RenderBatch, RenderError, RenderIssue, RenderIssueKind, RenderPaintV3, RenderPoint,
-    RenderProvenance,
+    CompactGroupBondEndpointV1, MoleculeRenderPlanV4, PositiveFinite, RenderBatchV4, RenderError,
+    RenderIssue, RenderIssueKind, RenderPaintV3, RenderPoint, RenderProvenance,
+    VerifiedTelexGlyphMetrics,
 };
 
 pub use atom::{
@@ -25,7 +27,28 @@ pub use atom::{
 pub use bond::BondRenderTarget;
 
 use atom::build_atom_batch;
-use bond::build_bond_batch;
+use bond::{NormalBondEndpointClipPolicy, build_bond_batch};
+use final_ink_collision::{LabelInkEnvelope, batch_intersects_non_endpoint_label};
+
+/// Explicit gap between final bond ink and visible atom-label ink.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BondInkClearance {
+    gap: PositiveFinite,
+}
+
+impl BondInkClearance {
+    /// Construct the exact resolved gap with no renderer fallback.
+    #[must_use]
+    pub const fn new(gap: PositiveFinite) -> Self {
+        Self { gap }
+    }
+
+    /// Return the resolved positive gap.
+    #[must_use]
+    pub const fn gap(self) -> PositiveFinite {
+        self.gap
+    }
+}
 
 /// Deliberate visibility supplied by the authoritative source projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,19 +82,22 @@ pub struct AtomBondRenderRequest {
     font: AtomLabelFontProfile,
     line_width: PositiveFinite,
     bond_lane_spacing: PositiveFinite,
+    normal_single_clip_policy: NormalBondEndpointClipPolicy,
     line_paint: RenderPaintV3,
     compact_group_endpoints: Vec<CompactGroupBondEndpointV1>,
 }
 
 impl AtomBondRenderRequest {
     /// Construct a request whose target identities and source orders are unique.
-    pub fn new(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_normal_single_clip_policy(
         provenance: RenderProvenance,
         atoms: Vec<AtomRenderTarget>,
         bonds: Vec<BondRenderTarget>,
         font: AtomLabelFontProfile,
         line_width: PositiveFinite,
         bond_lane_spacing: PositiveFinite,
+        normal_single_clip_policy: NormalBondEndpointClipPolicy,
         line_paint: RenderPaintV3,
     ) -> Result<Self, RenderError> {
         let mut identifiers = HashSet::new();
@@ -99,9 +125,37 @@ impl AtomBondRenderRequest {
             font,
             line_width,
             bond_lane_spacing,
+            normal_single_clip_policy,
             line_paint,
             compact_group_endpoints: Vec::new(),
         })
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        provenance: RenderProvenance,
+        atoms: Vec<AtomRenderTarget>,
+        bonds: Vec<BondRenderTarget>,
+        font: AtomLabelFontProfile,
+        line_width: PositiveFinite,
+        bond_lane_spacing: PositiveFinite,
+        bond_ink_clearance: BondInkClearance,
+        line_paint: RenderPaintV3,
+    ) -> Result<Self, RenderError> {
+        let normal_single_clip_policy =
+            NormalBondEndpointClipPolicy::from_test_facts(line_width, bond_ink_clearance)
+                .map_err(|issue| RenderError::InvalidRequest(format!("{issue:?}")))?;
+        Self::new_with_normal_single_clip_policy(
+            provenance,
+            atoms,
+            bonds,
+            font,
+            line_width,
+            bond_lane_spacing,
+            normal_single_clip_policy,
+            line_paint,
+        )
     }
 
     /// Attach typed compact-group attachment geometry for supported exterior bonds.
@@ -142,13 +196,14 @@ impl AtomBondRenderRequest {
 }
 
 /// Build the total ordered batch-or-issue partition for this render slice.
-pub fn build_atom_bond_plan<M: GlyphMetrics>(
+pub(crate) fn build_atom_bond_plan(
     request: &AtomBondRenderRequest,
-    metrics: &M,
-) -> Result<MoleculeRenderPlan, RenderError> {
+    metrics: &VerifiedTelexGlyphMetrics,
+) -> Result<MoleculeRenderPlanV4, RenderError> {
     let mut batches = Vec::new();
     let mut issues = Vec::new();
     let mut endpoints = HashMap::new();
+    let mut label_envelopes = HashMap::new();
 
     for atom in &request.atoms {
         let context = atom.context.clone();
@@ -157,15 +212,37 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
             |kind| Ok(Err(kind)),
         );
         match outcome? {
-            Ok((batch, bounds)) => {
+            Ok((batch, bounds, attachment)) => {
+                let center = attachment.core_element_ink_center();
+                let position = render_point_to_geometry(atom.position)?
+                    .offset(
+                        ferrum_geometry::Vector2::new(center.x(), center.y()).map_err(|error| {
+                            RenderError::InvalidRequest(format!(
+                                "atom-label attachment center is invalid geometry: {error}"
+                            ))
+                        })?,
+                        1.0,
+                    )
+                    .map_err(|error| {
+                        RenderError::InvalidRequest(format!(
+                            "atom-label attachment position is invalid geometry: {error}"
+                        ))
+                    })?;
                 endpoints.insert(
                     context.record_id().clone(),
                     RenderEndpointGeometry {
                         kind: RecordKind::Atom,
-                        position: render_point_to_geometry(atom.position)?,
-                        clipping: EndpointClipGeometry::OriginContainingGlyphEnvelope(bounds),
+                        position,
+                        clipping: EndpointClipGeometry::AtomLabelInk(bounds),
                     },
                 );
+                let envelope = LabelInkEnvelope::from_local_bounds(
+                    bounds,
+                    atom.position,
+                    request.normal_single_clip_policy.clearance().gap(),
+                )
+                .map_err(RenderError::InvalidRequest)?;
+                label_envelopes.insert(context.record_id().clone(), envelope);
                 batches.push(batch);
             }
             Err(kind) => issues.push(RenderIssue::from_context(context, kind)?),
@@ -213,14 +290,37 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
                         )
                     },
                 );
+            let (first_endpoint, second_endpoint) = bond.endpoints();
             build_bond_batch(
                 bond,
                 &endpoints,
                 stroke_width,
                 lane_spacing,
                 wedge_width,
+                request.normal_single_clip_policy,
                 paint,
             )
+            .and_then(|batch| {
+                let crate::RenderBatchContentV4::Bond(content) = batch.content() else {
+                    return Err(RenderIssueKind::UnrenderableTarget {
+                        reason: "bond lowering did not produce closed bond content".to_owned(),
+                    });
+                };
+                if batch_intersects_non_endpoint_label(
+                    content,
+                    &label_envelopes,
+                    first_endpoint,
+                    second_endpoint,
+                )
+                .map_err(|reason| RenderIssueKind::UnrenderableTarget { reason })?
+                {
+                    Err(RenderIssueKind::UnrenderableTarget {
+                        reason: "bond final ink intersects a non-endpoint atom label".to_owned(),
+                    })
+                } else {
+                    Ok(batch)
+                }
+            })
         };
         match outcome {
             Ok(batch) => batches.push(batch),
@@ -228,9 +328,9 @@ pub fn build_atom_bond_plan<M: GlyphMetrics>(
         }
     }
 
-    batches.sort_by_key(RenderBatch::paint_order);
+    batches.sort_by_key(RenderBatchV4::paint_order);
     issues.sort_by_key(RenderIssue::paint_order);
-    MoleculeRenderPlan::new(request.provenance, batches, issues)
+    MoleculeRenderPlanV4::new(request.provenance, batches, issues)
 }
 struct RenderEndpointGeometry {
     kind: RecordKind,
@@ -240,7 +340,7 @@ struct RenderEndpointGeometry {
 
 #[derive(Clone, Debug)]
 enum EndpointClipGeometry {
-    OriginContainingGlyphEnvelope(GlyphBounds),
+    AtomLabelInk(GlyphBounds),
     FixedConnectionPoint {
         label_ink_exclusion: crate::compact_group::CompactGroupLabelInkEnvelope,
     },

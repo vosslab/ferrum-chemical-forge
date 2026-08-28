@@ -51,7 +51,14 @@ struct Bond {
     start: String,
     end: String,
     order: BondOrder,
-    direction: Option<BondDirection>,
+    depiction: ParsedBondDepiction,
+}
+
+#[derive(Clone, Copy)]
+enum ParsedBondDepiction {
+    Ordinary,
+    Stereo(BondDirection),
+    Presentation(CdxmlBondPresentationV1),
 }
 struct Fragment {
     id: String,
@@ -106,7 +113,9 @@ impl Fragment {
         if !self.pairs.insert((start.min(end), start.max(end))) {
             return refused(CdxmlRefusalReasonV1::DuplicateBond);
         }
-        if bond.direction.is_some() && bond.order != BondOrder::Single {
+        if !matches!(bond.depiction, ParsedBondDepiction::Ordinary)
+            && bond.order != BondOrder::Single
+        {
             return refused(CdxmlRefusalReasonV1::InvalidScalar);
         }
         self.bonds.push(bond);
@@ -138,6 +147,7 @@ impl Fragment {
             points.push(atom.point);
         }
         let mut bonds = Vec::with_capacity(self.bonds.len());
+        let mut bond_presentations = Vec::with_capacity(self.bonds.len());
         for bond in self.bonds {
             let start = *self
                 .atom_indexes
@@ -151,12 +161,21 @@ impl Fragment {
                 .ok_or(CdxmlDecoderErrorV1 {
                     reason: CdxmlRefusalReasonV1::DanglingBond,
                 })?;
-            bonds.push(match bond.direction {
-                Some(direction) => MolBond::directed(start, end, bond.order, false, direction)
-                    .map_err(|_| CdxmlDecoderErrorV1 {
-                        reason: CdxmlRefusalReasonV1::InvalidGraph,
-                    })?,
-                None => MolBond::new(start, end, bond.order, false),
+            bonds.push(match bond.depiction {
+                ParsedBondDepiction::Stereo(direction) => {
+                    MolBond::directed(start, end, bond.order, false, direction).map_err(|_| {
+                        CdxmlDecoderErrorV1 {
+                            reason: CdxmlRefusalReasonV1::InvalidGraph,
+                        }
+                    })?
+                }
+                ParsedBondDepiction::Ordinary | ParsedBondDepiction::Presentation(_) => {
+                    MolBond::new(start, end, bond.order, false)
+                }
+            });
+            bond_presentations.push(match bond.depiction {
+                ParsedBondDepiction::Presentation(presentation) => Some(presentation),
+                ParsedBondDepiction::Ordinary | ParsedBondDepiction::Stereo(_) => None,
             });
         }
         let graph = MolGraph::new(atoms, bonds, Some(Coordinates::new(points))).map_err(|_| {
@@ -164,10 +183,11 @@ impl Fragment {
                 reason: CdxmlRefusalReasonV1::InvalidGraph,
             }
         })?;
-        Ok(CdxmlDecodedRecordV1 {
-            source_fragment_id: self.id,
-            record: InterchangeRecordV1::new(graph, None, Vec::new()),
-        })
+        CdxmlDecodedRecordV1::new(
+            self.id,
+            InterchangeRecordV1::new(graph, None, Vec::new()),
+            bond_presentations,
+        )
     }
 }
 
@@ -581,10 +601,13 @@ impl Parser {
             "3" => BondOrder::Triple,
             _ => return refused(CdxmlRefusalReasonV1::UnrepresentedSemanticFact),
         };
-        let direction = match Self::field(pending, "Display") {
-            None | Some("Solid") => None,
-            Some("WedgeBegin") => Some(BondDirection::BeginWedge),
-            Some("WedgedHashBegin") => Some(BondDirection::BeginDash),
+        let depiction = match Self::field(pending, "Display") {
+            None | Some("Solid") => ParsedBondDepiction::Ordinary,
+            Some("WedgeBegin") => ParsedBondDepiction::Stereo(BondDirection::BeginWedge),
+            Some("WedgedHashBegin") => ParsedBondDepiction::Stereo(BondDirection::BeginDash),
+            Some("Wavy") => ParsedBondDepiction::Presentation(CdxmlBondPresentationV1::Wavy),
+            Some("Bold") => ParsedBondDepiction::Presentation(CdxmlBondPresentationV1::Bold),
+            Some("Dash") => ParsedBondDepiction::Presentation(CdxmlBondPresentationV1::Dashed),
             Some("WedgeEnd") | Some("WedgedHashEnd") => {
                 return refused(CdxmlRefusalReasonV1::UnrepresentedSemanticFact);
             }
@@ -599,7 +622,7 @@ impl Parser {
                 start,
                 end,
                 order,
-                direction,
+                depiction,
             })
     }
     fn close(&mut self) -> Result<()> {

@@ -27,6 +27,29 @@ UNSUPPORTED_CDXML = (
 	'<n id="source-atom" p="0 0" Charge="+1"/>'
 	'</fragment></page></CDXML>'
 )
+FIXED_SINGLE_PRESENTATIONS_CDXML = (
+	'<CDXML><page><fragment id="presentation-fragment">'
+	'<n id="a" p="0 0"/><n id="b" p="20 0"/>'
+	'<b B="a" E="b" Display="Wavy"/>'
+	'<n id="c" p="40 0"/><b B="b" E="c" Display="Bold"/>'
+	'<n id="d" p="60 0"/><b B="c" E="d" Display="Dash"/>'
+	'</fragment></page></CDXML>'
+)
+PRESENTATION_ON_DOUBLE_CDXML = (
+	'<CDXML><page><fragment id="private-double">'
+	'<n id="a" p="0 0"/><n id="b" p="20 0"/>'
+	'<b B="a" E="b" Order="2" Display="Wavy"/>'
+	'</fragment></page></CDXML>'
+)
+VALID_THEN_INVALID_PRESENTATION_CDXML = (
+	'<CDXML><page><fragment id="first">'
+	'<n id="a" p="0 0"/><n id="b" p="20 0"/>'
+	'<b B="a" E="b" Display="Wavy"/>'
+	'</fragment><fragment id="later-invalid">'
+	'<n id="c" p="40 0"/><n id="d" p="60 0"/>'
+	'<b B="c" E="d" Order="2" Display="Dash"/>'
+	'</fragment></page></CDXML>'
+)
 
 
 #============================================
@@ -113,6 +136,15 @@ def main() -> None:
 			or 'isotope="18"' not in cdml
 		):
 			raise CdxmlOpenE2eError("CDXML open did not preserve the public receipt contract")
+		styled_source = temporary / "fixed-single-presentations.cdxml"
+		styled_destination = temporary / "fixed-single-presentations.cdml"
+		styled_source.write_text(FIXED_SINGLE_PRESENTATIONS_CDXML, encoding="utf-8")
+		styled_result = run_open(ferrum, styled_source, styled_destination)
+		if styled_result.returncode != 0 or styled_result.stderr:
+			raise CdxmlOpenE2eError("CDXML fixed-single presentation open failed")
+		styled_cdml = styled_destination.read_text(encoding="utf-8")
+		if any(f'type="{token}"' not in styled_cdml for token in ("s1", "b1", "d1")):
+			raise CdxmlOpenE2eError("CDXML fixed-single presentations were not durable")
 		zero_scalar_source = temporary / "zero-scalars.cdxml"
 		zero_scalar_destination = temporary / "zero-scalars.cdml"
 		zero_scalar_source.write_text(ZERO_SCALAR_CDXML, encoding="utf-8")
@@ -150,6 +182,44 @@ def main() -> None:
 			or refused_destination.exists()
 		):
 			raise CdxmlOpenE2eError("CDXML refusal did not remain typed, redacted, and mutation-free")
+		non_single_source = temporary / "non-single-presentation.cdxml"
+		non_single_destination = temporary / "non-single-presentation.cdml"
+		non_single_source.write_text(PRESENTATION_ON_DOUBLE_CDXML, encoding="utf-8")
+		non_single_refusal = run_open(
+			ferrum, non_single_source, non_single_destination,
+		)
+		non_single_envelope = json.loads(non_single_refusal.stdout)
+		if (
+			non_single_refusal.returncode != 1
+			or non_single_refusal.stderr
+			or non_single_envelope["error"]["message"]
+			!= "interchange_import_refused:InvalidScalar"
+			or "private-double" in non_single_refusal.stdout
+			or non_single_destination.exists()
+		):
+			raise CdxmlOpenE2eError(
+				"CDXML non-single presentation refusal was not atomic and redacted"
+			)
+		later_invalid_source = temporary / "later-invalid-presentation.cdxml"
+		later_invalid_destination = temporary / "later-invalid-presentation.cdml"
+		later_invalid_source.write_text(
+			VALID_THEN_INVALID_PRESENTATION_CDXML, encoding="utf-8",
+		)
+		later_invalid_refusal = run_open(
+			ferrum, later_invalid_source, later_invalid_destination,
+		)
+		later_invalid_envelope = json.loads(later_invalid_refusal.stdout)
+		if (
+			later_invalid_refusal.returncode != 1
+			or later_invalid_refusal.stderr
+			or later_invalid_envelope["error"]["message"]
+			!= "interchange_import_refused:InvalidScalar"
+			or "later-invalid" in later_invalid_refusal.stdout
+			or later_invalid_destination.exists()
+		):
+			raise CdxmlOpenE2eError(
+				"later CDXML failure published a partial document or source detail"
+			)
 
 
 if __name__ == "__main__":

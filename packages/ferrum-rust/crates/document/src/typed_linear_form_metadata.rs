@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use ferrum_domain::linear_form::LinearFormBondLength;
 use xot::{Node, Value, Xot};
 
 use super::{
@@ -9,7 +10,6 @@ use super::{
     document_object_identity_v1::is_document_object_attribute_v1, element_name,
 };
 
-const BOND_LENGTH_POINTS: f64 = 10.0;
 // Imported CDML may retain rounded centimetre coordinates; recognition accepts
 // that readable input while typed-document mutations emit exact point tokens.
 const AUTHORED_COORDINATE_TOLERANCE_POINTS: f64 = 0.02;
@@ -79,7 +79,9 @@ fn exact_fragment_name(record: &TypedRecord) -> bool {
 fn exact_fragment_property(record: &TypedRecord) -> bool {
     record.class() == TypedClass::FragmentProperty
         && record.attribute("name") == Some("bond_length")
-        && record.attribute("value") == Some("10")
+        && record
+            .attribute("value")
+            .is_some_and(is_native_bond_length_token)
         && record.attribute("type") == Some("IntType")
         && record.typed_attributes().len() == 3
         && record.unknown_attributes().is_empty()
@@ -131,6 +133,7 @@ pub(crate) fn write_generated_linear_form(
     fragment_id: &str,
     atom_ids: &[String],
     bond_ids: &[String],
+    bond_length: LinearFormBondLength,
 ) -> Result<(), TypedDocumentError> {
     let existing = matching_generated_linear_form_node(tree, molecule, atom_ids, bond_ids)?;
     let existing_identity = existing.and_then(|existing| {
@@ -170,7 +173,7 @@ pub(crate) fn write_generated_linear_form(
     let property_name = tree.add_name("name");
     let value = tree.add_name("value");
     tree.set_attribute(property, property_name, "bond_length");
-    tree.set_attribute(property, value, "10");
+    tree.set_attribute(property, value, bond_length.cdml_integer().to_string());
     tree.set_attribute(property, kind, "IntType");
     tree.append(fragment, property)
         .map_err(TypedDocumentError::Mutation)?;
@@ -362,10 +365,11 @@ fn is_exact_property(tree: &Xot, node: Node) -> bool {
             node,
             &[
                 ("name", Some("bond_length")),
-                ("value", Some("10")),
+                ("value", None),
                 ("type", Some("IntType")),
             ],
         )
+        && unqualified_attribute(tree, node, "value").is_some_and(is_native_bond_length_token)
         && !tree.children(node).any(|child| tree.is_element(child))
         && whitespace_children(tree, node)
 }
@@ -432,7 +436,7 @@ fn form_is_valid(
     };
     let step_x = second_x - first_x;
     let step_y = second_y - first_y;
-    if ((step_x * step_x + step_y * step_y).sqrt() - BOND_LENGTH_POINTS).abs()
+    if ((step_x * step_x + step_y * step_y).sqrt() - LinearFormBondLength::NATIVE.points()).abs()
         > AUTHORED_COORDINATE_TOLERANCE_POINTS
     {
         return Ok(false);
@@ -444,6 +448,10 @@ fn form_is_valid(
                     <= AUTHORED_COORDINATE_TOLERANCE_POINTS
         })
     }))
+}
+
+fn is_native_bond_length_token(value: &str) -> bool {
+    value == LinearFormBondLength::NATIVE.cdml_integer().to_string()
 }
 
 fn atom_point(tree: &Xot, atom: Node) -> Option<(f64, f64)> {
@@ -558,11 +566,11 @@ mod tests {
       xmlns:vendor="urn:vendor">
   <molecule id="m">
     <atom id="a"><point x="0" y="0"/></atom>
-    <atom id="b"><point x="10" y="0"/></atom>
+    <atom id="b"><point x="40" y="0"/></atom>
     <bond id="ab" start="a" end="b"/>
     <fragment id="source-fragment" type="linear_form" object:id="ferrum-document-object-v1/0123456789abcdef0123456789abcdef">
       <name>linear_form</name><bond id="ab"/><vertex id="a"/><vertex id="b"/>
-      <property name="bond_length" value="10" type="IntType"/>
+      <property name="bond_length" value="40" type="IntType"/>
     </fragment>
     <vendor:opaque retained="yes"/>
   </molecule>
@@ -602,8 +610,8 @@ mod tests {
     #[test]
     fn matching_generated_linear_form_rejects_foreign_fragment_content() {
         let source = SOURCE.replace(
-            "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
-            "<vendor:opaque retained=\"yes\"/><property name=\"bond_length\" value=\"10\" type=\"IntType\"/>",
+            "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/>",
+            "<vendor:opaque retained=\"yes\"/><property name=\"bond_length\" value=\"40\" type=\"IntType\"/>",
         );
         let mut tree = Xot::new();
         let document = tree.parse(&source).expect("source parses");
@@ -620,5 +628,27 @@ mod tests {
             .expect("matching succeeds"),
             None
         );
+    }
+
+    #[test]
+    fn native_generated_ownership_requires_the_40_point_token_and_geometry() {
+        let atom_ids = vec!["a".to_owned(), "b".to_owned()];
+        let bond_ids = vec!["ab".to_owned()];
+        for (property, second_x) in [("10", "10"), ("40", "10")] {
+            let source = SOURCE
+                .replace("value=\"40\"", &format!("value=\"{property}\""))
+                .replace("x=\"40\" y=\"0\"", &format!("x=\"{second_x}\" y=\"0\""));
+            let mut tree = Xot::new();
+            let document = tree.parse(&source).expect("source parses");
+            assert!(
+                !matching_generated_linear_form_is_valid(
+                    &tree,
+                    molecule(&tree, document),
+                    &atom_ids,
+                    &bond_ids,
+                )
+                .expect("validation succeeds")
+            );
+        }
     }
 }

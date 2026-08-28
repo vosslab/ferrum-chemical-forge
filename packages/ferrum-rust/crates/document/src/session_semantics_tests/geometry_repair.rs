@@ -215,12 +215,12 @@ fn prepared_whole_depiction_accepts_fused_topology() {
 fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\" retained=\"yes\">",
-        "<atom id=\"a\" name=\"C\"><point x=\"0.2\" y=\"0.2\" z=\"4\"/></atom>",
+        "<atom id=\"a\" name=\"C\"><point x=\"60.2\" y=\"0.2\" z=\"4\"/></atom>",
         "<atom id=\"b\" name=\"O\"><point x=\"0\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
         "<bond id=\"ab\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-        "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
+        "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
         "<fragment id=\"richer\" type=\"linear_form\" retained=\"opaque\"><extension/>",
         "</fragment></molecule></cdml>",
     );
@@ -228,15 +228,15 @@ fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
     let repair = GeometryRepairV1::new(
         vec!["m".to_owned()],
         GeometryRepairKindV1::SnapToHexGrid,
-        1.0,
+        60.0,
     )
     .expect("fixture request");
     let repaired = session
         .apply_document_operation_v1(0, operation(repair))
         .expect("repair succeeds");
     let atoms = repaired.observation().projection().molecules()[0].atoms();
-    assert!(atoms[0].position().x().abs() <= HALF_AUTHORED_UNIT_POINTS);
-    assert!(atoms[0].position().y().abs() <= HALF_AUTHORED_UNIT_POINTS);
+    assert!((atoms[0].position().x() - 30.0 * 3.0_f64.sqrt()).abs() <= HALF_AUTHORED_UNIT_POINTS);
+    assert!((atoms[0].position().y() - 30.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
     assert_eq!(atoms[0].position().z(), 4.0);
     assert_eq!(atoms[1].position().x(), 0.0);
     let cdml = repaired.observation().snapshot().cdml();
@@ -250,18 +250,21 @@ fn hex_snap_is_one_sparse_history_entry_and_preserves_unowned_content() {
         undone.observation().projection().molecules()[0].atoms()[0]
             .position()
             .x(),
-        0.2
+        60.2
     );
 
-    let mut snapped = DocumentSession::load(concat!(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
-        "<point x=\"0\" y=\"0\"/></atom></molecule></cdml>",
+    let mut snapped = DocumentSession::load(&format!(
+        concat!(
+            "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\">",
+            "<point x=\"{}\" y=\"30\"/></atom></molecule></cdml>",
+        ),
+        30.0 * 3.0_f64.sqrt(),
     ))
     .expect("already snapped fixture loads");
     let repair = GeometryRepairV1::new(
         vec!["m".to_owned()],
         GeometryRepairKindV1::SnapToHexGrid,
-        1.0,
+        60.0,
     )
     .expect("fixture request");
     let unchanged = snapped
@@ -346,7 +349,7 @@ fn straighten_bonds_moves_only_terminal_endpoint_with_lexical_two_atom_anchor() 
             "<bond id=\"az\" start=\"a\" end=\"z\" type=\"n1\"/>",
             "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
             "<bond id=\"az\"/><vertex id=\"a\"/><vertex id=\"z\"/>",
-            "<property name=\"bond_length\" value=\"10\" type=\"IntType\"/></fragment>",
+            "<property name=\"bond_length\" value=\"40\" type=\"IntType\"/></fragment>",
             "</molecule></cdml>"
         ),
         half_slot.cos(),
@@ -385,29 +388,29 @@ fn straighten_bonds_moves_only_terminal_endpoint_with_lexical_two_atom_anchor() 
 fn normalize_lengths_preserves_directions_and_authored_content() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
-        "<atom id=\"a\" name=\"C\"><point x=\"-20\" y=\"0\" z=\"5\"/>",
+        "<atom id=\"a\" name=\"C\"><point x=\"-120\" y=\"0\" z=\"5\"/>",
         "<v:note>keep</v:note></atom>",
         "<atom id=\"b\" name=\"N\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"c\" name=\"O\"><point x=\"0\" y=\"30\"/></atom>",
+        "<atom id=\"c\" name=\"O\"><point x=\"0\" y=\"180\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/>",
         "<fragment id=\"owned\" type=\"linear_form\"><name>linear_form</name>",
         "<bond id=\"ab\"/><bond id=\"bc\"/><vertex id=\"a\"/><vertex id=\"b\"/>",
-        "<vertex id=\"c\"/><property name=\"bond_length\" value=\"10\" ",
+        "<vertex id=\"c\"/><property name=\"bond_length\" value=\"40\" ",
         "type=\"IntType\"/></fragment></molecule></cdml>",
     );
     let mut session = DocumentSession::load(source).expect("fixture loads");
     let repair = GeometryRepairV1::new(
         vec!["m".to_owned()],
         GeometryRepairKindV1::NormalizeBondLengths,
-        10.0,
+        60.0,
     )
     .expect("length repair request validates");
     let repaired = session
         .apply_document_operation_v1(0, operation(repair))
         .expect("length normalization succeeds");
     let atoms = repaired.observation().projection().molecules()[0].atoms();
-    assert!((atoms[0].position().x() + 10.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
+    assert!((atoms[0].position().x() + 60.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
     assert_eq!(atoms[0].position().y(), 0.0);
     assert_eq!(atoms[0].position().z(), 5.0);
     assert_eq!(
@@ -415,7 +418,7 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
         (0.0, 0.0)
     );
     assert_eq!(atoms[2].position().x(), 0.0);
-    assert!((atoms[2].position().y() - 10.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
+    assert!((atoms[2].position().y() - 60.0).abs() <= HALF_AUTHORED_UNIT_POINTS);
     let cdml = repaired.observation().snapshot().cdml();
     assert!(!cdml.contains("id=\"owned\""));
     assert!(cdml.contains("<v:note>keep</v:note>"));
@@ -432,14 +435,14 @@ fn normalize_lengths_preserves_directions_and_authored_content() {
 
     let mut canonical = DocumentSession::load(concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/>",
-        "</atom><atom id=\"b\" name=\"O\"><point x=\"10\" y=\"0\"/></atom>",
+        "</atom><atom id=\"b\" name=\"O\"><point x=\"60\" y=\"0\"/></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
     ))
     .expect("canonical fixture loads");
     let repair = GeometryRepairV1::new(
         vec!["m".to_owned()],
         GeometryRepairKindV1::NormalizeBondLengths,
-        10.0,
+        60.0,
     )
     .expect("canonical request validates");
     let unchanged = canonical
@@ -453,10 +456,10 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"b\" name=\"C\"><point x=\"20\" y=\"0\"/></atom>",
-        "<atom id=\"c\" name=\"C\"><point x=\"15\" y=\"10\"/></atom>",
-        "<atom id=\"d\" name=\"C\"><point x=\"0\" y=\"10\"/></atom>",
-        "<atom id=\"side\" name=\"O\"><point x=\"-10\" y=\"10\" z=\"6\"/>",
+        "<atom id=\"b\" name=\"C\"><point x=\"60\" y=\"0\"/></atom>",
+        "<atom id=\"c\" name=\"C\"><point x=\"45\" y=\"30\"/></atom>",
+        "<atom id=\"d\" name=\"C\"><point x=\"0\" y=\"30\"/></atom>",
+        "<atom id=\"side\" name=\"O\"><point x=\"-30\" y=\"30\" z=\"6\"/>",
         "<v:note>keep</v:note></atom>",
         "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/>",
         "<bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/>",
@@ -478,7 +481,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
     let repair = GeometryRepairV1::new(
         vec!["m".to_owned()],
         GeometryRepairKindV1::NormalizeRings,
-        20.0,
+        60.0,
     )
     .expect("ring repair request validates");
     let repaired = session
@@ -502,7 +505,7 @@ fn normalize_ring_preserves_centroid_side_length_and_substituent_geometry() {
         let left = after[ring[index]];
         let right = after[ring[(index + 1) % ring.len()]];
         let distance = (left.x() - right.x()).hypot(left.y() - right.y());
-        assert!((distance - 20.0).abs() <= 2.0 * HALF_AUTHORED_UNIT_POINTS);
+        assert!((distance - 60.0).abs() <= 2.0 * HALF_AUTHORED_UNIT_POINTS);
     }
     assert_eq!(after["side"].z(), 6.0);
     assert!(

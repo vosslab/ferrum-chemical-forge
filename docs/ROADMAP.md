@@ -25,53 +25,116 @@ That is substantial progress, not a feature-parity or release-complete claim.
   and disposable presentation, never chemistry or durable document facts.
 - Historical OASA and BKChem material remains read-only provenance. It is not a
   runtime dependency, compatibility host, or architectural authority.
+- The Rust renderer now owns atom-label/bond attachment end to end: it centers
+  the typed core element run at the atom origin, treats every visible label
+  mark as final-ink exclusion geometry, clips each bond against its actual
+  style-specific ink footprint, and refuses a bond whose final ink would cross
+  another atom label. The V4 plan/V2 observation boundary carries those
+  renderer-issued facts unchanged; PyO3 and Qt consume the closed typed plan
+  rather than reconstructing label geometry or chemistry.
+- One schema-closed twelve-case corpus covers ordinary, decorated, isotope,
+  bond-style, Haworth, near-miss, coincident, and third-label-refusal cases at
+  the Rust document-to-observation seam and the installed Qt consumer. This is
+  durable semantic evidence for the alignment contract, not a pixel-baseline
+  substitute for the pending fresh native visual and accessibility review.
 - The Rust-first direct drawing, selected-root, regular-ring, presentation,
   compact-group, SMARTS, bounded oxidation, command-palette, and semantic-theme
-  slices have focused evidence. Their delivery does not close their parent
-  milestones or full parity.
+  slices have focused evidence. The bounded CDXML profile now also imports
+  Wavy, Bold, and Dash bond presentation through Rust-owned document and render
+  contracts. These deliveries do not close their parent milestones or full
+  parity.
 - The 13-scene documentation tour has source, semantic, and agent-visual
   evidence. It remains a release candidate until a maintainer performs fresh
   native visual and accessibility acceptance.
 
 ## Resume order
 
-### 1. Finish Local Open stabilization
+### 1. Carry the renderer alignment contract through visual acceptance
 
-The Local Document Open mixin has been replaced with four explicit modules:
+The label/bond repair is deliberately a renderer contract, not a Qt placement
+tweak. Rust is the sole owner of Telex label metrics, exact core-run placement,
+full-ink exclusion, final bond-ink collision admission, and paint order. The
+closed V4 plan and V2 observation now give PyO3 and Qt the exact facts required
+to replay that result without independent geometry. The canonical semantic
+corpus must remain the permanent guardrail as more label decorations, bond
+styles, fonts, and chemistry grammars are added.
+
+Next, rebuild the installed application, run the Rust and installed-Python/Qt
+corpus lanes, and recapture the GUI tour. A maintainer must then review native
+letter-to-bond alignment, contrast, focus, and accessibility in a real window.
+Those acceptance steps validate the product presentation; they do not alter or
+replace the Rust-owned alignment model. This work strengthens M1/M3/M6 evidence
+but does not close any parent milestone or full parity.
+
+### 2. Carry M4b SMARTS Patch 3 through external acceptance
+
+The implemented M4b correction makes the projection's non-atom inventory
+closed, moves graph construction into the pure downward-only
+`ferrum-graph-lowering` crate, and limits graph-plus-durable-ID correspondence
+to API-private target construction from one accepted observation. Live Qt
+reveal uses entropy-backed one-use receipts that fail closed if entropy is
+unavailable. The canonical Rust gate, sealed build, public Rustdoc/Python
+isolation oracle, packaged raw/selected CLI, installed PyO3 receipt lifecycle,
+and offscreen Qt lifecycle are green. No private SMARTS helper/capability
+PyClass is registered; internal types are unversioned, while durable closed
+error enums retain `V1`. Real-window/human visual acceptance, CI, and release
+evidence remain open; M4 and full parity remain open. The active acceptance record is
+[M4B_SMARTS_QUERY.md](active_plans/active/M4B_SMARTS_QUERY.md).
+
+### 3. Carry M2 CDXML presentation through acceptance
+
+The Rust-owned CDXML simple-molecule profile now admits `Display="Wavy"`,
+`Display="Bold"`, and `Display="Dash"` only on non-directed single bonds. A
+source-specific validated carrier preserves those facts until the document
+adapter creates the sole durable `DocumentBondPresentationV1` state. CDML
+persists them as `s1`, `b1`, and `d1`; the native renderer creates their clipped
+geometry; and generic CLI, PyO3, and Qt new-document admission publish only a
+clean rendered candidate. This keeps chemistry, durable document semantics,
+rendering, and client presentation in their respective ownership boundaries.
+
+Adder and Dotted are future parity work. Each must begin with a Rust-owned
+renderer and document-semantics decision, then receive an interchange profile
+only when corpus evidence supports it. They are not source-compatibility aliases
+or narrow fallbacks in the delivered CDXML profile.
+
+The implementation does not close M2. Fresh real-window and human visual and
+accessibility acceptance, CI, release evidence, the remaining M2 corpus, and
+full parity remain open. The authoritative profile and acceptance criteria are
+in [M2 CDXML simple-molecule import](active_plans/decisions/m2_cdxml_simple_molecule_import_v1.md).
+
+### 4. Maintain Local Open stabilization evidence
+
+The Local Document Open mixin has been replaced with five explicit modules:
 immutable contract facts, callback-only window composition, a source-tab
-controller, and per-intent delivery. It retains an exact source-tab
+controller, per-intent delivery, and a Qt host transaction. It retains an exact source-tab
 `LOCAL_DOCUMENT_OPEN` / `BLOCK_UNTIL_SETTLED` lease; cancellation waits for the
 worker finish, stale requests refuse without reanchoring, and background
 completion cannot steal focus.
 
-The current repair makes the host issue explicit receipts at Local Open's
-irreversible new-tab-publication and replacement-commit boundaries. Delivery
-must transfer candidate ownership at those receipts; later activation or
-presentation failure can report recovery but cannot dispose a committed tab or
-misreport a completed document transition as a rollback. Pre-commit refusal
-must still retire the provisional candidate and preserve the exact source tab
-and source lease.
+The current repair makes the host return `None` and close one explicit resolution.
+A pre-commit refusal returns candidate ownership only after full rollback; an
+irreversible publication or replacement transfers candidate ownership and
+`COMPLETED` truth before receipt validation. Any unresolved return or exception
+retains the candidate conservatively. Later presentation can report recovery but
+cannot rewrite committed truth.
 
-Finish this stabilization slice before accepting it or starting another
-high-coupling Qt migration:
-
-- Add fault-injection regressions immediately after new-tab publication and
-  immediately after replacement commit, plus pre-commit rollback coverage.
-- Confirm exact receipt identity, registered-tab ownership, source-lease
-  settlement, truthful `COMPLETED` post-commit outcomes, and no focus theft.
-- Run the focused Local Open/lease/CDML tests, native build, registered E2E,
-  aggregate suite, Rust workspace tests, strict Clippy, and a fresh independent
-  architecture review on the resulting worktree.
-- Keep public open/save/reopen, nested dirty-dialog, and post-commit recovery
-  in the registered E2E lane; retain deterministic contract tests in pytest.
+The stabilization acceptance is green: `./build.sh` exited 0; the focused Local
+Open suite passed 55 tests; registered
+`ferrum-local-document-open-lifecycle-e2e-v1` reported `ok`; and `./all_test.sh`
+exited 0 with 8,218 hygiene checks, every registered E2E, 294 PyO3 tests, and
+412 Qt tests. The repaired one-workspace `./check_rust.sh` fmt/check/strict
+Clippy/test/doc gate exited 0. Final architecture review ACCEPT found no P1/P2/P3.
+The independent screenshot review ACCEPTed all 13 frames. Public open/save/reopen,
+nested dirty-dialog, and post-commit recovery remain registered E2E behavior.
 
 The old Local Open mixin and unused `native_app.py` are removed. This repair
-does not change Rust, PyO3, YAML, or `local_document_open_types.py`, introduce
+does not change Rust runtime/semantic APIs, PyO3, YAML, or
+`local_document_open_types.py`, introduce
 a Qt/Rust lease bridge, add an event bus or service locator, or claim M5.A,
-M5, or full parity complete. Native visual, VoiceOver, contrast, focus-ring,
+M5, or full parity complete. Human native accessibility, contrast, focus-ring,
 remote-CI, and release acceptance remain separate gates.
 
-### 2. Complete Template Catalog acceptance
+### 5. Complete Template Catalog acceptance
 
 `PARITY-M5.A` [Template Catalog V1](active_plans/decisions/m5_template_catalog_v1.md)
 is an approved independent Rust snapshot and placement boundary. It consumes
@@ -101,7 +164,7 @@ clean-tab close behavior. Its narrow provisional-registration repair is not a
 general tab-replacement atomicity contract; Local Open owns its own receipt
 transaction.
 
-### 3. Continue full parity
+### 6. Continue full parity
 
 - M1 completes dependable direct-structure editing through its declared P0.1
   normal-bond and P0.2 selected-root contracts.

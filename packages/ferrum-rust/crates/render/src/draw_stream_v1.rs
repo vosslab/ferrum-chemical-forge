@@ -18,7 +18,7 @@ use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyp
 use crate::{
     BatchSpace, DocumentRenderContentV1, DocumentRenderOutcomeV1, DocumentRenderPlanV1,
     DocumentTextLayoutV1, DocumentTextOpV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlan, PathCommandV1,
+    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlanV4, PathCommandV1,
     PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderPaintV3, RenderPoint,
     RenderTarget, RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1,
     VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
@@ -250,7 +250,7 @@ pub(crate) fn lower_document_plan_to_sink_v1<S: DrawSinkV1>(
 
 /// Lower a molecule-only plan through the same operations used by document roots.
 pub(crate) fn lower_molecule_plan_to_sink_v1<S: DrawSinkV1>(
-    plan: &MoleculeRenderPlan,
+    plan: &MoleculeRenderPlanV4,
     page: RenderViewportV1,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
@@ -319,7 +319,7 @@ pub(crate) fn lower_document_render_composite_to_sink_v1<S: DrawSinkV1>(
 
 #[cfg_attr(not(test), allow(dead_code))]
 fn lower_replaced_molecule<S: DrawSinkV1>(
-    plan: &MoleculeRenderPlan,
+    plan: &MoleculeRenderPlanV4,
     selected: &std::collections::HashSet<(ferrum_document_projection::DocumentObjectIdV1, u32)>,
     direct: &AuthoredDirectGlycosidicHaworthRenderPlanV1,
     face: &Face<'_>,

@@ -405,25 +405,6 @@ impl DocumentSession {
         )
     }
 
-    /// Prepare graph inputs for the SMARTS query operation at one exact revision.
-    pub fn prepare_smarts_snapshot_v1(
-        &self,
-        expected_revision: u64,
-    ) -> Result<super::PreparedDocumentSmartsSnapshotV1, super::DocumentSmartsSnapshotErrorV1> {
-        let current = self.current_state_v1();
-        if current.revision() != expected_revision {
-            return Err(super::DocumentSmartsSnapshotErrorV1::StaleRevision {
-                expected: expected_revision,
-                actual: current.revision(),
-            });
-        }
-        let snapshot = current.snapshot(!self.saved_baseline.is_current(current));
-        super::document_smarts_snapshot_v1::prepare_smarts_snapshot_v1(
-            current.document(),
-            &snapshot,
-        )
-    }
-
     /// Return whether the retained session history has an earlier state.
     #[must_use]
     pub fn can_undo(&self) -> bool {

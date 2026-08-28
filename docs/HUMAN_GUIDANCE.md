@@ -20,3 +20,5 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   stop at a good, correct system when further refinement would not materially improve it.
 - Target a 16:10 desktop aspect for Ferrum screenshots. Measure the complete outer application
   window, including the ribbon/menu and status bar; the canvas is not the aspect-ratio boundary.
+- I noticed the letters are poorly aligned with the bond lines, we spend significant time and make
+  crazy tests for OASA to perfect this.

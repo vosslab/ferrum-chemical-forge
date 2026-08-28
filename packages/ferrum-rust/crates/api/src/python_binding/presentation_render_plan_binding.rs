@@ -1,6 +1,6 @@
 //! Frozen Python transport for renderer-owned immutable presentation plans.
 
-use ferrum_document::DocumentRenderObservationV1;
+use ferrum_document::DocumentRenderObservationV2;
 use ferrum_render::{
     DocumentVectorOpV1, PathCommandV1, PresentationRenderBoundsV1, PresentationRenderPlanV1,
     PresentationRenderRootV1, RenderError, render_presentation_stack_v1,
@@ -213,7 +213,7 @@ impl PyDocumentSession {
                     && plan.digest() == observation.snapshot().digest()
             });
         if !published_matches {
-            self.publish_live_render_plan_v1(py, expected_revision)?;
+            self.publish_live_render_plan_v2(py, expected_revision)?;
         }
         let plan = self
             .published_presentation_plan
@@ -226,7 +226,7 @@ impl PyDocumentSession {
 /// Derive one presentation plan from the exact document observation that produced
 /// the live render publication.
 pub(crate) fn plan_from_observation(
-    observation: &DocumentRenderObservationV1,
+    observation: &DocumentRenderObservationV2,
 ) -> PyResult<PresentationRenderPlanV1> {
     let document = observation.document();
     let plan = render_presentation_stack_v1(document.projection().presentation_stack())

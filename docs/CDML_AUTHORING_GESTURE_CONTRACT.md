@@ -123,11 +123,11 @@ Qt or PyO3 pointer input and accepts no render-plan input.
 
 The first and second resolved probes respectively create the internal
 `ExistingExisting`, `ExistingNew`, `NewExisting`, or `NewNew` form. The M3.P6
-authoring actions have the bounded Normal, Solid wedge, and Hashed wedge
-vocabulary. Solid and hashed wedges admit only covalent single bonds and write
-`w1` and `h1`. The durable pointer start is the CDML `start` tip and pointer
-end is the `end` base, so the issued overlay, committed projection, and
-renderer share one tip-to-base record.
+drawing actions expose Normal, Solid wedge, and Hashed wedge. Solid and hashed
+wedges admit only covalent single bonds and write `w1` and `h1`. The durable
+pointer start is the CDML `start` tip and pointer end is the `end` base, so the
+issued overlay, committed projection, and renderer share one tip-to-base
+record.
 
 A malformed pointer probe has a typed closed category and recovery: correct the
 input, adjust the endpoint, or refresh and restart. Once both probes resolve,
@@ -140,10 +140,15 @@ failure families leave document content and history unchanged.
 Qt exposes `Draw Solid Wedge Bond` and `Draw Hashed Wedge Bond`, constructs the
 two probes, paints only admitted Rust operations, and displays the typed
 nonmodal recovery. Escape, focus loss, tab close, tool change, and gesture
-disposal cancel the transient gesture without mutation. Existing Bond
-Properties retains its independently supported broader bond-style vocabulary;
-the M3.P6 drawing actions neither narrow that editor nor create a second
-stereobond representation.
+disposal cancel the transient gesture without mutation.
+
+Bond Properties edits the sole closed `DocumentBondPresentationV1` model:
+Normal `n1`, `n2`, or `n3`; Wedge `w1`; Hashed wedge `h1`; Haworth front edge
+`q1`; Bold `b1`; Dashed `d1`; and Wavy `s1`. It submits one presentation
+selection, never independent order and style values. Every non-Normal
+presentation is intrinsically Single. This editor capability is distinct from
+the M3.P6 drawing-action scope: those direct-drawing actions remain Normal,
+Solid wedge, and Hashed wedge.
 
 This V3 slice does not provide generic stereochemistry, CIP assignment or
 inference, E/Z semantics, arbitrary depiction styles or orders, or broader

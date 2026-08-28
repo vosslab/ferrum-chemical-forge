@@ -1,6 +1,7 @@
+use crate::glyph_metrics::GlyphMetrics;
 use crate::{
-    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, GlyphMetrics,
-    PositiveFinite, RenderPaintV3, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
+    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, PositiveFinite,
+    RenderPaintV3, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
 };
 use ferrum_render_contract::{TELEX_REGULAR_RESOURCE_ID_V1, TELEX_REGULAR_SHA256_V1};
 
@@ -39,7 +40,7 @@ fn verified_metrics_lay_out_the_verified_font_without_a_family_lookup() {
     let metrics = VerifiedTelexGlyphMetrics::new(&environment)
         .expect("pure-Rust parser opens verified Telex");
     let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
-    let label = AtomLabelFacts::new("Cl", 1, 2).expect("chemical label is valid");
+    let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     let layout = metrics
         .layout_atom_label(&label, &font)
         .expect("verified Telex lays out the label");
@@ -112,11 +113,12 @@ fn true_ink_metrics_and_atom_label_clipping_envelope_have_distinct_contracts() {
 
     let label = metrics
         .layout_atom_label(
-            &AtomLabelFacts::new("I", 0, 0).expect("valid iodine label"),
+            &AtomLabelFacts::new("I", None, 0, 0).expect("valid iodine label"),
             &font,
         )
         .expect("iodine label is laid out");
-    // Atom/bond clipping is the one explicit envelope that includes the anchor.
+    // Atom/bond clipping uses the exact visible ink envelope, whose structural
+    // element has been centered on the atom origin.
     assert_eq!(
         (
             label.bounds().min_x(),
@@ -124,7 +126,7 @@ fn true_ink_metrics_and_atom_label_clipping_envelope_have_distinct_contracts() {
             label.bounds().max_x(),
             label.bounds().max_y(),
         ),
-        (-0.5700000000000001, -8.532, 0.5700000000000001, 0.0)
+        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266)
     );
 }
 
@@ -214,7 +216,7 @@ fn final_replacement_after_descriptor_open_cannot_change_same_handle_verificatio
     let metrics = VerifiedTelexGlyphMetrics::new(&environment)
         .expect("pure-Rust parser consumes immutable verified bytes");
     let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
-    let label = AtomLabelFacts::new("Cl", 1, 2).expect("chemical label is valid");
+    let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     assert!(metrics.layout_atom_label(&label, &font).is_ok());
 }
 
@@ -227,7 +229,7 @@ fn verified_metrics_use_memory_after_the_asset_path_is_replaced() {
     let metrics = VerifiedTelexGlyphMetrics::new(&environment)
         .expect("pure-Rust parser receives retained verified bytes rather than reopening the path");
     let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
-    let label = AtomLabelFacts::new("Cl", 1, 2).expect("chemical label is valid");
+    let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     assert!(metrics.layout_atom_label(&label, &font).is_ok());
 }
 
@@ -323,16 +325,13 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("C", 0, 0).expect("valid corpus label"),
-        (
-            -3.2159999999999997,
-            -8.591999999999999,
-            3.336000000000001,
-            0.10800000000000054,
-        ),
+        AtomLabelFacts::new("C", None, 0, 0).expect("valid corpus label"),
+        (-3.2760000000000007, -4.35, 3.2760000000000007, 4.35),
+        (-3.2760000000000007, -4.35, 3.2760000000000007, 4.35),
         &[ExpectedRun::baseline(
             "C",
-            -3.816,
+            -3.8760000000000003,
+            4.241999999999999,
             13,
             7.632,
             6.552000000000001,
@@ -342,32 +341,63 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("Cl", 0, 0).expect("valid corpus label"),
-        (-4.800000000000001, -9.108, 4.368, 0.10800000000000054),
-        &[
-            ExpectedRun::baseline("Cl", -5.4, 13, 10.8, 9.168000000000001, 9.216000000000001)
-                .with_second_glyph(108, 7.632),
-        ],
+        AtomLabelFacts::new("Cl", None, 0, 0).expect("valid corpus label"),
+        (
+            -4.584,
+            -4.6080000000000005,
+            4.5840000000000005,
+            4.6080000000000005,
+        ),
+        (-4.584, -4.6080000000000005, 4.584, 4.6080000000000005),
+        &[ExpectedRun::baseline(
+            "Cl",
+            -5.184,
+            4.5,
+            13,
+            10.8,
+            9.168000000000001,
+            9.216000000000001,
+        )
+        .with_second_glyph(108, 7.632)],
     );
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("Br", 0, 0).expect("valid corpus label"),
-        (-5.022, -8.495999999999999, 5.862, 0.0),
-        &[
-            ExpectedRun::baseline("Br", -6.042, 12, 12.084, 10.884, 8.495999999999999)
-                .with_second_glyph(126, 7.343999999999999),
-        ],
+        AtomLabelFacts::new("Br", None, 0, 0).expect("valid corpus label"),
+        (-5.442, -4.247999999999999, 5.442, 4.247999999999999),
+        (-5.442, -4.247999999999999, 5.442, 4.247999999999999),
+        &[ExpectedRun::baseline(
+            "Br",
+            -6.462,
+            4.247999999999999,
+            12,
+            12.084,
+            10.884,
+            8.495999999999999,
+        )
+        .with_second_glyph(126, 7.343999999999999)],
     );
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("H", 0, 2).expect("valid corpus label"),
-        (-9.9573, -8.495999999999999, 10.509299999999998, 0.0),
+        AtomLabelFacts::new("H", None, 0, 2).expect("valid corpus label"),
+        (
+            -3.3240000000000007,
+            -4.247999999999999,
+            17.142599999999995,
+            6.744,
+        ),
+        (
+            -3.3240000000000007,
+            -4.247999999999999,
+            3.3240000000000007,
+            4.247999999999999,
+        ),
         &[
             ExpectedRun::baseline(
                 "H",
-                -10.9773,
+                -4.344,
+                4.247999999999999,
                 24,
                 8.687999999999999,
                 6.6480000000000015,
@@ -375,7 +405,8 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
             ),
             ExpectedRun::baseline(
                 "H",
-                -2.289300000000001,
+                4.3439999999999985,
+                4.247999999999999,
                 24,
                 8.687999999999999,
                 6.6480000000000015,
@@ -383,8 +414,8 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
             ),
             ExpectedRun::subscript(
                 "2",
-                6.398699999999998,
-                -2.4960000000000004,
+                13.031999999999996,
+                6.744,
                 156,
                 4.5786,
                 3.7205999999999997,
@@ -395,17 +426,24 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("N", 1, 3).expect("valid corpus label"),
+        AtomLabelFacts::new("N", None, 1, 3).expect("valid corpus label"),
         (
-            -12.312299999999999,
-            -8.495999999999999,
-            12.660899999999998,
-            5.683199999999999,
+            -3.222000000000001,
+            -6.2166000000000015,
+            21.751199999999997,
+            6.822,
+        ),
+        (
+            -3.2220000000000004,
+            -4.247999999999999,
+            3.2220000000000004,
+            4.247999999999999,
         ),
         &[
             ExpectedRun::baseline(
                 "N",
-                -13.3083,
+                -4.218000000000001,
+                4.247999999999999,
                 39,
                 8.436,
                 6.444000000000001,
@@ -413,7 +451,8 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
             ),
             ExpectedRun::baseline(
                 "H",
-                -4.872299999999999,
+                4.217999999999999,
+                4.247999999999999,
                 24,
                 8.687999999999999,
                 6.6480000000000015,
@@ -421,8 +460,8 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
             ),
             ExpectedRun::subscript(
                 "3",
-                3.8156999999999996,
-                -2.4960000000000004,
+                12.905999999999999,
+                6.744,
                 157,
                 4.5005999999999995,
                 3.7128,
@@ -430,8 +469,8 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
             ),
             ExpectedRun::superscript(
                 "+",
-                8.316299999999998,
-                6.237,
+                17.406599999999997,
+                -1.9890000000000008,
                 217,
                 4.992,
                 3.6426000000000007,
@@ -442,11 +481,13 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
     assert_receipt_label(
         &metrics,
         &font,
-        AtomLabelFacts::new("I", 0, 0).expect("valid corpus label"),
-        (-0.5700000000000001, -8.532, 0.5700000000000001, 0.0),
+        AtomLabelFacts::new("I", None, 0, 0).expect("valid corpus label"),
+        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266),
+        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266),
         &[ExpectedRun::baseline(
             "I",
             -1.6260000000000001,
+            4.266,
             25,
             3.2520000000000002,
             1.1400000000000001,
@@ -481,6 +522,7 @@ impl ExpectedRun {
     fn baseline(
         text: &'static str,
         origin_x: f64,
+        origin_y: f64,
         glyph: u32,
         advance: f64,
         width: f64,
@@ -490,7 +532,7 @@ impl ExpectedRun {
             text,
             script: TextScript::Baseline,
             scale: 1.0,
-            origin: (origin_x, 0.0),
+            origin: (origin_x, origin_y),
             glyphs: vec![(glyph, 0.0)],
             advance,
             width,
@@ -552,6 +594,7 @@ fn assert_receipt_label(
     font: &AtomLabelFontProfile,
     label: AtomLabelFacts,
     expected_bounds: (f64, f64, f64, f64),
+    expected_core_bounds: (f64, f64, f64, f64),
     expected_runs: &[ExpectedRun],
 ) {
     let layout = metrics
@@ -598,6 +641,40 @@ fn assert_receipt_label(
             (expected.width, expected.height, expected.advance, 0.0)
         );
     }
+    let attachment = layout.attachment();
+    let core_run = layout
+        .runs()
+        .first()
+        .expect("atom labels contain their structural element run");
+    assert_eq!(core_run.text(), label.element());
+    assert_eq!(core_run.script(), TextScript::Baseline);
+    let core_bounds = attachment.core_element_ink_bounds();
+    assert_eq!(
+        (
+            core_bounds.min_x(),
+            core_bounds.min_y(),
+            core_bounds.max_x(),
+            core_bounds.max_y(),
+        ),
+        (
+            expected_core_bounds.0,
+            expected_core_bounds.1,
+            expected_core_bounds.2,
+            expected_core_bounds.3,
+        )
+    );
+    // The durable attachment rectangle canonicalizes its exact center to
+    // positive zero. The receipt above, rather than an uncanonicalized
+    // origin-plus-bearing expression, is the public exact-bound contract.
+    assert_eq!(
+        attachment.core_element_ink_center(),
+        crate::RenderPoint::new(0.0, 0.0).expect("origin")
+    );
+    let full = layout.bounds();
+    assert!(core_bounds.min_x() >= full.min_x());
+    assert!(core_bounds.min_y() >= full.min_y());
+    assert!(core_bounds.max_x() <= full.max_x());
+    assert!(core_bounds.max_y() <= full.max_y());
 }
 
 fn expected_y_bearing(text: &str) -> f64 {
@@ -629,27 +706,27 @@ fn receipt_corpus() -> [(&'static str, AtomLabelFacts); 6] {
     [
         (
             "C",
-            AtomLabelFacts::new("C", 0, 0).expect("valid corpus label"),
+            AtomLabelFacts::new("C", None, 0, 0).expect("valid corpus label"),
         ),
         (
             "Cl",
-            AtomLabelFacts::new("Cl", 0, 0).expect("valid corpus label"),
+            AtomLabelFacts::new("Cl", None, 0, 0).expect("valid corpus label"),
         ),
         (
             "Br",
-            AtomLabelFacts::new("Br", 0, 0).expect("valid corpus label"),
+            AtomLabelFacts::new("Br", None, 0, 0).expect("valid corpus label"),
         ),
         (
             "H2",
-            AtomLabelFacts::new("H", 0, 2).expect("valid corpus label"),
+            AtomLabelFacts::new("H", None, 0, 2).expect("valid corpus label"),
         ),
         (
             "NH3+",
-            AtomLabelFacts::new("N", 1, 3).expect("valid corpus label"),
+            AtomLabelFacts::new("N", None, 1, 3).expect("valid corpus label"),
         ),
         (
             "I",
-            AtomLabelFacts::new("I", 0, 0).expect("valid corpus label"),
+            AtomLabelFacts::new("I", None, 0, 0).expect("valid corpus label"),
         ),
     ]
 }

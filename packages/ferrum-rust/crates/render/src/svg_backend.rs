@@ -12,7 +12,7 @@ use crate::draw_stream_v1::{
 };
 use crate::{
     BatchSpace, DirectGlycosidicHaworthRenderPlanV1, DocumentRenderArtifactV1,
-    DocumentRenderPlanV1, MoleculeRenderPlan, RenderPaintV3, RenderPoint, RenderViewportV1,
+    DocumentRenderPlanV1, MoleculeRenderPlanV4, RenderPaintV3, RenderPoint, RenderViewportV1,
 };
 
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
@@ -125,7 +125,7 @@ pub enum SvgRenderError {
 
 /// Lower one validated molecule plan into an in-memory SVG document.
 pub fn render_plan_to_svg_v1(
-    plan: &MoleculeRenderPlan,
+    plan: &MoleculeRenderPlanV4,
     viewport: SvgViewportV1,
 ) -> Result<SvgDocumentV1, SvgRenderError> {
     let page = RenderViewportV1::new(

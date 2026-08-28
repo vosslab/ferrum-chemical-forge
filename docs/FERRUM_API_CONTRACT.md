@@ -255,6 +255,37 @@ Returned Rust focus selects `(kind, durable_object_id)` after projection
 installation. Structural targets missing a required durable identity are
 rejected before Qt installs the observation.
 
+### Interchange import and bond presentation
+
+`document.molecule.interchange.import.v1` creates one new request-owned
+document from a descriptor-selected source. The selected decoder is the only
+format-specific branch. CML, SDF, and CDXML records then enter the same batch
+preparation, placement, session transition, commit, and publication path. A
+successful import is published only after the committed exact revision has one
+clean authoritative render observation: no document suppression and no
+molecule-plan or member issue. This is an all-format invariant, not a CDXML
+exception. A candidate that cannot meet it remains private to the preparation
+and is dropped; the CLI and desktop routes receive no session, tab, success
+envelope, or partial document from it.
+
+The durable document bond contract is the single closed
+`DocumentBondPresentationV1` value. `Normal(single)`, `Normal(double)`, and
+`Normal(triple)` serialize as `n1`, `n2`, and `n3`. Fixed-single presentations
+serialize as `w1` (solid wedge), `h1` (hashed wedge), `q1` (Haworth front),
+`b1` (bold), `d1` (dashed), and `s1` (wavy). They are one presentation field,
+not independently mutable order and style fields; every non-normal variant is
+intrinsically single. The PyO3 projection and mutation surface carries the
+same closed `DocumentBondPresentationV1` enum, so Qt displays and submits the
+Rust-issued presentation rather than reconstructing bond semantics.
+
+CDXML `Display="Wavy"`, `Display="Bold"`, and `Display="Dash"` map through
+the document-owned CDXML insertion adapter to `s1`, `b1`, and `d1`. The import
+refuses a selected presentation on a non-single source bond. Import is atomic
+across source records: a valid early record followed by an invalid later record
+publishes neither a partial document nor a partial response artifact. The
+typed refusal remains the public outcome; source identifiers and source text
+do not become diagnostic payload.
+
 ## Success and error data
 
 A successful envelope has this shape:

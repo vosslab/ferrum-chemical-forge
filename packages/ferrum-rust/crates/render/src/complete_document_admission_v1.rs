@@ -1,14 +1,14 @@
 //! Pure complete-document admission lowering.
 
 use ferrum_render_contract::{
-    CompleteRenderAdmissionRefusalV1, CompleteRenderPrimitiveV1, CompleteRenderRootClassV1,
-    CompleteRenderRootIdentityV1, CompleteRenderRootLoweringV1, DocumentCompleteRenderCandidateV1,
-    RefusedRootReasonV1,
+    CompleteRenderPrimitiveV1, CompleteRenderRootClassV1, CompleteRenderRootIdentityV1,
+    CompleteRenderRootLoweringV1, DocumentCompleteRenderCandidateV1, RefusedRootReasonV1,
 };
 
 use crate::{
-    DocumentPrecommitOverlayV1, DocumentRenderPlanCompositionError, DocumentRenderPlanV1,
-    RenderError, ResolvedDocumentRenderV1, compose_document_render_plan_v1,
+    DocumentPrecommitOverlayV1, DocumentRenderContentV1, DocumentRenderOutcomeV1,
+    DocumentRenderPlanCompositionError, DocumentRenderPlanV1, RenderError,
+    ResolvedDocumentRenderV2, compose_document_render_plan_v1,
 };
 use ferrum_document_projection::DocumentObjectIdV1;
 
@@ -65,7 +65,8 @@ impl AcceptedCompleteRenderPresentationV1 {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AcceptedCompleteRenderV1 {
     presentation: AcceptedCompleteRenderPresentationV1,
-    realization: Option<DocumentRenderPlanV1>,
+    source_omissions: Vec<RenderOmission>,
+    realization: DocumentRenderPlanV1,
     renderer_schema: &'static str,
     renderer_generation: u64,
 }
@@ -82,11 +83,8 @@ impl AcceptedCompleteRenderV1 {
         &self,
         request: &AcceptedRenderOverlayRequestV1,
     ) -> Result<DocumentPrecommitOverlayV1, RenderError> {
-        let realization = self.realization.as_ref().ok_or_else(|| {
-            RenderError::InvalidRequest("accepted render has no precommit realization".to_owned())
-        })?;
         super::document_precommit_overlay_v1::build_document_precommit_overlay_v1(
-            realization,
+            &self.realization,
             request,
         )
     }
@@ -166,56 +164,121 @@ pub enum AcceptedRenderOverlayTargetKindV1 {
 /// Failure while constructing an accepted renderer realization.
 #[derive(Debug)]
 pub enum CompleteDocumentAdmissionErrorV1 {
-    /// The candidate failed complete-render admission.
-    Candidate(CompleteRenderAdmissionRefusalV1),
-    /// The accepted projection could not be composed into one renderer plan.
+    /// A source or candidate projection could not be composed into one renderer plan.
     Realization(DocumentRenderPlanCompositionError),
+    /// The candidate introduces or replaces one renderer omission.
+    NewOmission,
 }
 
-/// Purely lower and classify one detached complete-document candidate.
+/// Purely lower and classify the direct roots of one detached candidate.
 ///
 /// This function has no document-session callback, no mutation capability, and
 /// no route-local text classification. It only returns immutable presentation
 /// facts or a shared closed refusal.
-pub fn admit_complete_document_render_v1(
+pub fn classify_document_render_roots_v1(
     candidate: &DocumentCompleteRenderCandidateV1,
-) -> Result<AcceptedCompleteRenderV1, CompleteRenderAdmissionRefusalV1> {
+) -> AcceptedCompleteRenderPresentationV1 {
     let mut roots = Vec::with_capacity(candidate.roots().len());
     for root in candidate.roots() {
         let class = classify_root(root.lowering());
-        if matches!(class, CompleteRenderRootClassV1::Refused(_)) {
-            return Err(CompleteRenderAdmissionRefusalV1::RootRefused {
-                root: root.identity().clone(),
-                class,
-            });
-        }
         roots.push(AcceptedCompleteRenderRootV1 {
             identity: root.identity().clone(),
             paint_order: root.paint_order(),
             class,
         });
     }
+    AcceptedCompleteRenderPresentationV1 { roots }
+}
+
+/// Admit one exact resolved document and retain its complete renderer realization.
+///
+/// Direct-root classification is necessary but deliberately insufficient. The
+/// renderer compares complete source and candidate omission sets, admitting a
+/// candidate only when it introduces no new exclusion, plan issue, or member
+/// depiction issue. Existing imported diagnostics may remain or be repaired;
+/// the accepted receipt retains only the exact candidate realization for
+/// temporary overlay paint.
+pub fn admit_complete_document_render_v1(
+    candidate: &DocumentCompleteRenderCandidateV1,
+    baseline: &ResolvedDocumentRenderV2,
+    candidate_resolved: &ResolvedDocumentRenderV2,
+) -> Result<AcceptedCompleteRenderV1, CompleteDocumentAdmissionErrorV1> {
+    let presentation = classify_document_render_roots_v1(candidate);
+    let baseline = compose_document_render_plan_v1(baseline)
+        .map_err(CompleteDocumentAdmissionErrorV1::Realization)?;
+    let realization = compose_document_render_plan_v1(candidate_resolved)
+        .map_err(CompleteDocumentAdmissionErrorV1::Realization)?;
+    let source_omissions = omissions(&baseline);
+    let candidate_omissions = omissions(&realization);
+    candidate_omissions_are_not_new(&source_omissions, &candidate_omissions)
+        .then_some(())
+        .ok_or(CompleteDocumentAdmissionErrorV1::NewOmission)?;
     Ok(AcceptedCompleteRenderV1 {
-        presentation: AcceptedCompleteRenderPresentationV1 { roots },
-        realization: None,
+        presentation,
+        source_omissions,
+        realization,
         renderer_schema: COMPLETE_DOCUMENT_RENDERER_SCHEMA_V1,
         renderer_generation: 1,
     })
 }
 
-/// Admit one complete candidate and retain its renderer-private realization for
-/// typed precommit-overlay selection.
-pub fn admit_complete_document_render_with_resolved_v1(
-    candidate: &DocumentCompleteRenderCandidateV1,
-    resolved: &ResolvedDocumentRenderV1,
-) -> Result<AcceptedCompleteRenderV1, CompleteDocumentAdmissionErrorV1> {
-    let mut accepted = admit_complete_document_render_v1(candidate)
-        .map_err(CompleteDocumentAdmissionErrorV1::Candidate)?;
-    accepted.realization = Some(
-        compose_document_render_plan_v1(resolved)
-            .map_err(CompleteDocumentAdmissionErrorV1::Realization)?,
-    );
-    Ok(accepted)
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum RenderOmission {
+    RootExclusion {
+        target: DocumentObjectIdV1,
+        feature: String,
+    },
+    PlanIssue {
+        target: DocumentObjectIdV1,
+        kind: crate::RenderIssueKind,
+    },
+    MemberIssue {
+        target: DocumentObjectIdV1,
+        code: crate::DepictionIssueCodeV1,
+        detail: String,
+    },
+}
+
+fn omissions(plan: &DocumentRenderPlanV1) -> Vec<RenderOmission> {
+    let mut omissions = Vec::new();
+    for outcome in plan.outcomes() {
+        match outcome {
+            DocumentRenderOutcomeV1::Exclusion(exclusion) => {
+                omissions.push(RenderOmission::RootExclusion {
+                    target: exclusion.target().document_object_id().clone(),
+                    feature: exclusion.feature().to_owned(),
+                });
+            }
+            DocumentRenderOutcomeV1::Root(root) => {
+                let DocumentRenderContentV1::Molecule(content) = root.content() else {
+                    continue;
+                };
+                for issue in content.plan().issues() {
+                    omissions.push(RenderOmission::PlanIssue {
+                        target: issue.target().document_object_id().clone(),
+                        kind: issue.kind().clone(),
+                    });
+                }
+                for issue in content.member_issues() {
+                    omissions.push(RenderOmission::MemberIssue {
+                        target: issue.target().clone(),
+                        code: issue.code(),
+                        detail: issue.detail().to_owned(),
+                    });
+                }
+            }
+        }
+    }
+    omissions
+}
+
+fn candidate_omissions_are_not_new(
+    source_omissions: &[RenderOmission],
+    candidate_omissions: &[RenderOmission],
+) -> bool {
+    candidate_omissions
+        .iter()
+        .all(|candidate| source_omissions.contains(candidate))
 }
 
 fn classify_root(lowering: CompleteRenderRootLoweringV1) -> CompleteRenderRootClassV1 {

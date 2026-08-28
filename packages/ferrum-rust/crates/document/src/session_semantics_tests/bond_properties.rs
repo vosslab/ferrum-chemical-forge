@@ -1,4 +1,4 @@
-//! Atomic durable bond-properties patch behavior.
+//! Atomic durable bond-presentation patch behavior.
 
 use ferrum_core::{BondOrder, BondStyle};
 
@@ -7,18 +7,16 @@ use super::{
     SessionOperationV1, TypedDocumentError,
 };
 use crate::{
-    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1, CDML_NAMESPACE,
-    DocumentBondOrderV1, DocumentBondStyleV1, NonZeroFiniteV1, PositiveFiniteV1, Rgb24V1,
-    element_name,
+    BondPropertiesPatchV1, BondPropertiesPatchV1Error, BondPropertyChangeV1,
+    DocumentBondPresentationV1, NonZeroFiniteV1, PositiveFiniteV1, Rgb24V1,
 };
-use xot::Xot;
 
 const PROPERTY_SOURCE: &str = concat!(
     "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\">",
     "<atom id=\"a\" name=\"C\"><point x=\"1\" y=\"2\"/></atom>",
-    "<atom id=\"b\" name=\"O\"><point x=\"3\" y=\"2\"/></atom>",
-    "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"w2\" center=\"no\" ",
-    "line_width=\"1.5\" bond_width=\"-2\" wedge_width=\"3\" color=\"#A0B1C2\" ",
+    "<atom id=\"b\" name=\"O\"><point x=\"81\" y=\"2\"/></atom>",
+    "<bond id=\"ab\" start=\"a\" end=\"b\" type=\"w1\" center=\"no\" ",
+    "line_width=\"1.5\" bond_width=\"2\" wedge_width=\"3\" color=\"#A0B1C2\" ",
     "vendor_keep=\"yes\"><v:opaque/></bond></molecule><v:root_keep/></cdml>"
 );
 
@@ -29,298 +27,141 @@ fn patch(changes: Vec<BondPropertyChangeV1>) -> SessionOperation {
 }
 
 #[test]
-fn bond_properties_commit_once_preserve_extensions_and_follow_history() {
+fn closed_presentation_patch_commits_preserves_extensions_and_follows_history() {
     let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
     let changed = session
         .apply_document_operation_v1(
             0,
             patch(vec![
-                BondPropertyChangeV1::Order(DocumentBondOrderV1::Triple),
-                BondPropertyChangeV1::Style(DocumentBondStyleV1::Dashed),
-                BondPropertyChangeV1::Center(Some(true)),
+                BondPropertyChangeV1::Presentation(DocumentBondPresentationV1::Dashed),
+                BondPropertyChangeV1::Center(None),
                 BondPropertyChangeV1::LineWidth(Some(PositiveFiniteV1::new(2.5).unwrap())),
-                BondPropertyChangeV1::BondWidth(Some(NonZeroFiniteV1::new(-4.0).unwrap())),
-                BondPropertyChangeV1::WedgeWidth(Some(PositiveFiniteV1::new(5.0).unwrap())),
+                BondPropertyChangeV1::BondWidth(None),
+                BondPropertyChangeV1::WedgeWidth(None),
                 BondPropertyChangeV1::Color(Some(Rgb24V1::new("#102030").unwrap())),
             ]),
         )
-        .expect("patch must commit");
+        .expect("closed presentation patch commits");
     let bond = &changed.observation().projection().molecules()[0].bonds()[0];
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert_eq!(bond.source_type(), Some("d3"));
-    assert_eq!(bond.order(), Some(BondOrder::Triple));
+    assert_eq!(bond.source_type(), Some("d1"));
+    assert_eq!(bond.order(), Some(BondOrder::Single));
     assert_eq!(bond.style(), Some(&BondStyle::Dashed));
-    assert_eq!(bond.center(), Some(true));
-    assert_eq!(bond.line_width().unwrap().value(), 2.5);
-    assert_eq!(bond.bond_width().unwrap().value(), -4.0);
-    assert_eq!(bond.wedge_width().unwrap().value(), 5.0);
-    assert_eq!(bond.color().unwrap().as_str(), "#102030");
-    let cdml = changed.observation().snapshot().cdml();
-    assert!(cdml.contains("vendor_keep=\"yes\""));
-    assert!(cdml.contains("<v:opaque"));
-    assert!(cdml.contains("<v:root_keep"));
-    assert!(cdml.contains("start=\"a\""));
-    assert!(cdml.contains("end=\"b\""));
-
-    let undone = session.undo(1).expect("one patch must undo once");
-    assert_eq!(
-        undone.observation().projection().molecules()[0].bonds()[0].source_type(),
-        Some("w2")
+    let snapshot = changed.observation().snapshot();
+    assert!(snapshot.cdml().contains("vendor_keep=\"yes\""));
+    assert!(snapshot.cdml().contains("<v:opaque"));
+    let undone = session.undo(1).expect("undo");
+    assert!(
+        !undone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("type=\"d1\"")
     );
-    let redone = session.redo(2).expect("one patch must redo once");
-    assert_eq!(
-        redone.observation().projection().molecules()[0].bonds()[0].source_type(),
-        Some("d3")
-    );
-}
-
-#[test]
-fn bond_properties_preserve_known_component_and_clear_optional_facts() {
-    let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let changed = session
-        .apply_document_operation_v1(
-            0,
-            patch(vec![
-                BondPropertyChangeV1::Order(DocumentBondOrderV1::Single),
-                BondPropertyChangeV1::Center(None),
-                BondPropertyChangeV1::LineWidth(None),
-                BondPropertyChangeV1::BondWidth(None),
-                BondPropertyChangeV1::WedgeWidth(None),
-                BondPropertyChangeV1::Color(None),
-            ]),
-        )
-        .expect("optional facts must clear");
-    let bond = &changed.observation().projection().molecules()[0].bonds()[0];
-    assert_eq!(bond.source_type(), Some("w1"));
-    assert_eq!(bond.style(), Some(&BondStyle::Wedge));
-    assert_eq!(bond.center(), None);
-    assert_eq!(bond.line_width(), None);
-    assert_eq!(bond.bond_width(), None);
-    assert_eq!(bond.wedge_width(), None);
-    assert_eq!(bond.color(), None);
-
-    let styled = session
-        .apply_document_operation_v1(
-            1,
-            patch(vec![BondPropertyChangeV1::Style(
-                DocumentBondStyleV1::HaworthFront,
-            )]),
-        )
-        .expect("style preserves current order");
-    assert_eq!(
-        styled.observation().projection().molecules()[0].bonds()[0].source_type(),
-        Some("q1")
+    let redone = session
+        .redo(undone.observation().snapshot().revision())
+        .expect("redo");
+    assert!(
+        redone
+            .observation()
+            .snapshot()
+            .cdml()
+            .contains("type=\"d1\"")
     );
 }
 
 #[test]
-fn haworth_front_rejects_non_single_final_type_without_state_change() {
+fn closed_presentation_tokens_are_the_only_authorable_forms() {
+    for token in ["n1", "n2", "n3", "w1", "h1", "q1", "b1", "d1", "s1"] {
+        assert!(DocumentBondPresentationV1::from_cdml_token(token).is_some());
+    }
+    for token in ["w2", "h3", "b2", "d3", "s2", "a1", "o1"] {
+        assert!(DocumentBondPresentationV1::from_cdml_token(token).is_none());
+    }
+}
+
+#[test]
+fn duplicate_presentation_patch_is_refused_before_document_lookup() {
     assert!(matches!(
         BondPropertiesPatchV1::new(
             "ab",
             vec![
-                BondPropertyChangeV1::Style(DocumentBondStyleV1::HaworthFront),
-                BondPropertyChangeV1::Order(DocumentBondOrderV1::Double),
-            ],
-        ),
-        Err(BondPropertiesPatchV1Error::UnsupportedStyleOrder)
-    ));
-
-    let mut style_session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let style_before = style_session.snapshot().expect("snapshot");
-    assert!(matches!(
-        style_session.apply_document_operation_v1(
-            0,
-            patch(vec![BondPropertyChangeV1::Style(
-                DocumentBondStyleV1::HaworthFront,
-            )])
-        ),
-        Err(DocumentSessionError::Operation(
-            SessionOperationError::Candidate(TypedDocumentError::UnsupportedBondStyleOrder(_))
-        ))
-    ));
-    assert_eq!(style_session.snapshot().expect("snapshot"), style_before);
-
-    let haworth_source = PROPERTY_SOURCE.replace("type=\"w2\"", "type=\"q1\"");
-    let mut order_session = DocumentSession::load(&haworth_source).expect("source must load");
-    let order_before = order_session.snapshot().expect("snapshot");
-    assert!(matches!(
-        order_session.apply_document_operation_v1(
-            0,
-            patch(vec![BondPropertyChangeV1::Order(
-                DocumentBondOrderV1::Double,
-            )])
-        ),
-        Err(DocumentSessionError::Operation(
-            SessionOperationError::Candidate(TypedDocumentError::UnsupportedBondStyleOrder(_))
-        ))
-    ));
-    assert_eq!(order_session.snapshot().expect("snapshot"), order_before);
-}
-
-#[test]
-fn presentation_only_patch_leaves_opaque_type_untouched() {
-    let source = PROPERTY_SOURCE.replace("type=\"w2\"", "type=\"mystery77\"");
-    let mut session = DocumentSession::load(&source).expect("opaque type remains retained");
-    let changed = session
-        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
-        .expect("presentation patch does not interpret type");
-    let bond = &changed.observation().projection().molecules()[0].bonds()[0];
-    assert_eq!(bond.source_type(), Some("mystery77"));
-    assert_eq!(bond.center(), Some(true));
-}
-
-#[test]
-fn empty_and_equal_bond_properties_patches_are_history_free() {
-    let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let empty = session
-        .apply_document_operation_v1(0, patch(Vec::new()))
-        .expect("empty patch");
-    assert_eq!(empty.observation().snapshot().revision(), 0);
-    let equal = session
-        .apply_document_operation_v1(
-            0,
-            patch(vec![BondPropertyChangeV1::Style(
-                DocumentBondStyleV1::Wedge,
-            )]),
-        )
-        .expect("equal property patch");
-    assert_eq!(equal.observation().snapshot().revision(), 0);
-}
-
-#[test]
-fn bond_properties_reject_invalid_intent_target_and_type_without_state_change() {
-    assert!(matches!(
-        BondPropertiesPatchV1::new(
-            "ab",
-            vec![
-                BondPropertyChangeV1::Center(Some(true)),
-                BondPropertyChangeV1::Center(Some(false)),
+                BondPropertyChangeV1::Presentation(DocumentBondPresentationV1::Bold),
+                BondPropertyChangeV1::Presentation(DocumentBondPresentationV1::Wavy),
             ],
         ),
         Err(BondPropertiesPatchV1Error::DuplicateChange { .. })
     ));
-    assert_eq!(NonZeroFiniteV1::new(0.0), None);
-    assert_eq!(NonZeroFiniteV1::new(f64::NAN), None);
-    assert_eq!(NonZeroFiniteV1::new(f64::INFINITY), None);
-    assert_eq!(PositiveFiniteV1::new(f64::NEG_INFINITY), None);
-    assert_eq!(NonZeroFiniteV1::new(f64::MAX).unwrap().value(), f64::MAX);
-    assert_eq!(PositiveFiniteV1::new(f64::MAX).unwrap().value(), f64::MAX);
-
-    let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    let before = session.snapshot().expect("snapshot");
-    let unknown =
-        BondPropertiesPatchV1::new("missing", vec![BondPropertyChangeV1::Center(Some(true))])
-            .expect("intent is independently valid");
-    assert!(matches!(
-        session.apply_document_operation_v1(
-            0,
-            SessionOperation::V1(SessionOperationV1::SetBondProperties { patch: unknown })
-        ),
-        Err(DocumentSessionError::Operation(
-            SessionOperationError::UnknownBond(_)
-        ))
-    ));
-    assert_eq!(session.snapshot().expect("snapshot"), before);
-
-    let source = PROPERTY_SOURCE.replace("type=\"w2\"", "type=\"l2\"");
-    let mut unsupported = DocumentSession::load(&source).expect("legacy source remains retained");
-    let before = unsupported.snapshot().expect("snapshot");
-    assert!(matches!(
-        unsupported.apply_document_operation_v1(
-            0,
-            patch(vec![BondPropertyChangeV1::Order(
-                DocumentBondOrderV1::Single
-            )])
-        ),
-        Err(DocumentSessionError::Operation(
-            SessionOperationError::Candidate(TypedDocumentError::UnsupportedBondType(_))
-        ))
-    ));
-    assert_eq!(unsupported.snapshot().expect("snapshot"), before);
 }
 
 #[test]
-fn stale_bond_properties_patch_does_not_change_authoritative_snapshot() {
-    let mut session = DocumentSession::load(PROPERTY_SOURCE).expect("source must load");
-    session
-        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
-        .expect("initial patch must commit");
+fn incompatible_scalar_properties_are_refused_atomically_after_presentation_resolution() {
+    let incompatible_changes = [
+        (BondPropertyChangeV1::Center(Some(false)), "center"),
+        (
+            BondPropertyChangeV1::BondWidth(Some(NonZeroFiniteV1::new(2.0).unwrap())),
+            "bond_width",
+        ),
+        (
+            BondPropertyChangeV1::WedgeWidth(Some(PositiveFiniteV1::new(2.0).unwrap())),
+            "wedge_width",
+        ),
+    ];
+    for (change, property) in incompatible_changes {
+        let source = PROPERTY_SOURCE
+            .replace(" center=\"no\"", "")
+            .replace(" bond_width=\"2\"", "")
+            .replace(" wedge_width=\"3\"", "");
+        let mut session = DocumentSession::load(&source).expect("source must load");
+        let before = session.snapshot().expect("snapshot");
+        assert!(matches!(
+            session
+                .apply_document_operation_v1(
+                    0,
+                    patch(vec![
+                        BondPropertyChangeV1::Presentation(DocumentBondPresentationV1::Dashed),
+                        change,
+                    ]),
+                )
+                ,
+            Err(DocumentSessionError::Operation(SessionOperationError::Candidate(
+                TypedDocumentError::IncompatibleBondPresentationProperty { property: actual, .. }
+            ))) if actual == property
+        ));
+        assert_eq!(session.snapshot().expect("snapshot"), before);
+    }
+}
+
+#[test]
+fn presentation_change_must_clear_retained_incompatible_scalar_properties() {
+    let source = PROPERTY_SOURCE.replace("type=\"w1\"", "type=\"n2\"");
+    let mut session = DocumentSession::load(&source).expect("source must load");
     let before = session.snapshot().expect("snapshot");
-    assert!(matches!(
+    assert!(
         session
-            .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(false))])),
-        Err(DocumentSessionError::RevisionConflict {
-            expected: 0,
-            actual: 1
-        })
-    ));
+            .apply_document_operation_v1(
+                0,
+                patch(vec![BondPropertyChangeV1::Presentation(
+                    DocumentBondPresentationV1::SolidWedge,
+                )]),
+            )
+            .is_err()
+    );
     assert_eq!(session.snapshot().expect("snapshot"), before);
-}
 
-#[test]
-fn bond_properties_mutate_alternate_cdml_namespace_without_disturbing_opaque_content() {
-    let source = concat!(
-        "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
-        "xmlns:f=\"urn:foreign\"><c:molecule id=\"m\"><c:atom id=\"a\" ",
-        "name=\"C\"><c:point x=\"1\" y=\"2\"/></c:atom><c:atom id=\"b\" ",
-        "name=\"O\"><c:point x=\"3\" y=\"2\"/></c:atom><c:bond id=\"ab\" ",
-        "start=\"a\" end=\"b\" type=\"w2\" f:keep=\"yes\" keep=\"retained\">",
-        "<f:opaque f:payload=\"preserve\"/><c:unknown keep=\"also-retained\"/>",
-        "</c:bond></c:molecule></c:cdml>"
-    );
-    let mut session = DocumentSession::load(source).expect("namespaced source must load");
     let changed = session
-        .apply_document_operation_v1(0, patch(vec![BondPropertyChangeV1::Center(Some(true))]))
-        .expect("namespaced bond property patch must commit");
-    let projection = &changed.observation().projection().molecules()[0].bonds()[0];
-    assert_eq!(projection.source_id(), Some("ab"));
-    assert_eq!(projection.source_order(), 2);
-    assert_eq!(projection.start().source_id(), Some("a"));
-    assert_eq!(projection.end().source_id(), Some("b"));
-    assert_eq!(projection.source_type(), Some("w2"));
-    assert_eq!(projection.center(), Some(true));
-
-    let cdml = changed.observation().snapshot().cdml();
-    let mut tree = Xot::new();
-    let document = tree.parse(cdml).expect("candidate XML must parse");
-    let root = tree.document_element(document).expect("document has root");
-    let molecule = tree
-        .children(root)
-        .find(|node| {
-            element_name(&tree, *node).is_some_and(|(local, namespace)| {
-                local == "molecule" && namespace == CDML_NAMESPACE
-            })
-        })
-        .expect("canonical-namespace molecule retained");
-    let bond = tree
-        .children(molecule)
-        .find(|node| {
-            element_name(&tree, *node)
-                .is_some_and(|(local, namespace)| local == "bond" && namespace == CDML_NAMESPACE)
-        })
-        .expect("canonical-namespace bond retained");
-    let id = tree.add_name("id");
-    let start = tree.add_name("start");
-    let end = tree.add_name("end");
-    let center = tree.add_name("center");
-    let keep = tree.add_name("keep");
-    assert_eq!(tree.get_attribute(bond, id), Some("ab"));
-    assert_eq!(tree.get_attribute(bond, start), Some("a"));
-    assert_eq!(tree.get_attribute(bond, end), Some("b"));
-    assert_eq!(tree.get_attribute(bond, center), Some("yes"));
-    assert_eq!(tree.get_attribute(bond, keep), Some("retained"));
-    let children = tree
-        .children(bond)
-        .filter_map(|node| element_name(&tree, node))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        children,
-        vec![
-            ("opaque".to_owned(), "urn:foreign".to_owned()),
-            ("unknown".to_owned(), CDML_NAMESPACE.to_owned()),
-        ]
-    );
-    assert!(cdml.contains("urn:foreign"));
-    assert!(cdml.contains("payload=\"preserve\""));
+        .apply_document_operation_v1(
+            0,
+            patch(vec![
+                BondPropertyChangeV1::Presentation(DocumentBondPresentationV1::SolidWedge),
+                BondPropertyChangeV1::Center(None),
+                BondPropertyChangeV1::BondWidth(None),
+            ]),
+        )
+        .expect("explicit clears make the final state compatible");
+    let bond = &changed.observation().projection().molecules()[0].bonds()[0];
+    assert_eq!(bond.source_type(), Some("w1"));
+    assert_eq!(bond.center(), None);
+    assert_eq!(bond.bond_width(), None);
+    assert!(bond.wedge_width().is_some());
 }

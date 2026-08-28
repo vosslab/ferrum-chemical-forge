@@ -38,7 +38,6 @@ pub(super) fn category(error: &RenderInteractionErrorV1) -> PyCategory {
         RenderInteractionErrorV1::InvalidCompactGroupDeletionTopology => {
             PyCategory::InvalidCompactGroupDeletionTopology
         }
-        RenderInteractionErrorV1::UnsupportedDocument => PyCategory::Observation,
     }
 }
 pub(super) fn recovery(error: &RenderInteractionErrorV1) -> PyRecovery {
@@ -66,7 +65,6 @@ pub(super) fn recovery(error: &RenderInteractionErrorV1) -> PyRecovery {
             PyRecovery::ReportConflict
         }
         RenderInteractionErrorV1::RendererAdmission => PyRecovery::ChangePresentation,
-        RenderInteractionErrorV1::UnsupportedDocument => PyRecovery::ChangePresentation,
     }
 }
 pub(super) fn interaction_error(py: Python<'_>, error: RenderInteractionErrorV1) -> PyErr {

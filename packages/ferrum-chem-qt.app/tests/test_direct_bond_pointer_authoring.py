@@ -203,6 +203,39 @@ def test_normal_pointer_direct_hits_create_the_durable_normal_bond(
 
 
 #============================================
+def test_normal_direct_preview_stroke_stops_at_its_rust_issued_endpoints(
+		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
+		) -> None:
+	"""The live Qt preview preserves the native line's axial endpoint envelope."""
+	window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
+	try:
+		start_id, end_id = _atom_document_object_ids(tab)
+		start = _viewport_point(tab, start_id)
+		end = _viewport_point(tab, end_id)
+		_action(window, "draw.bond").trigger()
+		PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+			PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
+		PySide6.QtTest.QTest.mouseMove(tab.view.viewport(), end)
+		qapp.processEvents()
+		intent = window._line_gesture_intent
+		if intent is None or not isinstance(intent.preview, PySide6.QtWidgets.QGraphicsItemGroup):
+			raise AssertionError("Draw Bond did not retain its Rust-issued preview")
+		line_item = next(
+			item for item in intent.preview.childItems()
+			if isinstance(item, PySide6.QtWidgets.QGraphicsPathItem)
+			and item.path().elementCount() == 2
+		)
+		issued_bounds = line_item.path().boundingRect()
+		painted_bounds = line_item.shape().boundingRect()
+		assert line_item.pen().capStyle() is PySide6.QtCore.Qt.PenCapStyle.FlatCap
+		assert (painted_bounds.left(), painted_bounds.right()) == (
+			issued_bounds.left(), issued_bounds.right(),
+		)
+	finally:
+		_close_window(qapp, window)
+
+
+#============================================
 def test_normal_direct_bond_native_no_hit_resolution_reaches_new_endpoints(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:

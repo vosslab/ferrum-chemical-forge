@@ -101,11 +101,12 @@ boundary. `build.sh` creates the adapter and extension only under the checkout's
 
 ## Evidence and limits
 
-The architecture and milestone decisions are recorded in
-[active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md). This provenance
-record follows its stated scope: preserve the existing frontend's lineage, exclude
-OASA and the Tk frontend from production carry-forward, and use RDKit as the chemistry
-authority behind a project-owned adapter.
+Current architecture and milestone authority is
+[active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md).
+The subordinate [active_plans/ferrum-plan-v3.md](active_plans/ferrum-plan-v3.md)
+retains historical migration evidence. This provenance record follows the canonical
+scope: preserve the existing frontend's lineage, exclude OASA and the Tk frontend
+from production carry-forward, and use RDKit behind a project-owned adapter.
 
 No statement here establishes copyright ownership for external contributors,
 changes an upstream license, or replaces a file-by-file redistribution review.

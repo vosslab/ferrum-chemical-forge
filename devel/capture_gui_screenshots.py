@@ -19,6 +19,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.main_window
+import ferrum_qt.ferrum.close_decision
 import ferrum_qt.themes.theme_manager
 
 
@@ -43,15 +44,18 @@ _CDXML = (
 	'<?xml version="1.0" encoding="UTF-8"?>'
 	'<!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd">'
 	'<CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1">'
-	'<fragment id="source-fragment"><n id="source-carbon" p="300 360"/>'
-	'<n id="source-oxygen" p="520 360" Element="8"/>'
-	'<b id="source-carbonyl" B="source-carbon" E="source-oxygen" Order="2"/>'
+	'<fragment id="source-fragment"><n id="source-carbon" p="240 360"/>'
+	'<n id="source-oxygen" p="440 360" Element="8"/>'
+	'<n id="source-nitrogen" p="640 360" Element="7"/>'
+	'<n id="source-fluorine" p="840 360" Element="9"/>'
+	'<b id="source-wavy" B="source-carbon" E="source-oxygen" Display="Wavy"/>'
+	'<b id="source-bold" B="source-oxygen" E="source-nitrogen" Display="Bold"/>'
+	'<b id="source-dashed" B="source-nitrogen" E="source-fluorine" Display="Dash"/>'
 	'</fragment></page></CDXML>'
 )
 _CATALOG_QUERY = "furan"
-_OVERLAY_BACKGROUNDS: dict[int, PySide6.QtGui.QPixmap] = {}
-
-
+_DOCUMENTATION_PROPERTY_DOCK_WIDTH = 190
+_PRE_DIALOG_SURFACES: dict[int, PySide6.QtGui.QPixmap] = {}
 #============================================
 class CaptureError(RuntimeError):
 	"""A scene did not reach its documented, observable ready state."""
@@ -129,23 +133,20 @@ def _canvas(tab: object) -> PySide6.QtWidgets.QGraphicsView:
 
 
 #============================================
-def _documentation_frame(canvas: PySide6.QtWidgets.QGraphicsView) -> None:
-	"""Frame completed scene geometry without changing the active display palette."""
-	scene = canvas.scene()
-	if scene is None:
-		raise CaptureError("Ferrum drawing canvas has no scene to frame")
-	content: PySide6.QtCore.QRectF | None = None
-	for item in scene.items():
-		if item.zValue() < 0.0:
-			continue
-		bounds = item.sceneBoundingRect()
-		if bounds.isEmpty():
-			continue
-		content = bounds if content is None else content.united(bounds)
-	if content is None or content.isNull() or content.isEmpty():
-		raise CaptureError("Ferrum scene has no completed content to frame")
-	width = max(content.width() * 1.7, 360.0)
-	height = max(content.height() * 1.7, 260.0, width / 1.45)
+def _documentation_frame(tab: object) -> None:
+	"""Frame document roots closely enough that completed chemistry stays legible."""
+	content_bounds = getattr(tab, "document_content_bounds", None)
+	if not callable(content_bounds):
+		raise CaptureError("Ferrum tab does not expose document content bounds")
+	content = content_bounds()
+	if not isinstance(content, PySide6.QtCore.QRectF) or content.isNull() or content.isEmpty():
+		raise CaptureError("Ferrum document has no completed content to frame")
+	canvas = _canvas(tab)
+	# The public Content control uses these exact document-root bounds.  Add only a
+	# modest presentation margin, which keeps ordinary bonds and rings readable in
+	# the complete window instead of accidentally framing the paper or renderer aids.
+	width = max(content.width() * 1.35, 70.0)
+	height = max(content.height() * 1.35, 54.0, width / 2.0)
 	frame = PySide6.QtCore.QRectF(
 		content.center().x() - width / 2.0,
 		content.center().y() - height / 2.0,
@@ -159,15 +160,62 @@ def _documentation_frame(canvas: PySide6.QtWidgets.QGraphicsView) -> None:
 
 
 #============================================
+def _set_documentation_zoom(window: PySide6.QtWidgets.QMainWindow,
+		application: PySide6.QtWidgets.QApplication) -> None:
+	"""Use Ferrum's visible status-bar zoom client for readable full-window evidence."""
+	slider = _find_visible_widget(window, PySide6.QtWidgets.QSlider, "Zoom percentage slider")
+	if not isinstance(slider, PySide6.QtWidgets.QSlider) or not slider.isEnabled():
+		raise CaptureError("Ferrum documentation capture cannot reach the visible zoom client")
+	slider.setValue(230)
+	application.processEvents()
+	if slider.value() != 230:
+		raise CaptureError("Ferrum documentation capture did not retain the requested zoom")
+
+
+#============================================
 def _prepare_documentation_capture(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
 	"""Retire transient editor state and frame the durable result before capture."""
 	_activate_command(window, application, "Select Structure")
-	canvas = _canvas(_active_tab(window))
+	tab = _active_tab(window)
+	canvas = _canvas(tab)
 	_click(canvas, PySide6.QtCore.QPoint(20, 20))
 	application.processEvents()
-	_documentation_frame(canvas)
+	hide_keyboard_cursor = getattr(canvas, "hide_keyboard_cursor", None)
+	if not callable(hide_keyboard_cursor):
+		raise CaptureError("Ferrum drawing canvas cannot retire its keyboard cursor")
+	hide_keyboard_cursor()
+	_documentation_frame(tab)
 	application.processEvents()
+
+
+#============================================
+def _arrange_documentation_docks(window: PySide6.QtWidgets.QMainWindow,
+		application: PySide6.QtWidgets.QApplication) -> None:
+	"""Give the temporary capture-only Properties dock a readable title bar."""
+	dock = getattr(window, "_native_property_dock", None)
+	if not isinstance(dock, PySide6.QtWidgets.QDockWidget):
+		raise CaptureError("Ferrum documentation capture requires the Properties dock")
+	# The ordinary user's saved layout is never changed: every scene owns a fresh
+	# disposable window.  A fixed 190 px dock leaves the full title visible while
+	# still preserving a broad editable document surface at 1440 x 900.
+	dock.show()
+	dock.setMinimumWidth(_DOCUMENTATION_PROPERTY_DOCK_WIDTH)
+	window.resizeDocks(
+		[dock], [_DOCUMENTATION_PROPERTY_DOCK_WIDTH],
+		PySide6.QtCore.Qt.Orientation.Horizontal,
+	)
+	application.processEvents()
+	option = PySide6.QtWidgets.QStyleOptionDockWidget()
+	dock.initStyleOption(option)
+	title_rect = dock.style().subElementRect(
+		PySide6.QtWidgets.QStyle.SubElement.SE_DockWidgetTitleBarText, option, dock,
+	)
+	title_width = dock.fontMetrics().horizontalAdvance(dock.windowTitle())
+	if title_rect.width() < title_width:
+		raise CaptureError(
+			"Ferrum documentation Properties title is clipped in the fixed capture layout",
+		)
 
 
 #============================================
@@ -299,10 +347,10 @@ def _cdxml_open_scene(application: PySide6.QtWidgets.QApplication,
 			or source_description is None
 			or "imported ChemDraw XML document" not in source_description
 			or len(molecules) != 1
-			or tuple(atom.element for atom in molecules[0].atoms) != ("C", "O")
-			or len(molecules[0].bonds) != 1
+			or tuple(atom.element for atom in molecules[0].atoms) != ("C", "O", "N", "F")
+			or tuple(bond.source_type for bond in molecules[0].bonds) != ("s1", "b1", "d1")
 			):
-		raise CaptureError("bounded CDXML did not become an editable CDXML-origin document")
+		raise CaptureError("styled CDXML did not become an editable CDXML-origin document")
 	return window
 
 
@@ -359,7 +407,7 @@ def _inserted_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 def _attached_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Attach a cyclohexane ring to an eligible authored carbon."""
+	"""Attach a fully renderable cyclohexane ring away from the neighboring oxygen."""
 	window = _window(
 		application, theme_manager, workspace,
 		_PAIR_CDML.replace("type='n2'", "type='n1'"),
@@ -367,6 +415,13 @@ def _attached_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 	tab = _active_tab(window)
 	before = _atom_count(tab)
 	before_revision = _document_revision(tab)
+	before_molecule = tab.current_document_observation().projection.molecules[0]
+	host_carbon_id = next(
+		atom.document_object_id for atom in before_molecule.atoms if atom.element == "C"
+	)
+	host_oxygen_id = next(
+		atom.document_object_id for atom in before_molecule.atoms if atom.element == "O"
+	)
 	_activate_command(window, application, "Attach Cyclohexane Ring")
 	anchor = _scene_point(tab, 300.0, 360.0)
 	refusals: list[str] = []
@@ -379,18 +434,45 @@ def _attached_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 			modal.reject()
 
 	PySide6.QtCore.QTimer.singleShot(100, reject_unexpected_refusal)
-	_drag(_canvas(tab), anchor, anchor + PySide6.QtCore.QPoint(80, 0))
+	# The initial C--O fragment leaves its left side open.  A leftward release is an
+	# ordinary valid user choice and gives the attached ring enough space to retain
+	# every authored bond, including the original exterior C--O bond.
+	_drag(_canvas(tab), anchor, anchor - PySide6.QtCore.QPoint(80, 0))
 	application.processEvents()
 	if refusals:
 		raise CaptureError(f"Attach Cyclohexane Ring was refused: {refusals[0]}")
-	projection = tab.current_document_observation().projection
+	observation = tab.current_document_observation()
+	projection = observation.projection
+	render_observation = tab._render_observation
+	render_projection = tab._controller.projection
+	if render_projection is None:
+		raise CaptureError("Attach Cyclohexane Ring did not retain its installed render projection")
+	molecule = projection.molecules[0]
+	bond_ids = {bond.document_object_id for bond in molecule.bonds}
+	bond_graphics = tuple(
+		item for item, target in render_projection.item_targets.items()
+		if target.document_object_id in bond_ids
+	)
+	exterior_bond = next(
+		bond for bond in molecule.bonds
+		if {bond.start.document_object_id, bond.end.document_object_id}
+		== {host_carbon_id, host_oxygen_id}
+	)
+	if exterior_bond.document_object_id not in {
+		target.document_object_id for target in render_projection.item_targets.values()
+	}:
+		raise CaptureError("Attach Cyclohexane Ring dropped the authored exterior C--O bond")
 	if (
 			_document_revision(tab) <= before_revision
 			or _atom_count(tab) != before + 5
 			or len(projection.molecules) != 1
-			or not any(atom.element == "O" for atom in projection.molecules[0].atoms)
+			or len(molecule.bonds) != 7
+			or len(bond_graphics) != 7
+			or render_projection.issues
+			or any(plan.plan.issues or plan.member_issues for plan in render_observation.molecule_plans)
+			or not any(atom.element == "O" for atom in molecule.atoms)
 			):
-		raise CaptureError("Attach Cyclohexane Ring did not complete its six-atom ring")
+		raise CaptureError("Attach Cyclohexane Ring did not retain a complete rendered molecule")
 	return window
 
 
@@ -403,87 +485,13 @@ def _accept_item_dialog(application: PySide6.QtWidgets.QApplication, value: str)
 			widget.accept()
 			return
 	raise CaptureError("Ferrum did not show its expected item-choice dialog")
-
-
 #============================================
 def _template_catalog_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Place one Rust-owned oxygen-ring template through the public palette."""
+	"""Show one Rust-owned catalog selection before any template placement."""
 	window = _window(application, theme_manager, workspace, _PAIR_CDML)
-	tab = _active_tab(window)
-	before_revision = _document_revision(tab)
-	before_molecule_count = len(tab.current_document_observation().projection.molecules)
-	PySide6.QtCore.QTimer.singleShot(
-		0, lambda: _accept_catalog_result(application, _CATALOG_QUERY),
-	)
-	_activate_command(window, application, "Insert Template...")
-	_click(_canvas(tab), _scene_point(tab, 460.0, 540.0))
-	application.processEvents()
-	projection = tab.current_document_observation().projection
-	placed_atoms = tuple(atom.element for atom in projection.molecules[-1].atoms)
-	if (
-			_document_revision(tab) <= before_revision
-			or len(projection.molecules) != before_molecule_count + 1
-			or sorted(placed_atoms) != ["C", "C", "C", "C", "O"]
-			):
-		raise CaptureError("Insert Template did not place the selected Furan ring")
 	return window
-
-
-#============================================
-def _retire_template_selection(window: PySide6.QtWidgets.QMainWindow,
-		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Clear placement feedback so the completed template remains legible."""
-	tab = _active_tab(window)
-	_activate_command(window, application, "Select Structure")
-	canvas = _canvas(tab)
-	blank = _scene_point(tab, 50.0, 50.0)
-	PySide6.QtTest.QTest.mouseMove(canvas.viewport(), blank)
-	_click(canvas, blank)
-	application.processEvents()
-	if tab.selected_structure_targets() or canvas.scene().selectedItems():
-		raise CaptureError("Ferrum retained template placement selection after blank-canvas selection")
-
-
-#============================================
-def _accept_catalog_result(
-		application: PySide6.QtWidgets.QApplication, query: str,
-		) -> None:
-	"""Search and accept one enabled Rust catalog result through public controls."""
-	dialog = application.activeModalWidget()
-	if (
-			not isinstance(dialog, PySide6.QtWidgets.QDialog)
-			or not dialog.isVisible()
-			or dialog.accessibleName() != "Ferrum template palette"
-			):
-		raise CaptureError("Ferrum did not show its expected template catalog")
-	search = next(
-		control for control in dialog.findChildren(PySide6.QtWidgets.QLineEdit)
-		if control.accessibleName() == "Search templates"
-	)
-	results = next(
-		control for control in dialog.findChildren(PySide6.QtWidgets.QListWidget)
-		if control.accessibleName() == "Ferrum template results"
-	)
-	search.setText(query)
-	application.processEvents()
-	selected = results.currentItem()
-	if (
-			selected is None
-			or not selected.flags() & PySide6.QtCore.Qt.ItemFlag.ItemIsEnabled
-			or query not in selected.text().casefold()
-			or not selected.data(PySide6.QtCore.Qt.ItemDataRole.UserRole)
-			):
-		raise CaptureError("Ferrum catalog search did not select the requested Rust entry")
-	place = next(
-		button for button in dialog.findChildren(PySide6.QtWidgets.QPushButton)
-		if button.text() == "Place on Canvas"
-	)
-	if not place.isVisible() or not place.isEnabled():
-		raise CaptureError("Ferrum catalog did not enable the selected template")
-	place.click()
-
 
 #============================================
 def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
@@ -506,13 +514,12 @@ def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("Change Element did not complete the selected-atom edit")
 	return window
 
-
 #============================================
 def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Run a visible SMARTS query and retain its completed result status."""
-	window = _window(application, theme_manager, workspace, _CARBON_CDML)
+	window = _window(application, theme_manager, workspace, _PAIR_CDML)
 	_activate_command(window, application, "SMARTS Query...")
 	dock = window.findChild(PySide6.QtWidgets.QDockWidget, "smarts-query-dock")
 	if dock is None or not dock.isVisible():
@@ -530,7 +537,6 @@ def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("SMARTS Query did not produce its completed match status")
 	return window
 
-
 #============================================
 def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
@@ -545,7 +551,6 @@ def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("Draw Arrow did not create a durable reaction arrow")
 	return window
 
-
 #============================================
 def _presentation_vector_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
@@ -559,8 +564,6 @@ def _presentation_vector_scene(application: PySide6.QtWidgets.QApplication,
 	if "<polyline" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Line did not create a durable presentation vector")
 	return window
-
-
 #============================================
 def _capture_with_qt(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path) -> None:
 	"""Capture the same visible top-level Ferrum window without Screen Recording access."""
@@ -572,7 +575,6 @@ def _capture_with_qt(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path
 		pixmap = window.grab()
 	if pixmap.isNull() or not pixmap.save(str(output), "PNG"):
 		raise CaptureError("Qt could not capture the visible Ferrum window")
-
 
 #============================================
 def _save_dialog_over_window(window: PySide6.QtWidgets.QMainWindow,
@@ -598,57 +600,83 @@ def _save_dialog_over_window(window: PySide6.QtWidgets.QMainWindow,
 	painter.end()
 	if pixmap.isNull() or not pixmap.save(str(output), "PNG"):
 		raise CaptureError("Qt could not capture the visible Ferrum dialog overlay")
+	_verify_overlay_window_chrome(pixmap, output, position, dialog_pixmap.size())
 
+#============================================
+def _verify_overlay_window_chrome(background: PySide6.QtGui.QPixmap,
+		output: pathlib.Path, position: PySide6.QtCore.QPoint,
+		dialog_size: PySide6.QtCore.QSize) -> None:
+	"""Prove an overlay retained the complete live window above and below itself."""
+	background_image = background.toImage()
+	overlay_image = PySide6.QtGui.QImage(str(output))
+	if background_image.size() != overlay_image.size():
+		raise CaptureError("Ferrum overlay capture changed the full-window surface dimensions")
+	width = background_image.width()
+	height = background_image.height()
+	top_height = max(0, min(position.y(), height))
+	bottom_start = max(0, min(position.y() + dialog_size.height(), height))
+	if top_height <= 0 or bottom_start >= height:
+		raise CaptureError("Ferrum overlay does not leave visible ribbon and status-bar surfaces")
+	if (
+		overlay_image.copy(0, 0, width, top_height)
+		!= background_image.copy(0, 0, width, top_height)
+		or overlay_image.copy(0, bottom_start, width, height - bottom_start)
+		!= background_image.copy(0, bottom_start, width, height - bottom_start)
+		):
+		raise CaptureError("Ferrum overlay failed to preserve its ribbon, tab, or status surface")
 
 #============================================
 def _capture_template_catalog_with_qt(window: PySide6.QtWidgets.QMainWindow,
 		output: pathlib.Path) -> None:
-	"""Capture Rust catalog provenance beside its completed template placement."""
+	"""Capture the current Rust catalog selection and provenance before placement."""
 	captured = []
-	background = window.grab()
 
 	def capture_catalog() -> None:
-		for widget in PySide6.QtWidgets.QApplication.topLevelWidgets():
-			if isinstance(widget, PySide6.QtWidgets.QDialog) and (
-					widget.isVisible() and widget.accessibleName() == "Ferrum template palette"
-					):
-				search = next(
-					control for control in widget.findChildren(PySide6.QtWidgets.QLineEdit)
-					if control.accessibleName() == "Search templates"
-				)
-				results = next(
-					control for control in widget.findChildren(PySide6.QtWidgets.QListWidget)
-					if control.accessibleName() == "Ferrum template results"
-				)
-				family = next(
-					control for control in widget.findChildren(PySide6.QtWidgets.QComboBox)
-					if control.accessibleName() == "Template family"
-				)
-				category = next(
-					control for control in widget.findChildren(PySide6.QtWidgets.QComboBox)
-					if control.accessibleName() == "Template category"
-				)
-				search.setText(_CATALOG_QUERY)
-				if results.currentItem() is None or not results.currentItem().data(
-						PySide6.QtCore.Qt.ItemDataRole.UserRole
-						):
-					raise CaptureError("Ferrum catalog search did not select a real Rust entry")
-				if _CATALOG_QUERY not in results.currentItem().text().casefold():
-					raise CaptureError("Ferrum catalog did not retain the placed template selection")
-				details = tuple(
-					label.text() for label in widget.findChildren(PySide6.QtWidgets.QLabel)
-					if label.text() and " | " in label.text()
-				)
-				if family.currentText() == "" or category.currentText() == "" or not details:
-					raise CaptureError("Ferrum catalog did not expose family, category, and provenance")
-				_save_dialog_over_window(window, widget, output, background)
-				captured.append(True)
-				widget.reject()
-				return
-		raise CaptureError("Ferrum did not show its expected template catalog")
+		application = PySide6.QtWidgets.QApplication.instance()
+		if application is None:
+			raise CaptureError("Ferrum Qt application is unavailable for catalog capture")
+		widget = next((candidate for candidate in application.topLevelWidgets() if (
+			isinstance(candidate, PySide6.QtWidgets.QDialog)
+			and candidate.isVisible() and candidate.accessibleName() == "Template Catalog"
+		)), None)
+		if widget is None:
+			raise CaptureError("Ferrum did not show its expected Template Catalog")
+		search = next(
+			control for control in widget.findChildren(PySide6.QtWidgets.QLineEdit)
+			if control.accessibleName() == "Search templates"
+		)
+		results = next(
+			control for control in widget.findChildren(PySide6.QtWidgets.QListWidget)
+			if control.accessibleName() == "Template catalog results"
+		)
+		family = next(
+			control for control in widget.findChildren(PySide6.QtWidgets.QComboBox)
+			if control.accessibleName() == "Built-in template family"
+		)
+		category = next(
+			control for control in widget.findChildren(PySide6.QtWidgets.QComboBox)
+			if control.accessibleName() == "Built-in template category"
+		)
+		search.setText(_CATALOG_QUERY)
+		if results.currentItem() is None or not results.currentItem().data(
+				PySide6.QtCore.Qt.ItemDataRole.UserRole
+				):
+			raise CaptureError("Ferrum catalog search did not select a real Rust entry")
+		if _CATALOG_QUERY not in results.currentItem().text().casefold():
+			raise CaptureError("Ferrum catalog did not retain the placed template selection")
+		details = next(
+			label for label in widget.findChildren(PySide6.QtWidgets.QLabel)
+			if label.accessibleName() == "Selected template details"
+		)
+		if family.currentText() == "" or category.currentText() == "" or not details.text():
+			raise CaptureError("Ferrum catalog did not expose family, category, and provenance")
+		_save_dialog_over_window(window, widget, output)
+		captured.append(True)
+		widget.reject()
 
 	PySide6.QtCore.QTimer.singleShot(0, capture_catalog)
-	_find_action(window, "Insert Template...").trigger()
+	_find_action(window, "Template Catalog...").trigger()
+	PySide6.QtWidgets.QApplication.processEvents()
 	if captured != [True]:
 		raise CaptureError("Ferrum did not capture the selected template catalog")
 
@@ -702,10 +730,18 @@ def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	molecules = tab.current_document_observation().projection.molecules
 	if (
 		len(molecules) != 1
-		or tuple(atom.element for atom in molecules[0].atoms) != ("C", "O")
-		or len(molecules[0].bonds) != 1
+		or tuple(atom.element for atom in molecules[0].atoms) != ("C", "O", "N", "F")
+		or tuple(bond.source_type for bond in molecules[0].bonds) != ("s1", "b1", "d1")
 		):
-		raise CaptureError("bounded CDXML lost its imported structure before capture")
+		raise CaptureError("styled CDXML lost its imported structure before capture")
+	render = tab._render_observation
+	if (
+			render is None
+			or len(render.molecule_plans) != 1
+			or render.molecule_plans[0].plan.issues
+			or render.molecule_plans[0].member_issues
+			):
+		raise CaptureError("styled CDXML lacks one complete issue-free render plan")
 	if "Opening drawing" in window.statusBar().currentMessage():
 		raise CaptureError("bounded CDXML still reports an in-progress Open before capture")
 	# CDXML ingress can schedule its first page frame after the generic scene
@@ -715,7 +751,7 @@ def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	bounds = tab.document_content_bounds()
 	if bounds is None:
 		raise CaptureError("bounded CDXML has no drawable content bounds after import")
-	_documentation_frame(canvas)
+	_documentation_frame(tab)
 	application.processEvents()
 	center = canvas.mapFromScene(bounds.center())
 	mapped_bounds = canvas.mapFromScene(bounds).boundingRect()
@@ -760,14 +796,13 @@ def _view_controls_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	application.processEvents()
 	if not slider.isEnabled() or slider.value() == 100:
 		raise CaptureError("Zoom to Content did not update the visible status-bar zoom value")
-
-
+	_set_documentation_zoom(window, application)
 #============================================
 def _command_palette_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
 	"""Open the current live registry palette over an explicitly unselected workspace."""
 	_retire_presentation_selection(window, application)
-	_OVERLAY_BACKGROUNDS[id(window)] = window.grab()
+	_PRE_DIALOG_SURFACES[id(window)] = window.grab()
 	_activate_command(window, application, "Command Palette...")
 	dialog = window.findChild(PySide6.QtWidgets.QDialog, "command-palette-dialog")
 	if dialog is None or not dialog.isVisible():
@@ -792,9 +827,9 @@ def _capture_command_palette_with_qt(window: PySide6.QtWidgets.QMainWindow,
 	dialog = window.findChild(PySide6.QtWidgets.QDialog, "command-palette-dialog")
 	if dialog is None or not dialog.isVisible():
 		raise CaptureError("Ferrum Command Palette overlay is unavailable for capture")
-	background = _OVERLAY_BACKGROUNDS.pop(id(window), None)
+	background = _PRE_DIALOG_SURFACES.pop(id(window), None)
 	if background is None:
-		raise CaptureError("Ferrum Command Palette lacks its completed workspace surface")
+		raise CaptureError("Ferrum Command Palette lacks its settled full-window surface")
 	_save_dialog_over_window(window, dialog, output, background)
 
 
@@ -809,7 +844,6 @@ SCENES = (
 	Scene("attached_cyclohexane", "Attach cyclohexane ring", _attached_cyclohexane_scene),
 	Scene(
 		"template_catalog", "Browse Rust-owned template catalog", _template_catalog_scene,
-		post_prepare=_retire_template_selection,
 		overlay_capture=_capture_template_catalog_with_qt,
 	),
 	Scene(
@@ -826,7 +860,7 @@ SCENES = (
 		post_prepare=_retire_presentation_selection,
 	),
 	Scene(
-		"cdxml_open", "Open bounded ChemDraw XML", _cdxml_open_scene,
+		"cdxml_open", "Open Wavy, Bold, and Dashed ChemDraw bonds", _cdxml_open_scene,
 		post_prepare=_verify_cdxml_after_prepare,
 	),
 	Scene(
@@ -915,7 +949,13 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 #============================================
 def _close_window(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Retire one disposable scene window after its staged capture completes."""
+	"""Discard disposable authored documents before retiring one scene window."""
+	tabs = window.centralWidget()
+	while tabs.count() > 0:
+		if window._close_tab_at_with_decision(
+			0, ferrum_qt.ferrum.close_decision.CloseDecision.DISCARD,
+		) is not ferrum_qt.ferrum.close_decision.CloseResult.CLOSED:
+			raise CaptureError("Ferrum capture could not discard its disposable document")
 	window.close()
 	window.deleteLater()
 	application.processEvents()
@@ -977,6 +1017,12 @@ def main() -> int:
 			if show_grid.isChecked():
 				show_grid.trigger()
 			_prepare_documentation_capture(window, application)
+			_arrange_documentation_docks(window, application)
+			# Authoring can queue a last renderer-owned initial frame.  Let that
+			# ordinary visible lifecycle settle before the status-bar client chooses
+			# the final documentation zoom.
+			PySide6.QtTest.QTest.qWait(75)
+			_set_documentation_zoom(window, application)
 			if scene.post_prepare is not None:
 				scene.post_prepare(window, application)
 			output = staged / f"{scene.name}.png"

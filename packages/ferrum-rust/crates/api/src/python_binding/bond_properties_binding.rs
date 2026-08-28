@@ -1,13 +1,13 @@
 //! Closed Python bond-property change values for Rust document operations.
 
 use ferrum_document::{
-    BondPropertiesPatchV1, BondPropertyChangeV1, DocumentBondStyleV1, NonZeroFiniteV1,
-    PositiveFiniteV1, Rgb24V1,
+    BondPropertiesPatchV1, BondPropertyChangeV1, NonZeroFiniteV1, PositiveFiniteV1, Rgb24V1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool};
 
-use super::binding::{PyDocumentBondOrderV1, operation_validation_error};
+use super::binding::operation_validation_error;
+use super::document_session_binding::PyDocumentBondPresentationV1;
 
 /// One exact bond-property change accepted by a complete Rust patch.
 #[pyclass(
@@ -21,57 +21,15 @@ pub(crate) struct PyDocumentBondPropertyChangeV1 {
     pub(crate) change: BondPropertyChangeV1,
 }
 
-/// Closed bond-style vocabulary accepted by the V1 document editor.
-#[pyclass(
-    frozen,
-    eq,
-    hash,
-    module = "ferrum_chem",
-    name = "DocumentBondStyleV1",
-    rename_all = "snake_case",
-    skip_from_py_object
-)]
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub(crate) enum PyDocumentBondStyleV1 {
-    Normal,
-    Wedge,
-    HashedWedge,
-    Adder,
-    Bold,
-    Dashed,
-    Dotted,
-    Wavy,
-    HaworthFront,
-}
-
-impl From<PyDocumentBondStyleV1> for DocumentBondStyleV1 {
-    fn from(value: PyDocumentBondStyleV1) -> Self {
-        match value {
-            PyDocumentBondStyleV1::Normal => Self::Normal,
-            PyDocumentBondStyleV1::Wedge => Self::Wedge,
-            PyDocumentBondStyleV1::HashedWedge => Self::HashedWedge,
-            PyDocumentBondStyleV1::Adder => Self::Adder,
-            PyDocumentBondStyleV1::Bold => Self::Bold,
-            PyDocumentBondStyleV1::Dashed => Self::Dashed,
-            PyDocumentBondStyleV1::Dotted => Self::Dotted,
-            PyDocumentBondStyleV1::Wavy => Self::Wavy,
-            PyDocumentBondStyleV1::HaworthFront => Self::HaworthFront,
-        }
-    }
-}
-
 #[pymethods]
 impl PyDocumentBondPropertyChangeV1 {
-    /// Replace the supported bond order while retaining its authored style.
+    /// Replace the complete closed bond presentation.
     #[staticmethod]
-    fn order(py: Python<'_>, value: PyRef<'_, PyDocumentBondOrderV1>) -> PyResult<Self> {
-        bond_property_change(py, BondPropertyChangeV1::Order((*value).into()))
-    }
-
-    /// Replace the supported bond style while retaining its authored order.
-    #[staticmethod]
-    fn style(py: Python<'_>, value: PyRef<'_, PyDocumentBondStyleV1>) -> PyResult<Self> {
-        bond_property_change(py, BondPropertyChangeV1::Style((*value).into()))
+    fn presentation(
+        py: Python<'_>,
+        value: PyRef<'_, PyDocumentBondPresentationV1>,
+    ) -> PyResult<Self> {
+        bond_property_change(py, BondPropertyChangeV1::Presentation((*value).into()))
     }
 
     /// Replace or clear the explicit centered-double-bond fact.

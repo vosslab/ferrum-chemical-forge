@@ -1,12 +1,12 @@
 //! Private atom, bond, and style resolution for the closed Ferrum depiction profile.
 
 use super::depiction_profile::{DepictionIssueCodeV1, DepictionIssueV1, DepictionProfileV1};
+use crate::atom_bond::bond::NormalBondEndpointClipPolicy;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts, AtomMarkRenderKind,
-    AtomNumberLabelFacts, AtomRenderTarget, AttachedCompactGroupAnchorRenderFactsV1,
-    BondRenderTarget, BondStyle, FontFace, PositiveFinite, RenderPaintV3, RenderPoint,
-    RenderTarget, Rgb24, TargetVisibility,
+    AtomNumberLabelFacts, AtomRenderTarget, BondRenderTarget, BondStyle, FontFace, PositiveFinite,
+    RenderPaintV3, RenderPoint, RenderTarget, Rgb24, TargetVisibility,
 };
 use ferrum_core::{BondOrder, BondStyle as DocumentBondStyle, Identifier, RecordId, RecordKind};
 use ferrum_document_projection::{
@@ -180,11 +180,14 @@ pub(super) fn resolve_atom(
     Ok((target, record_id))
 }
 
-pub(super) fn resolve_attached_compact_group_anchor_render_facts_v1(
+pub(crate) fn resolve_attached_compact_group_anchor_render_facts(
     projection: &DocumentProjectionV1,
     atom: &AtomProjectionV1,
     profile: &DepictionProfileV1,
-) -> Result<AttachedCompactGroupAnchorRenderFactsV1, DepictionIssueV1> {
+) -> Result<
+    crate::attached_compact_group_pose::AttachedCompactGroupAnchorRenderFacts,
+    DepictionIssueV1,
+> {
     let font = resolved_font(
         projection,
         profile,
@@ -195,18 +198,38 @@ pub(super) fn resolve_attached_compact_group_anchor_render_facts_v1(
                 .and_then(|standard| standard.area_color())
         }),
     )?;
-    Ok(AttachedCompactGroupAnchorRenderFactsV1::new(
-        RenderPoint::new(atom.position().x(), atom.position().y()).map_err(|error| {
-            issue(
-                DepictionIssueCodeV1::UnsupportedFeature,
-                atom.projection_key().as_str(),
-                error.to_string(),
-            )
-        })?,
-        resolved_atom_label(atom, projection)?,
-        font,
-        resolved_line_paint(projection, profile)?,
-    ))
+    let line_width = resolved_line_width(projection, profile)?;
+    let normal_single_clip_policy =
+        resolve_normal_single_clip_policy(line_width, font.size(), atom.projection_key().as_str())?;
+    Ok(
+        crate::attached_compact_group_pose::AttachedCompactGroupAnchorRenderFacts::new(
+            RenderPoint::new(atom.position().x(), atom.position().y()).map_err(|error| {
+                issue(
+                    DepictionIssueCodeV1::UnsupportedFeature,
+                    atom.projection_key().as_str(),
+                    error.to_string(),
+                )
+            })?,
+            resolved_atom_label(atom, projection)?,
+            font,
+            resolved_line_paint(projection, profile)?,
+            normal_single_clip_policy,
+        ),
+    )
+}
+
+pub(super) fn resolve_normal_single_clip_policy(
+    line_width: PositiveFinite,
+    font_size: PositiveFinite,
+    target_key: &str,
+) -> Result<NormalBondEndpointClipPolicy, DepictionIssueV1> {
+    NormalBondEndpointClipPolicy::from_depiction(line_width, font_size).map_err(|error| {
+        issue(
+            DepictionIssueCodeV1::UnsupportedFeature,
+            target_key,
+            format!("normal-single clipping policy is not representable: {error:?}"),
+        )
+    })
 }
 
 fn resolved_atom_label(
@@ -252,7 +275,7 @@ fn resolved_atom_label(
     } else {
         0
     };
-    AtomLabelFacts::new(element, charge, hydrogens).map_err(|error| {
+    AtomLabelFacts::new(element, atom.isotope(), charge, hydrogens).map_err(|error| {
         issue(
             DepictionIssueCodeV1::UnsupportedFeature,
             atom.projection_key().as_str(),
@@ -336,6 +359,9 @@ fn render_bond_style(bond: &BondProjectionV1) -> BondStyle {
         ) => BondStyle::HaworthFrontWedge,
         (Some(BondOrder::Single), Some(DocumentBondStyle::Wedge), _) => BondStyle::SolidWedge,
         (Some(BondOrder::Single), Some(DocumentBondStyle::Hashed), _) => BondStyle::HashedWedge,
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Bold), _) => BondStyle::Bold,
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Dashed), _) => BondStyle::Dashed,
+        (Some(BondOrder::Single), Some(DocumentBondStyle::Wavy), _) => BondStyle::Wavy,
         (
             Some(BondOrder::Single),
             Some(DocumentBondStyle::HaworthFront),

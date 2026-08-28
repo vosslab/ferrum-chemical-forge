@@ -1,0 +1,19 @@
+[package]
+name = "ferrum-graph-lowering"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-core = { path = "../core" }
+ferrum-chemistry = { path = "../chemistry" }
+ferrum-document-projection = { path = "../document-projection" }
+thiserror = { version = "*" }

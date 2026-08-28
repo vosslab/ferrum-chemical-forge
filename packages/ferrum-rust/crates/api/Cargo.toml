@@ -22,6 +22,8 @@ workspace = true
 [dependencies]
 clap = { version = "*", features = ["derive"] }
 ferrum-document = { path = "../document" }
+ferrum-document-projection = { path = "../document-projection" }
+ferrum-graph-lowering = { path = "../graph-lowering" }
 ferrum-document-render = { path = "../document-render" }
 ferrum-catalog-placement = { path = "../catalog-placement" }
 ferrum-template-catalog = { path = "../template-catalog" }
