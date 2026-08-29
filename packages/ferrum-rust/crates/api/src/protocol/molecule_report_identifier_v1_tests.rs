@@ -70,13 +70,22 @@ impl ChemEngine for IdentifierEngineV1 {
         unreachable!("identifier tests do not generate coordinates")
     }
 
-    fn molecule_to_smiles(&self, _: &MolGraph) -> Result<String, ChemistryError> {
+    fn molecule_to_smiles(
+        &self,
+        _: &MolGraph,
+        _: ferrum_chemistry::NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
         self.calls.borrow_mut().push("smiles");
         self.result_for(IdentifierStageV1::Smiles)?;
         Ok("C".to_owned())
     }
 
-    fn molecule_to_inchi(&self, _: &MolGraph, mode: InchiMode) -> Result<String, ChemistryError> {
+    fn molecule_to_inchi(
+        &self,
+        _: &MolGraph,
+        mode: InchiMode,
+        _: ferrum_chemistry::NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
         assert_eq!(mode, InchiMode::Standard);
         self.calls.borrow_mut().push("inchi");
         self.result_for(IdentifierStageV1::Inchi)?;
@@ -246,7 +255,11 @@ impl ChemEngine for IdentifierResourceEngineV1 {
         })
     }
 
-    fn molecule_to_smiles(&self, _: &MolGraph) -> Result<String, ChemistryError> {
+    fn molecule_to_smiles(
+        &self,
+        _: &MolGraph,
+        _: ferrum_chemistry::NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
         Err(ChemistryError::ResourceExhausted {
             operation: "molecule_to_smiles",
         })

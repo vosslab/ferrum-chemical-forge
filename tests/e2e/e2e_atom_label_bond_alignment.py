@@ -1,14 +1,23 @@
-"""Installed Qt fidelity checks for the shared atom-label/bond alignment corpus."""
+#!/usr/bin/env python3
+"""Validate the shared atom-label/bond corpus through the installed Qt boundary."""
 
 # Standard Library
 import json
 import math
 import pathlib
-import xml.etree.ElementTree
+import sys
+
+# local E2E modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
 
 # PIP3 modules
+import lxml.etree
 import PySide6.QtCore
 import PySide6.QtGui
+import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
@@ -20,6 +29,7 @@ import ferrum_qt.themes.theme_loader
 
 _CORPUS_PATH = (
 	pathlib.Path(__file__).resolve().parents[2]
+	/ "packages"
 	/ "ferrum-rust"
 	/ "crates"
 	/ "document"
@@ -36,6 +46,12 @@ _CHECK_KEYS = frozenset((
 	"finite_geometry", "ordered_operations", "positive_bond_content",
 	"full_ink_clearance", "require_mask", "core_run", "leading_superscript", "runs",
 ))
+_CDML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 #============================================
@@ -114,7 +130,7 @@ def _expected_bounds(bounds: object, anchor: object) -> tuple[float, float, floa
 #============================================
 def _source_positions(cdml: str) -> dict[str, tuple[float, float]]:
 	"""Read authored atom coordinates solely to join source bond IDs to issued IDs."""
-	root = xml.etree.ElementTree.fromstring(cdml)
+	root = lxml.etree.fromstring(cdml.encode("utf-8"), parser=_CDML_PARSER)
 	result = {}
 	for atom in root.findall(".//{urn:ferrum:cdml}atom"):
 		point = atom.find("{urn:ferrum:cdml}point")
@@ -171,11 +187,13 @@ def _assert_label_geometry(atom_batches: dict[str, object], telex: object) -> No
 		content = batch.content
 		label = content.label
 		assert all(math.isfinite(value) for value in (
+			label.bond_ink_clearance,
 			label.full_ink_bounds.min_x, label.full_ink_bounds.min_y,
 			label.full_ink_bounds.max_x, label.full_ink_bounds.max_y,
 			label.core_element_ink_bounds.min_x, label.core_element_ink_bounds.min_y,
 			label.core_element_ink_bounds.max_x, label.core_element_ink_bounds.max_y,
 		))
+		assert label.bond_ink_clearance > 0.0
 		core_run = label.text.runs[label.core_element_run_index]
 		full_path = _label_path(content, verified_telex, label.text.runs)
 		core_path = _label_path(content, verified_telex, (core_run,))
@@ -221,9 +239,35 @@ def _assert_case_checks(case: dict[str, object], atom_batches: dict[str, object]
 
 
 #============================================
-def test_installed_qt_projection_consumes_every_render_alignment_case(
-		qapp: object,
-		) -> None:
+def _assert_bond_attachment_axes(observation: object,
+		atom_batches: dict[str, object]) -> None:
+	"""Verify Rust transports atom-center attachment without making it Qt ink."""
+	plan = observation.molecule_plans[0].plan
+	projection_bonds = observation.document.projection.molecules[0].bonds
+	atom_batches_by_document_object_id = {
+		batch.target.document_object_id: batch for batch in atom_batches.values()
+	}
+	for batch in plan.batches:
+		if type(batch.content) is not engine.BondRenderBatchV1:
+			continue
+		bond = next(
+			candidate for candidate in projection_bonds
+			if candidate.document_object_id == batch.target.document_object_id
+		)
+		axis = batch.content.attachment_axis
+		assert type(axis) is engine.BondAttachmentAxisV1
+		start = atom_batches_by_document_object_id[
+			bond.start.document_object_id
+		].content.atom_local_anchor
+		end = atom_batches_by_document_object_id[
+			bond.end.document_object_id
+		].content.atom_local_anchor
+		assert (axis.start.x, axis.start.y) == (start.x, start.y)
+		assert (axis.end.x, axis.end.y) == (end.x, end.y)
+
+
+#============================================
+def _require_installed_qt_projection_for_renderable_cases() -> None:
 	"""Every successful shared row reaches Qt with issued order, bounds, and clearance."""
 	for case in _corpus():
 		if case["expected_outcome"] != "render":
@@ -235,6 +279,7 @@ def test_installed_qt_projection_consumes_every_render_alignment_case(
 			atom_batches = _atom_batches_by_source_id(observation, positions)
 			_assert_label_geometry(atom_batches, telex)
 			_assert_case_checks(case, atom_batches)
+			_assert_bond_attachment_axes(observation, atom_batches)
 			assert len(projection.items) == len(plan.batches)
 			assert tuple(
 				projection.item_targets[item].document_object_id for item in projection.items
@@ -247,6 +292,8 @@ def test_installed_qt_projection_consumes_every_render_alignment_case(
 					operation.operation.z for operation in batch.content.operations
 				)
 				assert all(left.z < right.z for left, right in zip(item._commands, item._commands[1:]))
+				if type(batch.content) is engine.BondRenderBatchV1:
+					assert len(item._commands) == len(batch.content.typed_operations)
 			bond_items = tuple(
 				item for item, batch in zip(projection.items, plan.batches, strict=True)
 				if batch.content.kind == "bond"
@@ -255,18 +302,20 @@ def test_installed_qt_projection_consumes_every_render_alignment_case(
 			verified_telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex)
 			for bond_item in bond_items:
 				for atom_batch in atom_batches.values():
+					label = atom_batch.content.label
 					label_path = _label_path(
-						atom_batch.content, verified_telex, atom_batch.content.label.text.runs,
+						atom_batch.content, verified_telex, label.text.runs,
 					)
-					assert not bond_item.shape().intersects(label_path)
+					stroker = PySide6.QtGui.QPainterPathStroker()
+					stroker.setWidth(2.0 * label.bond_ink_clearance)
+					exclusion_path = label_path.united(stroker.createStroke(label_path))
+					assert not bond_item.shape().intersects(exclusion_path)
 		finally:
 			projection.dispose()
 
 
 #============================================
-def test_installed_qt_projection_keeps_refused_alignment_targets_unpainted(
-		qapp: object,
-		) -> None:
+def _require_refused_alignment_targets_to_stay_unpainted() -> None:
 	"""Refusal rows retain the one Rust issue and create no target graphics item."""
 	for case in _corpus():
 		if case["expected_outcome"] != "unrenderable_target":
@@ -296,3 +345,22 @@ def test_installed_qt_projection_keeps_refused_alignment_targets_unpainted(
 			)
 		finally:
 			projection.dispose()
+
+
+#============================================
+def main() -> int:
+	"""Run the installed Rust-to-Qt alignment contract as one explicit E2E lane."""
+	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
+	_require_installed_qt_projection_for_renderable_cases()
+	_require_refused_alignment_targets_to_stay_unpainted()
+	app.processEvents()
+	print(json.dumps({"status": "ok", "cases": len(_corpus())}))
+	return 0
+
+
+if __name__ == "__main__":
+	try:
+		raise SystemExit(main())
+	except (AssertionError, OSError, ValueError) as exc:
+		print(f"e2e_atom_label_bond_alignment: {exc}", file=sys.stderr)
+		raise SystemExit(1)

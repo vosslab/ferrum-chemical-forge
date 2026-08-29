@@ -1,14 +1,15 @@
 //! Explicit-adapter single-record SDF export and bounded inspection.
 
 use crate::{
-    ChemistryError, ExplicitAdapterError, MolblockVersion, MoleculeInspectionFactsV1, SdfError,
-    SdfProperty, SdfRecord, SmilesInspectionError, load_explicit_adapter,
-    molecule_inspection_facts, validate_sdf_input,
+    ChemistryError, ExplicitAdapterError, MolblockVersion, MoleculeInspectionFactsV1,
+    NativeTextOutputLimit, SdfError, SdfProperty, SdfRecord, SmilesInspectionError,
+    load_explicit_adapter, molecule_inspection_facts, validate_sdf_input,
 };
 use serde::Serialize;
 use std::path::Path;
 use thiserror::Error;
 pub const SDF_INSPECTION_SCHEMA_V1: &str = "ferrum-sdf-inspection-v1";
+const SDF_CODEC_TEXT_LIMIT: NativeTextOutputLimit = NativeTextOutputLimit::ADAPTER_MAXIMUM;
 pub fn sdf_from_smiles(
     adapter_path: &Path,
     smiles: &str,
@@ -31,7 +32,7 @@ pub fn sdf_from_smiles(
     let molecule = engine.smiles_to_molecule(smiles)?;
     let record = SdfRecord::new(molecule.molecule().clone(), title, properties)?;
     engine
-        .records_to_sdf(&[record], version)
+        .records_to_sdf(&[record], version, SDF_CODEC_TEXT_LIMIT)
         .map_err(SdfExportError::Chemistry)
 }
 pub fn inspect_sdf(

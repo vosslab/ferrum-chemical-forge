@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-use crate::adapter_contract::FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS;
+use crate::adapter_contract::{
+    FERRUM_CHEM_MAX_RESPONSE_BYTES, FERRUM_CHEM_SMARTS_MATCH_MAX_ROWS,
+    FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES,
+};
 use crate::{
     Coordinates, ImportedSdfRecord, MolGraph, MoleculeComposition, SdfRecord, SmilesMolecule,
 };
@@ -286,7 +289,11 @@ pub trait ChemEngine {
     }
 
     /// Export one complete graph as canonical isomeric SMILES.
-    fn molecule_to_smiles(&self, _molecule: &MolGraph) -> Result<String, ChemistryError> {
+    fn molecule_to_smiles(
+        &self,
+        _molecule: &MolGraph,
+        _limit: NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_smiles",
         })
@@ -307,6 +314,7 @@ pub trait ChemEngine {
         &self,
         _molecule: &MolGraph,
         _version: MolblockVersion,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_molblock",
@@ -319,6 +327,7 @@ pub trait ChemEngine {
         _molecule: &MolGraph,
         _version: MolblockVersion,
         _title: &str,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_molblock_with_title",
@@ -344,6 +353,7 @@ pub trait ChemEngine {
         &self,
         _molecule: &MolGraph,
         _mode: InchiMode,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_inchi",
@@ -362,6 +372,7 @@ pub trait ChemEngine {
         &self,
         _records: &[SdfRecord],
         _version: MolblockVersion,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "records_to_sdf",
@@ -381,6 +392,49 @@ pub trait ChemEngine {
         molecule: &MolGraph,
         options: KekulizeOptions,
     ) -> Result<MolGraph, ChemistryError>;
+}
+
+/// A nonzero maximum number of UTF-8 bytes a native text writer may return.
+///
+/// The caller owns this policy. The native ABI receives it before invoking an
+/// allocating RDKit writer and proves a representation-specific upper bound.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeTextOutputLimit(u64);
+
+impl NativeTextOutputLimit {
+    /// Largest text payload representable by the current adapter response envelope.
+    pub const ADAPTER_MAXIMUM: Self =
+        Self((FERRUM_CHEM_MAX_RESPONSE_BYTES - FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES) as u64);
+
+    /// Creates a caller-owned nonzero text-output budget.
+    pub const fn new(bytes: u64) -> Result<Self, NativeTextOutputLimitError> {
+        if bytes == 0 {
+            Err(NativeTextOutputLimitError::Zero)
+        } else if bytes > Self::ADAPTER_MAXIMUM.0 {
+            Err(NativeTextOutputLimitError::ExceedsAdapterMaximum {
+                maximum: Self::ADAPTER_MAXIMUM.0,
+            })
+        } else {
+            Ok(Self(bytes))
+        }
+    }
+
+    /// Returns the byte budget passed to the native ABI.
+    #[must_use]
+    pub const fn bytes(self) -> u64 {
+        self.0
+    }
+}
+
+/// Rejection from [`NativeTextOutputLimit::new`].
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum NativeTextOutputLimitError {
+    /// An unlimited native text writer is not part of Ferrum's contract.
+    #[error("native text output limit must be nonzero")]
+    Zero,
+    /// A text budget cannot exceed the adapter response envelope.
+    #[error("native text output limit exceeds the {maximum}-byte adapter maximum")]
+    ExceedsAdapterMaximum { maximum: u64 },
 }
 
 /// A deliberate placeholder for products compiled without a chemistry engine.
@@ -410,6 +464,7 @@ impl ChemEngine for UnavailableChemEngine {
         &self,
         _molecule: &MolGraph,
         _version: MolblockVersion,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_molblock",
@@ -432,6 +487,7 @@ impl ChemEngine for UnavailableChemEngine {
         &self,
         _molecule: &MolGraph,
         _mode: InchiMode,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_inchi",
@@ -448,6 +504,7 @@ impl ChemEngine for UnavailableChemEngine {
         &self,
         _records: &[SdfRecord],
         _version: MolblockVersion,
+        _limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         Err(ChemistryError::OperationUnavailable {
             operation: "records_to_sdf",
@@ -505,6 +562,15 @@ pub enum ChemistryError {
         codec: &'static str,
         /// Engine-independent explanation suitable for users and logs.
         reason: String,
+    },
+    /// A native writer refused before allocation because its proven output
+    /// upper bound exceeds the caller-owned text budget.
+    #[error("{codec} output exceeds the requested native text limit")]
+    TextOutputLimitExceeded {
+        /// Stable codec name.
+        codec: &'static str,
+        /// The explicit limit used when the native operation was called.
+        maximum: Option<u64>,
     },
     /// SMILES text violates the ABI-4 input contract before a native call.
     #[error("SMILES input is invalid: {reason}")]

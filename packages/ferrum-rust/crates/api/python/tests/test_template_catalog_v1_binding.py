@@ -13,7 +13,7 @@ _TEMPLATE = """\
 <cdml xmlns="urn:ferrum:cdml" version="26.07">
  <molecule id="source-molecule" name="Example molecule">
   <atom id="source-a" name="C"><point x="0" y="2"/></atom>
-  <atom id="source-b" name="O"><point x="10" y="4"/></atom>
+  <atom id="source-b" name="O"><point x="40" y="4"/></atom>
   <bond id="source-bond" start="source-a" end="source-b" type="n1"/>
  </molecule>
 </cdml>

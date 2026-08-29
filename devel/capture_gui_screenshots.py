@@ -4,7 +4,6 @@
 # Standard Library
 import argparse
 import collections.abc
-import dataclasses
 import pathlib
 import shutil
 import subprocess
@@ -22,66 +21,21 @@ import ferrum_qt.main_window
 import ferrum_qt.ferrum.close_decision
 import ferrum_qt.themes.theme_manager
 
+from ferrum_qt.documentation_capture_models import (
+	CATALOG_QUERY as _CATALOG_QUERY, CARBON_CDML as _CARBON_CDML,
+	CDXML as _CDXML, DOCUMENTATION_PROPERTY_DOCK_WIDTH as _DOCUMENTATION_PROPERTY_DOCK_WIDTH,
+	PAIR_CDML as _PAIR_CDML, Scene,
+)
+
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUTPUT_DIRECTORY = REPO_ROOT / "docs" / "screenshots"
 WINDOW_SIZE = PySide6.QtCore.QSize(1440, 900)
 CAPTURE_TITLE_PREFIX = "Ferrum GUI Tour"
-_EMPTY_CDML = "<cdml xmlns='urn:ferrum:cdml' version='26.08'/>"
-_CARBON_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
-<molecule id='demo-molecule'>
-  <atom id='carbon' name='C'><point x='300' y='360'/></atom>
-</molecule>
-</cdml>"""
-_PAIR_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
-<molecule id='demo-molecule' name='Carbonyl fragment'>
-  <atom id='carbon' name='C'><point x='300' y='360'/></atom>
-  <atom id='oxygen' name='O'><point x='520' y='360'/></atom>
-  <bond id='carbonyl' start='carbon' end='oxygen' type='n2'/>
-</molecule>
-</cdml>"""
-_CDXML = (
-	'<?xml version="1.0" encoding="UTF-8"?>'
-	'<!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd">'
-	'<CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1">'
-	'<fragment id="source-fragment"><n id="source-carbon" p="240 360"/>'
-	'<n id="source-oxygen" p="440 360" Element="8"/>'
-	'<n id="source-nitrogen" p="640 360" Element="7"/>'
-	'<n id="source-fluorine" p="840 360" Element="9"/>'
-	'<b id="source-wavy" B="source-carbon" E="source-oxygen" Display="Wavy"/>'
-	'<b id="source-bold" B="source-oxygen" E="source-nitrogen" Display="Bold"/>'
-	'<b id="source-dashed" B="source-nitrogen" E="source-fluorine" Display="Dash"/>'
-	'</fragment></page></CDXML>'
-)
-_CATALOG_QUERY = "furan"
-_DOCUMENTATION_PROPERTY_DOCK_WIDTH = 190
 _PRE_DIALOG_SURFACES: dict[int, PySide6.QtGui.QPixmap] = {}
 #============================================
 class CaptureError(RuntimeError):
 	"""A scene did not reach its documented, observable ready state."""
-
-
-#============================================
-@dataclasses.dataclass(frozen=True)
-class Scene:
-	"""One named screenshot and its completed-state authoring workflow."""
-
-	name: str
-	caption: str
-	create: collections.abc.Callable[
-		[
-			PySide6.QtWidgets.QApplication,
-			ferrum_qt.themes.theme_manager.ThemeManager,
-			pathlib.Path,
-		],
-		PySide6.QtWidgets.QMainWindow,
-	]
-	post_prepare: collections.abc.Callable[
-		[PySide6.QtWidgets.QMainWindow, PySide6.QtWidgets.QApplication], None
-	] | None = None
-	overlay_capture: collections.abc.Callable[
-		[PySide6.QtWidgets.QMainWindow, pathlib.Path], None
-	] | None = None
 
 
 #============================================

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use renderer_admitted_pending_v1::RendererAdmittedPendingV1;
+use renderer_admitted_pending::RendererAdmittedPending;
 
 use super::identity_index::ProvisionalToken;
 use super::{
@@ -65,7 +65,7 @@ mod presentation_gesture;
 mod primitive_bond;
 mod reaction_authoring_command_v1;
 mod reaction_member_selection_v1;
-mod renderer_admitted_pending_v1;
+mod renderer_admitted_pending;
 mod renderer_translation_snap_v1;
 mod standalone_haworth;
 mod straighten;

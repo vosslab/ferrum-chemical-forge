@@ -89,7 +89,6 @@ chirality. Unsupported, duplicate, nested, non-single, and other stereo forms
 remain typed refusals. The focused chemistry, document, and API-library
 receipts are recorded in the active CML contract; they do not close M2, full
 parity, or the manual 16:10 keyboard/accessibility walkthrough.
-
 The bounded CDXML simple-molecule import profile is delivered through the Rust
 decoder, descriptor registry, generic CLI/PyO3 ingress, and existing Qt
 interchange worker. It is an input-only `.cdxml` capability with typed loss,
@@ -103,19 +102,30 @@ The authorable CDML grammar is intentionally closed: `n1`, `n2`, `n3`, `w1`,
 presentations, not generic order/style combinations. Broader source observation
 remains private so unsupported or foreign facts are preserved for diagnostic
 refusal rather than silently normalized into authorable state.
-
 The renderer now also has a settled atom-label/bond attachment contract: the
 typed core-element run is centered at the atom origin, full visible label ink is
 the exclusion geometry, and an explicit positive clearance plus the final
 style-specific ink footprint determines every clipped bond endpoint. This removes
 baseline- and decoration-dependent attachment while keeping Qt a plan consumer.
-The focused render lane passes 144 tests with format and strict-Clippy checks.
-The public plan does not yet expose the read-only core-attachment and full-ink
-exclusion facts required for a durable Qt fidelity test, so the closed observation
-DTO, rebuilt Qt path/plan proof, rebuilt CDXML E2E, fresh screenshot review, human
-accessibility review, and post-change aggregate gate all remain open. This is
-renderer stabilization evidence, not a claim of visual acceptance or parity.
-
+`RenderObservationV2` and `RenderPlanV4` now publish the closed typed atom,
+compact-group, and bond payloads, including exact core/full Telex ink bounds and
+the positive `bond_ink_clearance`; every bond also carries its frozen,
+unpainted, and unhit-tested `BondAttachmentAxisV1` from exact structural
+connection point to connection point. PyO3 transports those facts and Qt
+replays only clipped final ink without a second alignment model. The Rust-owned
+12-row alignment corpus
+covers undecorated and decorated labels, isotopes, styled and cyclic geometry,
+strict near-misses, and whole-target refusal. Its Rust consumer and the explicit
+installed Rust-to-Qt E2E both expand full label ink by the issued clearance and
+require disjoint final bond ink. Current source evidence is 158 renderer tests,
+520 document tests, the two-test Rust corpus target, the all-features API
+suite, formatting, and strict workspace Clippy. The 13-scene Qt screenshot set
+has a fresh independent image review. The post-change `./all_test.sh` aggregate
+passes 8,297 hygiene tests, every registered CLI/Qt E2E including the 12-row
+alignment corpus, 299 installed PyO3 tests, and 437 Qt tests. Human
+real-window/accessibility review, remote CI/release evidence, and full parity
+remain open. This is renderer and transport closure, not a claim of human visual
+acceptance or parity.
 The exact grammar, security boundary, resource limits, evidence, and exclusions
 are frozen in [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
 This bounded claim has current local automated evidence: `./check_rust.sh` and
@@ -126,7 +136,6 @@ tests; and both the CLI and real Qt CDXML E2Es pass. A subsequent aggregate
 `./all_test.sh` pass is recorded after the audit corrections. These receipts do
 not close M2, human real-window/accessibility review, CI/release verification,
 or full parity.
-
 The current checkpoint also contains four bounded Rust-first slices. M2.B
 unifies File/Open discovery and preparation in `LocalDocumentOpenCatalogV2`;
 M4.C makes the closed molecule-report identifier outcome required; the periodic
@@ -210,17 +219,11 @@ the durable graph or public DTO.
 ### M0: Parity contract and corpus
 
 **Depends on:** none.  **Parallel-plan ready:** yes; descriptor and corpus lanes
-are independent.
-
-Deliver: a matrix mapping each of the 23 missing Qt workflows and all reopened
+are independent. Deliver: a matrix mapping each of the 23 missing Qt workflows and all reopened
 OASA gaps to one Rust contract, Qt route, CLI route, corpus input, and
 `supported`/`refused`/`deferred` disposition; `FormatCapabilityV1`; per-format
-loss/refusal and resource-limit policy.
-
-Done when every claim has an owner and acceptance workflow, no route imports
-reference code, and every format has explicit loss and safety behavior.
-
-Current M0 implementation establishes one document-owned authority for admitted
+loss/refusal and resource-limit policy. Done when every claim has an owner and acceptance workflow, no route imports
+reference code, and every format has explicit loss and safety behavior. Current M0 implementation establishes one document-owned authority for admitted
 construction: `PreparedSessionTransitionV1` receives a semantic request,
 prepares it with renderer admission, and performs the one-use atomic commit.
 This now includes visual presentation routes, explicit-hydrogen materialization,
@@ -240,9 +243,7 @@ records M0 closure on 2026-08-24 with fresh aggregate exit evidence.
 
 ### M1: P0 direct structure editor
 
-**Depends on:** M0.  **Parallel-plan ready:** yes once the command DTO is frozen.
-
-P0.1 deliver: one Rust-first, revision/digest-fenced direct-bond gesture with
+**Depends on:** M0.  **Parallel-plan ready:** yes once the command DTO is frozen. P0.1 deliver: one Rust-first, revision/digest-fenced direct-bond gesture with
 two closed endpoint intents: an existing direct atom in the relevant molecule or
 a new carbon at a typed point. Rust admits exactly four forms:
 `ExistingExisting`, `ExistingNew`, `NewExisting`, and `NewNew`. `NewNew` is the
@@ -261,9 +262,7 @@ P0.1 covers all normal orders for all four endpoint forms. It does not add an
 action, dialog, shortcut, Qt-local chemistry, or a second drawing framework.
 Wedges, aromatic bonds, free-form element selection for new endpoints, and
 selected-root work remain explicitly deferred; selected-root is P0.2, not an
-implicit extension of this package.
-
-P0.1 done when bounded Rust and PyO3 matrix evidence proves each normal order
+implicit extension of this package. P0.1 done when bounded Rust and PyO3 matrix evidence proves each normal order
 for `ExistingExisting`, `ExistingNew`, `NewExisting`, and `NewNew`, including
 one atomic history transition, undo/redo, and the canonical persistence seam.
 Focused Qt behavior proves that the visible Next Drawing value freezes at
@@ -274,9 +273,7 @@ Escape cancellation through the runtime staged by `./build.sh`.
 The package uses no committed fixture expansion, network connection, manual
 approval, or human GUI gate. Stale revision/digest, malformed, ineligible,
 self-loop, duplicate, cross-molecule, unrenderable, and cancelled requests
-cannot mutate the document.
-
-P0.2 deliver, only after P0.1 and reliable Rust-issued render hit/containment
+cannot mutate the document. P0.2 deliver, only after P0.1 and reliable Rust-issued render hit/containment
 and bounds facts: `RenderInteractionSelectionV1` and selected-root
 click/marquee/translation contracts. Rust is the canonical authority for
 eligible direct roots, including mixed molecule and plus selections in Rust
@@ -289,21 +286,29 @@ atomic history transition with undo/redo. Nudge/delete, free-space starts,
 wedges, and other historical bond styles are separate follow-on contracts, not
 implicit P0.1 scope.
 
+`PARITY-M1 P0.2` now has a bounded selected-root export delivery: one
+`document.molecule.export.v1` request authenticates a snapshot and direct root,
+then returns exactly one of Molfile V2000/V3000, SDF V2000/V3000, canonical
+SMILES, Standard InChI, or Fixed-Hydrogen InChI. The unversioned document core
+owns preparation and representation dispatch; protocol, PyO3, Qt, and the
+named CLI are adapters. Coordinates remain mandatory for Molfile and SDF, the
+compact-group lowerer owns `representation_unsupported`, text output is
+preallocated below the protocol budget, and optional CLI publication is atomic
+create-new. The deliberately plural multi-record SDF export remains separate.
+This delivered singular export operation improves P0.2 tooling but does not
+close P0.2 selection/translation, M1, M2 interchange, or full parity. Aggregate
+and human acceptance evidence remain governed by the current checkpoint rather
+than implied by this statement.
+
 ### M2: P0 graph and interchange foundation
 
 **Depends on:** M0; M1 for editor property clients.  **Parallel-plan ready:**
-yes; graph and codec lanes meet at frozen DTOs.
-
-Deliver: groups/query atoms, aromatic/stereo/isotope/radical/charge/valence
+yes; graph and codec lanes meet at frozen DTOs. Deliver: groups/query atoms, aromatic/stereo/isotope/radical/charge/valence
 facts; CML/CML2, CDXML, declared CD-SVG, compressed input, multi-record SDF,
 multi-root export, rich clipboard, and one format registry shared by CLI and
-Qt; `ferrum formats`, conversion, and graph inspection routes.
-
-Done when corpus import -> typed graph/document -> export -> reimport retains
+Qt; `ferrum formats`, conversion, and graph inspection routes. Done when corpus import -> typed graph/document -> export -> reimport retains
 declared facts or returns an explicit loss report.  XML, compression, clipboard,
-and unsupported inputs refuse before mutation or publication.
-
-`PARITY-M2.B` is a delivered bounded authority repair, not M2 completion.
+and unsupported inputs refuse before mutation or publication. `PARITY-M2.B` is a delivered bounded authority repair, not M2 completion.
 `LocalDocumentOpenCatalogV2` emits native CDML and decoded SVG followed by the
 registry's `DocumentImportNew` formats, each with an opaque Rust-issued handle.
 The generic preparation API alone dispatches the route; Qt neither classifies
@@ -575,23 +580,17 @@ installed binding 8/8, and repository-wide validation are complete. This closes
 the compact-group recipe milestone only; M4 remains incomplete.
 
 **Depends on:** M2.  **Parallel-plan ready:** yes; report and query lanes share
-DTO conventions only.
-
-Deliver `MoleculeReportV1` (formula, exact/average mass, composition, charge,
+DTO conventions only. Deliver `MoleculeReportV1` (formula, exact/average mass, composition, charge,
 identifiers, aromatic/stereo/valence status); diagnostic findings/recovery;
 oxidation; SMARTS; and known-group expansion, each with CLI and Qt
-information/check/find surfaces.
-
-The evidence-selected first slice is `document.molecule.report.v1`: a read-only,
+information/check/find surfaces. The evidence-selected first slice is `document.molecule.report.v1`: a read-only,
 snapshot-based report for one or more selected direct-root molecules. Its request
 is `snapshot { cdml, revision, digest_hex }` plus `molecule_ids`; source order
 governs returned root records, while findings use deterministic report-category
 order. The completed receipt preserves the source revision and verified digest,
 and its aggregate is complete or omitted. Unaddressable source locations remain
 typed report outcomes; the slice adds no mutation, local CLI verb, chemistry
-engine, external corpus, or installation/publishing workflow.
-
-`PARITY-M4.C` is a delivered bounded report-contract repair, not M4 completion.
+engine, external corpus, or installation/publishing workflow. `PARITY-M4.C` is a delivered bounded report-contract repair, not M4 completion.
 Each report record now requires exactly one Rust-issued identifier outcome:
 the complete canonical SMILES, Standard InChI, and Standard InChIKey trio, or
 one closed unavailable reason. Rust evaluates the trio in dependency order;
@@ -668,18 +667,14 @@ IDs privately, emits graph-free observations, and returns entropy-backed
 receipts. PyO3 exposes the reviewed public facts without private helper
 surfaces. Local `./check_rust.sh`, `./build.sh`, the aggregate suite, and the
 installed SMARTS E2E passed. Real-window human review, CI/release proof, the
-remaining M4 report/diagnostic/query corpus, and full parity remain open.
-
-Done when users can describe, validate, search, and where admitted expand
+remaining M4 report/diagnostic/query corpus, and full parity remain open. Done when users can describe, validate, search, and where admitted expand
 structures; ambiguous, unavailable, and resource-bounded calls return typed
 outcomes, never guesses.
 
 ### M5: P1 catalogs and reactions
 
 **Depends on:** M1, M2, M4.  **Parallel-plan ready:** yes after immutable catalog
-manifest and attachment DTOs are frozen.
-
-`PARITY-M5.A` is approved and in progress as the independently deliverable
+manifest and attachment DTOs are frozen. `PARITY-M5.A` is approved and in progress as the independently deliverable
 [Template Catalog V1](../decisions/m5_template_catalog_v1.md). It consumes the
 delivered generic document admission, prepared user-template plan, session transition,
 durable identity, and fenced placement contracts. It does not expand the still-open M2
@@ -718,14 +713,10 @@ unchanged. The old mixin and `native_app.py` are deleted; Patch 1 stays separate
 Human accessibility, remote CI, release, M5.A, and parity stay open.
 The shipped `catalog.list.v1` / `catalog.insert.v1` contract and lease-backed E2E
 are completed prerequisites: bounded discovery, fenced insertion, and typed stale refusal;
-they do not complete M5's palette, reaction, provenance, corpus, or user-workflow parity.
-
-Deliver a versioned provenance-bearing template manifest; system and biomolecule
+they do not complete M5's palette, reaction, provenance, corpus, or user-workflow parity. Deliver a versioned provenance-bearing template manifest; system and biomolecule
 palettes; user-template toolbar; reaction roots/import/export/templates;
 declarative carbohydrate schemas; expanded peptide/residue/termini profiles;
-and named-group reference-data contracts.
-
-Done when curated templates, peptides, carbohydrates, and atom-mapped reactions
+and named-group reference-data contracts. Done when curated templates, peptides, carbohydrates, and atom-mapped reactions
 can preview, attach, undo/redo, save/reopen, and exchange deterministically.
 Permanent template-catalog authoring coverage likewise runs through the
 lease-backed root E2E lane and public workflows, replacing package-local
@@ -733,31 +724,23 @@ current-directory artifact scripts.
 
 ### M6: P2 usable application
 
-**Depends on:** M1-M5.  **Parallel-plan ready:** yes once action contracts exist.
-
-Deliver selection-sensitive context menus with keyboard equivalents; complete
+**Depends on:** M1-M5.  **Parallel-plan ready:** yes once action contracts exist. Deliver selection-sensitive context menus with keyboard equivalents; complete
 keyboard authoring; accessible names/roles/descriptions/focus/high-contrast
 behavior; help generated from action metadata; logging controls; rich clipboard
 interoperability; 3D/transform/stereo policy; and PostScript implementation or
-explicit evidence-based deprecation.
-
-M6 has a delivered bounded context-action foundation. `edit.delete_selection`
+explicit evidence-based deprecation. M6 has a delivered bounded context-action foundation. `edit.delete_selection`
 is the canonical registered QAction for Delete, Backspace, and the
 selection-sensitive YAML context menu. The context builder reuses registered
 actions and their current enablement instead of creating parallel actions; its
 input client owns context placement, invocation, focus recovery, and keyboard
 equivalence, but no chemistry, hit testing, selection mutation, or document
 mutation. The remaining M6 keyboard, accessibility, help, clipboard, and
-application-usability work stays open.
-
-The periodic picker is a delivered bounded next-drawing usability/authority
+application-usability work stays open. The periodic picker is a delivered bounded next-drawing usability/authority
 slice. Rust owns each immutable symbol, display name, grid coordinate, category,
 and color; Qt projects those entries in the **Periodic table...** control and
 updates only the shared next-drawing preference. The focused 48-test picker
 suite and 5-test real-document invariance suite prove that an accepted choice
-does not change document revision, digest, history, or structural selection.
-
-Keyboard structural selection is a delivered bounded M6 slice.
+does not change document revision, digest, history, or structural selection. Keyboard structural selection is a delivered bounded M6 slice.
 In active **Select Structure** mode, Arrow and Shift+Arrow move only the view
 cursor; Enter and Shift+Enter use Rust point selection; a no-hit preserves the
 prior selection; Escape restores inactive cursor/accessibility state. The
@@ -769,9 +752,16 @@ no-pointer keyboard E2E exited 0; and independent final review accepted with no
 P1 finding. The selected-structure YAML context uses the shared enabled actions,
 and generic modal-focus handoff restores viewport focus only after terminal
 modal lifecycle. Human native keyboard/accessibility sign-off remains separate;
-M6 and full parity remain open.
-
-Done when a keyboard-only user creates, edits, inspects, exports, and reopens a
+M6 and full parity remain open. Command discovery now has one additional bounded M6 slice. The modeless
+Command Reference uses the same live `CommandCatalogEntry` projection as
+Command Palette, joining `ActionRegistry` facts to validated YAML breadcrumbs.
+F1 and **Help > Command Reference...** open a read-only searchable view of
+current label, help, shortcut, placement, and availability. It cannot invoke a
+command; close/Escape restores invoking focus, and its declared accessible
+names, descriptions, and tab order are part of the Qt contract. Focused tests
+cover the permanent behavior. Native shortcut dispatch, real assistive
+technology, contrast, and human desktop review remain M6 acceptance work, so
+this does not close M6 or full parity. Done when a keyboard-only user creates, edits, inspects, exports, and reopens a
 reaction scheme, with useful accessible state and a clear result/refusal for
 every enabled action.
 
@@ -860,7 +850,7 @@ Every completed milestone updates the capability matrix, CLI/Qt usage,
 architecture notes, changelog, and concise evidence report.  Each format,
 profile, catalog, and refusal code documents scope, source, limits, and recovery.
 
-## Current next-work queue
+## Historical completion context
 
 The historical P0.1 and P0.2 patch text is closed: normal-order direct-bond
 authoring and selected-root selection/translation have their Rust-owned
@@ -868,7 +858,6 @@ contracts and acceptance evidence. The completed M3 presentation slices are
 also not a current patch queue. Their shared public CLI route is now
 `presentation.author.v1`, which accepts a request-owned fenced document and
 typed serializable intent rather than a live receipt.
-
 The C3-C8 detached regular-ring slice is also complete. `Insert Regular
 Ring...` exposes the closed Rust `RegularRingSizeV1` family through one Qt
 chooser, and the retained C6 shortcut invokes that same parameterized action.
@@ -888,7 +877,6 @@ feature registry, restoring the one generic public receipt lifecycle for the
 ring and other typed authoring operations. This completion does not promote
 ring fusion, non-carbon rings, aromaticity, arbitrary ring geometry, or
 free-form polygon authoring.
-
 The selected read-only `document.atom.oxidation.observe.v1` HCNO V1 operation
 has completed its bounded evidence gate: generic-executor semantic corpus,
 named CLI protocol proof, nonzero source-provenance PyO3 regression, and real
@@ -904,7 +892,6 @@ session begins at revision zero; operations must never compare those identities.
 Typed refusal and recovery remain in the protocol/CLI lane. This preserves the
 bounded HCNO chemistry, generic PyO3 transport, unchanged SMARTS, and no
 known-group expansion. M4 itself remains incomplete.
-
 The selected `Carboxyl` compact-group slice likewise has a completed bounded
 validation record: the fresh local build produced the CLI, Qt application, and installed Python
 runtime; attached bindings passed 8/8; and `all_test.sh` passed 7,637 hygiene
@@ -928,19 +915,16 @@ and 220 Qt tests passed with one skip. Exact normal-order Kekule topology,
 carbon focus, both directed exterior orientations, native lowering, and renderer
 semantics remain Rust proof. All nine attached compact-group recipes are
 delivered, but M4 and full Rust/OASA/BKChem parity remain incomplete.
-
 The M0 statement about document-private compact cleanup is superseded for
 materialization by the selected
 [m4_compact_group_materialization_v1.md](../decisions/m4_compact_group_materialization_v1.md):
 the generic protocol, named CLI route, live-session PyO3 registration, and Qt
 action are delivered. This does not advance M5 catalog or reaction work.
-
 The delivered M4.A attachment route is maintained as the sole generic
 stateless attached-group route. New compact-group command surfaces require a
 separate design decision. The remaining compact-group capability in this plan
 is broader free compact-group placement, rather than another attachment alias
 or a parallel request contract.
-
 The subsequent confirmed queue includes the approved in-progress M5.A Template Catalog V1,
 then M2 interchange/graph completion, remaining M5 catalogs and reactions, and M6
 usable-application work. The completed catalog protocol prerequisite and M5.A decision do not
@@ -948,7 +932,6 @@ advance M5 beyond their remaining parity work.
 These milestones stay open until their declared parity claims have contract,
 client, corpus, and workflow evidence; this document does not claim complete
 OASA/BKChem parity.
-
 For the delivered CML W/H extension, the two former regression-coverage items
 are closed. The public protocol regression proves duplicate direct W/H
 declarations return `InvalidScalar` without a conversion outcome. The public
@@ -959,7 +942,6 @@ compatibility graph-owned; a mutated FCM1 `Double` plus `BEGINWEDGE` or
 --workspace` passing. This closes neither M2 interchange/graph completion,
 full Rust/OASA/BKChem parity, nor the manual 16:10 keyboard/accessibility
 walkthrough.
-
 CDXML simple-molecule V1 is no longer a decoder or client-routing queue item.
 Its Wavy/Bold/Dashed single-bond import extension is likewise delivered with
 strict renderer preflight, clean-render publication, CLI and real-Qt E2Es, and
@@ -967,69 +949,25 @@ typed no-mutation refusal coverage. Human keyboard/accessibility release
 sign-off remains separate. CDX binary, reactions, unsupported layout grammar,
 namespace variants, end-directed wedges, and wider chemistry forms remain
 separate corpus-backed M2 decisions rather than implied CDXML compatibility.
-
 Implementation reports state: `Milestone`, `Work package`, `Contracts`, `User
 workflow`, `Changed files`, `Evidence run`, `Known limits`, and `Next dependency`.
 
-## Open questions and decisions needed
+## Current-next work queue
 
-- Set exact CDXML/CML profiles from corpus evidence before promising universal
-  interchange.
-- Decide PostScript support versus explicit deprecation after user-value evidence.
-- Decide reaction SMARTS/SMIRKS adapter scope before reaction import/export.
-- Decide plugin isolation technology only after permission/lifecycle approval.
-### M6 command palette V1: delivered bounded productivity slice
+1. Obtain human real-window screenshot, visual, keyboard, contrast, and
+   assistive-technology acceptance, explicitly covering glyph/bond alignment
+   and Command Reference focus/accessibility; rerun the aggregate next session.
+2. Resume ordinary M1/M2 editing and corpus-backed interchange, including exact
+   CML/CML2/CDXML profile decisions before promising universal compatibility.
+3. Complete M4 chemistry operations, M5 catalogs/reactions (after reaction
+   SMARTS/SMIRKS scope approval), and M6 keyboard/help/clipboard/logging/output
+   usability.
+4. Keep P2 directory-sync fault injection deferred. Only after usable workflow
+   parity and human review, complete CI, packaging, release evidence, and the
+   full parity ledger. Plugin isolation remains separate M7 approval work.
 
-Ferrum now provides a modeless command palette as a registry-derived command
-client. `Ctrl+K` is the portable shortcut policy; Qt renders it as `Cmd+K` on
-native macOS. The same action is also available from **View > Commands >
-Command Palette...**. The palette searches each live registered action's label,
-help text, and stable ID, keeps disabled actions visible with an unavailable
-explanation, and invokes the exact selected live `QAction` only after a final
-enabled-state check.
-
-The keyboard contract is deliberately narrow: the search field retains focus;
-bare Up and Down move result selection; Return activates the selected command;
-Escape closes the palette and restores the invoking focus. Modified arrows
-remain ordinary text-field input. The action registry remains the sole command
-projection and handler owner. `resources/menus.yaml` remains authoritative for
-the menu placement.
-
-The keybinding layer validates the complete prospective live shortcut set before
-startup setup, user reassignment, or default reset changes preferences, managed
-bindings, or an action shortcut. This makes collisions with both managed and
-otherwise registered actions atomic failures rather than partial state changes.
-
-Permanent evidence is intentionally compact: focused Qt tests own live search,
-disabled-command refusal, exact action activation, bare/modifier arrow behavior,
-Escape focus restoration, and atomic live-shortcut collision handling. The
-planned reaction-specific palette E2E was rejected as redundant: registered
-reaction E2E and focused Qt tests already own its durable semantics. Native
-shortcut dispatch and accessibility remain one-time real 16:10 desktop evidence,
-not a pixel, timing, or reaction-fixture gate.
-
-Current delivery checkpoint: the independently accepted `ActionRegistry`
-token/identity-guarded destruction-retirement repair closes the stale-QAction
-defect, and the nominal `DocumentDisplayRefreshableV1` ABC boundary is also
-delivered and independently accepted at code level. Permanent lifecycle
-regressions cover feature-owned `register_existing()` stable-ID reuse/successor
-palette dispatch and portable `register()` plus `bind_qt_action()` destruction,
-declaration retention, successor rebinding, and dispatch. The display-refresh
-evidence covers nominal membership, structural-look-alike rejection, and direct
-delegating-adapter forwarding.
-
-Source review, focused diagnosis, the transactionally staged 13-scene recapture,
-and image-by-image agent visual review are complete. The current candidate set
-uses a non-persistent documentation theme, visible Rust catalog provenance,
-page-contained examples, YAML-owned command breadcrumbs, Rust-measured molecule
-bounds, and Rust-owned observed-page centering for interchange imports. Final
-human release sign-off remains separate. The guidance-format, fresh build,
-complete aggregate, registered E2E, installed PyO3, full Qt, affected Rust test,
-strict lint, and isolated wheel gates passed; seven independent post-fix reviews
-completed and their actionable findings were repaired. Resume with broader
-parity-ledger reconciliation, human release sign-off when preparing a release,
-and the later approved, in-progress M5.A decision. That earlier stabilization checkpoint did not
-approve M5.A; the current decision does. Neither advances full parity.
-
-This completes one bounded M6 discoverability slice. It does not prove a full
-M6 usability program, real desktop visual acceptance, or complete Ferrum parity.
+`docs/active_plans/reports/M6_COMMAND_PALETTE_V1_DELIVERY_20260828.md` and
+`docs/active_plans/reports/PARITY_CURRENT_SLICES_20260828.md` preserve the
+delivered M6 and cross-boundary slice records. They are supporting evidence;
+this plan remains the authority for M6 scope and does not treat any bounded
+slice as M6 or full-parity closure.

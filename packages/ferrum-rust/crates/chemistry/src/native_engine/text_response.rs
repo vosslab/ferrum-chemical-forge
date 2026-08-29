@@ -8,19 +8,31 @@ pub(super) fn decode(response: &[u8], codec: &'static str) -> Result<String, Che
     decode_with_line_policy(response, codec, false, None)
 }
 
+pub(super) fn decode_bounded(
+    response: &[u8],
+    codec: &'static str,
+    limit: NativeTextOutputLimit,
+) -> Result<String, ChemistryError> {
+    decode_with_line_policy(response, codec, false, Some(limit))
+}
+
 pub(super) fn decode_multiline(
     response: &[u8],
     codec: &'static str,
+    limit: NativeTextOutputLimit,
 ) -> Result<String, ChemistryError> {
-    decode_with_line_policy(response, codec, true, None)
+    decode_with_line_policy(response, codec, true, Some(limit))
 }
 
-pub(super) fn decode_smiles(response: &[u8]) -> Result<String, ChemistryError> {
+pub(super) fn decode_smiles(
+    response: &[u8],
+    limit: NativeTextOutputLimit,
+) -> Result<String, ChemistryError> {
     let output = decode_with_line_policy(
         response,
         "canonical SMILES",
         false,
-        Some(FERRUM_CHEM_SMILES_WRITE_MAX_BYTES),
+        Some(limit),
     )?;
     if !output.bytes().all(|byte| (0x21..=0x7e).contains(&byte)) {
         return malformed("canonical SMILES output is not printable ASCII without whitespace");
@@ -32,7 +44,7 @@ fn decode_with_line_policy(
     response: &[u8],
     codec: &'static str,
     multiline: bool,
-    maximum_output_bytes: Option<usize>,
+    maximum_output_bytes: Option<NativeTextOutputLimit>,
 ) -> Result<String, ChemistryError> {
     if response.len() < FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES {
         return Err(ChemistryError::TruncatedNativeResponse);
@@ -48,7 +60,7 @@ fn decode_with_line_policy(
     let detail_length =
         usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
     let text_length = usize::try_from(reader.u32().map_err(decode_error)?).expect("u32 fits usize");
-    if maximum_output_bytes.is_some_and(|maximum| text_length > maximum) {
+    if maximum_output_bytes.is_some_and(|maximum| text_length as u64 > maximum.bytes()) {
         return malformed("FCT1 output exceeds the operation-specific limit");
     }
     if reader.u32().map_err(decode_error)? != FERRUM_CHEM_TEXT_FLAGS_NONE {
@@ -90,6 +102,12 @@ fn decode_with_line_policy(
     if status != FERRUM_CHEM_RESULT_OK {
         if detail.is_empty() || !output.is_empty() {
             return malformed("failed FCT1 response has invalid text fields");
+        }
+        if status == FERRUM_CHEM_RESULT_RESOURCE_LIMIT {
+            return Err(ChemistryError::TextOutputLimitExceeded {
+                codec,
+                maximum: maximum_output_bytes.map(NativeTextOutputLimit::bytes),
+            });
         }
         return Err(ChemistryError::CodecFailed {
             codec,

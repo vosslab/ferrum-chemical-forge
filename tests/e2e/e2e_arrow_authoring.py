@@ -15,11 +15,11 @@ ferrum_qt_e2e.select_offscreen_qt_platform()
 
 
 # PIP3 modules
+import lxml.etree
 import PySide6.QtCore
 import PySide6.QtGui
 import PySide6.QtTest
 import PySide6.QtWidgets
-import defusedxml.ElementTree
 
 # local repo modules
 import file_utils
@@ -31,6 +31,12 @@ import ferrum_qt.themes.theme_manager
 
 _REPOSITORY_ROOT = pathlib.Path(file_utils.get_repo_root())
 _LIVENESS_GUARD_MILLISECONDS = 10000
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 #============================================
@@ -65,10 +71,10 @@ def _current_cdml(tab: object) -> str:
 
 #============================================
 def _render_reopened_document(
-		ferrum: pathlib.Path, document: pathlib.Path, format_name: str,
+		ferrum: pathlib.Path, document: pathlib.Path, authored_state: str, format_name: str,
 		) -> pathlib.Path:
-	"""Render one saved document through one native artifact profile."""
-	artifact = document.with_suffix(f".{format_name}")
+	"""Render one authored document state through one native artifact profile."""
+	artifact = document.with_name(f"{document.stem}_{authored_state}.{format_name}")
 	result = subprocess.run(
 		(str(ferrum), "render", str(document), "--to", format_name,
 		"--output", str(artifact)), capture_output=True, check=False,  # nosec B603 - fixed argv, shell=False.
@@ -83,7 +89,7 @@ def _render_reopened_document(
 #============================================
 def _has_typed_arrow(cdml: str, arrow_type: str) -> bool:
 	"""Report whether saved CDML retains one requested typed arrow root."""
-	root = defusedxml.ElementTree.fromstring(cdml)
+	root = lxml.etree.fromstring(cdml.encode("utf-8"), parser=_XML_PARSER)
 	return any(
 		child.tag == "{urn:ferrum:cdml}arrow" and child.attrib["type"] == arrow_type
 		for child in root
@@ -93,7 +99,7 @@ def _has_typed_arrow(cdml: str, arrow_type: str) -> bool:
 #============================================
 def _svg_is_parseable(svg: pathlib.Path) -> bool:
 	"""Report whether native SVG export remains a parseable SVG document."""
-	root = defusedxml.ElementTree.parse(svg).getroot()
+	root = lxml.etree.parse(svg, parser=_XML_PARSER).getroot()
 	return root.tag == "{http://www.w3.org/2000/svg}svg"
 
 
@@ -274,7 +280,9 @@ def main() -> int:
 				raise RuntimeError("public Save did not publish the curved equilibrium arrow")
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			ferrum = _REPOSITORY_ROOT / "build" / "bin" / "ferrum"
-			curved_equilibrium_svg = _render_reopened_document(ferrum, path, "svg")
+			curved_equilibrium_svg = _render_reopened_document(
+					ferrum, path, "curved_equilibrium", "svg",
+					)
 			if not _svg_is_parseable(curved_equilibrium_svg):
 				raise RuntimeError("native SVG export is not a parseable SVG document")
 			_action(window, "Draw Curved Retro Arrow").trigger()
@@ -295,8 +303,8 @@ def main() -> int:
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if not _has_typed_arrow(reopened.snapshot().cdml, "retro"):
 				raise RuntimeError("Rust reopen did not retain a typed retro-arrow root")
-			_render_reopened_document(ferrum, path, "pdf")
-			_render_reopened_document(ferrum, path, "png")
+			_render_reopened_document(ferrum, path, "curved_retro", "pdf")
+			_render_reopened_document(ferrum, path, "curved_retro", "png")
 			_action(window, "Draw Curved Electron Arrow").trigger()
 			before_electron = _current_cdml(tab)
 			for point in (start, control, end):
@@ -333,7 +341,9 @@ def main() -> int:
 			reopened = ferrum_chem.DocumentSession.load(path.read_text(encoding="utf-8"))
 			if not _has_typed_arrow(reopened.snapshot().cdml, "curved-normal"):
 				raise RuntimeError("Rust reopen did not retain a typed curved-normal reaction-arrow root")
-			curved_normal_svg = _render_reopened_document(ferrum, path, "svg")
+			curved_normal_svg = _render_reopened_document(
+					ferrum, path, "curved_normal", "svg",
+					)
 			if not _svg_is_parseable(curved_normal_svg):
 				raise RuntimeError("native SVG export is not a parseable SVG document")
 			modal_observer.raise_if_observed("completing arrow authoring")

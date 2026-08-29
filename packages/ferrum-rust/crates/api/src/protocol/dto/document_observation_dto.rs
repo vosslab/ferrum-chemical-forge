@@ -14,6 +14,36 @@ pub struct DocumentSnapshotRequestV1 {
     pub expected_digest_hex: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentMoleculeExportFormatV1 {
+    MolfileV2000,
+    MolfileV3000,
+    SdfV2000,
+    SdfV3000,
+    CanonicalSmiles,
+    InchiStandard,
+    InchiFixedHydrogen,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeExportRequestV1 {
+    pub document: DocumentSnapshotRequestV1,
+    pub molecule_id: String,
+    pub format: DocumentMoleculeExportFormatV1,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeExportResultV1 {
+    pub source_revision: u64,
+    pub source_digest_hex: String,
+    pub molecule_id: String,
+    pub format: DocumentMoleculeExportFormatV1,
+    pub text: String,
+}
+
 /// One exact query representation admitted by the SMARTS query operation.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]

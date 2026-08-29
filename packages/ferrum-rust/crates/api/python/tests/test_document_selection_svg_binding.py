@@ -2,7 +2,7 @@
 
 import math
 
-import defusedxml.ElementTree
+import lxml.etree
 import pytest
 
 import ferrum_chem
@@ -16,6 +16,12 @@ _SOURCE = """\
 <molecule id="far"><atom id="z" name="N"><point x="300" y="20"/></atom></molecule>
 </cdml>
 """
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> None:
@@ -28,7 +34,7 @@ def test_private_selected_svg_keeps_complete_roots_and_source_provenance() -> No
 	receipt = ferrum_chem.render_document_selection_svg_v1(
 		observation, (atom, plus),
 	)
-	root = defusedxml.ElementTree.fromstring(receipt.svg)
+	root = lxml.etree.fromstring(receipt.svg.encode("utf-8"), parser=_XML_PARSER)
 	view_box = tuple(float(value) for value in root.attrib["viewBox"].split())
 
 	assert (

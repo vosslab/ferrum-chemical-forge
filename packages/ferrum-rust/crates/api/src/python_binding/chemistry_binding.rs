@@ -7,8 +7,8 @@ use std::path::PathBuf;
 
 use ferrum_chemistry::{
     ChemistryError as RustChemistryError, ImportedSdfRecord, InchiMode, MolblockVersion,
-    NativeChemEngine, SdfProperty, SdfRecord, SmilesMolecule, validate_inchi_input,
-    validate_molblock_input, validate_sdf_input, validate_smiles_input,
+    NativeChemEngine, NativeTextOutputLimit, SdfProperty, SdfRecord, SmilesMolecule,
+    validate_inchi_input, validate_molblock_input, validate_sdf_input, validate_smiles_input,
 };
 use pyo3::create_exception;
 use pyo3::prelude::*;
@@ -21,6 +21,8 @@ mod value_conversion;
 
 use sdf_values::{PyImportedSdfRecordV1, PySdfPropertyV1};
 use value_conversion::{atom_chirality, bond_direction, bond_order, bond_stereo};
+
+const PYTHON_CHEMISTRY_TEXT_LIMIT: NativeTextOutputLimit = NativeTextOutputLimit::ADAPTER_MAXIMUM;
 
 create_exception!(ferrum_chem, ChemistryError, FerrumError);
 create_exception!(ferrum_chem, InvalidSmiles, ChemistryError);
@@ -163,13 +165,6 @@ impl PyInchiModeV1 {
         match self {
             Self::Standard => InchiMode::Standard,
             Self::FixedHydrogen => InchiMode::FixedHydrogen,
-        }
-    }
-
-    pub(crate) const fn from_rust(value: InchiMode) -> Self {
-        match value {
-            InchiMode::Standard => Self::Standard,
-            InchiMode::FixedHydrogen => Self::FixedHydrogen,
         }
     }
 }
@@ -370,7 +365,11 @@ fn molecule_to_molblock(
 ) -> PyResult<String> {
     let (engine, library_path) = packaged_native_engine(py, "molecule_to_molblock")?;
     let version = version.into_rust();
-    match engine.molecule_to_molblock(molecule.molecule.molecule(), version) {
+    match engine.molecule_to_molblock(
+        molecule.molecule.molecule(),
+        version,
+        PYTHON_CHEMISTRY_TEXT_LIMIT,
+    ) {
         Ok(molblock) => Ok(molblock),
         Err(error) => Err(map_packaged_operation_error(
             py,
@@ -390,7 +389,11 @@ fn molecule_to_inchi(
 ) -> PyResult<String> {
     let (engine, library_path) = packaged_native_engine(py, "molecule_to_inchi")?;
     let mode = (*mode).into_rust();
-    match engine.molecule_to_inchi(molecule.molecule.molecule(), mode) {
+    match engine.molecule_to_inchi(
+        molecule.molecule.molecule(),
+        mode,
+        PYTHON_CHEMISTRY_TEXT_LIMIT,
+    ) {
         Ok(inchi) => Ok(inchi),
         Err(error) => Err(map_packaged_operation_error(
             py,
@@ -475,7 +478,7 @@ fn records_to_sdf(
     }
     let version = version.into_rust();
     let (engine, library_path) = packaged_native_engine(py, "records_to_sdf")?;
-    match engine.records_to_sdf(&rust_records, version) {
+    match engine.records_to_sdf(&rust_records, version, PYTHON_CHEMISTRY_TEXT_LIMIT) {
         Ok(sdf) => Ok(sdf),
         Err(error) => Err(map_packaged_operation_error(
             py,

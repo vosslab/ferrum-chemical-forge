@@ -1,14 +1,23 @@
 """Stable behavior checks for Rust-owned new-document construction."""
 
-import defusedxml.ElementTree
+import lxml.etree
+
 import ferrum_chem
+
+
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 def test_create_empty_document_v1_is_clean_and_projects_no_selectable_roots() -> None:
 	"""New documents have Rust-owned canonical root facts and no selectable content."""
 	session = ferrum_chem.DocumentSession.create_empty_document_v1()
 	observation = session.observe(0)
-	root = defusedxml.ElementTree.fromstring(observation.snapshot.cdml)
+	root = lxml.etree.fromstring(observation.snapshot.cdml.encode("utf-8"), parser=_XML_PARSER)
 
 	assert (
 		root.tag == "{urn:ferrum:cdml}cdml"

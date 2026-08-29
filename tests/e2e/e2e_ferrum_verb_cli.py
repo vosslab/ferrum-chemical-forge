@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 # PIP3 modules
-import defusedxml.ElementTree
+import lxml.etree
 
 
 CDML = (
@@ -29,6 +29,12 @@ MOLFILE = (
 	"  1  0  0  0  0  0  0  0  0  0999 V2000\n"
 	"    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n"
 	"M  END\n"
+)
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
 )
 
 
@@ -105,7 +111,7 @@ def protocol_envelope(
 #============================================
 def semantic_xml(text: str) -> tuple:
 	"""Return a whitespace-neutral XML tree for semantic artifact comparison."""
-	root = defusedxml.ElementTree.fromstring(text)
+	root = lxml.etree.fromstring(text.encode("utf-8"), parser=_XML_PARSER)
 
 	def project(element: object) -> tuple:
 		attributes = tuple(sorted(element.attrib.items()))
@@ -346,7 +352,7 @@ def check_convert_format_boundaries(
 		(smiles, "smiles", "C\n", "inchi_standard", temp / "methane.out.inchi"),
 		(inchi, "inchi_standard", INCHI, "molblock_v2000", temp / "methane.out.mol"),
 		(molfile, "molblock_v2000", MOLFILE, "cdml", temp / "methane.out.cdml"),
-		(cdml, "cdml", CDML, "smiles", temp / "methane.out.smi"),
+		(cdml, "cdml", CDML, "smiles", temp / "methane.from-cdml.out.smi"),
 	)
 	for source, input_format, input_text, output_format, destination in cases:
 		expected = protocol_envelope(

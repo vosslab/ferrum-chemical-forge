@@ -291,6 +291,7 @@ impl AtomRenderTarget {
 pub(super) fn build_atom_batch(
     atom: &AtomRenderTarget,
     font: &AtomLabelFontProfile,
+    bond_ink_clearance: PositiveFinite,
     metrics: &VerifiedTelexGlyphMetrics,
 ) -> Result<
     Result<(RenderBatchV4, GlyphBounds, AtomLabelAttachmentGeometry), RenderIssueKind>,
@@ -329,6 +330,7 @@ pub(super) fn build_atom_batch(
         mask,
         operation,
         layout.core_element_run_index(),
+        bond_ink_clearance,
         InkBoundsV1::from_glyph_bounds(layout.bounds()),
         InkBoundsV1::from_glyph_bounds(layout.attachment().core_element_ink_bounds()),
     )?;

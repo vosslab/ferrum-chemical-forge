@@ -61,7 +61,7 @@ may write one path, but it does not publish or validate the complete tour.
 | `docs/screenshots/atom_authoring.png` | Carbonyl with an additional oxygen beneath it; Select Structure is the visible active mode. |
 | `docs/screenshots/direct_bond.png` | A committed C-O single bond remains selected. |
 | `docs/screenshots/inserted_cyclohexane.png` | Detached six-carbon cyclohexane beside the original carbon. |
-| `docs/screenshots/attached_cyclohexane.png` | Cyclohexane attached to a single C-O fragment. |
+| `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
 | `docs/screenshots/selected_atom_edit.png` | Nitrogen visible in the document. |
 | `docs/screenshots/smarts_result.png` | SMARTS Query dock showing `[C]` and one match in the carbonyl document. |
@@ -130,7 +130,7 @@ captures remain outside this section.
 
 ![Detached six-carbon cyclohexane beside the original carbon](screenshots/inserted_cyclohexane.png)
 
-![Cyclohexane attached to a single C-O fragment](screenshots/attached_cyclohexane.png)
+![Cyclohexane with six ring bonds and the retained host C-O bond](screenshots/attached_cyclohexane.png)
 
 ![Alpha-D-glucofuranose selected in the Template Catalog before placement](screenshots/template_catalog.png)
 

@@ -2,6 +2,7 @@
 
 pub(crate) mod convert;
 pub(crate) mod coords;
+pub(crate) mod document_export;
 pub(crate) mod document_export_sdf;
 pub(crate) mod formats;
 pub(crate) mod haworth;
@@ -147,6 +148,14 @@ mod tests {
         );
         assert!(!operation_requires_chemistry(&operation));
     }
+
+    #[test]
+    fn directory_entry_unconfirmed_is_a_possibly_published_exit() {
+        assert_eq!(
+            super::VerbCliError::DirectoryEntryUnconfirmed.exit_status(),
+            3
+        );
+    }
 }
 
 pub(crate) fn write_json(
@@ -204,20 +213,24 @@ pub(crate) fn publish_or_write(
     else {
         return write_stdout(&bytes, stdout);
     };
-    let mut request = ArtifactPublicationRequestV1::new(destination.to_path_buf(), bytes);
+    let mut request =
+        ArtifactPublicationRequestV1::new(destination.to_path_buf(), bytes).create_new();
     if let Some(source) = retained_source {
         request = request.with_retained_source(source);
     }
     match publish_artifact_v1(request)? {
         ArtifactPublicationOutcomeV1::ConfirmedDurable(_) => Ok(()),
-        ArtifactPublicationOutcomeV1::DirectoryEntryUnconfirmed(_) => stderr
-            .write_all(
-                b"ferrum: warning: output was written, but directory-entry durability could not be confirmed\n",
-            )
-            .map_err(|source| VerbCliError::Write {
-                output: "standard error".to_owned(),
-                source,
-            }),
+        ArtifactPublicationOutcomeV1::DirectoryEntryUnconfirmed(_) => {
+            stderr
+                .write_all(
+                    b"ferrum: warning: output was written, but directory-entry durability could not be confirmed\n",
+                )
+                .map_err(|source| VerbCliError::Write {
+                    output: "standard error".to_owned(),
+                    source,
+                })?;
+            Err(VerbCliError::DirectoryEntryUnconfirmed)
+        }
     }
 }
 
@@ -270,6 +283,9 @@ pub enum VerbCliError {
     /// The admitted document could not produce an owned structural snapshot.
     #[error("input: could not snapshot admitted document: {0}")]
     Snapshot(#[from] DocumentSessionError),
+    /// A selected direct root could not be represented by the requested export format.
+    #[error("processing: selected molecule export failed: {0}")]
+    DocumentMoleculeExport(#[from] ferrum_document::DocumentMoleculeExportError),
     /// The typed request or response could not cross the JSON protocol boundary.
     #[error("processing: {0}")]
     Json(#[from] serde_json::Error),
@@ -314,6 +330,11 @@ pub enum VerbCliError {
     /// Safe named publication failed or could not be confirmed.
     #[error("publication: {0}")]
     Publication(#[from] ArtifactPublicationErrorV1),
+    /// The artifact was renamed but directory-entry durability was unavailable.
+    #[error(
+        "publication: output may have been published, but directory-entry durability could not be confirmed"
+    )]
+    DirectoryEntryUnconfirmed,
     /// The executable-relative local chemistry runtime was unavailable.
     #[error("processing: local Ferrum chemistry runtime is unavailable")]
     ChemistryUnavailable,
@@ -333,6 +354,7 @@ impl VerbCliError {
     pub const fn exit_status(&self) -> u8 {
         match self {
             Self::Publication(ArtifactPublicationErrorV1::PossiblyPublished { .. }) => 3,
+            Self::DirectoryEntryUnconfirmed => 3,
             Self::Document(_)
             | Self::Snapshot(_)
             | Self::Input { .. }
@@ -353,6 +375,7 @@ impl VerbCliError {
             | Self::Write { .. }
             | Self::Publication(_)
             | Self::ChemistryUnavailable
+            | Self::DocumentMoleculeExport(_)
             | Self::DocumentMoleculesSdf(_) => 1,
         }
     }

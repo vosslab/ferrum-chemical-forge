@@ -208,7 +208,14 @@ pub(crate) fn build_atom_bond_plan(
     for atom in &request.atoms {
         let context = atom.context.clone();
         let outcome = atom.visibility.issue("atom target").map_or_else(
-            || build_atom_batch(atom, atom.font.as_ref().unwrap_or(&request.font), metrics),
+            || {
+                build_atom_batch(
+                    atom,
+                    atom.font.as_ref().unwrap_or(&request.font),
+                    request.normal_single_clip_policy.clearance().gap(),
+                    metrics,
+                )
+            },
             |kind| Ok(Err(kind)),
         );
         match outcome? {

@@ -11,6 +11,7 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.actions.action_registry
+import ferrum_qt.actions.command_catalog
 import ferrum_qt.declarative_resources
 from ferrum_qt.dialogs.accessibility import FerrumAccessibleDialog
 
@@ -72,6 +73,25 @@ def ranked_matching_views(
 	return tuple(view for _tier, view in sorted(
 		ranked, key=lambda item: (item[0], not item[1].enabled),
 	))
+
+
+#============================================
+def ranked_matching_entries(
+		query: str, entries: collections.abc.Iterable[
+			ferrum_qt.actions.command_catalog.CommandCatalogEntry,
+		],
+		) -> tuple[ferrum_qt.actions.command_catalog.CommandCatalogEntry, ...]:
+	"""Rank catalog entries by the same recognition-first palette heuristic."""
+	entries = tuple(entries)
+	views_by_action = {
+		entry.action_id: ferrum_qt.actions.action_registry.LiveActionView(
+			entry.action_id, entry.label, entry.help_text, entry.qt_action, entry.enabled,
+		)
+		for entry in entries
+	}
+	ranked_views = ranked_matching_views(query, views_by_action.values())
+	entries_by_action = {entry.action_id: entry for entry in entries}
+	return tuple(entries_by_action[view.action_id] for view in ranked_views)
 
 
 #============================================
@@ -186,7 +206,7 @@ class CommandPaletteController:
 		self._registry = registry
 		self._invoking_focus: PySide6.QtWidgets.QWidget | None = None
 		self._pending_action: PySide6.QtGui.QAction | None = None
-		self._results: tuple[ferrum_qt.actions.action_registry.LiveActionView, ...] = ()
+		self._results: tuple[ferrum_qt.actions.command_catalog.CommandCatalogEntry, ...] = ()
 		self._action_placements = action_placements
 		self.dialog = CommandPaletteDialog(self)
 
@@ -219,10 +239,13 @@ class CommandPaletteController:
 					self._registry,
 				)
 			)
-		self._results = ranked_matching_views(query, self._registry.live_action_views())
+		catalog = ferrum_qt.actions.command_catalog.live_command_catalog(
+			self._registry, self._action_placements,
+		)
+		self._results = ranked_matching_entries(query, catalog)
 		self.dialog.result_list.clear()
 		for view in self._results:
-			breadcrumb = self._action_placements.get(view.action_id, ())
+			breadcrumb = view.placement
 			text = view.label
 			if breadcrumb:
 				text = self.dialog.tr("{0} - {1}").format(text, " > ".join(breadcrumb))

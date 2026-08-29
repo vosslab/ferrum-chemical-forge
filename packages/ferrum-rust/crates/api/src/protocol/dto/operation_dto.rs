@@ -149,6 +149,8 @@ pub enum OperationProtocolOperationV1 {
     /// Import one explicitly selected interchange format into a new request-owned document.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport(DocumentMoleculeInterchangeImportRequestV1),
+    #[serde(rename = "document.molecule.export.v1")]
+    DocumentMoleculeExport(DocumentMoleculeExportRequestV1),
 }
 /// One successful V1 response.
 #[derive(Clone, Debug, JsonSchema, PartialEq, Serialize)]
@@ -215,6 +217,10 @@ pub enum OperationProtocolOutcomeV1 {
         text: String,
         /// Number of preserved molecular records.
         record_count: usize,
+    },
+    #[serde(rename = "document.molecule.export.v1")]
+    DocumentMoleculeExport {
+        export: DocumentMoleculeExportResultV1,
     },
     #[serde(rename = "interchange.inspect_graph.v1")]
     InspectInterchangeGraph {
@@ -444,6 +450,7 @@ impl OperationProtocolOperationV1 {
             Self::DocumentMoleculeInterchangeImport(_) => {
                 ProtocolOperationKindV1::DocumentMoleculeInterchangeImport
             }
+            Self::DocumentMoleculeExport(_) => ProtocolOperationKindV1::DocumentMoleculeExport,
         }
     }
 }

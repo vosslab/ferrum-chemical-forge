@@ -13,15 +13,12 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
     super::clipboard_paste_binding::initialize(module)?;
     super::document_linear_form_binding::initialize(module)?;
     super::document_explicit_fragment_binding::initialize(module)?;
-    super::document_molecule_inchi_binding::initialize(module)?;
+    super::document_molecule_export_binding::initialize(module)?;
     super::document_bond_capacity_binding::initialize(module)?;
     super::document_molecule_diagnostics_binding::initialize(module)?;
     super::document_molecule_inspection_binding::initialize(module)?;
-    super::document_molecule_molblock_binding::initialize(module)?;
-    super::document_molecule_sdf_binding::initialize(module)?;
     super::document_molecules_sdf_binding::initialize(module)?;
     super::document_molecule_name_binding::initialize(module)?;
-    super::document_molecule_smiles_binding::initialize(module)?;
     super::document_native_artifact_binding::initialize(module)?;
     super::document_selection_svg_binding::initialize(module)?;
     super::document_user_template_binding::initialize(module)?;

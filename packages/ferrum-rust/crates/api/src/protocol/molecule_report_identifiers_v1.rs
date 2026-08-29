@@ -1,8 +1,11 @@
 //! Closed native identifier evaluation for molecule-report records.
 
-use ferrum_chemistry::{ChemEngine, ChemistryError, InchiMode, MolGraph};
+use ferrum_chemistry::{ChemEngine, ChemistryError, InchiMode, MolGraph, NativeTextOutputLimit};
 
 use super::molecule_report_core_v1::DocumentMoleculeReportErrorV1;
+
+const MOLECULE_REPORT_IDENTIFIER_TEXT_LIMIT: NativeTextOutputLimit =
+    NativeTextOutputLimit::ADAPTER_MAXIMUM;
 
 /// One complete native identifier bundle or its closed per-record omission.
 #[derive(Clone, Debug, PartialEq)]
@@ -39,11 +42,16 @@ pub(super) fn evaluate_identifiers_v1(
     engine: &(impl ChemEngine + ?Sized),
     graph: &MolGraph,
 ) -> Result<DocumentMoleculeReportIdentifiersV1, DocumentMoleculeReportErrorV1> {
-    let canonical_smiles = match engine.molecule_to_smiles(graph) {
-        Ok(value) => value,
-        Err(error) => return identifier_error_outcome_v1(error),
-    };
-    let standard_inchi = match engine.molecule_to_inchi(graph, InchiMode::Standard) {
+    let canonical_smiles =
+        match engine.molecule_to_smiles(graph, MOLECULE_REPORT_IDENTIFIER_TEXT_LIMIT) {
+            Ok(value) => value,
+            Err(error) => return identifier_error_outcome_v1(error),
+        };
+    let standard_inchi = match engine.molecule_to_inchi(
+        graph,
+        InchiMode::Standard,
+        MOLECULE_REPORT_IDENTIFIER_TEXT_LIMIT,
+    ) {
         Ok(value) => value,
         Err(error) => return identifier_error_outcome_v1(error),
     };

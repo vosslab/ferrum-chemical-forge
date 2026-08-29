@@ -680,6 +680,9 @@ mod tests {
         assert!(schema.contains("document.generate_coordinates"));
         assert!(schema.contains("conversion_unsupported"));
         assert!(schema.contains("coordinate_generation_failed"));
+        assert!(schema.contains("document.molecule.export.v1"));
+        assert!(schema.contains("document_molecule_export_refusal"));
+        assert!(schema.contains("document_molecule_export_request"));
     }
 
     #[test]

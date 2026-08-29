@@ -186,7 +186,7 @@ fn catalog_insert_returns_a_chainable_stateless_catalog_transition() {
 }
 
 #[test]
-fn catalog_insert_refuses_stale_unknown_and_render_excluded_without_a_commit() {
+fn catalog_insert_refuses_stale_and_unknown_but_retains_an_existing_exclusion() {
     let subject = catalog_subject();
     let catalog_id = subject["id"].as_str().expect("catalog subject id");
     let missing_catalog_id = format!("{catalog_id}__catalog_protocol_missing");
@@ -201,11 +201,6 @@ fn catalog_insert_refuses_stale_unknown_and_render_excluded_without_a_commit() {
             "unknown_key",
             "choose_catalog_entry",
         ),
-        (
-            insert(EXCLUDED, 0, catalog_id, 1.0, 1.0),
-            "render_preparation",
-            "document_unchanged",
-        ),
     ] {
         let response = execute_operation_v1(&payload).expect("request decodes");
         let OperationProtocolEnvelopeV1::Error(response) = response else {
@@ -218,4 +213,20 @@ fn catalog_insert_refuses_stale_unknown_and_render_excluded_without_a_commit() {
         assert_eq!(serde_json::to_value(refusal.category).unwrap(), category);
         assert_eq!(serde_json::to_value(refusal.recovery).unwrap(), recovery);
     }
+
+    let response =
+        execute_operation_v1(&insert(EXCLUDED, 0, catalog_id, 1.0, 1.0)).expect("request decodes");
+    let OperationProtocolEnvelopeV1::Success(response) = response else {
+        panic!("an unrelated insertion may retain a pre-existing exclusion")
+    };
+    let OperationProtocolOutcomeV1::CatalogInsert {
+        document,
+        identifier,
+        ..
+    } = response.outcome
+    else {
+        panic!("catalog insert result expected")
+    };
+    assert!(document.contains("<text"));
+    assert!(document.contains(&format!("id=\"{identifier}\"")));
 }

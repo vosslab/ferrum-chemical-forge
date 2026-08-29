@@ -33,6 +33,7 @@ use crate::{
 type AbiVersionFn = unsafe extern "C" fn() -> u32;
 type CapabilitiesFn = unsafe extern "C" fn() -> u64;
 type OperationFn = unsafe extern "C" fn(*const u8, u64, *mut FerrumChemOwnedBuffer) -> u32;
+type TextOperationFn = unsafe extern "C" fn(*const u8, u64, u64, *mut FerrumChemOwnedBuffer) -> u32;
 type BufferFreeFn = unsafe extern "C" fn(*mut FerrumChemOwnedBuffer);
 
 /// Failures while the private native-adapter boundary loads or releases data.
@@ -61,7 +62,7 @@ pub(super) enum AdapterError {
 /// A loaded adapter whose native result buffers are released by this crate.
 ///
 /// The adapter owns foreign allocations until this safe wrapper copies and
-/// releases them. It is intentionally neither `Send` nor `Sync`: ABI-4 makes
+/// releases them. It is intentionally neither `Send` nor `Sync`: ABI-6 makes
 /// no thread-safety promise, and the retained `Library` keeps every resolved
 /// function pointer valid through the last native call.
 pub(super) struct ChemistryAdapter {
@@ -74,14 +75,14 @@ pub(super) struct ChemistryAdapter {
     generate_2d: Option<OperationFn>,
     smiles_to_molecule: Option<OperationFn>,
     molecule_to_smarts: Option<OperationFn>,
-    molecule_to_smiles: Option<OperationFn>,
-    molecule_to_molblock: Option<OperationFn>,
-    molecule_to_molblock_with_title: Option<OperationFn>,
-    records_to_sdf: Option<OperationFn>,
+    molecule_to_smiles: Option<TextOperationFn>,
+    molecule_to_molblock: Option<TextOperationFn>,
+    molecule_to_molblock_with_title: Option<TextOperationFn>,
+    records_to_sdf: Option<TextOperationFn>,
     sdf_to_records: Option<OperationFn>,
     molblock_to_molecule: Option<OperationFn>,
     inchi_to_molecule: Option<OperationFn>,
-    molecule_to_inchi: Option<OperationFn>,
+    molecule_to_inchi: Option<TextOperationFn>,
     inchi_to_inchi_key: Option<OperationFn>,
     molecule_composition: Option<OperationFn>,
     smarts_match: Option<OperationFn>,
@@ -105,7 +106,7 @@ impl ChemistryAdapter {
         let buffer_free: BufferFreeFn =
             load_symbol(&library, b"ferrum_chem_owned_buffer_free_v1\0")?;
 
-        // SAFETY: the symbol was resolved from `library` with ABI-4's exact C
+        // SAFETY: the symbol was resolved from `library` with ABI-6's exact C
         // function type. The library remains retained after construction.
         let actual_abi = unsafe { abi_version() };
         if actual_abi != expected_abi {
@@ -114,7 +115,7 @@ impl ChemistryAdapter {
                 actual: actual_abi,
             });
         }
-        // SAFETY: construction resolved the exact ABI-4 function type and
+        // SAFETY: construction resolved the exact ABI-6 function type and
         // `library` remains alive throughout this validation call.
         let capability_bits = unsafe { capabilities() };
         let unknown = capability_bits & !FERRUM_CHEM_ALL_KNOWN_CAPABILITIES;
@@ -145,25 +146,25 @@ impl ChemistryAdapter {
             FERRUM_CHEM_CAPABILITY_SMARTS,
             b"ferrum_chem_molecule_to_smarts_v1\0",
         )?;
-        let molecule_to_smiles = load_operation(
+        let molecule_to_smiles = load_text_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_SMILES_WRITE,
             b"ferrum_chem_molecule_to_smiles_v1\0",
         )?;
-        let molecule_to_molblock = load_operation(
+        let molecule_to_molblock = load_text_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_MOLFILE,
             b"ferrum_chem_molecule_to_molblock_v1\0",
         )?;
-        let molecule_to_molblock_with_title = load_operation(
+        let molecule_to_molblock_with_title = load_text_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE,
             b"ferrum_chem_molecule_to_molblock_with_title_v1\0",
         )?;
-        let records_to_sdf = load_operation(
+        let records_to_sdf = load_text_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_SDF_WRITE,
@@ -187,7 +188,7 @@ impl ChemistryAdapter {
             FERRUM_CHEM_CAPABILITY_INCHI,
             b"ferrum_chem_inchi_to_molecule_v1\0",
         )?;
-        let molecule_to_inchi = load_operation(
+        let molecule_to_inchi = load_text_operation(
             &library,
             capability_bits,
             FERRUM_CHEM_CAPABILITY_INCHI,
@@ -205,7 +206,7 @@ impl ChemistryAdapter {
             FERRUM_CHEM_CAPABILITY_COMPOSITION,
             b"ferrum_chem_molecule_composition_v1\0",
         )?;
-        // ABI-5 reserves this transport for the API-owned FCQ1/FQM1 core.
+        // ABI-6 reserves this transport for the API-owned FCQ1/FQM1 core.
         // Resolve its exact symbol when advertised, but do not retain or expose
         // a raw-byte call before that private consumer exists.
         let smarts_match = load_operation(
@@ -248,7 +249,7 @@ impl ChemistryAdapter {
         unsafe { (self.abi_version)() }
     }
 
-    /// Returns the immutable ABI-5 operation bitset declared by this adapter.
+    /// Returns the immutable ABI-6 operation bitset declared by this adapter.
     #[must_use]
     #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn capabilities(&self) -> u64 {
@@ -283,30 +284,59 @@ impl ChemistryAdapter {
     }
 
     /// Exports a complete graph request as canonical isomeric SMILES text.
-    pub(super) fn molecule_to_smiles(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
-        self.call_required(self.molecule_to_smiles, "molecule_to_smiles", input)
+    pub(super) fn molecule_to_smiles(
+        &self,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        self.call_text_required(
+            self.molecule_to_smiles,
+            "molecule_to_smiles",
+            input,
+            maximum_text_bytes,
+        )
     }
 
     /// Exports a coordinate-bearing graph request as V2000 or V3000 molblock text.
-    pub(super) fn molecule_to_molblock(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
-        self.call_required(self.molecule_to_molblock, "molecule_to_molblock", input)
+    pub(super) fn molecule_to_molblock(
+        &self,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        self.call_text_required(
+            self.molecule_to_molblock,
+            "molecule_to_molblock",
+            input,
+            maximum_text_bytes,
+        )
     }
 
     /// Exports a titled coordinate-bearing graph as V2000 or V3000 molblock text.
     pub(super) fn molecule_to_molblock_with_title(
         &self,
         input: &[u8],
+        maximum_text_bytes: u64,
     ) -> Result<Vec<u8>, AdapterError> {
-        self.call_required(
+        self.call_text_required(
             self.molecule_to_molblock_with_title,
             "molecule_to_molblock_with_title",
             input,
+            maximum_text_bytes,
         )
     }
 
     /// Exports ordered coordinate-bearing records through RDKit's SD writer.
-    pub(super) fn records_to_sdf(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
-        self.call_required(self.records_to_sdf, "records_to_sdf", input)
+    pub(super) fn records_to_sdf(
+        &self,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        self.call_text_required(
+            self.records_to_sdf,
+            "records_to_sdf",
+            input,
+            maximum_text_bytes,
+        )
     }
 
     /// Imports bounded SDF text into ordered owned-record response bytes.
@@ -325,8 +355,17 @@ impl ChemistryAdapter {
     }
 
     /// Exports one closed-mode complete-graph request as InChI text.
-    pub(super) fn molecule_to_inchi(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
-        self.call_required(self.molecule_to_inchi, "molecule_to_inchi", input)
+    pub(super) fn molecule_to_inchi(
+        &self,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        self.call_text_required(
+            self.molecule_to_inchi,
+            "molecule_to_inchi",
+            input,
+            maximum_text_bytes,
+        )
     }
 
     /// Derives an official InChIKey from one bounded InChI line.
@@ -339,7 +378,7 @@ impl ChemistryAdapter {
         self.call_required(self.molecule_composition, "molecule_composition", input)
     }
 
-    /// Runs the private ABI-5 SMARTS transport and returns copied response bytes.
+    /// Runs the private ABI-6 SMARTS transport and returns copied response bytes.
     pub(super) fn smarts_match(&self, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
         self.call_required(self.smarts_match, "smarts_match", input)
     }
@@ -354,6 +393,19 @@ impl ChemistryAdapter {
             operation: operation_name,
         })?;
         self.call(operation, input)
+    }
+
+    fn call_text_required(
+        &self,
+        operation: Option<TextOperationFn>,
+        operation_name: &'static str,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        let operation = operation.ok_or(AdapterError::OperationUnavailable {
+            operation: operation_name,
+        })?;
+        self.call_text(operation, input, maximum_text_bytes)
     }
 
     fn call(&self, operation: OperationFn, input: &[u8]) -> Result<Vec<u8>, AdapterError> {
@@ -372,11 +424,36 @@ impl ChemistryAdapter {
         let status = unsafe { operation(input.as_ptr(), input_length, &mut output) };
         finish_call(status, output, self.buffer_free)
     }
+
+    fn call_text(
+        &self,
+        operation: TextOperationFn,
+        input: &[u8],
+        maximum_text_bytes: u64,
+    ) -> Result<Vec<u8>, AdapterError> {
+        let input_length = u64::try_from(input.len())
+            .map_err(|_| AdapterError::BufferTooLarge { length: u64::MAX })?;
+        let mut output = FerrumChemOwnedBuffer {
+            data: std::ptr::null_mut(),
+            len: 0,
+        };
+        // SAFETY: as for `call`, with the explicit nonzero text budget copied
+        // into ABI-6 before native text-writer allocation can occur.
+        let status = unsafe {
+            operation(
+                input.as_ptr(),
+                input_length,
+                maximum_text_bytes,
+                &mut output,
+            )
+        };
+        finish_call(status, output, self.buffer_free)
+    }
 }
 
 fn load_symbol<T: Copy>(library: &Library, name: &'static [u8]) -> Result<T, AdapterError> {
-    // SAFETY: each `name` is a NUL-terminated required ABI-5 symbol. `T` is
-    // inferred only from a concrete ABI-5 function field, and copying the
+    // SAFETY: each `name` is a NUL-terminated required ABI-6 symbol. `T` is
+    // inferred only from a concrete ABI-6 function field, and copying the
     // pointer is safe while `ChemistryAdapter` retains `library`.
     Ok(unsafe { *library.get::<T>(name)? })
 }
@@ -387,6 +464,18 @@ fn load_operation(
     capability: u64,
     name: &'static [u8],
 ) -> Result<Option<OperationFn>, AdapterError> {
+    if capabilities & capability == 0 {
+        return Ok(None);
+    }
+    load_symbol(library, name).map(Some)
+}
+
+fn load_text_operation(
+    library: &Library,
+    capabilities: u64,
+    capability: u64,
+    name: &'static [u8],
+) -> Result<Option<TextOperationFn>, AdapterError> {
     if capabilities & capability == 0 {
         return Ok(None);
     }

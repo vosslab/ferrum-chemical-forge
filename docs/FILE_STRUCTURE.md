@@ -35,7 +35,9 @@ ferrum-chemical-forge/
   owns session and document behavior. Its `tests/fixtures/`
   directory owns the canonical `atom_label_bond_alignment_cases_v1.json`
   corpus, and `tests/atom_label_bond_alignment_corpus.rs`
-  is its Rust contract consumer.
+  is its Rust contract consumer. Its unversioned
+  `src/chemistry/document_molecule_export.rs` is the sole selected-direct-root
+  export core; it supersedes format-specific document export owners.
 - [../packages/ferrum-rust/crates/document-model/](../packages/ferrum-rust/crates/document-model/),
   [../packages/ferrum-rust/crates/document-projection/](../packages/ferrum-rust/crates/document-projection/),
   [../packages/ferrum-rust/crates/document-render/](../packages/ferrum-rust/crates/document-render/),
@@ -56,6 +58,8 @@ ferrum-chemical-forge/
   [../packages/ferrum-rust/crates/api-python/](../packages/ferrum-rust/crates/api-python/)
   owns the extension-wheel crate. [../packages/ferrum-rust/crates/api/python/](../packages/ferrum-rust/crates/api/python/)
   contains the Maturin configuration and Python binding tests.
+  `src/protocol/document_molecule_export_v1.rs` adapts the one public singular
+  export operation; `src/cli/verbs/document_export.rs` presents it on the CLI.
 - [../packages/ferrum-rust/crates/template-catalog/](../packages/ferrum-rust/crates/template-catalog/)
   and [../packages/ferrum-rust/crates/catalog-placement/](../packages/ferrum-rust/crates/catalog-placement/)
   own shipped/user catalog facts and closed catalog-recipe lowering.
@@ -70,6 +74,11 @@ ferrum-chemical-forge/
 - [../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/](../packages/ferrum-chem-qt.app/ferrum_qt/ferrum/)
   is the flat vertical-feature layer for document tabs, actions, authoring,
   Local Open, catalog, presentation, and view controls.
+- [../packages/ferrum-chem-qt.app/ferrum_qt/actions/](../packages/ferrum-chem-qt.app/ferrum_qt/actions/)
+  owns action clients. `command_catalog.py` is the shared live metadata
+  projection for the Command Palette and modeless Command Reference;
+  `command_reference.py` owns only the read-only help surface and focus
+  lifecycle.
 - [../packages/ferrum-chem-qt.app/ferrum_qt/canvas/](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/)
   owns disposable graphics-scene projection. In particular,
   [ferrum_render_projection.py](../packages/ferrum-chem-qt.app/ferrum_qt/canvas/ferrum_render_projection.py)
@@ -81,13 +90,14 @@ ferrum-chemical-forge/
   and [../packages/ferrum-chem-qt.app/ferrum_qt/resources/](../packages/ferrum-chem-qt.app/ferrum_qt/resources/)
   own Qt dialogs, display themes, and packaged YAML/image assets.
 - [../packages/ferrum-chem-qt.app/tests/](../packages/ferrum-chem-qt.app/tests/)
-  contains focused app behavior tests. `test_atom_label_bond_alignment_corpus.py`
-  is the installed Qt consumer of the shared alignment corpus.
+  contains deterministic focused app behavior tests.
 
 ### `tests/`, `devel/`, and `docs/`
 
 - [../tests/](../tests/) contains repository policy checks and cross-package
-  coverage. [../tests/e2e/](../tests/e2e/) holds artifact-dependent scenarios.
+  coverage. [../tests/e2e/](../tests/e2e/) holds artifact-dependent scenarios,
+  including the installed Qt consumer of the shared atom-label alignment corpus
+  and the real-window attached-cyclohexane admission workflow.
 - [../devel/](../devel/) contains maintainer-only helpers such as changelog and
   release support.
 - [active_plans/](active_plans/) holds in-flight plans, audits, reports,

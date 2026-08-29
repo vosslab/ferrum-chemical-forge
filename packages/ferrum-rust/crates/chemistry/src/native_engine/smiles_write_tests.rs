@@ -20,7 +20,7 @@ fn canonical_smiles_decoder_accepts_one_printable_ascii_line() {
     let response = text_response(b"[13CH3][NH3+]");
 
     assert_eq!(
-        text_response::decode_smiles(&response),
+        text_response::decode_smiles(&response, NativeTextOutputLimit::ADAPTER_MAXIMUM),
         Ok("[13CH3][NH3+]".to_owned())
     );
 }
@@ -29,7 +29,7 @@ fn canonical_smiles_decoder_accepts_one_printable_ascii_line() {
 fn canonical_smiles_decoder_rejects_whitespace_non_ascii_and_oversize() {
     for output in [b"C C".as_slice(), b"C\tC", b"C\nC", &[b'C', 0xc2, 0xb5]] {
         assert!(matches!(
-            text_response::decode_smiles(&text_response(output)),
+            text_response::decode_smiles(&text_response(output), NativeTextOutputLimit::ADAPTER_MAXIMUM),
             Err(ChemistryError::MalformedNativeResponse { .. })
         ));
     }
@@ -39,7 +39,7 @@ fn canonical_smiles_decoder_rejects_whitespace_non_ascii_and_oversize() {
         u32::try_from(FERRUM_CHEM_SMILES_WRITE_MAX_BYTES + 1).expect("ABI maximum fits u32");
     response[16..20].copy_from_slice(&oversized.to_le_bytes());
     assert!(matches!(
-        text_response::decode_smiles(&response),
+        text_response::decode_smiles(&response, NativeTextOutputLimit::ADAPTER_MAXIMUM),
         Err(ChemistryError::MalformedNativeResponse { .. })
     ));
 }
@@ -69,7 +69,7 @@ fn unavailable_engine_reports_only_the_missing_smiles_writer() {
     .expect("graph");
 
     assert!(matches!(
-        UnavailableChemEngine.molecule_to_smiles(&molecule),
+        UnavailableChemEngine.molecule_to_smiles(&molecule, NativeTextOutputLimit::ADAPTER_MAXIMUM),
         Err(ChemistryError::OperationUnavailable {
             operation: "molecule_to_smiles"
         })

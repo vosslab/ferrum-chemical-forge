@@ -464,37 +464,45 @@ mod tests {
                 RenderBatchV4::bond_target(
                     target(0x42),
                     2,
-                    BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
-                        LineOp::new(
-                            point(-20.0, 0.0),
-                            point(-10.0, 0.0),
-                            size(2.0),
-                            paint("112233"),
-                            1,
-                        )
-                        .expect("line"),
-                    )])
+                    BondRenderBatchV1::new(
+                        crate::BondAttachmentAxisV1::new(point(-20.0, 0.0), point(-10.0, 0.0))
+                            .expect("attachment axis"),
+                        vec![BondRenderOpV1::Line(
+                            LineOp::new(
+                                point(-20.0, 0.0),
+                                point(-10.0, 0.0),
+                                size(2.0),
+                                paint("112233"),
+                                1,
+                            )
+                            .expect("line"),
+                        )],
+                    )
                     .expect("line content"),
                 ),
                 RenderBatchV4::bond_target(
                     target(0x43),
                     3,
-                    BondRenderBatchV1::new(vec![BondRenderOpV1::Path(
-                        PathOpV3::new(
-                            vec![
-                                ScenePathCommandV3::MoveTo(point(0.0, 50.0)),
-                                ScenePathCommandV3::CubicTo {
-                                    control_1: point(10.0, 70.0),
-                                    control_2: point(20.0, 30.0),
-                                    end: point(30.0, 50.0),
-                                },
-                            ],
-                            Some(ScenePathStrokeV3::new(paint("112233"), size(2.0))),
-                            None,
-                            1,
-                        )
-                        .expect("path"),
-                    )])
+                    BondRenderBatchV1::new(
+                        crate::BondAttachmentAxisV1::new(point(0.0, 50.0), point(30.0, 50.0))
+                            .expect("attachment axis"),
+                        vec![BondRenderOpV1::Path(
+                            PathOpV3::new(
+                                vec![
+                                    ScenePathCommandV3::MoveTo(point(0.0, 50.0)),
+                                    ScenePathCommandV3::CubicTo {
+                                        control_1: point(10.0, 70.0),
+                                        control_2: point(20.0, 30.0),
+                                        end: point(30.0, 50.0),
+                                    },
+                                ],
+                                Some(ScenePathStrokeV3::new(paint("112233"), size(2.0))),
+                                None,
+                                1,
+                            )
+                            .expect("path"),
+                        )],
+                    )
                     .expect("path content"),
                 ),
             ],

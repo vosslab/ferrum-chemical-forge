@@ -293,6 +293,33 @@ def test_palette_ranks_direct_reaction_matches_and_preserves_stable_ties(
 
 
 #============================================
+def test_palette_ranks_a_one_shot_catalog_iterable(
+		qapp: PySide6.QtWidgets.QApplication,
+		) -> None:
+	"""The catalog adapter materializes its advertised generic iterable once."""
+	del qapp
+	window = PySide6.QtWidgets.QMainWindow()
+	registry = ferrum_qt.actions.action_registry.ActionRegistry()
+	create = _action(
+		registry, window, "chemistry.reaction.create", "Create Reaction",
+		"Create a reaction from selected molecular roots",
+	)
+	inspect = _action(
+		registry, window, "chemistry.reaction.inspect", "Inspect Reaction",
+		"Inspect the selected reaction definition",
+	)
+	try:
+		catalog = ferrum_qt.actions.command_catalog.live_command_catalog(registry, {})
+		ranked = ferrum_qt.actions.command_palette.ranked_matching_entries(
+			"reaction", (entry for entry in catalog),
+		)
+		assert tuple(entry.qt_action for entry in ranked) == (create, inspect)
+	finally:
+		window.close()
+		window.deleteLater()
+
+
+#============================================
 def test_palette_renders_declared_reaction_breadcrumb_for_visible_accessibility(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:

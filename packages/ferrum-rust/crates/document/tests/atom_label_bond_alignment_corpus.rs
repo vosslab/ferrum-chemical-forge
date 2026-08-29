@@ -1,8 +1,11 @@
 //! Shared semantic atom-label/bond alignment corpus at the document/render boundary.
 
+use std::collections::HashMap;
+
 use ferrum_document::DocumentSession;
 use ferrum_render::{
-    AtomRenderBatchV1, BondRenderOpV1, RenderBatchContentV4, RenderIssueKind, RenderOp, TextScript,
+    AtomRenderBatchV1, BondRenderOpV1, RenderBatchContentV4, RenderIssueKind, RenderOp,
+    RenderPoint, TextScript,
 };
 use serde::Deserialize;
 
@@ -93,6 +96,43 @@ fn all_label_batches<'a>(
     })
 }
 
+fn atom_anchors_by_document_object_id(
+    observation: &ferrum_document::DocumentRenderObservationV2,
+    batches: &[ferrum_render::RenderBatchV4],
+    case_name: &str,
+) -> HashMap<ferrum_document::DocumentObjectIdV1, RenderPoint> {
+    let mut anchors = HashMap::new();
+    for source_atom in observation.document().projection().molecules()[0].atoms() {
+        let batch = batches
+            .iter()
+            .find(|batch| batch.target().document_object_id() == source_atom.document_object_id())
+            .unwrap_or_else(|| panic!("{case_name} source atom has a render batch"));
+        let RenderBatchContentV4::Atom(atom) = batch.content() else {
+            panic!("{case_name} source atom target has atom content");
+        };
+        let anchor = atom.atom_local_anchor();
+        assert_eq!(
+            anchor.x(),
+            source_atom.position().x(),
+            "{case_name} source x reaches anchor"
+        );
+        assert_eq!(
+            anchor.y(),
+            source_atom.position().y(),
+            "{case_name} source y reaches anchor"
+        );
+        let core_center = atom
+            .label()
+            .core_element_ink_bounds()
+            .center()
+            .expect("validated core bounds have a center");
+        assert_eq!(core_center.x(), 0.0, "{case_name} core local x is centered");
+        assert_eq!(core_center.y(), 0.0, "{case_name} core local y is centered");
+        anchors.insert(source_atom.document_object_id().clone(), anchor);
+    }
+    anchors
+}
+
 #[test]
 fn atom_label_bond_alignment_cases_are_closed_and_schema_tagged() {
     let parsed = corpus();
@@ -122,6 +162,7 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
             case.name
         );
         let plan = resolved.molecule_plans()[0].plan();
+        let anchors = atom_anchors_by_document_object_id(&observation, plan.batches(), &case.name);
 
         if case.checks.finite_geometry {
             for label in all_label_batches(plan.batches().iter()).map(|atom| atom.label()) {
@@ -166,11 +207,13 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
         if case.checks.full_ink_clearance {
             assert!(
                 all_label_batches(plan.batches().iter()).all(|atom| {
-                    atom.label()
-                        .full_ink_bounds()
-                        .contains(atom.label().core_element_ink_bounds())
+                    let label = atom.label();
+                    label.bond_ink_clearance().get() > 0.0
+                        && label
+                            .full_ink_bounds()
+                            .contains(label.core_element_ink_bounds())
                 }),
-                "{} publishes complete label ink for bond exclusion",
+                "{} publishes positive clearance and complete label ink",
                 case.name
             );
         }
@@ -270,6 +313,15 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
                         )
                     }),
                 "{} bond content remains closed scene-space geometry",
+                case.name
+            );
+            assert!(
+                bond_batches.iter().all(|bond| {
+                    let axis = bond.attachment_axis();
+                    anchors.values().any(|anchor| *anchor == axis.start())
+                        && anchors.values().any(|anchor| *anchor == axis.end())
+                }),
+                "{} joins source position -> atom anchor -> core center -> bond axis",
                 case.name
             );
         }

@@ -54,6 +54,11 @@ product dependency. The current parity ledger is
   including stroke and path geometry, rather than reconstructing an axis or
   querying screen pixels. An intersection emits an `UnrenderableTarget` issue
   instead of a partial or rerouted bond.
+- Each admitted bond also carries frozen `BondAttachmentAxisV1` semantic scene
+  geometry. It runs from exact structural connection point to connection point
+  before clipping; atom anchors are core-glyph centers and it survives Rust to PyO3
+  to Qt unchanged. It is deliberately neither paint nor hit-test geometry;
+  typed final operations remain the only visible ink.
 - Generic document authoring is admitted against the complete resolved render
   plans, not just a root-class summary. The candidate may retain or repair an
   existing imported diagnostic, but may not introduce a new root exclusion,
@@ -69,6 +74,13 @@ product dependency. The current parity ledger is
   is the sole workspace owner of the built `ferrum_chem` PyO3 extension; its
   Python package configuration and binding tests live in
   [../packages/ferrum-rust/crates/api/python/](../packages/ferrum-rust/crates/api/python/).
+- Selected direct-root text export has one unversioned document-side core,
+  `document_molecule_export`, and one durable operation,
+  `document.molecule.export.v1`. The core authenticates one snapshot and root,
+  lowers through the shared chemistry path, and dispatches the closed seven
+  representation formats. API, PyO3, Qt, and CLI adapt that same result; only
+  the CLI's optional destination uses atomic create-new publication. The plural
+  multi-record SDF route remains a separate operation.
 - `packages/ferrum-rust/crates/api/src/python_binding/render_plan_binding.rs`
   and `packages/ferrum-rust/crates/api/src/python_binding/render_plan_content_binding.rs`
   convert the Rust `RenderObservationV2` and V4 batches once into frozen PyO3
@@ -103,7 +115,9 @@ is installed. Render issues remain typed diagnostics with no graphics item.
 Atom labels are a renderer-to-Qt contract: the atom-local anchor, optional mask,
 text runs, glyph IDs, run origins, exact full/core ink bounds, and core-element
 run index originate in Rust. Bond clipping and final-ink refusal happen before
-the plan crosses the binding. The Qt scene only paints the accepted operations.
+the plan crosses the binding. `BondAttachmentAxisV1` transports the uncut
+center-to-center connection fact alongside those operations, but the Qt scene
+only paints and hit-tests the accepted clipped operations.
 
 Native linear-form spacing is a domain-to-document contract.
 `LinearFormBondLength::NATIVE` owns the exact 40-point spacing used by the
@@ -137,20 +151,29 @@ orchestration, staged delivery, and the single publication/replacement
 transaction. Rust remains the authority for file admission and document
 semantics.
 
+The `actions/` package projects live commands once through unversioned
+`CommandCatalogEntry` values. The catalog joins `ActionRegistry` views with
+validated `menus.yaml` placement and is read by both the action-invoking Command
+Palette and the modeless, nonmutating Command Reference. F1/Help opens the
+reference; registry ownership remains the only source for label, help,
+shortcut, availability, and action identity.
+
 ## Testing and verification
 
 - The canonical alignment corpus is
   `packages/ferrum-rust/crates/document/tests/fixtures/atom_label_bond_alignment_cases_v1.json`.
   Its Rust consumer, `packages/ferrum-rust/crates/document/tests/atom_label_bond_alignment_corpus.rs`,
   proves the semantic document-to-V4 boundary.
-- `packages/ferrum-chem-qt.app/tests/test_atom_label_bond_alignment_corpus.py`
-  consumes the same rows through the installed PyO3 DTOs and production Qt
-  projection. It checks exact Telex replay, ordered operations, accepted bond
-  disjointness, and the target-specific third-label refusal without duplicating
-  a fixture table in Python.
+- `tests/e2e/e2e_atom_label_bond_alignment.py` consumes the same rows through
+  the installed PyO3 DTOs and production Qt projection. It checks exact Telex
+  replay, ordered operations, strictly positive issued clearance around full
+  label ink, and the target-specific third-label refusal without duplicating a
+  fixture table in Python. It is an explicit artifact-dependent E2E lane, not a
+  deterministic pytest fixture.
 - `packages/ferrum-chem-qt.app/tests/test_ferrum_render_projection.py`
-  exercises the projection boundary, including interleaved batch and issue
-  paint order. Rust crate tests cover renderer and document invariants.
+  retains one small behavioral projection check. Rust crate tests own renderer
+  and document invariants; `tests/e2e/e2e_attached_cyclohexane_renderer_admission.py`
+  owns the real-window gesture and admission path.
 - [../check_rust.sh](../check_rust.sh), [../build.sh](../build.sh), and
   [../all_test.sh](../all_test.sh) are repository-provided aggregate routes.
   GUI screenshots and human visual/accessibility review remain separate

@@ -24,6 +24,74 @@ fn test_directory(label: &str) -> PathBuf {
 }
 
 #[test]
+fn create_new_refuses_an_existing_regular_destination_without_mutating_it() {
+    let directory = test_directory("create-new-existing");
+    let destination = directory.join("artifact.svg");
+    fs::write(&destination, "existing artifact").expect("existing fixture must write");
+
+    let error = publish_artifact_v1(
+        ArtifactPublicationRequestV1::new(destination.clone(), b"replacement".to_vec())
+            .create_new(),
+    )
+    .expect_err("create-new publication must refuse an existing destination");
+
+    assert!(matches!(
+        error,
+        ArtifactPublicationErrorV1::NotPublished {
+            phase: ArtifactPrepublicationPhaseV1::ValidateBeforeTemporary,
+            source,
+            ..
+        } if source.kind() == std::io::ErrorKind::AlreadyExists
+    ));
+    assert_eq!(
+        fs::read_to_string(&destination).expect("existing destination must survive"),
+        "existing artifact"
+    );
+    fs::remove_dir_all(directory).expect("test directory cleanup must succeed");
+}
+
+#[test]
+fn create_new_refuses_a_destination_created_after_final_validation_without_overwriting_it() {
+    let directory = test_directory("create-new-race");
+    let destination = directory.join("artifact.svg");
+    let hook_destination = destination.clone();
+
+    let error = publish_artifact_with_test_seams_v1(
+        ArtifactPublicationRequestV1::new(destination.clone(), b"replacement".to_vec())
+            .create_new(),
+        move |phase| {
+            if phase == ArtifactPrepublicationPhaseV1::Rename {
+                fs::write(&hook_destination, "concurrent artifact")
+                    .expect("concurrent destination fixture must write");
+            }
+        },
+        |_| Ok(ArtifactPublicationDurabilityV1::Confirmed),
+    )
+    .expect_err("atomic create-new publication must refuse a late destination");
+
+    assert!(matches!(
+        error,
+        ArtifactPublicationErrorV1::NotPublished {
+            phase: ArtifactPrepublicationPhaseV1::Rename,
+            source,
+            ..
+        } if source.kind() == std::io::ErrorKind::AlreadyExists
+    ));
+    assert_eq!(
+        fs::read_to_string(&destination).expect("concurrent destination must survive"),
+        "concurrent artifact"
+    );
+    assert!(
+        !fs::read_dir(&directory)
+            .expect("directory must read")
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().starts_with(".ferrum-")),
+        "refused create-new publication must clean its temporary"
+    );
+    fs::remove_dir_all(directory).expect("test directory cleanup must succeed");
+}
+
+#[test]
 fn owned_bytes_publish_with_a_read_only_receipt() {
     let directory = test_directory("owned");
     let destination = directory.join("artifact.svg");

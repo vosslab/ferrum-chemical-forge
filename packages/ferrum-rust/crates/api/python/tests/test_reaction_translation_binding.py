@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import defusedxml.ElementTree
+import lxml.etree
 
 import ferrum_chem
 
@@ -15,6 +15,12 @@ SOURCE = (
 	'<arrow id="arrow"><point x="25" y="0"/><point x="75" y="0"/></arrow>'
 	'<reaction id="strict"><reactant idref="left"/><product idref="right"/>'
 	'<arrow idref="arrow"/></reaction></cdml>'
+)
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
 )
 
 
@@ -29,7 +35,7 @@ def _reaction_members(session: object) -> tuple[str, ...]:
 
 def _reaction_references(cdml: str) -> set[str]:
 	"""Return the strict reaction's source relationships, excluding document identity."""
-	root = defusedxml.ElementTree.fromstring(cdml)
+	root = lxml.etree.fromstring(cdml.encode("utf-8"), parser=_XML_PARSER)
 	reaction, = root.findall("{urn:ferrum:cdml}reaction")
 	return {member.attrib["idref"] for member in reaction}
 

@@ -12,9 +12,46 @@ pub(crate) struct ExecutionFailureV1 {
     pub(super) reaction_refusal: Option<ReactionRefusalV1>,
     pub(super) compact_group_materialization_refusal: Option<CompactGroupMaterializationRefusalV1>,
     pub(super) compact_group_attachment_refusal: Option<CompactGroupAttachmentRefusalV1>,
+    pub(super) document_molecule_export_refusal: Option<DocumentMoleculeExportRefusalV1>,
 }
 
 impl ExecutionFailureV1 {
+    /// Build the only public selected-root export refusal envelope fact.
+    ///
+    /// The ordinary error category is derived once here so neither protocol
+    /// callers nor CLI presentation need to parse diagnostics.
+    pub(crate) fn document_molecule_export_refusal(
+        refusal: DocumentMoleculeExportRefusalV1,
+    ) -> Self {
+        let category = match refusal.category {
+            ProtocolDocumentMoleculeExportCategoryV1::SnapshotNotAdmitted => {
+                OperationProtocolErrorCategoryV1::DocumentAdmissionFailed
+            }
+            ProtocolDocumentMoleculeExportCategoryV1::UnknownOrNonDirectRoot => {
+                OperationProtocolErrorCategoryV1::DocumentInvalid
+            }
+            ProtocolDocumentMoleculeExportCategoryV1::RepresentationUnsupported => {
+                OperationProtocolErrorCategoryV1::RenderUnsupported
+            }
+            ProtocolDocumentMoleculeExportCategoryV1::ChemistryUnavailable => {
+                OperationProtocolErrorCategoryV1::ChemistryUnavailable
+            }
+            ProtocolDocumentMoleculeExportCategoryV1::OutputLimitExceeded => {
+                OperationProtocolErrorCategoryV1::ResourceLimit
+            }
+        };
+        Self {
+            category,
+            message: "selected molecule export refused".to_owned(),
+            resource_limit: None,
+            presentation_author_refusal: None,
+            catalog_placement_refusal: None,
+            reaction_refusal: None,
+            compact_group_materialization_refusal: None,
+            compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: Some(refusal),
+        }
+    }
     pub(crate) fn compact_group_materialization_refusal(
         refusal: CompactGroupMaterializationRefusalV1,
     ) -> Self {
@@ -40,6 +77,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: Some(refusal),
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
     pub(crate) fn compact_group_attachment_refusal(
@@ -75,6 +113,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: Some(refusal),
+            document_molecule_export_refusal: None,
         }
     }
     pub(crate) fn invalid_request(message: impl Into<String>) -> Self {
@@ -87,6 +126,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -118,6 +158,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
     pub(crate) fn document_admission(message: String) -> Self {
@@ -130,6 +171,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -143,6 +185,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -156,6 +199,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -169,6 +213,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -182,6 +227,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -199,6 +245,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -212,6 +259,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -225,6 +273,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -238,6 +287,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -267,6 +317,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -310,6 +361,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -346,6 +398,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -359,6 +412,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -390,6 +444,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -411,6 +466,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 
@@ -576,6 +632,7 @@ impl ExecutionFailureV1 {
             reaction_refusal: Some(ReactionRefusalV1 { category, recovery }),
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         }
     }
 }
@@ -627,6 +684,42 @@ pub(super) fn catalog_recovery(
 mod tests {
     use super::*;
 
+    #[test]
+    fn document_molecule_export_refusal_derives_the_one_public_category_mapping() {
+        let cases = [
+            (
+                ProtocolDocumentMoleculeExportCategoryV1::SnapshotNotAdmitted,
+                OperationProtocolErrorCategoryV1::DocumentAdmissionFailed,
+            ),
+            (
+                ProtocolDocumentMoleculeExportCategoryV1::UnknownOrNonDirectRoot,
+                OperationProtocolErrorCategoryV1::DocumentInvalid,
+            ),
+            (
+                ProtocolDocumentMoleculeExportCategoryV1::RepresentationUnsupported,
+                OperationProtocolErrorCategoryV1::RenderUnsupported,
+            ),
+            (
+                ProtocolDocumentMoleculeExportCategoryV1::ChemistryUnavailable,
+                OperationProtocolErrorCategoryV1::ChemistryUnavailable,
+            ),
+            (
+                ProtocolDocumentMoleculeExportCategoryV1::OutputLimitExceeded,
+                OperationProtocolErrorCategoryV1::ResourceLimit,
+            ),
+        ];
+
+        for (export_category, ordinary_category) in cases {
+            let refusal = DocumentMoleculeExportRefusalV1 {
+                category: export_category,
+                recovery: ProtocolDocumentMoleculeExportRecoveryV1::SelectSmallerRoot,
+            };
+            let failure = ExecutionFailureV1::document_molecule_export_refusal(refusal);
+            assert_eq!(failure.category, ordinary_category);
+            assert_eq!(failure.document_molecule_export_refusal, Some(refusal));
+            assert_eq!(failure.message, "selected molecule export refused");
+        }
+    }
     #[test]
     fn durable_reaction_command_refusals_keep_the_closed_protocol_category() {
         let failure = ExecutionFailureV1::reaction_authoring_command_refusal(

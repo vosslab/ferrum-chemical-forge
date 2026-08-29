@@ -51,35 +51,31 @@ fn encode_record(
     let molecule = molblock_wire::encode(record.molecule(), version)?;
     let molecule_length = wire_length(molecule.len(), "SDF molecule")?;
     let title_length = wire_length(record.title().len(), "SDF title")?;
-    let property_count = u32::try_from(record.properties().len()).map_err(|_| {
-        ChemistryError::UnsupportedNativeRequest {
-            reason: "SDF property count does not fit the native wire".to_owned(),
-        }
-    })?;
-    let property_bytes = record
-        .properties()
-        .iter()
-        .try_fold(0_usize, |total, property| {
-            total
-                .checked_add(FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES)
-                .and_then(|length| length.checked_add(property.name().len()))
-                .and_then(|length| length.checked_add(property.value().len()))
-                .ok_or_else(|| ChemistryError::UnsupportedNativeRequest {
-                    reason: "SDF property bytes exceed the native wire bound".to_owned(),
-                })
-        })?;
-    let record_bytes = FERRUM_CHEM_SDF_RECORD_HEADER_BYTES
-        .checked_add(molecule.len())
-        .and_then(|length| length.checked_add(record.title().len()))
-        .and_then(|length| length.checked_add(property_bytes))
-        .ok_or_else(|| ChemistryError::UnsupportedNativeRequest {
-            reason: "SDF record bytes exceed the native wire bound".to_owned(),
-        })?;
-    let request_bytes = output.len().checked_add(record_bytes).ok_or_else(|| {
-        ChemistryError::UnsupportedNativeRequest {
-            reason: "SDF request bytes exceed the native wire bound".to_owned(),
-        }
-    })?;
+	let property_count = supported_property_count(record.properties().len())?;
+	let property_bytes = record
+		.properties()
+		.iter()
+		.try_fold(0_usize, |total, property| {
+			total
+				.checked_add(FERRUM_CHEM_SDF_PROPERTY_HEADER_BYTES)
+				.and_then(|length| length.checked_add(property.name().len()))
+				.and_then(|length| length.checked_add(property.value().len()))
+				.ok_or_else(|| ChemistryError::UnsupportedNativeRequest {
+					reason: "SDF property bytes exceed the native wire bound".to_owned(),
+				})
+		})?;
+	let record_bytes = FERRUM_CHEM_SDF_RECORD_HEADER_BYTES
+		.checked_add(molecule.len())
+		.and_then(|length| length.checked_add(record.title().len()))
+		.and_then(|length| length.checked_add(property_bytes))
+		.ok_or_else(|| ChemistryError::UnsupportedNativeRequest {
+			reason: "SDF record bytes exceed the native wire bound".to_owned(),
+		})?;
+	let request_bytes = output.len().checked_add(record_bytes).ok_or_else(|| {
+		ChemistryError::UnsupportedNativeRequest {
+			reason: "SDF request bytes exceed the native wire bound".to_owned(),
+		}
+	})?;
     if request_bytes > FERRUM_CHEM_MAX_RESPONSE_BYTES {
         return Err(ChemistryError::UnsupportedNativeRequest {
             reason: "SDF request exceeds the ABI wire bound".to_owned(),
@@ -107,6 +103,17 @@ fn encode_record(
     Ok(())
 }
 
+fn supported_property_count(property_count: usize) -> Result<u32, ChemistryError> {
+	if property_count > FERRUM_CHEM_SDF_MAX_PROPERTIES as usize {
+		return Err(ChemistryError::UnsupportedNativeRequest {
+			reason: "SDF property count exceeds the native ABI limit".to_owned(),
+		});
+	}
+	u32::try_from(property_count).map_err(|_| ChemistryError::UnsupportedNativeRequest {
+		reason: "SDF property count does not fit the native wire".to_owned(),
+	})
+}
+
 fn wire_length(length: usize, field: &str) -> Result<u32, ChemistryError> {
     u32::try_from(length).map_err(|_| ChemistryError::UnsupportedNativeRequest {
         reason: format!("{field} length does not fit the native wire"),
@@ -118,7 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn record_count_uses_the_generated_native_abi_limit() {
+	fn record_count_uses_the_generated_native_abi_limit() {
         assert_eq!(
             supported_record_count(FERRUM_CHEM_SDF_MAX_RECORDS as usize),
             Ok(FERRUM_CHEM_SDF_MAX_RECORDS)
@@ -127,5 +134,17 @@ mod tests {
             supported_record_count(FERRUM_CHEM_SDF_MAX_RECORDS as usize + 1),
             Err(ChemistryError::UnsupportedNativeRequest { .. })
         ));
-    }
+	}
+
+	#[test]
+	fn property_count_uses_the_generated_native_abi_limit_before_request_reservation() {
+		assert_eq!(
+			supported_property_count(FERRUM_CHEM_SDF_MAX_PROPERTIES as usize),
+			Ok(FERRUM_CHEM_SDF_MAX_PROPERTIES)
+		);
+		assert!(matches!(
+			supported_property_count(FERRUM_CHEM_SDF_MAX_PROPERTIES as usize + 1),
+			Err(ChemistryError::UnsupportedNativeRequest { .. })
+		));
+	}
 }

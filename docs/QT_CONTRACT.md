@@ -132,7 +132,7 @@ The initial Rust-facing session surface is revision guarded:
 The document layer owns `SessionDocumentObservationV1`, containing the
 revision-bound snapshot and typed document projection. It is the observation
 for document and presentation facts. The API layer composes that observation
-with verified render metrics into `RenderObservationV1`, the separate
+with verified render metrics into `RenderObservationV2`, the separate
 observation for molecule render plans. Neither value replaces the other, and
 Qt does not manufacture either from XML or graphics.
 
@@ -146,39 +146,37 @@ observation; the UI does not mark a document saved itself.
 
 ## Render-plan painter
 
-The Ferrum molecule painter consumes a final `RenderObservationV1`, composed by
+The Ferrum molecule painter consumes a final `RenderObservationV2`, composed by
 the API from one revision-checked `SessionDocumentObservationV1` and verified
 render metrics. It does not consume retired atom or bond models or Python XML.
 The final observation contains frozen
-`DocumentMoleculeRenderPlanV3` values in document root order. Each entry keeps
+`DocumentMoleculeRenderPlanV4` values in document root order. Each entry keeps
 document-root molecule identity and order separate from the molecule-local atom
-and bond order inside its `RenderPlanV3`. `RenderObservationV1` retains its name
-because it is the revision-bound document/projection receipt envelope, not a
-molecule-plan grammar; its payload contains only V3 molecule plans.
+and bond order inside its `RenderPlanV4`.
 
 ```text
 SessionDocumentObservationV1
   snapshot: revision, digest, and dirty state
   projection: typed durable facts with the same revision and digest
 
-RenderObservationV1
+RenderObservationV2
   document: SessionDocumentObservationV1
-  molecule_plans: tuple[DocumentMoleculeRenderPlanV3, ...]
+  molecule_plans: tuple[DocumentMoleculeRenderPlanV4, ...]
 
-DocumentMoleculeRenderPlanV3
+DocumentMoleculeRenderPlanV4
   molecule: MoleculeRenderRootV1
     document_object_id: opaque durable document object key
-  plan: RenderPlanV3
+  plan: RenderPlanV4
   bounds: MoleculeContentBoundsV1
     left, top, right, bottom: finite Rust-measured painted bounds
   member_issues: tuple[MoleculeMemberDepictionIssueV1, ...]
 
-RenderPlanV3
-  schema: ferrum-render-plan-v3
+RenderPlanV4
+  schema: ferrum-render-plan-v4
   provenance:
     revision: exactly document.snapshot.revision
     digest: exactly document.snapshot.digest
-  batches: tuple[RenderBatchV3, ...]
+  batches: tuple[RenderBatchV4, ...]
   issues: tuple[RenderIssueV1, ...]
 ```
 
@@ -187,13 +185,17 @@ Each molecule entry becomes one disposable, noninteractive
 and measured content bounds, owns its ordinary child items for lifetime and
 disposal, and neither paints nor handles selection. Its z order comes from the
 matching backend-issued direct-root order. Each batch has a durable
-`RenderTargetV1` with `record_id.kind`,
-`record_id.id`, and `source_order`, plus a declared coordinate space. Ordered
-tagged `RenderOperationV3` values contain the established line, mask, text, and
-ellipse leaves or a neutral `PathOpV2`. A path is a finite validated stream of
+`RenderTargetV1` keyed by opaque `DocumentObjectIdV1`, plus a declared
+coordinate space and exactly one closed atom, compact-group, or bond content
+payload. Atom content carries the renderer-issued Telex runs, structural core
+run, exact full/core ink bounds, and positive bond-ink clearance. Ordered typed
+operations contain the established line, mask, text, ellipse, and path leaves.
+A path is a finite validated stream of
 `MoveTo`, `LineTo`, `CubicTo`, and `Close` commands with explicit optional
 stroke, fill, and z facts. Scene-space bond batches admit received lines and
-paths; atom-local batches retain masks and text. Paint is explicit lowercase
+paths and frozen `BondAttachmentAxisV1` center-to-center connection facts;
+atom-local batches retain masks and text. The axis is transport-only: Qt checks
+its exact finite endpoints but never paints or hit-tests it. Paint is explicit lowercase
 six-digit `Rgb24`. Text runs declare their
 supplied origins, exact glyph identifiers, exact glyph origins, script, scale,
 size, face, and paint. Paint is document depiction data, not a Qt palette
@@ -204,7 +206,8 @@ font, glyph mapping, or other depiction defaults.
 `FerrumRenderProjection` validates the schema, exact revision, root envelope,
 DTO shape, and Rust bounds before allocating scene objects. It copies received path commands
 into `QPainterPath` and paints or hit-tests only received geometry and paint; Qt
-does not create, complete, recolor, or reinterpret paths. It builds a complete detached
+does not create, complete, recolor, or reinterpret paths, and does not turn a
+bond attachment axis into a line. It builds a complete detached
 scene containing explicit molecule ownership roots and every supported presentation-vector root
 from the same document observation before replacing scene ownership. Molecule
 root children keep molecule-local order; top-level molecule and presentation
@@ -691,6 +694,35 @@ and rechecks selection before starting; post-worker delivery uses only the
 captured fence and receipt. During either read-only worker, Select Structure
 remains available while selection mutations, including Delete, remain disabled
 until the worker finishes.
+
+All singular molecule export clients use the same Rust selected-root export
+core: Molfile V2000/V3000, SDF V2000/V3000, canonical SMILES, Standard InChI,
+and Fixed-Hydrogen InChI. Qt supplies only the selected direct-root ID and the
+captured observation fence, presents a typed refusal, and may ask the Rust
+publisher to create a new destination after computation completes. It never
+lowers a graph, decides format support, rewrites output, or publishes a partial
+result. Coordinate-required formats refuse without valid coordinates; the
+shared compact-group lowerer decides representation support. The plural
+multi-record SDF export remains a different workflow and must not be routed
+through a singular selection.
+
+## Command discovery and reference
+
+`ActionRegistry` remains the live owner of registered action identity, label,
+help, enabled state, and invocation. Its views join validated `menus.yaml`
+placement once into an immutable `CommandCatalogEntry` catalog. Command Palette
+and Command Reference consume that catalog rather than maintaining parallel
+command lists.
+
+Command Reference is modeless and nonmutating. F1, using Qt's native Help
+standard key, and **Help > Command Reference...** open it with the search field
+focused. It finds label, help, stable ID, current native shortcut, and YAML
+breadcrumb, retains unavailable commands with an explanation, and provides no
+activation gesture. Close or Escape restores focus to the invoking control.
+The filter, list, status, and close control have explicit accessible names and
+descriptions with a defined tab order. Focused Qt tests prove this behavior;
+native keyboard dispatch and assistive-technology review remain human desktop
+acceptance work, not a claim made by this contract.
 
 ## Native Open lifecycle
 

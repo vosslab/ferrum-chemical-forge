@@ -11,7 +11,7 @@ _TEMPLATE = """\
  <paper id="template-paper" type="A4"/>
  <molecule id="source-molecule" name="  Example molecule  ">
   <atom id="source-a" name="C"><point x="0" y="2"/></atom>
-  <atom id="source-b" name="O"><point x="10" y="4"/></atom>
+  <atom id="source-b" name="O"><point x="40" y="4"/></atom>
   <bond id="source-bond" start="source-a" end="source-b" type="n1"/>
  </molecule>
 </cdml>
@@ -31,7 +31,7 @@ def test_private_template_inspection_derives_catalog_facts() -> None:
 		plan.display_name,
 		plan.atom_centroid_x,
 		plan.atom_centroid_y,
-	) == ("Example molecule", 5.0, 3.0)
+	) == ("Example molecule", 20.0, 3.0)
 
 
 def test_private_template_insertion_keeps_context_separate() -> None:
@@ -49,7 +49,7 @@ def test_private_template_insertion_keeps_context_separate() -> None:
 		(atom_a.position.y + atom_b.position.y) / 2.0,
 		atom_b.position.x - atom_a.position.x,
 		atom_b.position.y - atom_a.position.y,
-	) == pytest.approx((100.0, 50.0, 10.0, 2.0), abs=0.02)
+	) == pytest.approx((100.0, 50.0, 40.0, 2.0), abs=0.02)
 	assert (
 		"template-paper" in observation.snapshot.cdml,
 		"line_width=\"9\"" in observation.snapshot.cdml,

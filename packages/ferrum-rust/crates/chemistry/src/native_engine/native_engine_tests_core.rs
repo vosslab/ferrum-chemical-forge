@@ -398,7 +398,7 @@ fn multiline_text_response_is_reserved_for_record_codecs() {
     response.extend_from_slice(output.as_bytes());
 
     assert_eq!(
-        text_response::decode_multiline(&response, "molblock"),
+        text_response::decode_multiline(&response, "molblock", NativeTextOutputLimit::ADAPTER_MAXIMUM),
         Ok(output.to_owned())
     );
     assert!(matches!(

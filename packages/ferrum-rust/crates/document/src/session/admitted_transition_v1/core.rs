@@ -734,11 +734,9 @@ impl DocumentSession {
         let observation = SessionDocumentObservationV1::from_snapshot(snapshot)
             .map_err(DocumentSessionError::Projection)?;
         let renderer_admission = match commit {
-            ChangedTransitionCommitV1::Append => {
-                RendererAdmittedPendingV1::admit(self, &observation)
-            }
+            ChangedTransitionCommitV1::Append => RendererAdmittedPending::admit(self, &observation),
             ChangedTransitionCommitV1::Navigate(_) => {
-                RendererAdmittedPendingV1::admit_retained_history_target(self, &observation)
+                RendererAdmittedPending::admit_retained_history_target(self, &observation)
             }
         }
         .map_err(|_| DocumentSessionError::RendererAdmission)?;

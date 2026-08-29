@@ -26,7 +26,8 @@ use std::path::Path;
 use crate::{
     AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, ChemEngine, ChemistryError,
     Coordinates, ImportedSdfRecord, InchiMode, KekulizeOptions, MolAtom, MolBond, MolGraph,
-    MolblockVersion, MoleculeComposition, Point2, SdfProperty, SdfRecord, SmartsMatchOptions,
+    MolblockVersion, MoleculeComposition, NativeTextOutputLimit, Point2, SdfProperty, SdfRecord,
+    SmartsMatchOptions,
     SmartsMatchResult, SmartsMatchUnavailableReason, SmilesMolecule,
     FERRUM_CHEM_CALL_ALLOCATION_FAILURE, FERRUM_CHEM_COMPOSITION_ENTRY_BYTES,
     FERRUM_CHEM_COMPOSITION_FLAGS_NONE, FERRUM_CHEM_COMPOSITION_MAX_DETAIL_BYTES,
@@ -135,8 +136,12 @@ impl NativeChemEngine {
     }
 
     /// Export a complete graph as canonical isomeric SMILES.
-    pub fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
-        <Self as ChemEngine>::molecule_to_smiles(self, molecule)
+    pub fn molecule_to_smiles(
+        &self,
+        molecule: &MolGraph,
+        limit: NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
+        <Self as ChemEngine>::molecule_to_smiles(self, molecule, limit)
     }
 
     /// Calculate isotope-aware formula, counts, charge, and masses.
@@ -162,8 +167,9 @@ impl NativeChemEngine {
         &self,
         molecule: &MolGraph,
         version: MolblockVersion,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
-        <Self as ChemEngine>::molecule_to_molblock(self, molecule, version)
+        <Self as ChemEngine>::molecule_to_molblock(self, molecule, version, limit)
     }
 
     /// Export a coordinate-bearing graph with an exact first-line title.
@@ -172,8 +178,9 @@ impl NativeChemEngine {
         molecule: &MolGraph,
         version: MolblockVersion,
         title: &str,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
-        <Self as ChemEngine>::molecule_to_molblock_with_title(self, molecule, version, title)
+        <Self as ChemEngine>::molecule_to_molblock_with_title(self, molecule, version, title, limit)
     }
 
     /// Import one bounded V2000 or V3000 molblock.
@@ -191,8 +198,9 @@ impl NativeChemEngine {
         &self,
         molecule: &MolGraph,
         mode: InchiMode,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
-        <Self as ChemEngine>::molecule_to_inchi(self, molecule, mode)
+        <Self as ChemEngine>::molecule_to_inchi(self, molecule, mode, limit)
     }
 
     /// Derive the official InChIKey for one bounded InChI line.
@@ -205,8 +213,9 @@ impl NativeChemEngine {
         &self,
         records: &[SdfRecord],
         version: MolblockVersion,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
-        <Self as ChemEngine>::records_to_sdf(self, records, version)
+        <Self as ChemEngine>::records_to_sdf(self, records, version, limit)
     }
 
     /// Import bounded UTF-8 SDF text into owned ordered records.
@@ -286,13 +295,17 @@ impl ChemEngine for NativeChemEngine {
         text_response::decode(&response, "SMARTS")
     }
 
-    fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+    fn molecule_to_smiles(
+        &self,
+        molecule: &MolGraph,
+        limit: NativeTextOutputLimit,
+    ) -> Result<String, ChemistryError> {
         let request = graph_wire::encode(molecule)?;
         let response = self
             .adapter
-            .molecule_to_smiles(&request)
+            .molecule_to_smiles(&request, limit.bytes())
             .map_err(adapter_error)?;
-        text_response::decode_smiles(&response)
+        text_response::decode_smiles(&response, limit)
     }
 
     fn molecule_composition(
@@ -327,13 +340,14 @@ impl ChemEngine for NativeChemEngine {
         &self,
         molecule: &MolGraph,
         version: MolblockVersion,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         let request = molblock_wire::encode(molecule, version)?;
         let response = self
             .adapter
-            .molecule_to_molblock(&request)
+            .molecule_to_molblock(&request, limit.bytes())
             .map_err(adapter_error)?;
-        text_response::decode_multiline(&response, "molblock")
+        text_response::decode_multiline(&response, "molblock", limit)
     }
 
     fn molecule_to_molblock_with_title(
@@ -341,13 +355,14 @@ impl ChemEngine for NativeChemEngine {
         molecule: &MolGraph,
         version: MolblockVersion,
         title: &str,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         let request = molblock_wire::encode_titled(molecule, version, title)?;
         let response = self
             .adapter
-            .molecule_to_molblock_with_title(&request)
+            .molecule_to_molblock_with_title(&request, limit.bytes())
             .map_err(adapter_error)?;
-        let output = text_response::decode_multiline(&response, "molblock")?;
+        let output = text_response::decode_multiline(&response, "molblock", limit)?;
         molblock_wire::validate_output_title(&output, title)?;
         Ok(output)
     }
@@ -374,13 +389,14 @@ impl ChemEngine for NativeChemEngine {
         &self,
         molecule: &MolGraph,
         mode: InchiMode,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         let request = inchi_wire::encode(molecule, mode)?;
         let response = self
             .adapter
-            .molecule_to_inchi(&request)
+            .molecule_to_inchi(&request, limit.bytes())
             .map_err(adapter_error)?;
-        let output = text_response::decode(&response, "InChI")?;
+        let output = text_response::decode_bounded(&response, "InChI", limit)?;
         let valid_prefix = match mode {
             InchiMode::Standard => output.starts_with("InChI=1S/"),
             InchiMode::FixedHydrogen => {
@@ -410,13 +426,14 @@ impl ChemEngine for NativeChemEngine {
         &self,
         records: &[SdfRecord],
         version: MolblockVersion,
+        limit: NativeTextOutputLimit,
     ) -> Result<String, ChemistryError> {
         let request = sdf_wire::encode(records, version)?;
         let response = self
             .adapter
-            .records_to_sdf(&request)
+            .records_to_sdf(&request, limit.bytes())
             .map_err(adapter_error)?;
-        text_response::decode_multiline(&response, "SDF")
+        text_response::decode_multiline(&response, "SDF", limit)
     }
 
     fn sdf_to_records(&self, input: &str) -> Result<Vec<ImportedSdfRecord>, ChemistryError> {

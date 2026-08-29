@@ -338,6 +338,7 @@ def _copy_atom_content(content: object, engine: object,
 	core_run = label.text.runs[index]
 	if type(core_run) is not engine.TextRunV1 or core_run.script != "baseline":
 		raise FerrumPlanError("Ferrum atom core element run must be an exact baseline run")
+	_positive(label.bond_ink_clearance, "atom-label bond-ink clearance")
 	full_bounds = _ink_bounds(label.full_ink_bounds, engine, "full atom-label ink bounds")
 	core_bounds = _ink_bounds(label.core_element_ink_bounds, engine, "core atom-label ink bounds")
 	if not _contains_bounds(full_bounds, core_bounds):
@@ -393,7 +394,14 @@ def _copy_bond_content(content: object, engine: object,
 		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> list[_Line | _Fill | _Shape]:
-	"""Replay scene-local bond payload operations without atom-label semantics."""
+	"""Validate structural attachment, then replay only the clipped bond ink."""
+	axis = content.attachment_axis
+	if type(axis) is not engine.BondAttachmentAxisV1:
+		raise FerrumPlanError("Ferrum bond batch has no exact attachment axis")
+	start = _point(axis.start, "bond attachment-axis start")
+	end = _point(axis.end, "bond attachment-axis end")
+	if start == end:
+		raise FerrumPlanError("Ferrum bond attachment-axis endpoints are coincident")
 	operations = content.typed_operations
 	if not isinstance(operations, tuple):
 		raise FerrumPlanError("Ferrum bond operations must be a frozen tuple")

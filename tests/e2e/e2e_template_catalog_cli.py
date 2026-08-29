@@ -3,22 +3,34 @@
 from __future__ import annotations
 
 import argparse
-import defusedxml.ElementTree
 import json
 from pathlib import Path
 import subprocess
 import sys
 
+import lxml.etree
+
 
 EMPTY_CDML = '<cdml xmlns="urn:ferrum:cdml"/>'
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 class CatalogCliE2eError(RuntimeError):
 	"""Raised when the public catalog CLI workflow loses a required contract."""
 
 
-def invoke(ferrum: Path, request_id: str, operation: dict[str, object]) -> dict[str, object]:
-	"""Run one operation-protocol request and return its completed JSON response."""
+def invoke(
+	ferrum: Path,
+	request_id: str,
+	operation: dict[str, object],
+	expected_exit_status: int = 0,
+) -> dict[str, object]:
+	"""Run one operation-protocol request with its exact completed-outcome status."""
 	payload = json.dumps({
 		"schema": "ferrum-operation-request-v1",
 		"request_id": request_id,
@@ -28,8 +40,8 @@ def invoke(ferrum: Path, request_id: str, operation: dict[str, object]) -> dict[
 		[str(ferrum), "protocol", "run", "-"], input=payload, text=True,
 		stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
 	)
-	if result.returncode != 0 or result.stderr:
-		raise CatalogCliE2eError("protocol request did not complete cleanly")
+	if result.returncode != expected_exit_status or result.stderr:
+		raise CatalogCliE2eError("protocol request violated its completed-outcome channels")
 	lines = result.stdout.splitlines()
 	if len(lines) != 1:
 		raise CatalogCliE2eError("protocol request did not emit one JSON response")
@@ -148,8 +160,8 @@ def main() -> int:
 	if not isinstance(created_id, str) or not created_id or not isinstance(document, str):
 		raise CatalogCliE2eError("catalog insertion omitted its public created ID or document")
 	try:
-		defusedxml.ElementTree.fromstring(document)
-	except defusedxml.ElementTree.ParseError as error:
+		lxml.etree.fromstring(document.encode("utf-8"), parser=_XML_PARSER)
+	except lxml.etree.XMLSyntaxError as error:
 		raise CatalogCliE2eError(f"catalog insertion returned invalid CDML: {error}") from error
 	follow_on_fence = inserted.get("document_fence")
 	if (
@@ -163,7 +175,7 @@ def main() -> int:
 		raise CatalogCliE2eError("catalog insertion fence disagreed with fresh document inspection")
 	stale = insertion_operation(document, follow_on_fence, catalog_id)
 	stale["expected_revision"] = follow_on_fence["expected_revision"] + 1
-	refusal = invoke(ferrum, "catalog-insert-stale", stale)
+	refusal = invoke(ferrum, "catalog-insert-stale", stale, expected_exit_status=1)
 	error = refusal.get("error")
 	if (
 		refusal.get("schema") != "ferrum-operation-error-v1"

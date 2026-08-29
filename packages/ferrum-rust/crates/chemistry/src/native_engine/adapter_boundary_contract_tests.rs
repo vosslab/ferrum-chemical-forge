@@ -1,4 +1,4 @@
-//! ABI-5 adapters must expose their capability contract and required symbols.
+//! ABI-6 adapters must expose their capability contract and required symbols.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,17 +20,17 @@ const ADAPTER_RESPONSE_LIMIT: u64 = FERRUM_CHEM_MAX_RESPONSE_BYTES as u64;
 
 #[test]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn abi5_adapter_loads_required_symbols_and_honors_capability_bits() {
+fn abi6_adapter_loads_required_symbols_and_honors_capability_bits() {
     let fixture = SyntheticAdapter::build();
     let adapter = ChemistryAdapter::load(fixture.library_path(), ADAPTER_ABI_VERSION)
-        .expect("an ABI-5 adapter with its required symbols loads");
+        .expect("an ABI-6 adapter with its required symbols loads");
 
     assert_eq!(adapter.abi_version(), ADAPTER_ABI_VERSION);
     assert_eq!(adapter.capabilities(), FERRUM_CHEM_CAPABILITY_KEKULIZE);
     assert!(!adapter.supports_generate_2d());
     assert!(adapter
         .kekulize(&[])
-        .expect("required ABI-5 kekulize remains callable")
+        .expect("required ABI-6 kekulize remains callable")
         .is_empty());
     assert!(matches!(
         adapter.generate_2d(&[]),
@@ -45,25 +45,25 @@ fn abi5_adapter_loads_required_symbols_and_honors_capability_bits() {
         })
     ));
     assert!(matches!(
-        adapter.molecule_to_smiles(&[]),
+        adapter.molecule_to_smiles(&[], ADAPTER_RESPONSE_LIMIT),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_smiles"
         })
     ));
     assert!(matches!(
-        adapter.molecule_to_molblock(&[]),
+        adapter.molecule_to_molblock(&[], ADAPTER_RESPONSE_LIMIT),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_molblock"
         })
     ));
     assert!(matches!(
-        adapter.molecule_to_molblock_with_title(&[]),
+        adapter.molecule_to_molblock_with_title(&[], ADAPTER_RESPONSE_LIMIT),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_molblock_with_title"
         })
     ));
     assert!(matches!(
-        adapter.records_to_sdf(&[]),
+        adapter.records_to_sdf(&[], ADAPTER_RESPONSE_LIMIT),
         Err(AdapterError::OperationUnavailable {
             operation: "records_to_sdf"
         })
@@ -87,7 +87,7 @@ fn abi5_adapter_loads_required_symbols_and_honors_capability_bits() {
         })
     ));
     assert!(matches!(
-        adapter.molecule_to_inchi(&[]),
+        adapter.molecule_to_inchi(&[], ADAPTER_RESPONSE_LIMIT),
         Err(AdapterError::OperationUnavailable {
             operation: "molecule_to_inchi"
         })
@@ -113,18 +113,18 @@ fn abi5_smarts_capability_requires_its_exact_symbol_for_load_admission() {
 
     let fixture = SyntheticAdapter::build_with_smarts_match_symbol();
     let adapter = ChemistryAdapter::load(fixture.library_path(), ADAPTER_ABI_VERSION)
-        .expect("ABI-5 SMARTS capability and symbol agree");
+        .expect("ABI-6 SMARTS capability and symbol agree");
     assert_eq!(adapter.abi_version(), ADAPTER_ABI_VERSION);
 }
 
 #[test]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn abi4_adapter_refuses_before_abi5_capability_loading() {
+fn abi5_adapter_refuses_before_abi6_capability_loading() {
     let fixture = SyntheticAdapter::build_with_abi_version(4);
     assert!(matches!(
         ChemistryAdapter::load(fixture.library_path(), ADAPTER_ABI_VERSION,),
         Err(AdapterError::AbiMismatch {
-            expected: 5,
+            expected: ADAPTER_ABI_VERSION,
             actual: 4,
         })
     ));
@@ -135,7 +135,7 @@ fn abi4_adapter_refuses_before_abi5_capability_loading() {
 fn abi4_adapter_releases_an_oversized_foreign_result_without_reading_it() {
     let fixture = SyntheticAdapter::build();
     let adapter = ChemistryAdapter::load(fixture.library_path(), ADAPTER_ABI_VERSION)
-        .expect("the synthetic ABI-4 adapter loads");
+        .expect("the synthetic ABI-6 adapter loads");
 
     let error = adapter
         .kekulize(&[1])
@@ -309,7 +309,7 @@ impl SyntheticAdapter {
     ) -> Self {
         let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let directory = std::env::temp_dir().join(format!(
-            "ferrum-chemistry-adapter-abi5-{}-{sequence}",
+            "ferrum-chemistry-adapter-abi6-{}-{sequence}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).expect("create synthetic adapter directory");
@@ -368,7 +368,7 @@ fn add_shared_library_flags(compiler: &mut Command) {
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn add_shared_library_flags(_: &mut Command) {
-    panic!("the ABI-4 fixture needs a supported C shared-library compiler");
+    panic!("the ABI-6 fixture needs a supported C shared-library compiler");
 }
 
 impl Drop for SyntheticAdapter {
@@ -380,15 +380,15 @@ impl Drop for SyntheticAdapter {
 fn library_name() -> &'static str {
     #[cfg(target_os = "macos")]
     {
-        "libgraphmol_abi4.dylib"
+        "libgraphmol_abi6.dylib"
     }
     #[cfg(target_os = "linux")]
     {
-        "libgraphmol_abi4.so"
+        "libgraphmol_abi6.so"
     }
     #[cfg(target_os = "windows")]
     {
-        "graphmol_abi4.dll"
+        "graphmol_abi6.dll"
     }
 }
 

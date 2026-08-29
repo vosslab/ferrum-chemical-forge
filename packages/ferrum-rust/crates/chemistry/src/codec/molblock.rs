@@ -2,13 +2,14 @@
 
 use crate::{
     ChemistryError, ExplicitAdapterError, MolblockVersion, MoleculeInspectionFactsV1,
-    SmilesInspectionError, load_explicit_adapter, molecule_inspection_facts,
+    NativeTextOutputLimit, SmilesInspectionError, load_explicit_adapter, molecule_inspection_facts,
     validate_molblock_input,
 };
 use serde::Serialize;
 use std::path::Path;
 use thiserror::Error;
 pub const MOLBLOCK_INSPECTION_SCHEMA_V1: &str = "ferrum-molblock-inspection-v1";
+const MOLBLOCK_CODEC_TEXT_LIMIT: NativeTextOutputLimit = NativeTextOutputLimit::ADAPTER_MAXIMUM;
 pub fn inspect_molblock(
     adapter_path: &Path,
     input: &str,
@@ -30,7 +31,7 @@ pub fn molblock_from_smiles(
     let engine = load_explicit_adapter(adapter_path)?;
     let molecule = engine.smiles_to_molecule(smiles)?;
     engine
-        .molecule_to_molblock(molecule.molecule(), version)
+        .molecule_to_molblock(molecule.molecule(), version, MOLBLOCK_CODEC_TEXT_LIMIT)
         .map_err(MolblockExportError::Chemistry)
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]

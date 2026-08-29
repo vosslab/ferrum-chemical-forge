@@ -179,11 +179,22 @@ fn checked_in_schema_refuses_tetrahedral_descriptor_without_four_ligands() {
 
 #[test]
 fn snapshot_report_retains_generic_inserted_tetrahedral_and_ez_semantics() {
-    let atoms = (0..7)
-        .map(|index| {
+    let points = [
+        (0.0, 0.0),
+        (-60.0, -60.0),
+        (-60.0, 60.0),
+        (60.0, 0.0),
+        (180.0, 0.0),
+        (120.0, 0.0),
+        (240.0, 60.0),
+    ];
+    let atoms = points
+        .into_iter()
+        .enumerate()
+        .map(|(index, (x, y))| {
             MoleculeInsertionAtomV1::new(
                 "C",
-                Point3V1::new(index as f64, 0.0, 0.0).expect("finite position"),
+                Point3V1::new(x, y, 0.0).expect("finite position"),
                 None,
                 None,
                 (index == 0).then_some(1),

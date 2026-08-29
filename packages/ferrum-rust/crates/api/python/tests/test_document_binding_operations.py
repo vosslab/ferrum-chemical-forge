@@ -17,7 +17,7 @@ SOURCE = (
 BOND_SOURCE = (
 	'<cdml xmlns="urn:ferrum:cdml" version="26.08"><molecule id="m">'
 	'<atom id="a" name="C"><point x="1" y="2"/></atom>'
-	'<atom id="b" name="O"><point x="3" y="2"/></atom>'
+	'<atom id="b" name="O"><point x="41" y="2"/></atom>'
 	'</molecule></cdml>'
 )
 

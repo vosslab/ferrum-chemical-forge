@@ -9,12 +9,9 @@ mod complete_graph_document_preparation;
 mod document_atom_oxidation_observation_v1;
 mod document_bond_capacity_v1;
 mod document_molecule_composition_graph_v1;
+mod document_molecule_export;
 mod document_molecule_graph_v1;
-mod document_molecule_inchi_v1;
 mod document_molecule_inspection_v1;
-mod document_molecule_molblock_v1;
-mod document_molecule_sdf_v1;
-mod document_molecule_smiles_v1;
 mod document_molecules_sdf_v2;
 mod document_stereo_semantics_v1;
 mod inchi_molecule_insertion_v1;
@@ -28,6 +25,8 @@ mod smiles_molecule_insertion_v1;
 
 #[cfg(test)]
 mod document_bond_capacity_v1_tests;
+#[cfg(test)]
+mod document_molecule_export_tests;
 #[cfg(test)]
 mod document_molecule_inspection_v1_tests;
 
@@ -53,14 +52,14 @@ pub use document_bond_capacity_v1::{
 pub use document_molecule_composition_graph_v1::{
     DocumentMoleculeCompositionGraphErrorV1, document_molecule_composition_graph_v1,
 };
+pub use document_molecule_export::{
+    DOCUMENT_MOLECULE_EXPORT_TEXT_UTF8_BYTES, DocumentMoleculeExport, DocumentMoleculeExportError,
+    DocumentMoleculeExportFormat, DocumentMoleculeExportRequest, PreparedDocumentMoleculeExport,
+    export_prepared_document_molecule, prepare_document_molecule_export,
+};
 pub use document_molecule_graph_v1::{
     DocumentMoleculeGraphError, DocumentMoleculeGraphV1, document_molecule_coordinate_graph_v1,
     document_molecule_graph_v1,
-};
-pub use document_molecule_inchi_v1::{
-    DocumentMoleculeInchiError, DocumentMoleculeInchiV1, PreparedDocumentMoleculeInchiV1,
-    export_document_molecule_inchi_v1, export_prepared_document_molecule_inchi_receipt_v1,
-    export_prepared_document_molecule_inchi_v1, prepare_document_molecule_inchi_v1,
 };
 pub use document_molecule_inspection_v1::{
     DOCUMENT_MOLECULE_INSPECTION_SCHEMA_V1, DocumentMoleculeBoundsV1,
@@ -68,23 +67,6 @@ pub use document_molecule_inspection_v1::{
     DocumentMoleculeInspectionRequestV1, DocumentMoleculeInspectionV1,
     build_document_molecule_inspection_v1, direct_projection_molecule_v1,
     inspect_document_molecule_v1, verify_molecule_observation_v1,
-};
-pub use document_molecule_molblock_v1::{
-    DOCUMENT_MOLECULE_MOLBLOCK_PROFILE_V1, DOCUMENT_MOLECULE_MOLBLOCK_SCHEMA_V1,
-    DocumentMoleculeMolblockErrorV1, DocumentMoleculeMolblockRequestV1, DocumentMoleculeMolblockV1,
-    PreparedDocumentMoleculeMolblockV1, export_prepared_document_molecule_molblock_v1,
-    prepare_document_molecule_molblock_v1,
-};
-pub use document_molecule_sdf_v1::{
-    DOCUMENT_MOLECULE_SDF_PROFILE_V1, DOCUMENT_MOLECULE_SDF_SCHEMA_V1, DocumentMoleculeSdfErrorV1,
-    DocumentMoleculeSdfRequestV1, DocumentMoleculeSdfV1, PreparedDocumentMoleculeSdfV1,
-    export_prepared_document_molecule_sdf_v1, prepare_document_molecule_sdf_v1,
-};
-pub use document_molecule_smiles_v1::{
-    DOCUMENT_MOLECULE_SMILES_PROFILE_V1, DOCUMENT_MOLECULE_SMILES_SCHEMA_V1,
-    DocumentMoleculeSmilesErrorV1, DocumentMoleculeSmilesRequestV1, DocumentMoleculeSmilesV1,
-    PreparedDocumentMoleculeSmilesV1, export_prepared_document_molecule_smiles_v1,
-    prepare_document_molecule_smiles_v1,
 };
 pub use document_molecules_sdf_v2::{
     DOCUMENT_MOLECULES_SDF_PROFILE_V2, DOCUMENT_MOLECULES_SDF_SCHEMA_V2,

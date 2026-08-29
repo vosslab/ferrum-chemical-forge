@@ -290,6 +290,34 @@ def test_ordinary_window_exposes_command_palette_through_view_menu_and_shortcut(
 
 
 #============================================
+def test_ordinary_window_exposes_command_reference_through_help_menu_and_f1(
+		qapp: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		) -> None:
+	"""The running application opens nonmutating command help through F1."""
+	window = ferrum_qt.main_window.MainWindow(theme_manager)
+	try:
+		action = window._action_registry.get_qt_action("help.command_reference")
+		assert action in window._declared_menus["help"].actions()
+		assert action.shortcut().toString(
+			PySide6.QtGui.QKeySequence.SequenceFormat.PortableText,
+		) == PySide6.QtGui.QKeySequence(
+			PySide6.QtGui.QKeySequence.StandardKey.HelpContents,
+		).toString(PySide6.QtGui.QKeySequence.SequenceFormat.PortableText)
+		window.show()
+		window.activateWindow()
+		window.centralWidget().setFocus()
+		qapp.processEvents()
+		PySide6.QtTest.QTest.keySequence(window.centralWidget(), action.shortcut())
+		qapp.processEvents()
+		assert window._command_reference_controller.dialog.isVisible()
+		assert window._command_reference_controller.dialog.search_field.hasFocus()
+	finally:
+		window._command_reference_controller.dialog.close()
+		window.close()
+
+
+#============================================
 def test_window_mode_sync_owns_registered_action_selection_and_cancellation(
 		qapp: PySide6.QtWidgets.QApplication,
 		) -> None:

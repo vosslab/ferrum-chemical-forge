@@ -1,6 +1,8 @@
 #include "ferrum_chem_adapter.h"
 #include "ferrum_chem_complete_graph.h"
 #include "ferrum_chem_text_response.h"
+#include "ferrum_chem_text_output_limit.h"
+#include "ferrum_chem_writer_probe.h"
 
 #include <GraphMol/MolOps.h>
 #include <GraphMol/RWMol.h>
@@ -44,7 +46,7 @@ uint32_t emit_error(uint32_t status, std::string_view detail,
 }  // namespace
 
 extern "C" uint32_t ferrum_chem_molecule_to_smiles_v1(
-		const uint8_t *request, uint64_t request_len,
+		const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
 		ferrum_chem_owned_buffer *response) noexcept {
 	if (response == nullptr) return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
 	response->data = nullptr;
@@ -59,6 +61,12 @@ extern "C" uint32_t ferrum_chem_molecule_to_smiles_v1(
 			return emit_error(FERRUM_CHEM_RESULT_INVALID_MOLECULE,
 				"SMILES export requires at least one atom", response);
 		}
+		if (!ferrum_chem::text_output_is_admitted(
+				ferrum_chem::smiles_text_upper_bound(
+					molecule.getNumAtoms(), molecule.getNumBonds()), maximum_text_bytes)) {
+			return emit_error(FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+				"canonical SMILES upper bound exceeds the requested text limit", response);
+		}
 		RDKit::MolOps::sanitizeMol(molecule);
 		RDKit::SmilesWriteParams parameters;
 		parameters.doIsomericSmiles = true;
@@ -71,6 +79,8 @@ extern "C" uint32_t ferrum_chem_molecule_to_smiles_v1(
 		parameters.rootedAtAtom = -1;
 		parameters.includeDativeBonds = true;
 		parameters.ignoreAtomMapNumbers = false;
+		ferrum_chem::record_native_text_writer_invocation(
+			ferrum_chem::NativeTextWriter::Smiles);
 		const std::string smiles = RDKit::MolToSmiles(molecule, parameters);
 		if (smiles.size() > FERRUM_CHEM_SMILES_WRITE_MAX_BYTES) {
 			return emit_error(FERRUM_CHEM_RESULT_RESOURCE_LIMIT,

@@ -2,6 +2,8 @@
 #include "ferrum_chem_complete_graph.h"
 #include "ferrum_chem_molecule_response.h"
 #include "ferrum_chem_text_response.h"
+#include "ferrum_chem_text_output_limit.h"
+#include "ferrum_chem_writer_probe.h"
 
 #include <GraphMol/Depictor/RDDepictor.h>
 #include <GraphMol/RWMol.h>
@@ -146,7 +148,7 @@ extern "C" uint32_t ferrum_chem_inchi_to_molecule_v1(
 }
 
 extern "C" uint32_t ferrum_chem_molecule_to_inchi_v1(
-		const uint8_t *request, uint64_t request_len,
+		const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
 		ferrum_chem_owned_buffer *response) noexcept {
 	if (response == nullptr) return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
 	response->data = nullptr;
@@ -159,9 +161,17 @@ extern "C" uint32_t ferrum_chem_molecule_to_inchi_v1(
 			return ferrum_chem::emit_text_response(
 				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
 		}
+		if (!ferrum_chem::text_output_is_admitted(
+				ferrum_chem::inchi_text_upper_bound(
+					molecule.getNumAtoms(), molecule.getNumBonds()), maximum_text_bytes)) {
+			return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+				"InChI upper bound exceeds the requested text limit", "", response);
+		}
 		RDKit::ExtraInchiReturnValues inchi_result;
 		const char *options = mode == FERRUM_CHEM_INCHI_MODE_FIXED_HYDROGEN ?
 			"-FixedH" : nullptr;
+		ferrum_chem::record_native_text_writer_invocation(
+			ferrum_chem::NativeTextWriter::Inchi);
 		const std::string output = RDKit::MolToInchi(molecule, inchi_result, options);
 		const bool prefix_matches = mode == FERRUM_CHEM_INCHI_MODE_STANDARD ?
 			output.starts_with("InChI=1S/") :

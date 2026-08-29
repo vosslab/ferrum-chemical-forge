@@ -2,8 +2,8 @@ use std::io::{Read, Write};
 
 use crate::cli::protocol::{run_named_document_protocol, run_protocol, write_protocol_schema};
 use crate::cli::verbs::{
-    convert, coords, document_export_sdf, formats, haworth, inspect, inspect_graph, open, render,
-    rewrite, validate,
+    convert, coords, document_export, document_export_sdf, formats, haworth, inspect,
+    inspect_graph, open, render, rewrite, validate,
 };
 use crate::interchange_import_v1::{InterchangeFormatDescriptorV1, InterchangeFormatRegistryV1};
 use crate::transport::errors::CliError;
@@ -20,8 +20,8 @@ pub(crate) mod verbs;
 
 pub use commands::Cli;
 pub(crate) use commands::{
-    ArtifactOutputFormat, Command, DocumentCommand, InterchangeInputFormat, ProtocolCommand,
-    SdfVersion, ValidationLevel, interchange_input_format_from_protocol_format,
+    ArtifactOutputFormat, Command, DocumentCommand, DocumentExportFormat, InterchangeInputFormat,
+    ProtocolCommand, SdfVersion, ValidationLevel, interchange_input_format_from_protocol_format,
 };
 
 /// Execute accepted CLI arguments with caller-owned standard streams.
@@ -153,6 +153,20 @@ pub fn run(
             )?),
         },
         Command::Document { command } => match command {
+            DocumentCommand::Export {
+                input,
+                molecule_id,
+                format,
+                output,
+            } => Ok(document_export::run(
+                &input,
+                &molecule_id,
+                format,
+                output.as_deref(),
+                stdin,
+                stdout,
+                stderr,
+            )?),
             DocumentCommand::ExportSdf {
                 input,
                 molecule_ids,
@@ -473,7 +487,11 @@ mod tests {
             })
         }
 
-        fn molecule_to_smiles(&self, molecule: &MolGraph) -> Result<String, ChemistryError> {
+        fn molecule_to_smiles(
+            &self,
+            molecule: &MolGraph,
+            _: ferrum_chemistry::NativeTextOutputLimit,
+        ) -> Result<String, ChemistryError> {
             assert_eq!(molecule.atoms().len(), 2);
             assert_eq!(molecule.bonds().len(), 1);
             Ok("CO".to_owned())
@@ -618,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn named_smarts_query_command_routes_one_complete_protocol_envelope() {
+    fn named_smarts_query_command_emits_refusal_envelope_and_nonzero_outcome() {
         let document = smarts_request_document();
         let request = serde_json::json!({
             "schema": "ferrum-operation-request-v1",
@@ -642,12 +660,16 @@ mod tests {
         let mut stdin = input.as_bytes();
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
-        run(cli, &mut stdin, &mut stdout, &mut stderr).expect("command returns an envelope");
+        let error = run(cli, &mut stdin, &mut stdout, &mut stderr)
+            .expect_err("unavailable chemistry must produce a nonzero CLI outcome");
+        assert_eq!(error.exit_status(), 1);
+        assert!(error.was_emitted_to_stream());
         let envelope: serde_json::Value = serde_json::from_slice(&stdout).expect("JSON envelope");
         assert_eq!(envelope["request_id"], "named-smarts-query");
-        assert!(
-            envelope["outcome"]["kind"] == "document.molecule.smarts.query.v1"
-                || envelope["error"]["category"] == "chemistry_unavailable"
+        assert_eq!(envelope["error"]["category"], "chemistry_unavailable");
+        assert_eq!(
+            envelope["error"]["operation"],
+            "document.molecule.smarts.query.v1"
         );
         assert!(stderr.is_empty());
     }

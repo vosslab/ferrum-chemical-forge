@@ -5,7 +5,7 @@
 //! result. Only this module may redeem that value into session history.
 
 use super::{
-    AuthoringCapabilityIssuerV1, DocumentSession, DocumentSessionError, RendererAdmittedPendingV1,
+    AuthoringCapabilityIssuerV1, DocumentSession, DocumentSessionError, RendererAdmittedPending,
     RevisionState, SessionDocumentObservationV1, SessionOperation, SessionOperationError,
     SessionOperationResultV1,
 };

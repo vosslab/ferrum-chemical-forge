@@ -38,11 +38,7 @@ pub(crate) fn run_protocol(
     let envelope = execute_with_available_runtime(&request).map_err(protocol_input_error)?;
     let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
     response.push(b'\n');
-
-    match output {
-        None => write_stdout(&response, stdout),
-        Some(destination) => publish_response(destination, response, retained_source, stderr),
-    }
+    emit_protocol_envelope(output, response, retained_source, stdout, stderr, &envelope)
 }
 
 /// Execute one named document request after proving its decoded operation matches the route.
@@ -59,11 +55,35 @@ pub(crate) fn run_named_document_protocol(
         .map_err(protocol_input_error)?;
     let mut response = crate::protocol::canonical_protocol_envelope_json_v1(&envelope)?;
     response.push(b'\n');
+    emit_protocol_envelope(output, response, retained_source, stdout, stderr, &envelope)
+}
 
+/// Deliver one complete envelope, then classify the process outcome from its typed result.
+///
+/// The JSON envelope is the complete public response even when it contains a refusal. The
+/// human-oriented verb layer owns the shared classification policy, so named and generic
+/// protocol routes cannot silently diverge on a new error category.
+fn emit_protocol_envelope(
+    output: Option<&Path>,
+    response: Vec<u8>,
+    retained_source: Option<RetainedSourceFileGuardV1>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    envelope: &OperationProtocolEnvelopeV1,
+) -> Result<(), ProtocolCliError> {
     match output {
         None => write_stdout(&response, stdout),
         Some(destination) => publish_response(destination, response, retained_source, stderr),
-    }
+    }?;
+    classify_emitted_protocol_envelope(envelope)
+}
+
+/// Translate the shared envelope classifier into the protocol transport's emitted outcome.
+fn classify_emitted_protocol_envelope(
+    envelope: &OperationProtocolEnvelopeV1,
+) -> Result<(), ProtocolCliError> {
+    crate::cli::verbs::classify_emitted_protocol_envelope(envelope)
+        .map_err(|_| ProtocolCliError::CompletedUnsuccessfulOutcome)
 }
 
 /// Reject a decoded operation before execution when its named route differs.
@@ -89,6 +109,7 @@ fn execute_named_document_request(
                     reaction_refusal: None,
                     compact_group_materialization_refusal: None,
                     compact_group_attachment_refusal: None,
+                    document_molecule_export_refusal: None,
                 },
             },
         ));
@@ -158,6 +179,7 @@ fn execute_with_available_runtime(
                 OperationProtocolOperationV1::ChemistryConvert(_)
                     | OperationProtocolOperationV1::GenerateCoordinates(_)
                     | OperationProtocolOperationV1::DocumentMoleculeReport(_)
+                    | OperationProtocolOperationV1::DocumentMoleculeExport(_)
                     | OperationProtocolOperationV1::DocumentSmartsQuery(_)
             )
         })
@@ -243,20 +265,24 @@ fn publish_response(
     retained_source: Option<RetainedSourceFileGuardV1>,
     stderr: &mut dyn Write,
 ) -> Result<(), ProtocolCliError> {
-    let mut request = ArtifactPublicationRequestV1::new(destination.to_path_buf(), response);
+    let mut request =
+        ArtifactPublicationRequestV1::new(destination.to_path_buf(), response).create_new();
     if let Some(source) = retained_source {
         request = request.with_retained_source(source);
     }
     match publish_artifact_v1(request) {
         Ok(ArtifactPublicationOutcomeV1::ConfirmedDurable(_)) => Ok(()),
-        Ok(ArtifactPublicationOutcomeV1::DirectoryEntryUnconfirmed(_)) => stderr
-            .write_all(
-                b"ferrum: warning: publication completed, but directory-entry durability could not be confirmed\n",
-            )
-            .map_err(|source| ProtocolCliError::Write {
-                output: "standard error".to_owned(),
-                source,
-            }),
+        Ok(ArtifactPublicationOutcomeV1::DirectoryEntryUnconfirmed(_)) => {
+            stderr
+                .write_all(
+                    b"ferrum: warning: publication completed, but directory-entry durability could not be confirmed\n",
+                )
+                .map_err(|source| ProtocolCliError::Write {
+                    output: "standard error".to_owned(),
+                    source,
+                })?;
+            Err(ProtocolCliError::DirectoryEntryUnconfirmed)
+        }
         Err(source) => Err(ProtocolCliError::Publication(source)),
     }
 }
@@ -273,6 +299,9 @@ fn write_stdout(bytes: &[u8], stdout: &mut dyn Write) -> Result<(), ProtocolCliE
 /// Failure before a complete protocol response was emitted or safely published.
 #[derive(Debug, Error)]
 pub enum ProtocolCliError {
+    /// A typed unsuccessful protocol envelope was already emitted to its documented stream.
+    #[error("processing: completed operation reported an unsuccessful typed outcome")]
+    CompletedUnsuccessfulOutcome,
     /// The named request source could not provide UTF-8 input.
     #[error("input: could not read {input}: {source}")]
     Input {
@@ -312,15 +341,28 @@ pub enum ProtocolCliError {
     /// The safe publisher declined or could not confirm the requested replacement.
     #[error("publication: {0}")]
     Publication(ArtifactPublicationErrorV1),
+    /// The response was renamed but directory-entry durability was unavailable.
+    #[error(
+        "publication: response may have been published, but directory-entry durability could not be confirmed"
+    )]
+    DirectoryEntryUnconfirmed,
 }
 
 impl ProtocolCliError {
+    /// Whether this error's complete user-facing outcome was already emitted.
+    #[must_use]
+    pub const fn was_emitted_to_stream(&self) -> bool {
+        matches!(self, Self::CompletedUnsuccessfulOutcome)
+    }
+
     /// Return the documented process status for this completed-or-unfinished operation.
     #[must_use]
     pub const fn exit_status(&self) -> u8 {
         match self {
             Self::Publication(ArtifactPublicationErrorV1::PossiblyPublished { .. }) => 3,
-            Self::Input { .. }
+            Self::DirectoryEntryUnconfirmed => 3,
+            Self::CompletedUnsuccessfulOutcome
+            | Self::Input { .. }
             | Self::InvalidRequest(_)
             | Self::RequestLimit(_)
             | Self::InvalidUtf8 { .. }
@@ -328,5 +370,148 @@ impl ProtocolCliError {
             | Self::Write { .. }
             | Self::Publication(_) => 1,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use ferrum_document::DOCUMENT_MOLECULE_EXPORT_TEXT_UTF8_BYTES;
+
+    use super::{ProtocolCliError, run_named_document_protocol};
+    use crate::protocol::{
+        MAX_REQUEST_ID_UTF8_BYTES_V1, OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
+        ProtocolOperationKindV1,
+    };
+
+    #[test]
+    fn directory_entry_unconfirmed_is_a_possibly_published_exit() {
+        assert_eq!(ProtocolCliError::DirectoryEntryUnconfirmed.exit_status(), 3);
+    }
+
+    #[test]
+    fn named_export_refusal_is_emitted_then_returns_unsuccessful_outcome() {
+        let request = br#"{
+			"schema":"ferrum-operation-request-v1",
+			"request_id":"named-export-refusal",
+			"operation":{
+				"kind":"document.molecule.export.v1",
+				"document":{"cdml":"not CDML","expected_revision":0,"expected_digest_hex":"0000000000000000000000000000000000000000000000000000000000000000"},
+				"molecule_id":"ferrum-document-object-v1/00112233445566778899aabbccddeeff",
+				"format":"canonical_smiles"
+			}
+		}"#;
+        let mut stdin = request.as_slice();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let error = run_named_document_protocol(
+            ProtocolOperationKindV1::DocumentMoleculeExport,
+            Path::new("-"),
+            None,
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+        )
+        .expect_err("typed export refusal must produce a nonzero process outcome");
+
+        assert_eq!(error.exit_status(), 1);
+        assert!(error.was_emitted_to_stream());
+        assert!(stderr.is_empty());
+        let envelope: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("named export must emit canonical JSON");
+        assert_eq!(
+            envelope["error"]["operation"],
+            "document.molecule.export.v1"
+        );
+        assert_eq!(
+            envelope["error"]["document_molecule_export_refusal"]["category"],
+            "snapshot_not_admitted"
+        );
+    }
+
+    #[test]
+    fn named_routes_classify_a_completed_typed_refusal_generically() {
+        let request = br#"{
+			"schema":"ferrum-operation-request-v1",
+			"request_id":"wrong-named-route",
+			"operation":{"kind":"catalog.list.v1"}
+		}"#;
+        let mut stdin = request.as_slice();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let error = run_named_document_protocol(
+            ProtocolOperationKindV1::DocumentMoleculeExport,
+            Path::new("-"),
+            None,
+            &mut stdin,
+            &mut stdout,
+            &mut stderr,
+        )
+        .expect_err("route mismatch must produce a nonzero process outcome");
+
+        assert!(error.was_emitted_to_stream());
+        assert!(stderr.is_empty());
+        let envelope: serde_json::Value =
+            serde_json::from_slice(&stdout).expect("mismatch must retain the typed envelope");
+        assert_eq!(envelope["error"]["category"], "invalid_request");
+    }
+
+    #[test]
+    fn export_text_ceiling_fits_the_shared_response_budget_after_json_escaping() {
+        let success_frame = serde_json::json!({
+            "schema": "ferrum-operation-response-v1",
+            "request_id": "\0".repeat(MAX_REQUEST_ID_UTF8_BYTES_V1),
+            "outcome": {
+                "kind": "document.molecule.export.v1",
+                "export": {
+                    "source_revision": u64::MAX,
+                    "source_digest_hex": "f".repeat(64),
+                    "molecule_id": "ferrum-document-object-v1/00112233445566778899aabbccddeeff",
+                    "format": "inchi_fixed_hydrogen",
+                    "text": ""
+                }
+            }
+        });
+        let refusal_frame = serde_json::json!({
+            "schema": "ferrum-operation-error-v1",
+            "request_id": "\0".repeat(MAX_REQUEST_ID_UTF8_BYTES_V1),
+            "error": {
+                "category": "operation_refused",
+                "operation": "document_molecule_export",
+                "message": "document_molecule_export_refused",
+                "resource_limit": null,
+                "presentation_author_refusal": null,
+                "catalog_placement_refusal": null,
+                "reaction_refusal": null,
+                "compact_group_materialization_refusal": null,
+                "compact_group_attachment_refusal": null,
+                "document_molecule_export_refusal": {
+                    "category": "representation_unsupported",
+                    "recovery": "choose_supported_representation"
+                }
+            }
+        });
+        let text_json_escape_bytes = DOCUMENT_MOLECULE_EXPORT_TEXT_UTF8_BYTES
+            .checked_mul(6)
+            .expect("export text limit escape expansion must fit usize");
+        let success_frame_bytes =
+            serde_json::to_vec(&success_frame).expect("closed success frame must serialize");
+        let refusal_frame_bytes =
+            serde_json::to_vec(&refusal_frame).expect("closed refusal frame must serialize");
+        let worst_case_success = success_frame_bytes
+            .len()
+            .checked_add(text_json_escape_bytes)
+            .expect("complete escaped success envelope must fit usize");
+        assert!(
+            worst_case_success <= OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
+            "worst-case escaped export envelope must fit the shared response budget"
+        );
+        assert!(
+            refusal_frame_bytes.len() <= OPERATION_PROTOCOL_RESPONSE_UTF8_BYTES_V1,
+            "worst-case provenance-bearing export refusal must fit the shared response budget"
+        );
     }
 }

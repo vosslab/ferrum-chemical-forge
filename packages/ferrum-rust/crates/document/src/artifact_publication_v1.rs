@@ -16,7 +16,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use rustix::fs::{
-    AtFlags, CWD, FileType, Mode, OFlags, fstat, fsync, openat, renameat, statat, unlinkat,
+    AtFlags, CWD, FileType, Mode, OFlags, fstat, fsync, linkat, openat, renameat, statat, unlinkat,
 };
 use rustix::io::Errno;
 use thiserror::Error;
@@ -116,6 +116,20 @@ pub struct ArtifactPublicationRequestV1 {
     destination: PathBuf,
     bytes: Vec<u8>,
     retained_source: Option<RetainedSourceFileGuardV1>,
+    disposition: ArtifactPublicationDispositionV1,
+}
+
+/// The destination-entry policy for one artifact publication.
+///
+/// `CreateNew` publishes through an atomic same-directory hard link, so it
+/// never replaces a destination that already exists or appears during the
+/// final publication race.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArtifactPublicationDispositionV1 {
+    /// Atomically replace the final destination after it passes validation.
+    ReplaceExisting,
+    /// Atomically create the final destination only when it does not exist.
+    CreateNew,
 }
 
 impl fmt::Debug for ArtifactPublicationRequestV1 {
@@ -125,6 +139,7 @@ impl fmt::Debug for ArtifactPublicationRequestV1 {
             .field("destination", &self.destination)
             .field("byte_len", &self.bytes.len())
             .field("has_retained_source", &self.retained_source.is_some())
+            .field("disposition", &self.disposition)
             .finish()
     }
 }
@@ -137,7 +152,19 @@ impl ArtifactPublicationRequestV1 {
             destination,
             bytes,
             retained_source: None,
+            disposition: ArtifactPublicationDispositionV1::ReplaceExisting,
         }
+    }
+
+    /// Require publication to create a previously absent final destination.
+    ///
+    /// The publisher refuses an existing final entry and uses an atomic
+    /// same-directory operation to preserve that refusal under concurrent
+    /// destination creation.
+    #[must_use]
+    pub fn create_new(mut self) -> Self {
+        self.disposition = ArtifactPublicationDispositionV1::CreateNew;
+        self
     }
 
     /// Attach the live source descriptor used for observed-alias protection.
@@ -165,6 +192,12 @@ impl ArtifactPublicationRequestV1 {
         self.retained_source
             .as_ref()
             .map(RetainedSourceFileGuardV1::identity)
+    }
+
+    /// Return the requested final-destination policy.
+    #[must_use]
+    pub const fn disposition(&self) -> ArtifactPublicationDispositionV1 {
+        self.disposition
     }
 }
 
@@ -281,7 +314,7 @@ pub enum ArtifactPrepublicationPhaseV1 {
     WriteOrSyncTemporary,
     /// The final validation immediately before rename.
     ValidateBeforeRename,
-    /// Calling `renameat` in the retained parent directory.
+    /// Publishing the temporary entry in the retained parent directory.
     Rename,
 }
 
@@ -386,6 +419,7 @@ where
         destination,
         bytes,
         retained_source,
+        disposition,
     } = request;
     let destination_name = destination.file_name().ok_or_else(|| {
         rejected(
@@ -400,6 +434,7 @@ where
         &directory,
         destination_name,
         retained_source.as_ref(),
+        disposition,
         &destination,
     )
     .map_err(|failure| {
@@ -443,6 +478,7 @@ where
         &directory,
         destination_name,
         retained_source.as_ref(),
+        disposition,
         &destination,
     ) {
         Ok(()) => {}
@@ -469,22 +505,63 @@ where
         }
     }
 
-    phase_hook(ArtifactPrepublicationPhaseV1::Rename);
-    if let Err(source) = renameat(&directory, &temporary_name, &directory, destination_name) {
-        return Err(cleanup_io_error(
-            &destination,
-            ArtifactPrepublicationPhaseV1::Rename,
-            source.into(),
-            &directory,
-            &temporary_name,
-        ));
-    }
     let receipt = ArtifactPublicationReceiptV1 {
-        destination,
+        destination: destination.clone(),
         retained_source: retained_source
             .as_ref()
             .map(RetainedSourceFileGuardV1::identity),
     };
+    phase_hook(ArtifactPrepublicationPhaseV1::Rename);
+    match disposition {
+        ArtifactPublicationDispositionV1::ReplaceExisting => {
+            if let Err(source) = renameat(&directory, &temporary_name, &directory, destination_name)
+            {
+                return Err(cleanup_io_error(
+                    receipt.destination(),
+                    ArtifactPrepublicationPhaseV1::Rename,
+                    source.into(),
+                    &directory,
+                    &temporary_name,
+                ));
+            }
+        }
+        ArtifactPublicationDispositionV1::CreateNew => {
+            match linkat(
+                &directory,
+                &temporary_name,
+                &directory,
+                destination_name,
+                AtFlags::empty(),
+            ) {
+                Ok(()) => {
+                    if let Err(source) = remove_temporary(&directory, &temporary_name) {
+                        return Err(ArtifactPublicationErrorV1::PossiblyPublished {
+                            receipt,
+                            source,
+                        });
+                    }
+                }
+                Err(Errno::EXIST) => {
+                    return Err(cleanup_io_error(
+                        receipt.destination(),
+                        ArtifactPrepublicationPhaseV1::Rename,
+                        io::Error::from(io::ErrorKind::AlreadyExists),
+                        &directory,
+                        &temporary_name,
+                    ));
+                }
+                Err(source) => {
+                    return Err(cleanup_io_error(
+                        receipt.destination(),
+                        ArtifactPrepublicationPhaseV1::Rename,
+                        source.into(),
+                        &directory,
+                        &temporary_name,
+                    ));
+                }
+            }
+        }
+    }
     match synchronize_directory(&directory) {
         Ok(ArtifactPublicationDurabilityV1::Confirmed) => {
             Ok(ArtifactPublicationOutcomeV1::ConfirmedDurable(receipt))
@@ -575,6 +652,7 @@ fn validate_destination(
     directory: &OwnedFd,
     name: &OsStr,
     retained_source: Option<&RetainedSourceFileGuardV1>,
+    disposition: ArtifactPublicationDispositionV1,
     _destination: &Path,
 ) -> Result<(), ValidationFailure> {
     if let Some(source) = retained_source {
@@ -604,6 +682,11 @@ fn validate_destination(
         return Err(ValidationFailure::Rejected(
             ArtifactDestinationRejectionV1::SourceAliasesDestination,
         ));
+    }
+    if disposition == ArtifactPublicationDispositionV1::CreateNew {
+        return Err(ValidationFailure::Io(io::Error::from(
+            io::ErrorKind::AlreadyExists,
+        )));
     }
     Ok(())
 }

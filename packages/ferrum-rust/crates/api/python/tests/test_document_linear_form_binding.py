@@ -1,6 +1,6 @@
 """Installed-binding checks for native linear-form conversion."""
 
-import defusedxml.ElementTree
+import lxml.etree
 
 import pytest
 
@@ -15,6 +15,12 @@ _SOURCE = """\
 </molecule><molecule id="other"><atom id="foreign" name="N">
  <point x="0" y="0"/></atom></molecule></cdml>
 """
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
+)
 
 
 def _address(session: object, root: int = 0) -> tuple[object, str, tuple[str, ...]]:
@@ -37,7 +43,9 @@ def test_linear_form_converts_observed_durable_atoms() -> None:
 	changed = session.convert_linear_form_v1(
 		0, observation.snapshot.digest, molecule_id, atom_ids,
 	)
-	root = defusedxml.ElementTree.fromstring(changed.observation.snapshot.cdml)
+	root = lxml.etree.fromstring(
+		changed.observation.snapshot.cdml.encode("utf-8"), parser=_XML_PARSER,
+	)
 	atoms = {atom.attrib["id"]: atom for atom in root.iter("{urn:ferrum:cdml}atom")}
 
 	assert changed.observation.snapshot.revision == 1

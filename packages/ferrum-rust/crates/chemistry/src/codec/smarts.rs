@@ -1,8 +1,10 @@
 //! Explicit-adapter canonical SMILES and SMARTS export.
 
-use crate::{ChemistryError, ExplicitAdapterError, load_explicit_adapter};
+use crate::{ChemistryError, ExplicitAdapterError, NativeTextOutputLimit, load_explicit_adapter};
 use std::path::Path;
 use thiserror::Error;
+const SMARTS_CODEC_SMILES_TEXT_LIMIT: NativeTextOutputLimit =
+    NativeTextOutputLimit::ADAPTER_MAXIMUM;
 pub fn canonical_smiles_from_smiles(
     adapter_path: &Path,
     smiles: &str,
@@ -10,7 +12,7 @@ pub fn canonical_smiles_from_smiles(
     let engine = load_explicit_adapter(adapter_path)?;
     let molecule = engine.smiles_to_molecule(smiles)?;
     engine
-        .molecule_to_smiles(molecule.molecule())
+        .molecule_to_smiles(molecule.molecule(), SMARTS_CODEC_SMILES_TEXT_LIMIT)
         .map_err(CanonicalSmilesError::Chemistry)
 }
 pub fn smarts_from_smiles(adapter_path: &Path, smiles: &str) -> Result<String, SmartsExportError> {

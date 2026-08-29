@@ -15,8 +15,9 @@ respectively, and must render cleanly before the new document is published.
 Rendering is admission, not optional client polish.
 
 The local implementation and focused acceptance evidence below establish this
-bounded slice. They do not close M2 or full parity, and they do not replace final
-post-change aggregate, CI, release, screenshot, or human acceptance evidence.
+bounded slice, and the later repository aggregate includes its CLI and real-Qt
+E2Es. They do not close M2 or full parity, and they do not replace remote CI,
+release, or human acceptance evidence.
 
 ## Source basis
 

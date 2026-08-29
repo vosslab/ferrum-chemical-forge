@@ -31,6 +31,8 @@ pub(crate) struct PyAtomLabelRenderV1 {
     #[pyo3(get)]
     pub(crate) core_element_run_index: u32,
     #[pyo3(get)]
+    pub(crate) bond_ink_clearance: f64,
+    #[pyo3(get)]
     pub(crate) full_ink_bounds: PyInkBoundsV1,
     #[pyo3(get)]
     pub(crate) core_element_ink_bounds: PyInkBoundsV1,
@@ -118,6 +120,16 @@ closed_operation!(
     ]
 );
 
+/// Frozen structural attachment geometry for one clipped bond batch.
+#[pyclass(frozen, name = "BondAttachmentAxisV1", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyBondAttachmentAxisV1 {
+    #[pyo3(get)]
+    pub(crate) start: PyRenderPointV1,
+    #[pyo3(get)]
+    pub(crate) end: PyRenderPointV1,
+}
+
 #[pyclass(frozen, name = "AtomRenderBatchV1", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyAtomRenderBatchV1 {
@@ -184,6 +196,8 @@ impl PyCompactGroupRenderBatchV1 {
 pub(crate) struct PyBondRenderBatchV1 {
     #[pyo3(get)]
     pub(crate) kind: String,
+    #[pyo3(get)]
+    pub(crate) attachment_axis: PyBondAttachmentAxisV1,
     pub(crate) operations: Vec<PyBondRenderOpV1>,
 }
 

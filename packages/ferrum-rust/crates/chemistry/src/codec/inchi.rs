@@ -7,11 +7,13 @@ use thiserror::Error;
 
 use crate::{
     ChemistryError, ExplicitAdapterError, InchiMode, MoleculeInspectionFactsV1,
-    SmilesInspectionError, load_explicit_adapter, molecule_inspection_facts, validate_inchi_input,
+    NativeTextOutputLimit, SmilesInspectionError, load_explicit_adapter, molecule_inspection_facts,
+    validate_inchi_input,
 };
 
 /// Machine-readable schema emitted by InChI inspection.
 pub const INCHI_INSPECTION_SCHEMA_V1: &str = "ferrum-inchi-inspection-v1";
+const INCHI_CODEC_TEXT_LIMIT: NativeTextOutputLimit = NativeTextOutputLimit::ADAPTER_MAXIMUM;
 pub fn inspect_inchi(
     adapter_path: &Path,
     inchi: &str,
@@ -35,7 +37,7 @@ pub fn inchi_from_smiles(
     let engine = load_explicit_adapter(adapter_path)?;
     let molecule = engine.smiles_to_molecule(smiles)?;
     engine
-        .molecule_to_inchi(molecule.molecule(), mode)
+        .molecule_to_inchi(molecule.molecule(), mode, INCHI_CODEC_TEXT_LIMIT)
         .map_err(InchiExportError::Chemistry)
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]

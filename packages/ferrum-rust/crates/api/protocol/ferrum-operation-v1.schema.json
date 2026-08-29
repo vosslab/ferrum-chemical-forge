@@ -690,6 +690,85 @@
       ],
       "type": "object"
     },
+    "DocumentMoleculeExportFormatV1": {
+      "enum": [
+        "molfile_v2000",
+        "molfile_v3000",
+        "sdf_v2000",
+        "sdf_v3000",
+        "canonical_smiles",
+        "inchi_standard",
+        "inchi_fixed_hydrogen"
+      ],
+      "type": "string"
+    },
+    "DocumentMoleculeExportRefusalV1": {
+      "additionalProperties": false,
+      "description": "Typed refusal facts for `document.molecule.export.v1`.\n\nConsumers must branch on this closed fact rather than the diagnostic\nmessage or an implementation-specific document/chemistry error.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ProtocolDocumentMoleculeExportCategoryV1"
+        },
+        "recovery": {
+          "$ref": "#/$defs/ProtocolDocumentMoleculeExportRecoveryV1"
+        }
+      },
+      "required": [
+        "category",
+        "recovery"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeExportRequestV1": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/DocumentSnapshotRequestV1"
+        },
+        "format": {
+          "$ref": "#/$defs/DocumentMoleculeExportFormatV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "molecule_id",
+        "format"
+      ],
+      "type": "object"
+    },
+    "DocumentMoleculeExportResultV1": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/DocumentMoleculeExportFormatV1"
+        },
+        "molecule_id": {
+          "type": "string"
+        },
+        "source_digest_hex": {
+          "type": "string"
+        },
+        "source_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_revision",
+        "source_digest_hex",
+        "molecule_id",
+        "format",
+        "text"
+      ],
+      "type": "object"
+    },
     "DocumentMoleculeHydrogenMaterializationRequestV1": {
       "additionalProperties": false,
       "description": "Stateless renderer-safe hydrogen materialization request over one fenced root.",
@@ -2323,6 +2402,17 @@
           ],
           "description": "Closed compact-materialization recovery facts when this operation refused one."
         },
+        "document_molecule_export_refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentMoleculeExportRefusalV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Closed selected-root text-export recovery facts when this operation refused one."
+        },
         "message": {
           "description": "Human-readable diagnostic detail.",
           "type": "string"
@@ -3097,6 +3187,31 @@
             "source_utf8"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "$ref": "#/$defs/DocumentSnapshotRequestV1"
+            },
+            "format": {
+              "$ref": "#/$defs/DocumentMoleculeExportFormatV1"
+            },
+            "kind": {
+              "const": "document.molecule.export.v1",
+              "type": "string"
+            },
+            "molecule_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "document",
+            "molecule_id",
+            "format"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -3230,6 +3345,23 @@
             "format",
             "text",
             "record_count"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "export": {
+              "$ref": "#/$defs/DocumentMoleculeExportResultV1"
+            },
+            "kind": {
+              "const": "document.molecule.export.v1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "export"
           ],
           "type": "object"
         },
@@ -4284,6 +4416,28 @@
       ],
       "type": "object"
     },
+    "ProtocolDocumentMoleculeExportCategoryV1": {
+      "description": "Closed selected-root text-export refusal categories.",
+      "enum": [
+        "snapshot_not_admitted",
+        "unknown_or_non_direct_root",
+        "representation_unsupported",
+        "chemistry_unavailable",
+        "output_limit_exceeded"
+      ],
+      "type": "string"
+    },
+    "ProtocolDocumentMoleculeExportRecoveryV1": {
+      "description": "Closed recovery instructions for selected-root text-export refusals.",
+      "enum": [
+        "refresh_authenticated_snapshot",
+        "select_direct_molecule_root",
+        "choose_supported_representation",
+        "restore_chemistry_runtime",
+        "select_smaller_root"
+      ],
+      "type": "string"
+    },
     "ProtocolErrorSchemaV1": {
       "description": "Closed V1 error schema identifiers.",
       "oneOf": [
@@ -4305,7 +4459,8 @@
             "reaction.observe.v1",
             "reaction.select.v1",
             "reaction.patch-membership.v1",
-            "reaction.delete-definition.v1"
+            "reaction.delete-definition.v1",
+            "document.molecule.export.v1"
           ],
           "type": "string"
         },
@@ -4822,6 +4977,9 @@
     },
     "document_compact_group_materialization_request": {
       "$ref": "#/$defs/DocumentCompactGroupMaterializationRequestV1"
+    },
+    "document_molecule_export_request": {
+      "$ref": "#/$defs/DocumentMoleculeExportRequestV1"
     },
     "document_molecule_hydrogen_materialization_request": {
       "$ref": "#/$defs/DocumentMoleculeHydrogenMaterializationRequestV1"

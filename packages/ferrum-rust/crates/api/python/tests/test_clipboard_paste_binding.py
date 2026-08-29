@@ -8,7 +8,7 @@ import ferrum_chem
 _FRAGMENT = """\
 <cdml xmlns="urn:ferrum:cdml" version="26.07"><molecule id="m">
  <atom id="a" name="C"><point x="1" y="2"/></atom>
- <atom id="b" name="O"><point x="11" y="2"/></atom>
+ <atom id="b" name="O"><point x="41" y="2"/></atom>
  <bond id="ab" start="a" end="b" type="n1"/>
 </molecule><plus id="p"><point x="31" y="42"/></plus></cdml>
 """

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use ferrum_core::{RecordId, RecordKind};
-use ferrum_geometry::Vector2;
+use ferrum_geometry::{Point2, Vector2};
 
 use crate::bond_presentation_geometry;
 use crate::bond_style::BondStyle;
@@ -12,9 +12,9 @@ use crate::glyph_metrics::GlyphBounds;
 use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
-    BondRenderBatchV1, DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp, LineOp,
-    PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind, RenderOp, RenderPaintV3,
-    RenderTarget,
+    BondAttachmentAxisV1, BondRenderBatchV1, DoubleBondCarrierMarkDirectionV1,
+    DoubleBondCarrierMarkOp, LineOp, PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind,
+    RenderOp, RenderPaintV3, RenderTarget,
 };
 
 use super::{
@@ -256,7 +256,20 @@ pub(super) fn build_bond_batch(
             reason: "compact-group exterior bonds require the normal single style".to_owned(),
         });
     }
-    let vector = second.position - first.position;
+    let attachment_axis = BondAttachmentAxisV1::new(
+        geometry_to_render_point(first.position)?,
+        geometry_to_render_point(second.position)?,
+    )
+    .map_err(|error| RenderIssueKind::UnrenderableTarget {
+        reason: error.to_string(),
+    })?;
+    let vector = Vector2::new(
+        attachment_axis.end().x() - attachment_axis.start().x(),
+        attachment_axis.end().y() - attachment_axis.start().y(),
+    )
+    .map_err(|error| RenderIssueKind::UnrenderableTarget {
+        reason: format!("bond attachment axis is not representable: {error}"),
+    })?;
     let length = vector.length();
     if !length.is_finite() || length == 0.0 {
         return Err(RenderIssueKind::UnrenderableTarget {
@@ -288,6 +301,7 @@ pub(super) fn build_bond_batch(
     };
     let perpendicular = direction.perpendicular_left();
     let line_context = BondLineContext {
+        attachment_axis,
         first,
         second,
         direction,
@@ -341,11 +355,11 @@ pub(super) fn build_bond_batch(
         }?;
         return RenderBatchV4::bond(
             bond.context.clone(),
-            BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
-                RenderIssueKind::UnrenderableTarget {
+            BondRenderBatchV1::from_render_operations(attachment_axis, operations).map_err(
+                |error| RenderIssueKind::UnrenderableTarget {
                     reason: error.to_string(),
-                }
-            })?,
+                },
+            )?,
         )
         .map_err(|error| RenderIssueKind::UnrenderableTarget {
             reason: format!("styled bond batch is not renderable: {error}"),
@@ -387,11 +401,11 @@ pub(super) fn build_bond_batch(
     }
     RenderBatchV4::bond(
         bond.context.clone(),
-        BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
-            RenderIssueKind::UnrenderableTarget {
+        BondRenderBatchV1::from_render_operations(attachment_axis, operations).map_err(
+            |error| RenderIssueKind::UnrenderableTarget {
                 reason: error.to_string(),
-            }
-        })?,
+            },
+        )?,
     )
     .map_err(|error| RenderIssueKind::UnrenderableTarget {
         reason: format!("bond batch is not renderable: {error}"),
@@ -410,6 +424,7 @@ fn build_haworth_front_bond_batch(
     build_haworth_front_batch(HaworthFrontBondInput {
         target: bond.context.target().clone(),
         paint_order: bond.context.paint_order(),
+        attachment_axis: context.attachment_axis,
         style: bond.style.clone(),
         tip: center.start(),
         base: center.end(),
@@ -442,11 +457,11 @@ fn build_directed_stereo_batch(
     )?;
     RenderBatchV4::bond(
         bond.context.clone(),
-        BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
-            RenderIssueKind::UnrenderableTarget {
+        BondRenderBatchV1::from_render_operations(context.attachment_axis, operations).map_err(
+            |error| RenderIssueKind::UnrenderableTarget {
                 reason: error.to_string(),
-            }
-        })?,
+            },
+        )?,
     )
     .map_err(|error| RenderIssueKind::UnrenderableTarget {
         reason: format!("directed bond batch is not renderable: {error}"),
@@ -454,6 +469,7 @@ fn build_directed_stereo_batch(
 }
 
 struct BondLineContext<'a> {
+    attachment_axis: BondAttachmentAxisV1,
     first: &'a RenderEndpointGeometry,
     second: &'a RenderEndpointGeometry,
     direction: Vector2,
@@ -488,17 +504,21 @@ fn build_bond_line(
             reason: "label clipping leaves no positive visible bond segment".to_owned(),
         });
     }
-    let start = context
-        .first
-        .position
+    let start_axis = context.attachment_axis.start();
+    let start = Point2::new(start_axis.x(), start_axis.y())
+        .map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: format!("bond attachment-axis start is not representable: {error}"),
+        })?
         .offset(context.perpendicular, offset)
         .and_then(|point| point.offset(context.direction, first_clip))
         .map_err(|error| RenderIssueKind::UnrenderableTarget {
             reason: format!("bond start is not representable: {error}"),
         })?;
-    let end = context
-        .second
-        .position
+    let end_axis = context.attachment_axis.end();
+    let end = Point2::new(end_axis.x(), end_axis.y())
+        .map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: format!("bond attachment-axis end is not representable: {error}"),
+        })?
         .offset(context.perpendicular, offset)
         .and_then(|point| point.offset(reverse, second_clip))
         .map_err(|error| RenderIssueKind::UnrenderableTarget {

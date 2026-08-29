@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* The public header is the sole source of truth for the adapter ABI version. */
-#define FERRUM_CHEM_ADAPTER_ABI_VERSION 5U
+#define FERRUM_CHEM_ADAPTER_ABI_VERSION 6U
 
 #ifdef __cplusplus
 #define FERRUM_CHEM_NOEXCEPT noexcept
@@ -27,7 +27,7 @@ extern "C" {
 #define FERRUM_CHEM_RESULT_UNSUPPORTED_MOLECULE 5U
 #define FERRUM_CHEM_RESULT_INTERNAL_FAILURE 6U
 
-/* ABI-5 capability bits. Each adapter exports its supported subset. */
+/* ABI-6 capability bits. Each adapter exports its supported subset. */
 #define FERRUM_CHEM_CAPABILITY_KEKULIZE 0x0000000000000001ULL
 #define FERRUM_CHEM_CAPABILITY_SMILES_MOLECULE 0x0000000000000002ULL
 #define FERRUM_CHEM_CAPABILITY_GENERATE_2D 0x0000000000000004ULL
@@ -42,7 +42,7 @@ extern "C" {
 #define FERRUM_CHEM_CAPABILITY_MOLFILE_TITLE 0x0000000000000800ULL
 #define FERRUM_CHEM_CAPABILITY_SMARTS_MATCH 0x0000000000001000ULL
 
-/* ABI-5 bounded SMARTS matching FCQ1/FQM1 constants. */
+/* ABI-6 bounded SMARTS matching FCQ1/FQM1 constants. */
 #define FERRUM_CHEM_SMARTS_MATCH_WIRE_VERSION 1U
 #define FERRUM_CHEM_SMARTS_MATCH_REQUEST_HEADER_BYTES 24U
 #define FERRUM_CHEM_SMARTS_MATCH_RESPONSE_HEADER_BYTES 28U
@@ -89,7 +89,12 @@ extern "C" {
 #define FERRUM_CHEM_MOLECULE_BOND_BYTES 24U
 #define FERRUM_CHEM_COORDINATE_BYTES 16U
 
-/* Complete graph input and bounded text output shared by ABI-4 codecs. */
+/* Complete graph input and bounded text output shared by ABI-6 codecs.
+ * Every text writer requires a nonzero maximum_text_bytes no greater than
+ * FERRUM_CHEM_MAX_RESPONSE_BYTES - FERRUM_CHEM_TEXT_RESPONSE_HEADER_BYTES.
+ * The FCT1 envelope reserves its header from the adapter-wide response limit;
+ * larger or insufficient budgets refuse with FERRUM_CHEM_RESULT_RESOURCE_LIMIT
+ * before the native writer is invoked. */
 #define FERRUM_CHEM_GRAPH_WIRE_VERSION 1U
 #define FERRUM_CHEM_GRAPH_FLAGS_NONE 0U
 #define FERRUM_CHEM_GRAPH_REQUEST_HEADER_BYTES 20U
@@ -136,7 +141,7 @@ extern "C" {
 #define FERRUM_CHEM_SDF_MAX_RECORDS 100000U
 #define FERRUM_CHEM_SDF_MAX_PROPERTIES 1000000U
 
-/* Stable ABI-4 vocabulary; these are wire values, never RDKit enum casts. */
+/* Stable ABI-6 vocabulary; these are wire values, never RDKit enum casts. */
 #define FERRUM_CHEM_CHIRAL_UNSPECIFIED 0U
 #define FERRUM_CHEM_CHIRAL_TETRAHEDRAL_CW 1U
 #define FERRUM_CHEM_CHIRAL_TETRAHEDRAL_CCW 2U
@@ -216,11 +221,11 @@ typedef struct ferrum_chem_owned_buffer {
 
 uint32_t ferrum_chem_abi_version(void) FERRUM_CHEM_NOEXCEPT;
 
-/* Returns the explicitly compiled ABI-5 operation set. */
+/* Returns the explicitly compiled ABI-6 operation set. */
 uint64_t ferrum_chem_capabilities_v1(void) FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-5 FCQ1/FQM1 SMARTS matching. FCQ1 is exactly consumed: "FCQ1",
+ * ABI-6 FCQ1/FQM1 SMARTS matching. FCQ1 is exactly consumed: "FCQ1",
  * wire_version:u32, smarts_length:u32, fcg1_length:u32, max_matches:u32,
  * flags:u32 (zero), then non-empty UTF-8 SMARTS and one complete FCG1 graph.
  * FQM1 is "FQM1", wire_version:u32, result_status:u32, detail_length:u32,
@@ -238,7 +243,7 @@ uint32_t ferrum_chem_kekulize_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 generates a deterministic 2D depiction from the strict graph request.
+ * ABI-6 generates a deterministic 2D depiction from the strict graph request.
  *
  * Generate-2D v1 receives the same strict graph record vocabulary as
  * Kekulize v1. Its request always has option bits zero and max_backtracks one:
@@ -256,7 +261,7 @@ uint32_t ferrum_chem_generate_2d_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 complete SMILES molecule slice. Request is non-empty UTF-8 SMILES with
+ * ABI-6 complete SMILES molecule slice. Request is non-empty UTF-8 SMILES with
  * no NUL bytes and at most FERRUM_CHEM_SMILES_MAX_BYTES. A zero call status
  * returns FCM1: a 32-byte little-endian header followed by UTF-8 detail,
  * canonical SMILES, atom records, bond records, and atom-aligned finite x/y
@@ -269,7 +274,7 @@ uint32_t ferrum_chem_smiles_to_molecule_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 SMARTS export receives FCG1, Ferrum's complete graph envelope. All
+ * ABI-6 SMARTS export receives FCG1, Ferrum's complete graph envelope. All
  * integer fields are little-endian. Coordinates are intentionally absent.
  *
  * FCG1 header (20 bytes): magic, wire_version, atom_count, bond_count, flags.
@@ -290,7 +295,7 @@ uint32_t ferrum_chem_molecule_to_smarts_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 canonical-isomeric SMILES export receives one complete FCG1 graph.
+ * ABI-6 canonical-isomeric SMILES export receives one complete FCG1 graph.
  * The adapter sanitizes its private molecule and invokes the pinned writer with
  * isomeric=true, Kekule=false, canonical=true, cleanStereo=true, ordinary
  * implicit bond/hydrogen spelling, random=false, rootedAtAtom=-1, dative bonds
@@ -298,11 +303,12 @@ uint32_t ferrum_chem_molecule_to_smarts_v1(
  * nonempty printable ASCII line of at most FERRUM_CHEM_SMILES_WRITE_MAX_BYTES.
  */
 uint32_t ferrum_chem_molecule_to_smiles_v1(
-	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
+	ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 molecule composition receives one complete FCG1 graph and sanitizes a
+ * ABI-6 molecule composition receives one complete FCG1 graph and sanitizes a
  * private RDKit molecule. FCS1 has a 56-byte little-endian header: magic,
  * wire_version, result_status, detail_length, formula_length, entry_count,
  * flags, reserved, net_charge:i64, average_mass:f64, exact_mass:f64. It is
@@ -316,7 +322,7 @@ uint32_t ferrum_chem_molecule_composition_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 molblock export receives FCB1, a coordinate-bearing complete graph.
+ * ABI-6 molblock export receives FCB1, a coordinate-bearing complete graph.
  * Its 24-byte little-endian header contains magic, wire_version, format,
  * atom_count, bond_count, and zero flags. Atom and bond records use FCG1's
  * exact vocabulary, followed by one finite x:f64,y:f64 record per atom.
@@ -324,34 +330,37 @@ uint32_t ferrum_chem_molecule_composition_v1(
  * requested V2000 result. FCT1 returns the multiline UTF-8 molblock text.
  */
 uint32_t ferrum_chem_molecule_to_molblock_v1(
-	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
+	ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * Optional ABI-4 titled molblock export receives FBT1. Its 16-byte header
+ * Optional ABI-6 titled molblock export receives FBT1. Its 16-byte header
  * contains magic, wire_version, embedded_FCB1_length, and UTF-8 title length,
  * followed by exactly those two byte sequences. The title may be empty but
  * must contain no NUL or line-break bytes. FCT1 returns the molblock with that
  * exact title as its first line.
  */
 uint32_t ferrum_chem_molecule_to_molblock_with_title_v1(
-	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
+	ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 SDF export receives FSD1. Its 16-byte header contains magic,
+ * ABI-6 SDF export receives FSD1. Its 16-byte header contains magic,
  * wire_version, record_count, and zero flags. Each record has FCB1 length,
- * title length, property count, and zero flags, followed by one complete FCB1
+ * title length, property count (at most FERRUM_CHEM_SDF_MAX_PROPERTIES), and zero flags, followed by one complete FCB1
  * request, UTF-8 title bytes, then ordered property pairs. Each pair has
  * name_length and value_length followed by UTF-8 name and value bytes. Names
  * are unique per record. FCT1 returns newline-terminated multi-record SDF text.
  */
 uint32_t ferrum_chem_records_to_sdf_v1(
-	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
+	ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 SDF import accepts bounded UTF-8 SDF text and returns FSI1. Its
+ * ABI-6 SDF import accepts bounded UTF-8 SDF text and returns FSI1. Its
  * 24-byte little-endian header contains magic, wire_version, result_status,
  * detail_length, record_count, and zero flags. Each successful record has a
  * 16-byte header containing an embedded FCM1 length, title length, property
@@ -365,7 +374,7 @@ uint32_t ferrum_chem_sdf_to_records_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 molblock import accepts one bounded UTF-8 V2000 or V3000 molblock and
+ * ABI-6 molblock import accepts one bounded UTF-8 V2000 or V3000 molblock and
  * returns the same complete FCM1 owned-molecule envelope used by SMILES.
  * Strict parsing and sanitization are enabled, authored hydrogen atoms remain
  * explicit, and text after the sole M  END terminator is rejected. A
@@ -377,7 +386,7 @@ uint32_t ferrum_chem_molblock_to_molecule_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 InChI import accepts one bounded ASCII InChI=1S/ or InChI=1/ line,
+ * ABI-6 InChI import accepts one bounded ASCII InChI=1S/ or InChI=1/ line,
  * sanitizes it through RDKit's bundled InChI implementation, generates
  * deterministic two-dimensional coordinates, and returns FCM1. The adapter
  * rejects NUL, control bytes, line breaks, empty molecules, and oversized
@@ -388,7 +397,7 @@ uint32_t ferrum_chem_inchi_to_molecule_v1(
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 InChI export accepts FCI1: magic, wire_version, closed output mode,
+ * ABI-6 InChI export accepts FCI1: magic, wire_version, closed output mode,
  * embedded FCG1 byte length, and zero flags, followed by exactly one complete
  * FCG1 graph. STANDARD requires an InChI=1S/ result. FIXED_HYDROGEN passes only
  * the fixed-hydrogen InChI option and requires the non-standard InChI=1/
@@ -396,11 +405,12 @@ uint32_t ferrum_chem_inchi_to_molecule_v1(
  * never cross the ABI.
  */
 uint32_t ferrum_chem_molecule_to_inchi_v1(
-	const uint8_t *request, uint64_t request_len, ferrum_chem_owned_buffer *response)
+	const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
+	ferrum_chem_owned_buffer *response)
 	FERRUM_CHEM_NOEXCEPT;
 
 /*
- * ABI-4 InChIKey generation accepts the same validated bounded InChI line as
+ * ABI-6 InChIKey generation accepts the same validated bounded InChI line as
  * import. FCT1 returns the official 27-byte uppercase InChIKey layout. A key
  * derived from InChI=1S/ carries the standard marker; InChI=1/ carries the
  * non-standard marker. The adapter exposes no toolkit option string.

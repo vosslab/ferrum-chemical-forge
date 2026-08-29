@@ -8,6 +8,20 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
 ### Behavior or Interface Changes
 
+- Added frozen `BondAttachmentAxisV1` to every typed bond batch. Rust derives
+  its center-to-center structural connection before clipping and transports it
+  through PyO3 to Qt for validation only; it is neither painted nor hit-tested,
+  so final visible ink continues to honor positive full-glyph clearance.
+- Consolidated singular selected-root text export behind
+  `document.molecule.export.v1` and one unversioned document export core. The
+  protocol, PyO3, Qt, and CLI now share seven closed formats (Molfile V2000/
+  V3000, SDF V2000/V3000, canonical SMILES, Standard InChI, and Fixed-Hydrogen
+  InChI), typed refusals, preallocation output bounds, and atomic create-new
+  CLI publication; plural multi-record SDF export remains separate.
+- Added a modeless **Command Reference** on F1 and **Help > Command
+  Reference...**. It shares one live metadata-derived command catalog with
+  Command Palette, searches shortcut/help/YAML placement facts, reports current
+  availability without activation, and restores focus after dismissal.
 - Replaced the PyO3 render-observation transport in place with frozen V4/V2 DTOs. Render batches
   now expose one closed atom, compact-group, or bond content value; atom labels carry Rust-issued
   exact Telex bounds and core-run identity, while V3/V1 render-plan compatibility classes are gone.
@@ -19,6 +33,18 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
 ### Fixes and Maintenance
 
+- Gave each successful CLI verb E2E publication its own absent fixture path so
+  the conversion matrix verifies the create-new contract instead of requesting
+  a second publication at the earlier SMILES output path.
+- Standardized current Python test XML parsing on repository-standard `lxml`,
+  with DTD loading, entity resolution, and network access disabled. This
+  test-only parser choice is separate from production CDML's Rust `xot`
+  ownership; archived changelog references to the one-off `defusedxml` corpus
+  harness remain historical execution context.
+- Reframed the current parity delivery record around completed slices, immediate
+  human desktop review and aggregate rerun, and usability/feature-parity work;
+  it explicitly retains P2 directory-sync fault injection as deferred and makes
+  no parity or release-readiness claim.
 - Migrated the production Qt molecule renderer to exact V2 observations and V4 closed batches.
   Atom labels now replay only their typed mask/text/decorations and declared core run, verify Telex
   full/core ink bounds and coordinate-space receipts, and preserve issued paint/layer order; compact
@@ -45,13 +71,49 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   document-to-V4 observation seam. Its twelve semantic rows prove emitted label/bond content,
   ordered operations, isotope core-run semantics, and target-specific third-label refusal without
   coordinates, computed bounds, or pixel snapshots.
+- Published each atom label's validated positive `bond_ink_clearance` in the V4/V2 PyO3 transport.
+  The artifact-dependent installed Qt consumer now expands exact full Telex ink by that issued gap
+  and proves final bond ink remains disjoint. The shared consumer and real-window attached-ring
+  gesture moved from deterministic pytest into the registered E2E lane, with a bounded Open wait;
+  focused Qt pytest retains one behavioral projection check instead of private paint snapshots.
+- Corrected the compact-group deletion E2E's canvas-tool contract: selecting a scene point now
+  activates Select Structure only when it is not already checked, so a successful deletion that
+  intentionally leaves the tool active is followed by a real atom selection instead of toggling the
+  tool off. The public delete, report, undo, and materialize workflow is green again.
+- Migrated the installed E/Z carrier-mark projection E2E from the removed generic batch operation
+  bag to the exact closed `BondRenderBatchV1.typed_operations` payload, preserving a real Rust-to-Qt
+  geometry assertion at the typed transport boundary.
+- Recalibrated installed authoring, clipboard, template, regular-ring, and geometry-repair fixtures
+  to Ferrum's native 40-point molecular scale. The tests now exercise renderer-admissible geometry
+  instead of depending on 1--13 point bonds or gestures that crossed an unrelated atom label; the
+  stronger final-ink admission contract remains intact.
+- Moved the real-Qt existing/new stereo-bond gestures off an unrelated oxygen atom. Final-ink
+  admission now remains exercised without opening an unobserved modal refusal during `mouseMove`,
+  eliminating a deterministic aggregate-suite stall while preserving the public gesture route.
+- Reconciled the active parity plan and render-metrics/CDXML decision records with the completed
+  local aggregate: 8,297 hygiene tests, every registered CLI/Qt E2E, 299 installed PyO3 tests, and
+  437 Qt tests pass. Human real-window/accessibility acceptance, remote CI, release, and full parity
+  remain explicitly open.
 - Strengthened generic renderer admission from root classification to a complete-render omission
   delta. Ordinary authoring can retain or repair existing imported diagnostics but cannot add a new
   root exclusion, plan issue, or member depiction issue; undo/redo instead authenticate an exact
   retained history target so repairs remain reversible without an authoring bypass.
+- Corrected the catalog protocol regression to exercise that same omission-delta policy: stale and
+  unknown requests still refuse, while an unrelated insertion may retain an already-authored text
+  exclusion and must preserve both the prior text and the newly inserted catalog object.
+- Repositioned the alpha-D-glucopyranose anomeric oxygen in the Rust-owned standalone Haworth
+  recipe so its C1--O1 bond clears the non-endpoint C2 label under final-ink admission. The catalog
+  integration now commits and verifies all four native D-glucose Haworth recipes, rather than one.
 - Made the unversioned domain `LinearFormBondLength::NATIVE` the sole owner of Ferrum-generated
   linear-form spacing. Planning and exact CDML metadata now use 40 PostScript points; the duplicated
   10-point writable grammar and its inherently unrenderable generated geometry are gone.
+- Renamed private renderer-admission modules, receipts, and errors in place without compatibility
+  aliases; version suffixes remain reserved for durable serialized, public, cross-language, or
+  cross-crate contracts.
+- Restored the repository's authored-file size boundary by extracting immutable screenshot scene
+  data, closed render-observation binding tests, and the delivered M6 command-palette detail into
+  focused owner files. The canonical capture entrypoint, binding suite, and parity ledger remain
+  below 1,000 lines without exemptions or behavior changes.
 - Rebuilt the native runtime and recaptured all 13 Qt documentation scenes. The attached-ring scene
   now requires and visibly shows all seven bonds, including the original host C--O bond; an
   independent image review accepted label/bond alignment and visible count consistency, while human

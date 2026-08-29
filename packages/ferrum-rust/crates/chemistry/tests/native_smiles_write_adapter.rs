@@ -2,7 +2,9 @@
 
 use std::path::Path;
 
-use ferrum_chemistry::{AtomicNumber, BondOrder, MolAtom, MolBond, MolGraph, NativeChemEngine};
+use ferrum_chemistry::{
+    AtomicNumber, BondOrder, MolAtom, MolBond, MolGraph, NativeChemEngine, NativeTextOutputLimit,
+};
 
 fn atom(
     symbol: &str,
@@ -48,10 +50,17 @@ fn sealed_adapter_writes_canonical_isotope_and_charge_smiles() {
     let invalid_valence = MolGraph::new(vec![atom("C", None, None, Some(5))], Vec::new(), None)
         .expect("structurally valid but chemically invalid graph");
 
-    assert_eq!(engine.molecule_to_smiles(&ethanol), Ok("CCO".to_owned()));
     assert_eq!(
-        engine.molecule_to_smiles(&isotope_ammonium),
+        engine.molecule_to_smiles(&ethanol, NativeTextOutputLimit::ADAPTER_MAXIMUM),
+        Ok("CCO".to_owned())
+    );
+    assert_eq!(
+        engine.molecule_to_smiles(&isotope_ammonium, NativeTextOutputLimit::ADAPTER_MAXIMUM),
         Ok("[15NH4+]".to_owned())
     );
-    assert!(engine.molecule_to_smiles(&invalid_valence).is_err());
+    assert!(
+        engine
+            .molecule_to_smiles(&invalid_valence, NativeTextOutputLimit::ADAPTER_MAXIMUM)
+            .is_err()
+    );
 }

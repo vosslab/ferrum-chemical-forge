@@ -67,11 +67,14 @@ def check_schema(ferrum: Path) -> None:
 
 def check_completed_response(
 		ferrum: Path, request_id: str, document: str, expected_schema: str,
+		expected_exit_status: int,
 		) -> dict[str, object]:
 	"""Run a decodable request and enforce its stdout/stderr/exit-channel rules."""
 	result = run(ferrum, "protocol", "run", "-", input_text=request(request_id, document))
-	if result.returncode != 0 or result.stderr:
-		raise ProtocolE2eError("completed protocol request did not keep diagnostics separate")
+	if result.returncode != expected_exit_status or result.stderr:
+		raise ProtocolE2eError(
+			"completed protocol request did not keep its expected exit and diagnostics channels"
+		)
 	response = one_json_object(result.stdout, "protocol run")
 	if response.get("schema") != expected_schema or response.get("request_id") != request_id:
 		raise ProtocolE2eError("protocol response lost its declared envelope identity")
@@ -96,10 +99,10 @@ def main() -> int:
 		raise ProtocolE2eError("--ferrum must name an existing executable")
 	check_schema(ferrum)
 	success = check_completed_response(
-		ferrum, "e2e-success", CDML, "ferrum-operation-response-v1",
+		ferrum, "e2e-success", CDML, "ferrum-operation-response-v1", 0,
 	)
 	refusal = check_completed_response(
-		ferrum, "e2e-refusal", "not CDML", "ferrum-operation-error-v1",
+		ferrum, "e2e-refusal", "not CDML", "ferrum-operation-error-v1", 1,
 	)
 	if nested_object(success, "outcome").get("kind") != "document.inspect":
 		raise ProtocolE2eError("protocol inspect success omitted its semantic outcome")

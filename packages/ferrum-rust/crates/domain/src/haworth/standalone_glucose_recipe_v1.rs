@@ -128,7 +128,15 @@ pub fn standalone_d_glucose_haworth_recipe_v1(
             atom("C4", "C", point(-20.0, 30.0)),
             atom("C5", "C", point(-60.0, 0.0)),
             atom("C6", "C", point(-90.0, -35.0)),
-            atom("O1", "O", point(70.0, if beta { -80.0 } else { 0.0 })),
+            atom(
+                "O1",
+                "O",
+                if beta {
+                    point(70.0, -80.0)
+                } else {
+                    point(40.0, 40.0)
+                },
+            ),
             atom("O2", "O", point(95.0, 25.0)),
             atom("O3", "O", point(20.0, 75.0)),
             atom("O4", "O", point(-30.0, 75.0)),

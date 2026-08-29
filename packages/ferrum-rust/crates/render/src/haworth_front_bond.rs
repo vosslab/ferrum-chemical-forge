@@ -4,9 +4,9 @@ use ferrum_geometry::Vector2;
 
 use crate::bond_style::BondStyle;
 use crate::{
-    PathOpV3, PositiveFinite, RenderBatchV4, RenderDisplayLayerV1, RenderIssueKind, RenderOp,
-    RenderPaintV3, RenderPoint, RenderTarget, ScenePathCommandV3, ScenePathStrokeV3,
-    VectorStrokeLineCapV1,
+    BondAttachmentAxisV1, PathOpV3, PositiveFinite, RenderBatchV4, RenderDisplayLayerV1,
+    RenderIssueKind, RenderOp, RenderPaintV3, RenderPoint, RenderTarget, ScenePathCommandV3,
+    ScenePathStrokeV3, VectorStrokeLineCapV1,
 };
 
 const FRONT_PAD_RATIO: f64 = 0.35;
@@ -92,6 +92,7 @@ pub fn build_haworth_front_preview_ops(
 pub(crate) struct HaworthFrontBondInput {
     pub(crate) target: RenderTarget,
     pub(crate) paint_order: u32,
+    pub(crate) attachment_axis: BondAttachmentAxisV1,
     pub(crate) style: BondStyle,
     pub(crate) tip: RenderPoint,
     pub(crate) base: RenderPoint,
@@ -108,6 +109,7 @@ pub(crate) fn build_haworth_front_batch(
     let HaworthFrontBondInput {
         target,
         paint_order,
+        attachment_axis,
         style,
         tip,
         base,
@@ -137,11 +139,11 @@ pub(crate) fn build_haworth_front_batch(
     Ok(RenderBatchV4::bond_target(
         target,
         paint_order,
-        crate::BondRenderBatchV1::from_render_operations(operations).map_err(|error| {
-            RenderIssueKind::UnrenderableTarget {
+        crate::BondRenderBatchV1::from_render_operations(attachment_axis, operations).map_err(
+            |error| RenderIssueKind::UnrenderableTarget {
                 reason: error.to_string(),
-            }
-        })?,
+            },
+        )?,
     )
     .with_display_layer(layer))
 }

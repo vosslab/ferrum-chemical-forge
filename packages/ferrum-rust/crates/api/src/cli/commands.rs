@@ -319,6 +319,18 @@ pub(crate) enum ProtocolCommand {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum DocumentCommand {
+    /// Export one selected direct root as one closed text representation.
+    #[command(name = "export")]
+    Export {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long = "molecule-id")]
+        molecule_id: String,
+        #[arg(long, value_enum)]
+        format: DocumentExportFormat,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// Export selected direct-root molecules as one atomic multi-record SDF file.
     #[command(
         name = "export-sdf",
@@ -352,8 +364,26 @@ pub(crate) enum SdfVersion {
     V3000,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "snake_case")]
+pub(crate) enum DocumentExportFormat {
+    MolfileV2000,
+    MolfileV3000,
+    SdfV2000,
+    SdfV3000,
+    CanonicalSmiles,
+    InchiStandard,
+    InchiFixedHydrogen,
+}
+
 #[derive(Debug, Subcommand)]
 pub(crate) enum NamedDocumentCommand {
+    #[command(name = "document.molecule.export.v1")]
+    DocumentMoleculeExport {
+        input: PathBuf,
+        #[arg(short, long, value_parser = output_file_path)]
+        output: Option<PathBuf>,
+    },
     /// Report one selected molecule through the frozen molecule-report route.
     #[command(name = "document.molecule.report.v1")]
     DocumentMoleculeReport {
@@ -474,6 +504,11 @@ impl NamedDocumentCommand {
         self,
     ) -> (ProtocolOperationKindV1, PathBuf, Option<PathBuf>) {
         match self {
+            Self::DocumentMoleculeExport { input, output } => (
+                ProtocolOperationKindV1::DocumentMoleculeExport,
+                input,
+                output,
+            ),
             Self::DocumentMoleculeReport { input, output } => (
                 ProtocolOperationKindV1::DocumentMoleculeReport,
                 input,

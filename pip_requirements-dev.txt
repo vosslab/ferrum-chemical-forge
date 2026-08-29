@@ -1,6 +1,5 @@
 # Development dependencies
 bandit  # security linting for Python code
-defusedxml  # hardened direct-source XML checks in the CDML E2E comparison
 packaging  # version parsing/comparison helpers used by tooling/tests
 pyflakes  # static analysis lint checks
 pytest  # automated test runner

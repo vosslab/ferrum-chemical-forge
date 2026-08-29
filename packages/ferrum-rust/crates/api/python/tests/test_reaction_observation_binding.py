@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import defusedxml.ElementTree
+import lxml.etree
 
 import pytest
 
@@ -37,6 +37,12 @@ HOSTILE_SOURCE = (
 	'<c:molecule id="nested"><c:atom id="nested-a" name="N">'
 	'<c:point x="200" y="0"/></c:atom><c:reaction id="nested-r">'
 	'<c:reactant idref="left"/></c:reaction></c:molecule></c:cdml>'
+)
+_XML_PARSER = lxml.etree.XMLParser(
+	load_dtd=False,
+	resolve_entities=False,
+	no_network=True,
+	huge_tree=False,
 )
 
 
@@ -126,7 +132,9 @@ def test_reaction_lifecycle_resolves_to_generic_transition_and_replays_no_commit
 		selection.reaction_document_object_id
 	)
 	assert commit.observation.snapshot.revision == before.revision + 1
-	root = defusedxml.ElementTree.fromstring(commit.observation.snapshot.cdml)
+	root = lxml.etree.fromstring(
+		commit.observation.snapshot.cdml.encode("utf-8"), parser=_XML_PARSER,
+	)
 	assert not root.findall("{urn:ferrum:cdml}reaction")
 	with pytest.raises(ferrum_chem.PreparedOperationConsumedError):
 		session.commit_session_operation_transition_v1(prepared)

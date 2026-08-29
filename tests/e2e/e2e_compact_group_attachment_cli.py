@@ -227,9 +227,9 @@ def assert_typed_stale_refusal(
 			attachment_operation(document, stale_fence, "methyl"),
 		),
 	)
-	if result.returncode != 0:
+	if result.returncode != 1:
 		raise CompactGroupAttachmentCliE2eError(
-			f"{label} stale attachment refusal did not complete"
+			f"{label} stale attachment refusal did not return the typed-failure exit status"
 		)
 	envelope = one_envelope(result, f"{label} stale attachment refusal")
 	error = envelope.get("error")

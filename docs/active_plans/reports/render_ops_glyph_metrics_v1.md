@@ -52,23 +52,25 @@ compared the closed corpus `C`, `Cl`, `Br`, `H2`, `NH3+`, and `I`.
 
 Those measurements established the font asset and former Rust-to-Qt glyph replay
 boundary, but they predate the core-centered atom-label contract. They are not
-evidence that final bond ink clears the current labels. The current public render
-plan lacks read-only core-attachment and full-ink exclusion facts, so a durable Qt
-fidelity test is correctly blocked pending a closed observation DTO. Once that
-schema exists, a rebuilt extension can compare representative decorated-label
-paths against the issued attachment, exclusion, and bond-plan facts.
+evidence that final bond ink clears the current labels. That former evidence gap
+is now closed by `RenderObservationV2` and `RenderPlanV4`: their typed atom payload
+publishes the core run, exact core/full Telex ink bounds, and positive bond-ink
+clearance, while their typed bond payload publishes the final operations that Qt
+must replay.
 
 ## Current automated evidence and remaining acceptance
 
 The renderer's deterministic Telex corpus now checks exact core centering,
 full-ink containment, y-down script placement, and style-aware final-footprint
 clearance, including the Haworth front axial extension. The focused local render
-lane passes 144 tests with formatting and strict Clippy clean. This is automated
-renderer evidence only.
+lane passes 158 tests with formatting and strict Clippy clean. A shared 12-row
+corpus has both a Rust consumer and an installed Rust-to-Qt E2E consumer; each
+requires final bond ink to remain disjoint from full label ink expanded by the
+issued clearance. The post-change `./all_test.sh` gate passes 8,297 hygiene tests,
+all registered CLI/Qt E2Es, 299 installed PyO3 tests, and 437 Qt tests.
 
-The following remain open: an approved closed read-only observation DTO, an
-installed Qt path/plan alignment receipt, a rebuilt Qt/CDXML end-to-end run, fresh
-13-scene screenshots with independent visual review, human accessibility review,
-a post-change aggregate repository gate, CI, release artifacts, and cross-platform
-font evidence. SVG, PDF, and PNG consume the same Rust plan, but their automated
-operation checks are not a substitute for visual acceptance.
+The rebuilt 13-scene screenshot set has independent image-review acceptance.
+Human real-window/accessibility acceptance, remote CI, release artifacts,
+cross-platform font evidence, and full parity remain open. SVG, PDF, and PNG
+consume the same Rust plan, but their automated operation checks are not a
+substitute for visual acceptance.

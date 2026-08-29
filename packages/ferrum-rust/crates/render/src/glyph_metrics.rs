@@ -274,7 +274,7 @@ mod tests {
                     .v1_centered_core_run_ink_bounds(&text, core_index as usize)
                     .expect("canonical core ink is available"),
             );
-            AtomLabelRenderV1::new(None, text, core_index, full, selected_core)
+            AtomLabelRenderV1::new(None, text, core_index, size(1.5), full, selected_core)
                 .expect("durable atom label accepts the issued core run and bounds");
         }
     }
@@ -316,6 +316,8 @@ mod tests {
         );
         let original_core =
             InkBoundsV1::from_glyph_bounds(layout.attachment().core_element_ink_bounds());
-        assert!(AtomLabelRenderV1::new(None, text, core_index, full, original_core).is_err());
+        assert!(
+            AtomLabelRenderV1::new(None, text, core_index, size(1.5), full, original_core).is_err()
+        );
     }
 }

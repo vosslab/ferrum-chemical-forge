@@ -9,7 +9,9 @@ import ferrum_qt.themes.theme_loader
 import ferrum_qt.ferrum.document_tab
 import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.ferrum.main_window
+import ferrum_qt.ferrum.molfile_export
 import ferrum_qt.ferrum.molecule_exports
+import ferrum_qt.ferrum.sdf_export
 import ferrum_qt.main_window
 import ferrum_qt.modes.base_mode
 
@@ -49,8 +51,9 @@ def _smiles_receipt(tab: object, molecule_id: str) -> object:
 	"""Issue one real Rust receipt for the tab's current immutable snapshot."""
 	observation = tab.current_document_observation()
 	snapshot = observation.snapshot
-	return engine.export_document_molecule_smiles_v1(
+	return engine.export_document_molecule(
 		observation, snapshot.revision, snapshot.digest, molecule_id,
+		engine.DocumentMoleculeExportFormat.canonical_smiles,
 	)
 
 
@@ -89,7 +92,7 @@ def test_admitted_smiles_clipboard_receipt_survives_selection_change_after_busy_
 		receipt = _smiles_receipt(tab, molecule_id)
 		window._on_document_molecule_smiles_exported(intent.worker, receipt)
 		assert (PySide6.QtWidgets.QApplication.clipboard().text(), shown) == (
-			receipt.smiles, [receipt.smiles],
+			receipt.text, [receipt.text],
 		)
 		window._on_document_molecule_export_finished(intent.worker)
 		assert window._delete_structure_selection_action.isEnabled()
@@ -114,8 +117,8 @@ def test_admitted_smiles_file_receipt_survives_selection_change_after_busy_refre
 		PySide6.QtWidgets.QFileDialog, "getSaveFileName",
 		lambda *unused: (str(tmp_path / "receipt.smi"), module._SMILES_FILE_FILTER),
 	)
-	monkeypatch.setattr(window, "_publish_document_molecule_smiles_file",
-		lambda receipt, destination: published.append((receipt, destination)))
+	monkeypatch.setattr(window, "_publish_document_molecule_export_file",
+		lambda receipt, destination, _label: published.append((receipt, destination)))
 	try:
 		window._choose_document_molecule_smiles_file_export()
 		intent = window._molecule_export_intent
@@ -129,6 +132,31 @@ def test_admitted_smiles_file_receipt_survives_selection_change_after_busy_refre
 	finally:
 		if window._molecule_export_intent is not None:
 			window._on_document_molecule_export_finished(window._molecule_export_intent.worker)
+		_dispose_window_and_tab(window, tab)
+		del qapp
+
+
+#============================================
+def test_smiles_file_publication_refusal_preserves_existing_destination(
+		qapp: PySide6.QtWidgets.QApplication, monkeypatch: pytest.MonkeyPatch,
+		tmp_path: object) -> None:
+	"""The Qt route presents Rust's typed refusal and leaves the selected file unchanged."""
+	window, tab, molecule_id = _window_with_selected_root(qapp)
+	destination = tmp_path / "existing.smi"
+	destination.write_text("existing molecule")
+	refusals: list[object] = []
+	monkeypatch.setattr(window, "_show_edit_refusal", refusals.append)
+	try:
+		window._publish_document_molecule_export_file(
+			_smiles_receipt(tab, molecule_id), str(destination), "SMILES",
+		)
+		assert destination.read_text() == "existing molecule"
+		assert refusals
+		assert "Rust did not publish a SMILES file" in refusals[-1].technical_details
+		assert "validating the destination before temporary creation" in (
+			refusals[-1].technical_details
+		)
+	finally:
 		_dispose_window_and_tab(window, tab)
 		del qapp
 
@@ -158,6 +186,69 @@ def test_smiles_file_export_refuses_selection_change_during_destination_choice(
 			"The selected molecule changed while choosing a destination. "
 			"Choose Export SMILES File again for the current selection."
 		)
+	finally:
+		_dispose_window_and_tab(window, tab)
+		del qapp
+
+
+#============================================
+def test_every_selected_export_worker_uses_the_shared_receipt_function(
+		qapp: PySide6.QtWidgets.QApplication) -> None:
+	"""Each user-facing format freezes one address for the unified Rust receipt."""
+	window, tab, molecule_id = _window_with_selected_root(qapp)
+	observation = tab.current_document_observation()
+	try:
+		workers_and_formats = (
+			(
+				ferrum_qt.ferrum.molfile_export.FerrumNativeMolfileExportWorker(
+					observation, molecule_id, engine.MolblockVersionV1.v2000,
+				),
+				engine.DocumentMoleculeExportFormat.molfile_v2000,
+			),
+			(
+				ferrum_qt.ferrum.molfile_export.FerrumNativeMolfileExportWorker(
+					observation, molecule_id, engine.MolblockVersionV1.v3000,
+				),
+				engine.DocumentMoleculeExportFormat.molfile_v3000,
+			),
+			(
+				ferrum_qt.ferrum.sdf_export.FerrumNativeSdfExportWorker(
+					observation, molecule_id, engine.MolblockVersionV1.v2000,
+				),
+				engine.DocumentMoleculeExportFormat.sdf_v2000,
+			),
+			(
+				ferrum_qt.ferrum.sdf_export.FerrumNativeSdfExportWorker(
+					observation, molecule_id, engine.MolblockVersionV1.v3000,
+				),
+				engine.DocumentMoleculeExportFormat.sdf_v3000,
+			),
+			(
+				ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeSmilesExportWorker(
+					observation, molecule_id,
+				),
+				engine.DocumentMoleculeExportFormat.canonical_smiles,
+			),
+			(
+				ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeInchiExportWorker(
+					observation, molecule_id, engine.InchiModeV1.standard,
+				),
+				engine.DocumentMoleculeExportFormat.inchi_standard,
+			),
+			(
+				ferrum_qt.ferrum.molecule_exports.FerrumNativeMoleculeInchiExportWorker(
+					observation, molecule_id, engine.InchiModeV1.fixed_hydrogen,
+				),
+				engine.DocumentMoleculeExportFormat.inchi_fixed_hydrogen,
+			),
+		)
+		for worker, format in workers_and_formats:
+			assert worker._export_operation is engine.export_document_molecule
+			assert worker._arguments == (
+				observation, observation.snapshot.revision, observation.snapshot.digest,
+				molecule_id, format,
+			)
+			worker.deleteLater()
 	finally:
 		_dispose_window_and_tab(window, tab)
 		del qapp

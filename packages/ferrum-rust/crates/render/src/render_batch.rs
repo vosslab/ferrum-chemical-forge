@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::glyph_metrics::GlyphBounds;
 use crate::{
-    DoubleBondCarrierMarkOp, EllipseOp, LineOp, MaskOp, PathOpV3, RenderError, RenderIssue,
-    RenderOp, RenderPoint, RenderProvenance, RenderRevision, RenderSchemaVersion, RenderTarget,
-    TextOp, TextScript,
+    DoubleBondCarrierMarkOp, EllipseOp, LineOp, MaskOp, PathOpV3, PositiveFinite, RenderError,
+    RenderIssue, RenderOp, RenderPoint, RenderProvenance, RenderRevision, RenderSchemaVersion,
+    RenderTarget, TextOp, TextScript,
 };
 
 /// A finite, nonempty V4 wire rectangle in atom-local scene units.
@@ -91,6 +91,7 @@ pub struct AtomLabelRenderV1 {
     mask: Option<MaskOp>,
     text: TextOp,
     core_element_run_index: u32,
+    bond_ink_clearance: PositiveFinite,
     full_ink_bounds: InkBoundsV1,
     core_element_ink_bounds: InkBoundsV1,
 }
@@ -114,6 +115,7 @@ impl AtomLabelRenderV1 {
         mask: Option<MaskOp>,
         text: TextOp,
         core_element_run_index: u32,
+        bond_ink_clearance: PositiveFinite,
         full_ink_bounds: InkBoundsV1,
         core_element_ink_bounds: InkBoundsV1,
     ) -> Result<Self, RenderError> {
@@ -168,6 +170,7 @@ impl AtomLabelRenderV1 {
             mask,
             text,
             core_element_run_index,
+            bond_ink_clearance,
             full_ink_bounds,
             core_element_ink_bounds,
         })
@@ -183,6 +186,11 @@ impl AtomLabelRenderV1 {
     #[must_use]
     pub const fn core_element_run_index(&self) -> u32 {
         self.core_element_run_index
+    }
+    /// Return the renderer-issued positive gap around full label ink.
+    #[must_use]
+    pub const fn bond_ink_clearance(&self) -> PositiveFinite {
+        self.bond_ink_clearance
     }
     #[must_use]
     pub const fn full_ink_bounds(&self) -> InkBoundsV1 {
@@ -202,6 +210,7 @@ impl<'de> Deserialize<'de> for AtomLabelRenderV1 {
             mask: Option<MaskOp>,
             text: TextOp,
             core_element_run_index: u32,
+            bond_ink_clearance: PositiveFinite,
             full_ink_bounds: InkBoundsV1,
             core_element_ink_bounds: InkBoundsV1,
         }
@@ -210,6 +219,7 @@ impl<'de> Deserialize<'de> for AtomLabelRenderV1 {
             wire.mask,
             wire.text,
             wire.core_element_run_index,
+            wire.bond_ink_clearance,
             wire.full_ink_bounds,
             wire.core_element_ink_bounds,
         )
@@ -422,16 +432,76 @@ impl BondRenderOpV1 {
         }
     }
 }
+/// Structural scene-space attachment for one bond before visible-ink clipping.
+///
+/// This axis is semantic geometry: renderers validate and transport it, but do
+/// not paint or hit-test it. `operations` owns the separately clipped ink.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BondAttachmentAxisV1 {
+    start: RenderPoint,
+    end: RenderPoint,
+}
+
+impl BondAttachmentAxisV1 {
+    /// Construct a finite, nonzero structural bond axis.
+    pub fn new(start: RenderPoint, end: RenderPoint) -> Result<Self, RenderError> {
+        if start == end {
+            return Err(RenderError::InvalidRequest(
+                "bond attachment axis endpoints are coincident".to_owned(),
+            ));
+        }
+        Ok(Self { start, end })
+    }
+
+    /// Return the first issued structural connection point.
+    #[must_use]
+    pub const fn start(self) -> RenderPoint {
+        self.start
+    }
+
+    /// Return the second issued structural connection point.
+    #[must_use]
+    pub const fn end(self) -> RenderPoint {
+        self.end
+    }
+}
+
+impl<'de> Deserialize<'de> for BondAttachmentAxisV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Wire {
+            start: RenderPoint,
+            end: RenderPoint,
+        }
+        let wire = Wire::deserialize(deserializer)?;
+        Self::new(wire.start, wire.end).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Scene-space bond content.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BondRenderBatchV1 {
+    attachment_axis: BondAttachmentAxisV1,
     operations: Vec<BondRenderOpV1>,
 }
 impl BondRenderBatchV1 {
-    pub fn new(operations: Vec<BondRenderOpV1>) -> Result<Self, RenderError> {
+    pub fn new(
+        attachment_axis: BondAttachmentAxisV1,
+        operations: Vec<BondRenderOpV1>,
+    ) -> Result<Self, RenderError> {
         validate_nonempty_z(&operations, BondRenderOpV1::z)?;
-        Ok(Self { operations })
+        Ok(Self {
+            attachment_axis,
+            operations,
+        })
+    }
+    /// Return the issued structural axis before any visible-ink clipping.
+    #[must_use]
+    pub const fn attachment_axis(&self) -> BondAttachmentAxisV1 {
+        self.attachment_axis
     }
     #[must_use]
     pub fn operations(&self) -> &[BondRenderOpV1] {
@@ -444,7 +514,10 @@ impl BondRenderBatchV1 {
             .collect()
     }
     /// Convert private bond lowering output before it reaches the V4 contract.
-    pub(crate) fn from_render_operations(operations: Vec<RenderOp>) -> Result<Self, RenderError> {
+    pub(crate) fn from_render_operations(
+        attachment_axis: BondAttachmentAxisV1,
+        operations: Vec<RenderOp>,
+    ) -> Result<Self, RenderError> {
         let operations = operations
             .into_iter()
             .map(|operation| match operation {
@@ -458,7 +531,7 @@ impl BondRenderBatchV1 {
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Self::new(operations)
+        Self::new(attachment_axis, operations)
     }
 }
 impl<'de> Deserialize<'de> for BondRenderBatchV1 {
@@ -466,10 +539,11 @@ impl<'de> Deserialize<'de> for BondRenderBatchV1 {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Wire {
+            attachment_axis: BondAttachmentAxisV1,
             operations: Vec<BondRenderOpV1>,
         }
         let wire = Wire::deserialize(deserializer)?;
-        Self::new(wire.operations).map_err(serde::de::Error::custom)
+        Self::new(wire.attachment_axis, wire.operations).map_err(serde::de::Error::custom)
     }
 }
 
@@ -554,7 +628,8 @@ impl RenderBatchV4 {
         let full = InkBoundsV1::from_glyph_bounds(
             metrics.v1_atom_label_ink_bounds(&normalized, core_index as usize)?,
         );
-        AtomLabelRenderV1::new(mask, normalized, core_index, full, core)
+        let bond_ink_clearance = PositiveFinite::new(font.size().get() * 0.125)?;
+        AtomLabelRenderV1::new(mask, normalized, core_index, bond_ink_clearance, full, core)
     }
 
     #[cfg(test)]

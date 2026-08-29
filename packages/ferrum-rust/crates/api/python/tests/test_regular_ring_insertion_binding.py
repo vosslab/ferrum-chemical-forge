@@ -35,7 +35,7 @@ def test_regular_ring_generic_operation_commits_one_durable_cycle() -> None:
 	"""One regular-ring operation commits through the generic session lifecycle."""
 	session = ferrum_chem.DocumentSession.create_empty_document_v1()
 	operation = ferrum_chem.DocumentOperationV1.insert_regular_ring_v1(
-		6, 13.0, -7.0, 4.0)
+		6, 13.0, -7.0, 40.0)
 	prepared = session.prepare_session_operation_transition_v1(
 		operation.transition_request_v1(0))
 	result = session.commit_session_operation_transition_v1(prepared)
@@ -60,10 +60,10 @@ def test_private_regular_ring_refusal_preserves_current_snapshot() -> None:
 	assert _snapshot_facts(session.snapshot()) == _snapshot_facts(baseline)
 
 	stale = session.prepare_session_operation_transition_v1(
-		ferrum_chem.DocumentOperationV1.insert_regular_ring_v1(6, 0.0, 0.0, 4.0)
+		ferrum_chem.DocumentOperationV1.insert_regular_ring_v1(6, 0.0, 0.0, 40.0)
 		.transition_request_v1(0))
 	accepted = session.prepare_session_operation_transition_v1(
-		ferrum_chem.DocumentOperationV1.insert_regular_ring_v1(6, 20.0, 0.0, 4.0)
+		ferrum_chem.DocumentOperationV1.insert_regular_ring_v1(6, 80.0, 0.0, 40.0)
 		.transition_request_v1(0))
 	session.commit_session_operation_transition_v1(accepted)
 	before_refusal = session.snapshot()

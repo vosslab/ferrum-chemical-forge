@@ -19,7 +19,6 @@ from ferrum_qt.ferrum.molecule_exports import (
 )
 
 
-_SDF_SCHEMA = "ferrum-document-molecule-sdf-v1"
 _SDF_PROFILE = "document-xy-to-chemistry-x-minus-y-rust-sdf-envelope-v1"
 _SDF_FILTER = "SDF files (*.sdf);;All Files (*)"
 
@@ -66,10 +65,13 @@ class FerrumNativeSdfExportWorker(_FerrumNativeMoleculeExportWorker):
 		if type(version) is not engine.MolblockVersionV1:
 			raise TypeError("Ferrum SDF export requires an exact Ferrum version")
 		snapshot = observation.snapshot
-		super().__init__(
-			engine.export_document_molecule_sdf_v1,
-			(observation, snapshot.revision, snapshot.digest, molecule_id, version),
+		format = (
+			engine.DocumentMoleculeExportFormat.sdf_v2000
+			if version is engine.MolblockVersionV1.v2000 else
+			engine.DocumentMoleculeExportFormat.sdf_v3000
 		)
+		super().__init__(engine.export_document_molecule,
+			(observation, snapshot.revision, snapshot.digest, molecule_id, format))
 
 
 #============================================
@@ -305,16 +307,18 @@ class FerrumNativeSdfExportMixin:
 		if intent is None:
 			self._show_stale_sdf_export()
 			return
-		if type(result) is not engine.DocumentMoleculeSdfV1:
+		if type(result) is not engine.DocumentMoleculeExport:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected export value."))
 			return
 		if (
-			result.schema != _SDF_SCHEMA
-			or result.profile != _SDF_PROFILE
-			or result.source_revision != intent.revision
+			result.source_revision != intent.revision
 			or result.source_digest != intent.digest
 			or result.molecule_id != intent.molecule_id
-			or result.version is not intent.version
+			or result.format is not (
+				engine.DocumentMoleculeExportFormat.sdf_v2000
+				if intent.version is engine.MolblockVersionV1.v2000 else
+				engine.DocumentMoleculeExportFormat.sdf_v3000
+			)
 		):
 			self._show_stale_sdf_export()
 			return
@@ -326,7 +330,7 @@ class FerrumNativeSdfExportMixin:
 			) -> None:
 		"""Publish one verified receipt through Rust's artifact writer."""
 		try:
-			publication = engine.publish_document_molecule_sdf_v1(
+			publication = engine.publish_document_molecule_export(
 				receipt, intent.destination,
 			)
 		except Exception as exc:
@@ -334,7 +338,7 @@ class FerrumNativeSdfExportMixin:
 				"SDF", intent.destination, exc,
 			)
 			return
-		if type(publication) is not engine.DocumentMoleculeSdfPublicationV1:
+		if type(publication) is not engine.DocumentMoleculeExportPublication:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected publication value. Inspect the destination "
 				"because Rust may already have written it."))
 			return

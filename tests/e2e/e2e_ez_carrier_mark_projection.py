@@ -52,7 +52,10 @@ def _carrier_geometry(render: object) -> tuple[float, float]:
 	"""Return the midpoint of Rust's one explicit E/Z carrier-mark operation."""
 	for plan_entry in render.molecule_plans:
 		for batch in plan_entry.plan.batches:
-			for operation in batch.operations:
+			content = batch.content
+			if type(content) is not ferrum_chem.BondRenderBatchV1:
+				continue
+			for operation in content.typed_operations:
 				if operation.kind == "double_bond_carrier_mark":
 					payload = operation.operation
 					return (

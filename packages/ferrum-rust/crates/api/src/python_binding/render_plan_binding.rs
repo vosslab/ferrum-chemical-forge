@@ -2,19 +2,19 @@
 
 use ferrum_document::{DOCUMENT_RENDER_OBSERVATION_SCHEMA_V2, DocumentRenderObservationV2};
 use ferrum_render::{
-    AtomDecorationRenderOpV1, AtomLabelRenderV1, BatchSpace, BondRenderOpV1,
-    CompactGroupRenderOpV1, DepictionSuppressionV1, DocumentMoleculeRenderPlanV4,
-    DocumentPlusRenderV1, InkBoundsV1, MoleculeContentBoundsV1, MoleculeRenderPlanV4,
-    RenderBatchContentV4, RenderBatchV4, RenderDisplayLayerV1, RenderIssue, RenderIssueKind,
-    measure_molecule_render_plan_bounds_v1,
+    AtomDecorationRenderOpV1, AtomLabelRenderV1, BatchSpace, BondAttachmentAxisV1, BondRenderOpV1,
+    CompactGroupRenderOpV1, DepictionIssueCodeV1, DepictionSuppressionV1,
+    DocumentMoleculeRenderPlanV4, DocumentPlusRenderV1, InkBoundsV1, MoleculeContentBoundsV1,
+    MoleculeRenderPlanV4, RenderBatchContentV4, RenderBatchV4, RenderDisplayLayerV1, RenderIssue,
+    RenderIssueKind, measure_molecule_render_plan_bounds_v1,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 use super::render_plan_content_binding::{
-    PyAtomDecorationRenderOpV1, PyAtomLabelRenderV1, PyAtomRenderBatchV1, PyBondRenderBatchV1,
-    PyBondRenderOpV1, PyCompactGroupRenderBatchV1, PyCompactGroupRenderOpV1, PyInkBoundsV1,
-    PyRenderBatchContentV4,
+    PyAtomDecorationRenderOpV1, PyAtomLabelRenderV1, PyAtomRenderBatchV1, PyBondAttachmentAxisV1,
+    PyBondRenderBatchV1, PyBondRenderOpV1, PyCompactGroupRenderBatchV1, PyCompactGroupRenderOpV1,
+    PyInkBoundsV1, PyRenderBatchContentV4,
 };
 use super::render_primitive_binding::{
     PyAtomLocalSpaceV1, PyMaskOpV1, PyRenderPointV1, PyRenderTargetV1, PyTextOpV1, ellipse_from,
@@ -334,6 +334,7 @@ fn batch_content_from(_py: Python<'_>, batch: &RenderBatchV4) -> PyResult<PyRend
         }
         RenderBatchContentV4::Bond(bond) => PyRenderBatchContentV4::Bond(PyBondRenderBatchV1 {
             kind: "bond".to_owned(),
+            attachment_axis: bond_attachment_axis_from(bond.attachment_axis()),
             operations: bond.operations().iter().map(bond_operation_from).collect(),
         }),
     })
@@ -377,6 +378,13 @@ fn bond_operation_from(value: &BondRenderOpV1) -> PyBondRenderOpV1 {
     }
 }
 
+fn bond_attachment_axis_from(value: BondAttachmentAxisV1) -> PyBondAttachmentAxisV1 {
+    PyBondAttachmentAxisV1 {
+        start: value.start().into(),
+        end: value.end().into(),
+    }
+}
+
 fn atom_label_from(value: &AtomLabelRenderV1) -> PyAtomLabelRenderV1 {
     PyAtomLabelRenderV1 {
         mask: value.mask().map(|mask| PyMaskOpV1 {
@@ -388,6 +396,7 @@ fn atom_label_from(value: &AtomLabelRenderV1) -> PyAtomLabelRenderV1 {
         }),
         text: text_from(value.text()),
         core_element_run_index: value.core_element_run_index(),
+        bond_ink_clearance: value.bond_ink_clearance().get(),
         full_ink_bounds: ink_bounds_from(value.full_ink_bounds()),
         core_element_ink_bounds: ink_bounds_from(value.core_element_ink_bounds()),
     }
@@ -436,14 +445,33 @@ fn member_issue_from(
 ) -> PyMoleculeMemberDepictionIssueV1 {
     PyMoleculeMemberDepictionIssueV1 {
         document_object_id: value.target().as_str().to_owned(),
-        category: format!("{:?}", value.code()).to_ascii_lowercase(),
+        category: issue_code_name(value.code()).to_owned(),
         detail: value.detail().to_owned(),
     }
 }
 
-fn suppression_name(value: DepictionSuppressionV1) -> String {
-    format!("{:?}", value).to_ascii_lowercase()
+fn issue_code_name(value: DepictionIssueCodeV1) -> &'static str {
+    match value {
+        DepictionIssueCodeV1::NonDurableTarget => "non_durable_target",
+        DepictionIssueCodeV1::InvalidPresentationFact => "invalid_presentation_fact",
+        DepictionIssueCodeV1::UnsupportedAuthoredFontFamily => "unsupported_authored_font_family",
+        DepictionIssueCodeV1::UnsupportedRichLabel => "unsupported_rich_label",
+        DepictionIssueCodeV1::UnsupportedTextStyle => "unsupported_text_style",
+        DepictionIssueCodeV1::InvalidVisibility => "invalid_visibility",
+        DepictionIssueCodeV1::UnrenderableExplicitHydrogenCount => {
+            "unrenderable_explicit_hydrogen_count"
+        }
+        DepictionIssueCodeV1::UnsupportedFeature => "unsupported_feature",
+    }
 }
+
+fn suppression_name(value: DepictionSuppressionV1) -> String {
+    match value {
+        DepictionSuppressionV1::InvalidPresentationFacts => "invalid_presentation_facts",
+    }
+    .to_owned()
+}
+
 fn hex_digest(digest: &[u8; 32]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -459,6 +487,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyAtomDecorationRenderOpV1>()?;
     module.add_class::<PyCompactGroupRenderBatchV1>()?;
     module.add_class::<PyCompactGroupRenderOpV1>()?;
+    module.add_class::<PyBondAttachmentAxisV1>()?;
     module.add_class::<PyBondRenderBatchV1>()?;
     module.add_class::<PyBondRenderOpV1>()?;
     module.add_class::<PyAtomLabelRenderV1>()?;
@@ -468,4 +497,44 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMoleculeContentBoundsV1>()?;
     module.add_class::<PyDocumentPlusRenderV1>()?;
     module.add_class::<PyPresentationTextBoundsV1>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depiction_issue_names_are_an_explicit_closed_python_vocabulary() {
+        assert_eq!(
+            [
+                DepictionIssueCodeV1::NonDurableTarget,
+                DepictionIssueCodeV1::InvalidPresentationFact,
+                DepictionIssueCodeV1::UnsupportedAuthoredFontFamily,
+                DepictionIssueCodeV1::UnsupportedRichLabel,
+                DepictionIssueCodeV1::UnsupportedTextStyle,
+                DepictionIssueCodeV1::InvalidVisibility,
+                DepictionIssueCodeV1::UnrenderableExplicitHydrogenCount,
+                DepictionIssueCodeV1::UnsupportedFeature,
+            ]
+            .map(issue_code_name),
+            [
+                "non_durable_target",
+                "invalid_presentation_fact",
+                "unsupported_authored_font_family",
+                "unsupported_rich_label",
+                "unsupported_text_style",
+                "invalid_visibility",
+                "unrenderable_explicit_hydrogen_count",
+                "unsupported_feature",
+            ]
+        );
+    }
+
+    #[test]
+    fn depiction_suppression_name_is_an_explicit_python_vocabulary() {
+        assert_eq!(
+            suppression_name(DepictionSuppressionV1::InvalidPresentationFacts),
+            "invalid_presentation_facts"
+        );
+    }
 }

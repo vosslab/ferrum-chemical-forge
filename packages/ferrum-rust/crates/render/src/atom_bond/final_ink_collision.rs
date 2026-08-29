@@ -633,10 +633,12 @@ mod tests {
         .expect("cubic path");
         assert!(path_intersects_rectangle(&filled, rectangle()).expect("filled path"));
         assert!(path_intersects_rectangle(&cubic, rectangle()).expect("cubic path"));
-        let batch = BondRenderBatchV1::new(vec![
-            BondRenderOpV1::Path(filled),
-            BondRenderOpV1::Path(cubic),
-        ])
+        let axis = crate::BondAttachmentAxisV1::new(point(-2.0, -1.0), point(4.0, -1.0))
+            .expect("attachment axis");
+        let batch = BondRenderBatchV1::new(
+            axis,
+            vec![BondRenderOpV1::Path(filled), BondRenderOpV1::Path(cubic)],
+        )
         .expect("closed batch");
         assert_eq!(batch.operations().len(), 2);
     }

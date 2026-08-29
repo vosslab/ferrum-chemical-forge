@@ -201,7 +201,26 @@ def _select_scene_point(window: PySide6.QtWidgets.QMainWindow,
 		app: PySide6.QtWidgets.QApplication, canvas: PySide6.QtWidgets.QGraphicsView,
 		point: PySide6.QtCore.QPointF) -> None:
 	"""Select one visible canvas target through the public structure tool."""
-	_trigger_exposed_menu_action(window, app, "Draw", "Select Structure")
+	menu_action = next(
+		action for action in window.menuBar().actions()
+		if action.text().replace("&", "") == "Draw"
+	)
+	menu = menu_action.menu()
+	if menu is None:
+		raise CompactGroupDeleteE2eError("Ferrum did not expose the Draw menu")
+	select_action = next(
+		action for action in menu.actions()
+		if action.text().replace("&", "") == "Select Structure"
+	)
+	if not select_action.isVisible() or not select_action.isEnabled() or (
+		not select_action.isCheckable()
+	):
+		raise CompactGroupDeleteE2eError(
+			"Draw -> Select Structure was not an available canvas tool",
+		)
+	if not select_action.isChecked():
+		select_action.trigger()
+		app.processEvents()
 	PySide6.QtTest.QTest.mouseClick(
 		canvas.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, canvas.mapFromScene(point),

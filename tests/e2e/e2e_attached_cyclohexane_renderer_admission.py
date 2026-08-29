@@ -1,14 +1,23 @@
-"""Native Qt regression coverage for complete attached-cyclohexane admission."""
+#!/usr/bin/env python3
+"""Exercise complete attached-cyclohexane admission through the real Qt host."""
 
 # Standard Library
 import collections.abc
+import json
 import pathlib
+import sys
+import tempfile
+
+# local E2E modules
+import ferrum_qt_e2e
+
+
+ferrum_qt_e2e.select_offscreen_qt_platform()
 
 # PIP3 modules
 import PySide6.QtCore
 import PySide6.QtTest
 import PySide6.QtWidgets
-import pytest
 
 # local repo modules
 import ferrum_qt.ferrum.close_decision
@@ -31,6 +40,8 @@ def _wait_for_open_queue(window: ferrum_qt.main_window.MainWindow,
 		start: collections.abc.Callable[[], object]) -> bool:
 	"""Run one ordinary Open request until the public completion signal fires."""
 	loop = PySide6.QtCore.QEventLoop()
+	timeout = PySide6.QtCore.QTimer(window)
+	timeout.setSingleShot(True)
 	outcome: bool | None = None
 
 	def finish(success: bool) -> None:
@@ -41,12 +52,16 @@ def _wait_for_open_queue(window: ferrum_qt.main_window.MainWindow,
 			loop.quit()
 
 	window.local_document_open_queue_drained.connect(finish)
+	timeout.timeout.connect(lambda: finish(False))
 	try:
 		start()
 		if outcome is None:
+			timeout.start(10000)
 			loop.exec()
 	finally:
+		timeout.stop()
 		window.local_document_open_queue_drained.disconnect(finish)
+		timeout.timeout.disconnect()
 	return outcome is True
 
 
@@ -117,7 +132,7 @@ def _assert_no_attached_preview(window: ferrum_qt.main_window.MainWindow) -> Non
 
 
 #============================================
-def test_rightward_attachment_is_refused_before_document_or_scene_mutation(
+def _require_rightward_refusal_before_document_or_scene_mutation(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""The candidate crossing O is a typed admission refusal, never a partial commit."""
@@ -131,10 +146,14 @@ def test_rightward_attachment_is_refused_before_document_or_scene_mutation(
 		assert before_projection.issues == ()
 		_assert_no_attached_preview(window)
 
-		with pytest.raises(engine.AttachedCyclohexaneAttachmentError) as raised:
-			tab.begin_attached_cyclohexane(carbon_id, PySide6.QtCore.QPointF(380.0, 360.0))
-
-		assert raised.value.category == engine.AttachedCyclohexaneCategoryV1.renderer_admission
+		try:
+			tab.begin_attached_cyclohexane(
+				carbon_id, PySide6.QtCore.QPointF(380.0, 360.0),
+			)
+		except engine.AttachedCyclohexaneAttachmentError as exc:
+			assert exc.category == engine.AttachedCyclohexaneCategoryV1.renderer_admission
+		else:
+			raise AssertionError("rightward attachment bypassed renderer admission")
 		after_snapshot = tab.current_snapshot
 		assert (after_snapshot.revision, after_snapshot.digest) == (
 			before_snapshot.revision, before_snapshot.digest,
@@ -148,7 +167,7 @@ def test_rightward_attachment_is_refused_before_document_or_scene_mutation(
 
 
 #============================================
-def test_leftward_attachment_commits_a_complete_visible_host_molecule(
+def _require_leftward_attachment_to_commit_a_complete_visible_host_molecule(
 		qapp: PySide6.QtWidgets.QApplication, tmp_path: pathlib.Path,
 		) -> None:
 	"""A normal leftward drag keeps all seven authored bonds visible and issue-free."""
@@ -181,3 +200,25 @@ def test_leftward_attachment_commits_a_complete_visible_host_molecule(
 		_assert_no_attached_preview(window)
 	finally:
 		_close_window(qapp, window)
+
+
+#============================================
+def main() -> int:
+	"""Run both refusal and successful real-host attachment workflows."""
+	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])
+	with tempfile.TemporaryDirectory(prefix="ferrum-attached-cyclohexane-") as temporary:
+		directory = pathlib.Path(temporary)
+		_require_rightward_refusal_before_document_or_scene_mutation(app, directory)
+		_require_leftward_attachment_to_commit_a_complete_visible_host_molecule(
+			app, directory,
+		)
+	print(json.dumps({"status": "ok"}))
+	return 0
+
+
+if __name__ == "__main__":
+	try:
+		raise SystemExit(main())
+	except (AssertionError, OSError, RuntimeError) as exc:
+		print(f"e2e_attached_cyclohexane_renderer_admission: {exc}", file=sys.stderr)
+		raise SystemExit(1)

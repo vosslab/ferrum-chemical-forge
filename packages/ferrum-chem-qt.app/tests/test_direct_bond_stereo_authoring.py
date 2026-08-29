@@ -365,7 +365,7 @@ def test_stereo_actions_direct_existing_new_bonds_from_tip_to_blank_base(
 		try:
 			tip_id, _base_id = _atom_document_object_ids(tab)
 			start = _viewport_point(tab, tip_id)
-			end = tab.view.mapFromScene(PySide6.QtCore.QPointF(150.0, 20.0))
+			end = tab.view.mapFromScene(PySide6.QtCore.QPointF(10.0, 100.0))
 			_action(window, action_id).trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,
 				PySide6.QtCore.Qt.KeyboardModifier.NoModifier, start)
@@ -393,7 +393,7 @@ def test_stereo_actions_support_new_existing_and_new_new_endpoints(
 		window, tab = _open_window(qapp, tmp_path, _EDITABLE_CDML)
 		try:
 			tip_id, _base_id = _atom_document_object_ids(tab)
-			start = tab.view.mapFromScene(PySide6.QtCore.QPointF(150.0, 20.0))
+			start = tab.view.mapFromScene(PySide6.QtCore.QPointF(10.0, 100.0))
 			end = _viewport_point(tab, tip_id)
 			_action(window, action_id).trigger()
 			PySide6.QtTest.QTest.mousePress(tab.view.viewport(), PySide6.QtCore.Qt.MouseButton.LeftButton,

@@ -11,7 +11,7 @@ import ferrum_chem
 
 SOURCE = (
     '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C">'
-    '<point x="0.2" y="0.2" z="2"/></atom>'
+    '<point x="40.2" y="0.2" z="2"/></atom>'
     '<atom id="b" name="O"><point x="0" y="0"/></atom>'
     '<bond id="ab" start="a" end="b" type="n1"/></molecule></cdml>'
 )
@@ -31,13 +31,15 @@ def test_hex_snap_is_one_revisioned_sparse_repair() -> None:
     """The supported repair delegates to Rust and preserves non-planar facts."""
     session = ferrum_chem.DocumentSession.load(SOURCE)
     repaired = _repair_live_molecule(
-        session, ferrum_chem.DocumentGeometryRepairKindV1.snap_to_hex_grid, 1.0,
+        session, ferrum_chem.DocumentGeometryRepairKindV1.snap_to_hex_grid, 40.0,
     )
     atom = repaired.projection.molecules[0].atoms[0]
-    assert atom.position.x == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
-    assert atom.position.y == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
+    assert atom.position.x == pytest.approx(
+        20.0 * math.sqrt(3.0), abs=HALF_AUTHORED_UNIT_POINTS,
+    )
+    assert atom.position.y == pytest.approx(20.0, abs=HALF_AUTHORED_UNIT_POINTS)
     assert atom.position.z == 2.0
-    assert session.undo(1).observation.projection.molecules[0].atoms[0].position.x == 0.2
+    assert session.undo(1).observation.projection.molecules[0].atoms[0].position.x == 40.2
 
 
 def test_live_repair_target_failures_preserve_current_snapshot() -> None:
@@ -101,13 +103,13 @@ def test_normalize_bond_lengths_uses_explicit_spacing_and_preserves_direction() 
     )
     repaired = _repair_live_molecule(
         ferrum_chem.DocumentSession.load(source),
-        ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_lengths, 10.0,
+        ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_lengths, 40.0,
     )
     first, root, last = repaired.projection.molecules[0].atoms
-    assert first.position.x == pytest.approx(-10.0, abs=HALF_AUTHORED_UNIT_POINTS)
+    assert first.position.x == pytest.approx(-40.0, abs=HALF_AUTHORED_UNIT_POINTS)
     assert (first.position.y, root.position.x, root.position.y) == (0.0, 0.0, 0.0)
     assert last.position.x == 0.0
-    assert last.position.y == pytest.approx(10.0, abs=HALF_AUTHORED_UNIT_POINTS)
+    assert last.position.y == pytest.approx(40.0, abs=HALF_AUTHORED_UNIT_POINTS)
 
 
 def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> None:

@@ -55,8 +55,8 @@ pub use crate::composition::{
 };
 pub use crate::engine::{
     ChemEngine, ChemistryError, InchiMode, KekulizeOptions, KekulizeOptionsError, MolblockVersion,
-    SmartsMatchOptions, SmartsMatchOptionsError, SmartsMatchResult, SmartsMatchUnavailableReason,
-    UnavailableChemEngine,
+    NativeTextOutputLimit, NativeTextOutputLimitError, SmartsMatchOptions, SmartsMatchOptionsError,
+    SmartsMatchResult, SmartsMatchUnavailableReason, UnavailableChemEngine,
 };
 pub use crate::model::{
     AtomChirality, AtomicNumber, BondDirection, BondOrder, BondStereo, Coordinates, MolAtom,

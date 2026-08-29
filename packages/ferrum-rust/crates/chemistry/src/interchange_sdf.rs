@@ -1,10 +1,17 @@
 //! SDF-specific translation for the format-neutral interchange model.
 
 use crate::{
-    ChemEngine, INTERCHANGE_MAX_TEXT_BYTES_V1, ImportedSdfRecord, InterchangeCodecErrorV1,
-    InterchangeFormatV1, InterchangePropertyV1, InterchangeRecordV1, MolblockVersion, SdfProperty,
-    compose_sdf_record, validate_sdf_input,
+    ChemEngine, ImportedSdfRecord, InterchangeCodecErrorV1, InterchangePropertyV1,
+    InterchangeRecordV1, MolblockVersion, NativeTextOutputLimit, SdfProperty, SdfRecord,
+    validate_sdf_input,
 };
+
+/// The whole interchange SDF aggregate must fit the native text response envelope.
+///
+/// Passing this budget to the aggregate writer makes the native preflight own
+/// titles, properties, record aggregation, and the resulting text allocation.
+const INTERCHANGE_SDF_TEXT_OUTPUT_LIMIT: NativeTextOutputLimit =
+    NativeTextOutputLimit::ADAPTER_MAXIMUM;
 
 /// Convert one parser-validated SDF record into Ferrum's generic interchange record.
 #[must_use]
@@ -41,45 +48,24 @@ pub(crate) fn encode_sdf_interchange_v1(
     version: MolblockVersion,
     records: &[InterchangeRecordV1],
 ) -> Result<String, InterchangeCodecErrorV1> {
-    let mut output = String::new();
-    for record in records {
-        let molblock = engine.molecule_to_molblock_with_title(
-            record.molecule(),
-            version,
-            record.title().unwrap_or_default(),
-        )?;
-        let properties = record
-            .properties()
-            .iter()
-            .map(|property| {
-                SdfProperty::new(property.name(), property.value())
-                    .map_err(InterchangeCodecErrorV1::SdfRecord)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let fragment = compose_sdf_record(&molblock, &properties)
-            .map_err(InterchangeCodecErrorV1::SdfRecord)?;
-        let projected = output.len().checked_add(fragment.len()).ok_or(
-            InterchangeCodecErrorV1::OutputTooLarge {
-                format: sdf_format(version),
-                limit: INTERCHANGE_MAX_TEXT_BYTES_V1,
-                observed_at_least: usize::MAX,
-            },
-        )?;
-        if projected > INTERCHANGE_MAX_TEXT_BYTES_V1 {
-            return Err(InterchangeCodecErrorV1::OutputTooLarge {
-                format: sdf_format(version),
-                limit: INTERCHANGE_MAX_TEXT_BYTES_V1,
-                observed_at_least: projected,
-            });
-        }
-        output.push_str(&fragment);
-    }
-    Ok(output)
-}
-
-const fn sdf_format(version: MolblockVersion) -> InterchangeFormatV1 {
-    match version {
-        MolblockVersion::V2000 => InterchangeFormatV1::SdfV2000,
-        MolblockVersion::V3000 => InterchangeFormatV1::SdfV3000,
-    }
+    let sdf_records = records
+        .iter()
+        .map(|record| {
+            let properties = record
+                .properties()
+                .iter()
+                .map(|property| {
+                    SdfProperty::new(property.name(), property.value())
+                        .map_err(InterchangeCodecErrorV1::SdfRecord)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            SdfRecord::new(
+                record.molecule().clone(),
+                record.title().unwrap_or_default(),
+                properties,
+            )
+            .map_err(InterchangeCodecErrorV1::SdfRecord)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(engine.records_to_sdf(&sdf_records, version, INTERCHANGE_SDF_TEXT_OUTPUT_LIMIT)?)
 }

@@ -383,12 +383,8 @@ pub use presentation_stack_reorder_v1::{
 };
 pub(crate) use projection_identity_v1::projection_local_object_key_from_record_v1;
 pub use publication::{
-    DocumentMoleculeInchiPublicationErrorV1, DocumentMoleculeMolblockPublicationErrorV1,
-    DocumentMoleculeSdfPublicationErrorV1, DocumentMoleculeSmilesPublicationErrorV1,
-    DocumentMoleculesSdfPublicationErrorV2, PublicationDurability,
-    publish_document_molecule_inchi_v1, publish_document_molecule_molblock_v1,
-    publish_document_molecule_sdf_v1, publish_document_molecule_smiles_v1,
-    publish_document_molecules_sdf_v2,
+    DocumentMoleculeExportPublicationError, DocumentMoleculesSdfPublicationErrorV2,
+    PublicationDurability, publish_document_molecule_export, publish_document_molecules_sdf_v2,
 };
 pub use regular_ring_insertion_v1::{
     DetachedRegularRingInsertionV1, RegularRingInsertionErrorV1, RegularRingOrientationV1,

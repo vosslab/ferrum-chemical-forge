@@ -45,7 +45,7 @@ or user/API documentation delivery.
   refusal.
 - `ferrum-document` alone derives a candidate from the final immutable
   `SessionDocumentObservationV1`, retains the renderer result privately in
-  `RendererAdmittedPendingV1` within `PreparedSessionTransitionV1`, and
+  `RendererAdmittedPending` within `PreparedSessionTransitionV1`, and
   re-derives and re-admits it at redemption. It requires equality between the
   retained and newly admitted renderer values before effects or history change.
 - `ferrum-render` purely lowers and classifies the detached candidate. It never
@@ -91,7 +91,7 @@ or compatibility forwarder for removed contract accepted types, constructors,
 or receipt/proof wrappers.
 
 Commit eligibility is proved without a public verifier: document-private
-`RendererAdmittedPendingV1` retains the original opaque renderer value; commit
+`RendererAdmittedPending` retains the original opaque renderer value; commit
 re-derives the exact candidate from the saved immutable observation and pending
 identity, calls the same pure renderer admission function, and requires
 equality of the accepted values. A refusal or unequal value reaches the typed

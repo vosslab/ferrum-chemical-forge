@@ -217,9 +217,10 @@ pub use presentation_path_v1::{
 };
 /// Closed V4 atom, compact-group, bond, and whole-plan render contracts.
 pub use render_batch::{
-    AtomDecorationRenderOpV1, AtomLabelRenderV1, AtomRenderBatchV1, BatchSpace, BondRenderBatchV1,
-    BondRenderOpV1, CompactGroupRenderBatchV1, CompactGroupRenderOpV1, InkBoundsV1,
-    MoleculeRenderPlanV4, RenderBatchContentV4, RenderBatchV4, RenderDisplayLayerV1,
+    AtomDecorationRenderOpV1, AtomLabelRenderV1, AtomRenderBatchV1, BatchSpace,
+    BondAttachmentAxisV1, BondRenderBatchV1, BondRenderOpV1, CompactGroupRenderBatchV1,
+    CompactGroupRenderOpV1, InkBoundsV1, MoleculeRenderPlanV4, RenderBatchContentV4, RenderBatchV4,
+    RenderDisplayLayerV1,
 };
 /// Tagged V3 paint values and Rust-owned headless export colors.
 pub use render_paint_v3::{

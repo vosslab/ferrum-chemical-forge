@@ -236,8 +236,10 @@ def run_scenario(ferrum: Path) -> None:
 		"-",
 		input_text=refusal,
 	)
-	if generic.returncode != 0 or named.returncode != 0:
-		raise DocumentMoleculeReportCliE2eError("digest-mismatch refusal did not complete")
+	if generic.returncode != 1 or named.returncode != 1:
+		raise DocumentMoleculeReportCliE2eError(
+		"digest-mismatch refusal did not return the typed-failure exit status"
+	)
 	generic_envelope = one_envelope(generic, "generic digest refusal")
 	named_envelope = one_envelope(named, "named digest refusal")
 	refusal_envelope(generic_envelope, refusal_request_id)

@@ -141,7 +141,7 @@ def main() -> None:
 		)
 		refusal_protocol_envelope = json.loads(protocol_refusal.stdout)
 		if (
-			protocol_refusal.returncode != 0
+			protocol_refusal.returncode != 1
 			or protocol_refusal.stderr
 			or refusal_protocol_envelope.get("schema") != "ferrum-operation-error-v1"
 			or "not XML" in protocol_refusal.stdout

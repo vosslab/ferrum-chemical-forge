@@ -201,7 +201,7 @@ impl ChangedSessionTransitionCommitRequestV1 {
 pub(super) struct PreparedChangedSessionTransitionV1 {
     pub(super) state: Option<RevisionState>,
     pub(super) observation: SessionDocumentObservationV1,
-    pub(super) renderer_admission: RendererAdmittedPendingV1,
+    pub(super) renderer_admission: RendererAdmittedPending,
     pub(super) effects: SessionTransitionEffectsV1,
     pub(super) commit: ChangedTransitionCommitV1,
     pub(super) result: Option<SessionOperationResultV1>,
@@ -437,7 +437,7 @@ impl PreparedSessionTransitionV1 {
         }
         changed
             .renderer_admission
-            .precommit_overlay_v1(request)
+            .precommit_overlay(request)
             .map_err(|_| PreparedSessionTransitionPresentationRefusalV1::Consumed)
     }
 }

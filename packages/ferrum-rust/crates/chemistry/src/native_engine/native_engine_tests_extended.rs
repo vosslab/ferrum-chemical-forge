@@ -102,7 +102,7 @@ static void fcm1(uint32_t status, uint32_t detail, uint32_t smiles, uint32_t ato
   output[0]='F'; output[1]='C'; output[2]='M'; output[3]='1'; u32le(4,1); u32le(8,status);
   u32le(12,detail); u32le(16,smiles); u32le(20,atoms); u32le(24,bonds); u32le(28,0); *len=32;
 }
-uint32_t ferrum_chem_abi_version(void) { return 5; }
+uint32_t ferrum_chem_abi_version(void) { return 6; }
 uint64_t ferrum_chem_capabilities_v1(void) { return 7; }
 uint32_t ferrum_chem_kekulize_v1(const uint8_t *r,uint64_t n,owner *o) { (void)r;(void)n;o->data=0;o->len=0;return 0; }
 uint32_t ferrum_chem_generate_2d_v1(const uint8_t *r,uint64_t n,owner *o) { (void)r;(void)n;o->data=0;o->len=0;return 0; }

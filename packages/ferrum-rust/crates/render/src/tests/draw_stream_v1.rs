@@ -80,16 +80,20 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
             RenderBatchV4::bond_target(
                 target(0x32),
                 2,
-                BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
-                    LineOp::new(
-                        point(1.0, 2.0),
-                        point(5.0, 2.0),
-                        size(1.0),
-                        paint("445566"),
-                        1,
-                    )
-                    .expect("line"),
-                )])
+                BondRenderBatchV1::new(
+                    BondAttachmentAxisV1::new(point(1.0, 2.0), point(5.0, 2.0))
+                        .expect("attachment axis"),
+                    vec![BondRenderOpV1::Line(
+                        LineOp::new(
+                            point(1.0, 2.0),
+                            point(5.0, 2.0),
+                            size(1.0),
+                            paint("445566"),
+                            1,
+                        )
+                        .expect("line"),
+                    )],
+                )
                 .expect("bond content"),
             ),
         ],
@@ -174,16 +178,20 @@ fn composite_plan() -> DocumentRenderCompositeV1 {
         RenderBatchV4::bond_target(
             target,
             paint_order,
-            BondRenderBatchV1::new(vec![BondRenderOpV1::Line(
-                LineOp::new(
-                    point(x, 0.0),
-                    point(x + 1.0, 0.0),
-                    size(1.0),
-                    paint("445566"),
-                    1,
-                )
-                .expect("line"),
-            )])
+            BondRenderBatchV1::new(
+                BondAttachmentAxisV1::new(point(x, 0.0), point(x + 1.0, 0.0))
+                    .expect("attachment axis"),
+                vec![BondRenderOpV1::Line(
+                    LineOp::new(
+                        point(x, 0.0),
+                        point(x + 1.0, 0.0),
+                        size(1.0),
+                        paint("445566"),
+                        1,
+                    )
+                    .expect("line"),
+                )],
+            )
             .expect("bond content"),
         )
     };

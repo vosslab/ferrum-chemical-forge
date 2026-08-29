@@ -98,20 +98,24 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
         vec![RenderBatchV4::bond_target(
             target(0x21),
             1,
-            BondRenderBatchV1::new(vec![BondRenderOpV1::Path(
-                PathOpV3::new(
-                    vec![
-                        ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
-                        ScenePathCommandV3::LineTo(point(12.0, 2.0)),
-                        ScenePathCommandV3::LineTo(point(7.0, 10.0)),
-                        ScenePathCommandV3::Close,
-                    ],
-                    Some(ScenePathStrokeV3::new(paint("112233"), width(1.0))),
-                    Some(paint("aabbcc")),
-                    0,
-                )
-                .expect("scene path"),
-            )])
+            BondRenderBatchV1::new(
+                BondAttachmentAxisV1::new(point(2.0, 2.0), point(12.0, 2.0))
+                    .expect("attachment axis"),
+                vec![BondRenderOpV1::Path(
+                    PathOpV3::new(
+                        vec![
+                            ScenePathCommandV3::MoveTo(point(2.0, 2.0)),
+                            ScenePathCommandV3::LineTo(point(12.0, 2.0)),
+                            ScenePathCommandV3::LineTo(point(7.0, 10.0)),
+                            ScenePathCommandV3::Close,
+                        ],
+                        Some(ScenePathStrokeV3::new(paint("112233"), width(1.0))),
+                        Some(paint("aabbcc")),
+                        0,
+                    )
+                    .expect("scene path"),
+                )],
+            )
             .expect("scene path content"),
         )],
         vec![],

@@ -30,6 +30,8 @@ use crate::{
     PresentationVectorGestureCategoryV1, PresentationVectorKindV1, RenderInteractionSessionV1,
 };
 
+#[path = "document_molecule_export_v1.rs"]
+mod document_molecule_export_v1;
 #[path = "execution_chemistry.rs"]
 mod execution_chemistry;
 #[path = "execution_document.rs"]
@@ -305,6 +307,9 @@ fn execute_admitted_operation<R: ChemistryRuntimeV1>(
                 runtime,
             );
         }
+		OperationProtocolOperationV1::DocumentMoleculeExport(request) => {
+			document_molecule_export_v1::execute_document_molecule_export(request, runtime)
+		}
     };
     match result {
         Ok(outcome) => {
@@ -347,6 +352,7 @@ const fn uses_shared_response_budget_v1(operation: ProtocolOperationKindV1) -> b
     matches!(
         operation,
         ProtocolOperationKindV1::DocumentMoleculeReport
+            | ProtocolOperationKindV1::DocumentMoleculeExport
             | ProtocolOperationKindV1::DocumentMoleculeDiagnostics
             | ProtocolOperationKindV1::DocumentSmartsQuery
             | ProtocolOperationKindV1::DocumentAtomOxidationObserve
@@ -385,6 +391,16 @@ fn response_size_exceeded_error(
     request_id: Option<String>,
     operation: ProtocolOperationKindV1,
 ) -> OperationProtocolEnvelopeV1 {
+    if operation == ProtocolOperationKindV1::DocumentMoleculeExport {
+        return operation_error_response(
+            request_id,
+            Some(operation),
+            ExecutionFailureV1::document_molecule_export_refusal(DocumentMoleculeExportRefusalV1 {
+                category: ProtocolDocumentMoleculeExportCategoryV1::OutputLimitExceeded,
+                recovery: ProtocolDocumentMoleculeExportRecoveryV1::SelectSmallerRoot,
+            }),
+        );
+    }
     OperationProtocolEnvelopeV1::Error(OperationProtocolErrorResponseV1 {
         schema: ProtocolErrorSchemaV1::V1,
         request_id,
@@ -401,6 +417,7 @@ fn response_size_exceeded_error(
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         },
     })
 }
@@ -435,6 +452,7 @@ fn error_response(
             reaction_refusal: None,
             compact_group_materialization_refusal: None,
             compact_group_attachment_refusal: None,
+            document_molecule_export_refusal: None,
         },
     })
 }
@@ -457,6 +475,7 @@ pub(crate) fn operation_error_response(
             reaction_refusal: failure.reaction_refusal,
             compact_group_materialization_refusal: failure.compact_group_materialization_refusal,
             compact_group_attachment_refusal: failure.compact_group_attachment_refusal,
+            document_molecule_export_refusal: failure.document_molecule_export_refusal,
         },
     })
 }

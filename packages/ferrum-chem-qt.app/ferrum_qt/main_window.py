@@ -8,6 +8,7 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.actions.action_registry
 import ferrum_qt.actions.command_palette
+import ferrum_qt.actions.command_reference
 import ferrum_qt.actions.menu_builder
 import ferrum_qt.actions.platform_menu
 import ferrum_qt.config.keybindings
@@ -81,6 +82,12 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		self._preferences_action = self._add_preferences_action()
 		self._next_drawing_action = self._add_next_drawing_action()
 		self._about_action = self._add_about_action()
+		self._command_reference_controller = (
+			ferrum_qt.actions.command_reference.CommandReferenceController(
+				self, self._action_registry,
+			)
+		)
+		self._command_reference_action = self._add_command_reference_action()
 		self._reaction_composer = ferrum_qt.ferrum.reaction_composer.ReactionComposerController(self)
 		self._create_reaction_action = self._reaction_composer.install_action()
 		self._reaction_inspector = ferrum_qt.ferrum.reaction_inspector.ReactionInspectorController(self)
@@ -145,6 +152,18 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		))
 		action.triggered.connect(self._command_palette_controller.open)
 		self._register_action("view.command_palette", action)
+		return action
+
+	#============================================
+	def _add_command_reference_action(self) -> PySide6.QtGui.QAction:
+		"""Install the F1 help route for the current nonmutating command catalog."""
+		action = PySide6.QtGui.QAction(self.tr("Command Reference..."), self)
+		action.setToolTip(self.tr(
+			"Search current command help, shortcuts, and menu locations without running commands",
+		))
+		action.triggered.connect(self._command_reference_controller.open)
+		self._register_action("help.command_reference", action)
+		self.addAction(action)
 		return action
 
 	#============================================

@@ -891,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn renderer_preflight_unavailable_materialization_preserves_the_live_session() {
+    fn existing_renderer_exclusion_does_not_block_unrelated_materialization() {
         let mut session = renderer_excluded_live_session();
         let before = session.snapshot().expect("source snapshot");
         let operation_request = request(&session);
@@ -900,21 +900,9 @@ mod tests {
         let response: serde_json::Value =
             serde_json::from_str(receipt.response_json()).expect("public response JSON");
 
-        assert!(receipt.mutation_result().is_none());
-        assert_eq!(
-            response["outcome"]["materialization"]["status"],
-            "unavailable"
-        );
-        assert_eq!(
-            response["outcome"]["materialization"]["unavailable_reason"],
-            "render_preparation"
-        );
-        assert_eq!(
-            session
-                .snapshot()
-                .expect("after renderer-preflight refusal"),
-            before
-        );
+        assert!(receipt.mutation_result().is_some());
+        assert_eq!(response["outcome"]["materialization"]["status"], "applied");
+        assert_ne!(session.snapshot().expect("applied snapshot"), before);
     }
 
     #[test]

@@ -367,7 +367,12 @@ fn svg_backend_lowers_a_filled_stroked_v2_scene_path() {
         vec![RenderBatchV4::bond_target(
             target(0x15),
             1,
-            BondRenderBatchV1::new(vec![BondRenderOpV1::Path(path)]).expect("path content"),
+            BondRenderBatchV1::new(
+                BondAttachmentAxisV1::new(point(2.0, 2.0), point(12.0, 2.0))
+                    .expect("attachment axis"),
+                vec![BondRenderOpV1::Path(path)],
+            )
+            .expect("path content"),
         )],
         vec![],
     )

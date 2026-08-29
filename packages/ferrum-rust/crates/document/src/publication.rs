@@ -6,28 +6,13 @@
 
 use std::path::Path;
 
-#[path = "publication/document_molecule_inchi_publication_v1.rs"]
-mod document_molecule_inchi_publication_v1;
-#[path = "publication/document_molecule_molblock_publication_v1.rs"]
-mod document_molecule_molblock_publication_v1;
-#[path = "publication/document_molecule_sdf_publication_v1.rs"]
-mod document_molecule_sdf_publication_v1;
-#[path = "publication/document_molecule_smiles_publication_v1.rs"]
-mod document_molecule_smiles_publication_v1;
+#[path = "publication/document_molecule_export_publication.rs"]
+mod document_molecule_export_publication;
 #[path = "publication/document_molecules_sdf_publication_v2.rs"]
 mod document_molecules_sdf_publication_v2;
 
-pub use document_molecule_inchi_publication_v1::{
-    DocumentMoleculeInchiPublicationErrorV1, publish_document_molecule_inchi_v1,
-};
-pub use document_molecule_molblock_publication_v1::{
-    DocumentMoleculeMolblockPublicationErrorV1, publish_document_molecule_molblock_v1,
-};
-pub use document_molecule_sdf_publication_v1::{
-    DocumentMoleculeSdfPublicationErrorV1, publish_document_molecule_sdf_v1,
-};
-pub use document_molecule_smiles_publication_v1::{
-    DocumentMoleculeSmilesPublicationErrorV1, publish_document_molecule_smiles_v1,
+pub use document_molecule_export_publication::{
+    DocumentMoleculeExportPublicationError, publish_document_molecule_export,
 };
 pub use document_molecules_sdf_publication_v2::{
     DocumentMoleculesSdfPublicationErrorV2, publish_document_molecules_sdf_v2,

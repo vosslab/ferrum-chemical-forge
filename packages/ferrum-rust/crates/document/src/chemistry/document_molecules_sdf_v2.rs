@@ -6,9 +6,12 @@ use crate::{
 };
 use ferrum_chemistry::{
     ChemEngine, ChemistryError, MolblockVersion, NATIVE_SDF_MAX_RECORDS, NativeChemEngine,
-    SdfError, SdfProperty, SdfRecord, validate_molblock_title,
+    NativeTextOutputLimit, SdfError, SdfProperty, SdfRecord, validate_molblock_title,
 };
 use thiserror::Error;
+
+const DOCUMENT_MOLECULES_SDF_TEXT_LIMIT: NativeTextOutputLimit =
+    NativeTextOutputLimit::ADAPTER_MAXIMUM;
 
 use super::document_molecule_graph_v1::{
     DocumentMoleculeGraphError, document_molecule_coordinate_graph_v1,
@@ -372,7 +375,11 @@ fn export_with_engine(
             properties: prepared_record.record.properties().to_vec(),
         });
     }
-    let sdf = engine.records_to_sdf(&native_records, prepared.version)?;
+    let sdf = engine.records_to_sdf(
+        &native_records,
+        prepared.version,
+        DOCUMENT_MOLECULES_SDF_TEXT_LIMIT,
+    )?;
     Ok(DocumentMoleculesSdfV2 {
         schema: DOCUMENT_MOLECULES_SDF_SCHEMA_V2,
         source_revision: prepared.source_revision,

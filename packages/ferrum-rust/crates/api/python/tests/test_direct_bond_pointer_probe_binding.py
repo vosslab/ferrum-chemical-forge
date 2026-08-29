@@ -106,8 +106,8 @@ def _commit_direct_bond(
 	"""Commit one  gesture through the generic prepared-transition lifecycle."""
 	session = ferrum_chem.DocumentSession.load(SOURCE)
 	observation = session.observe(0)
-	start = _direct_probe(_atom_object_id(session, start_identifier)) if start_identifier else _empty_probe(-40.0, 0.0)
-	end = _direct_probe(_atom_object_id(session, end_identifier)) if end_identifier else _empty_probe(80.0, 0.0)
+	start = _direct_probe(_atom_object_id(session, start_identifier)) if start_identifier else _empty_probe(-40.0, 40.0)
+	end = _direct_probe(_atom_object_id(session, end_identifier)) if end_identifier else _empty_probe(0.0, 40.0)
 	gesture = session.begin_direct_bond_gesture(
 		observation.snapshot.revision,
 		observation.snapshot.digest,
@@ -334,7 +334,7 @@ def test_direct_bond_next_pointer_candidate_prepares_before_prior_commit() -> No
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	first_request = first_gesture.resolve_end(session, _empty_probe(80.0, 0.0))
+	first_request = first_gesture.resolve_end(session, _empty_probe(0.0, 40.0))
 	first_prepared = session.prepare_session_operation_transition_v1(first_request)
 	assert first_prepared.presentation_v1().precommit_overlay is not None
 
@@ -346,7 +346,7 @@ def test_direct_bond_next_pointer_candidate_prepares_before_prior_commit() -> No
 		"C",
 		ferrum_chem.DirectBondSnapPolicyV1(),
 	)
-	second_request = second_gesture.resolve_end(session, _empty_probe(80.0, 0.0))
+	second_request = second_gesture.resolve_end(session, _empty_probe(0.0, 40.0))
 	second_prepared = session.prepare_session_operation_transition_v1(second_request)
 	assert second_prepared.presentation_v1().precommit_overlay is not None
 

@@ -388,4 +388,5 @@ menus:
     label_key: "Help"
     help_key: "Ferrum information"
     items:
+      - action: help.command_reference
       - action: help.about

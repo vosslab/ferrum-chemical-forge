@@ -9,12 +9,16 @@ use thiserror::Error;
 
 use crate::{
     ChemEngine, ChemistryError, InchiMode, MOLBLOCK_MAX_INPUT_BYTES, MolGraph, MolblockVersion,
-    NATIVE_SMILES_MAX_INPUT_BYTES, SDF_MAX_INPUT_BYTES, SdfError, SmilesMolecule,
-    validate_inchi_input, validate_molblock_input, validate_smiles_input,
+    NATIVE_SMILES_MAX_INPUT_BYTES, NativeTextOutputLimit, SDF_MAX_INPUT_BYTES, SdfError,
+    SmilesMolecule, validate_inchi_input, validate_molblock_input, validate_smiles_input,
 };
 
 /// The maximum text accepted or returned by one interchange codec operation.
 pub const INTERCHANGE_MAX_TEXT_BYTES_V1: usize = SDF_MAX_INPUT_BYTES;
+
+fn interchange_text_limit() -> NativeTextOutputLimit {
+    NativeTextOutputLimit::ADAPTER_MAXIMUM
+}
 
 /// Exact closed profile identity reserved for the Rust-owned CML/CML2 importer.
 ///
@@ -215,18 +219,25 @@ pub fn encode_non_cdml_interchange_v1(
         });
     }
     let output = match format {
-        InterchangeFormatV1::Smiles => engine.molecule_to_smiles(records[0].molecule())?,
-        InterchangeFormatV1::InchiStandard => {
-            engine.molecule_to_inchi(records[0].molecule(), InchiMode::Standard)?
+        InterchangeFormatV1::Smiles => {
+            engine.molecule_to_smiles(records[0].molecule(), interchange_text_limit())?
         }
-        InterchangeFormatV1::InchiFixedHydrogen => {
-            engine.molecule_to_inchi(records[0].molecule(), InchiMode::FixedHydrogen)?
-        }
+        InterchangeFormatV1::InchiStandard => engine.molecule_to_inchi(
+            records[0].molecule(),
+            InchiMode::Standard,
+            interchange_text_limit(),
+        )?,
+        InterchangeFormatV1::InchiFixedHydrogen => engine.molecule_to_inchi(
+            records[0].molecule(),
+            InchiMode::FixedHydrogen,
+            interchange_text_limit(),
+        )?,
         InterchangeFormatV1::MolblockV2000 | InterchangeFormatV1::MolblockV3000 => engine
             .molecule_to_molblock_with_title(
                 records[0].molecule(),
                 format.molblock_version().expect("molblock format"),
                 records[0].title().unwrap_or_default(),
+                interchange_text_limit(),
             )?,
         InterchangeFormatV1::SdfV2000 | InterchangeFormatV1::SdfV3000 => {
             crate::interchange_sdf::encode_sdf_interchange_v1(
@@ -329,9 +340,34 @@ pub enum InterchangeCodecErrorV1 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AtomicNumber, BondOrder, Coordinates, KekulizeOptions, MolAtom, MolBond, Point2};
+    use crate::{
+        AtomicNumber, BondOrder, Coordinates, KekulizeOptions, MolAtom, MolBond, Point2, SdfRecord,
+        compose_sdf_record,
+    };
 
-    struct SdfEngine;
+    #[derive(Clone, Copy)]
+    enum SdfWriteOutcome {
+        Output,
+        ResourceLimit,
+    }
+
+    struct SdfEngine {
+        outcome: SdfWriteOutcome,
+    }
+
+    impl SdfEngine {
+        const fn output() -> Self {
+            Self {
+                outcome: SdfWriteOutcome::Output,
+            }
+        }
+
+        const fn resource_limit() -> Self {
+            Self {
+                outcome: SdfWriteOutcome::ResourceLimit,
+            }
+        }
+    }
 
     impl ChemEngine for SdfEngine {
         fn smiles_to_molecule(&self, _smiles: &str) -> Result<SmilesMolecule, ChemistryError> {
@@ -347,13 +383,31 @@ mod tests {
             Ok(molecule.coordinates().expect("test graph").clone())
         }
 
-        fn molecule_to_molblock_with_title(
+        fn records_to_sdf(
             &self,
-            _molecule: &MolGraph,
+            records: &[SdfRecord],
             _version: MolblockVersion,
-            title: &str,
+            limit: NativeTextOutputLimit,
         ) -> Result<String, ChemistryError> {
-            Ok(format!("{title}\n  Ferrum\n\nM  END\n"))
+            assert_eq!(limit, NativeTextOutputLimit::ADAPTER_MAXIMUM);
+            match self.outcome {
+                SdfWriteOutcome::Output => {
+                    records
+                        .iter()
+                        .try_fold(String::new(), |mut output, record| {
+                            let molblock = format!("{}\n  Ferrum\n\nM  END\n", record.title());
+                            output.push_str(
+                                &compose_sdf_record(&molblock, record.properties())
+                                    .expect("record"),
+                            );
+                            Ok(output)
+                        })
+                }
+                SdfWriteOutcome::ResourceLimit => Err(ChemistryError::TextOutputLimitExceeded {
+                    codec: "SDF",
+                    maximum: Some(limit.bytes()),
+                }),
+            }
         }
 
         fn kekulize(
@@ -397,7 +451,7 @@ mod tests {
     #[test]
     fn cdxml_direct_codec_calls_report_document_import_only_not_cdml_composition() {
         let error = decode_non_cdml_interchange_v1(
-            &SdfEngine,
+            &SdfEngine::output(),
             InterchangeFormatV1::CdxmlSimpleMolecule,
             "<CDXML/>",
         )
@@ -406,10 +460,10 @@ mod tests {
     }
 
     #[test]
-    fn sdf_encoding_preserves_duplicate_property_names_and_order() {
+    fn sdf_encoding_preserves_ordered_distinct_property_names() {
         let properties = vec![
             InterchangePropertyV1::new("SOURCE", "first").expect("property"),
-            InterchangePropertyV1::new("SOURCE", "second").expect("property"),
+            InterchangePropertyV1::new("ORIGIN", "second").expect("property"),
             InterchangePropertyV1::new("NOTE", "third").expect("property"),
         ];
         let records = vec![InterchangeRecordV1::new(
@@ -417,12 +471,57 @@ mod tests {
             Some("record".to_owned()),
             properties,
         )];
-        let output =
-            encode_non_cdml_interchange_v1(&SdfEngine, InterchangeFormatV1::SdfV2000, &records)
-                .expect("SDF output");
+        let output = encode_non_cdml_interchange_v1(
+            &SdfEngine::output(),
+            InterchangeFormatV1::SdfV2000,
+            &records,
+        )
+        .expect("SDF output");
         let first = output.find(">  <SOURCE>\nfirst").expect("first property");
-        let second = output.find(">  <SOURCE>\nsecond").expect("second property");
+        let second = output.find(">  <ORIGIN>\nsecond").expect("second property");
         let third = output.find(">  <NOTE>\nthird").expect("third property");
         assert!(first < second && second < third);
+    }
+
+    #[test]
+    fn sdf_encoding_refuses_duplicate_property_names_unrepresentable_by_native_writer() {
+        let records = vec![InterchangeRecordV1::new(
+            graph(),
+            Some("record".to_owned()),
+            vec![
+                InterchangePropertyV1::new("SOURCE", "first").expect("property"),
+                InterchangePropertyV1::new("SOURCE", "second").expect("property"),
+            ],
+        )];
+
+        let error = encode_non_cdml_interchange_v1(
+            &SdfEngine::output(),
+            InterchangeFormatV1::SdfV2000,
+            &records,
+        )
+        .expect_err("native SDF writer cannot retain duplicate property names");
+        assert!(matches!(
+            error,
+            InterchangeCodecErrorV1::SdfRecord(SdfError::DuplicatePropertyName { name })
+                if name == "SOURCE"
+        ));
+    }
+
+    #[test]
+    fn sdf_encoding_preserves_native_resource_limit_refusal() {
+        let records = vec![InterchangeRecordV1::new(graph(), None, Vec::new())];
+        let error = encode_non_cdml_interchange_v1(
+            &SdfEngine::resource_limit(),
+            InterchangeFormatV1::SdfV3000,
+            &records,
+        )
+        .expect_err("native aggregate writer reports its resource limit");
+        assert!(matches!(
+            error,
+            InterchangeCodecErrorV1::Chemistry(ChemistryError::TextOutputLimitExceeded {
+                codec: "SDF",
+                maximum: Some(maximum),
+            }) if maximum == NativeTextOutputLimit::ADAPTER_MAXIMUM.bytes()
+        ));
     }
 }

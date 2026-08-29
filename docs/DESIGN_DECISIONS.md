@@ -47,12 +47,71 @@ ink as exclusion geometry. It reserves the resolved gap plus each style's
 transverse radius and any axial overhang, refusing an unrenderable target rather
 than emitting intersecting or partial ink. Qt replays the issued glyph and bond
 operations without choosing a text anchor, recomputing glyph bounds, or relaxing
-clearance. A closed read-only cross-language observation is still required before
-Qt can independently prove core-attachment and clearance fidelity.
+clearance. The closed `RenderObservationV2`/`RenderPlanV4` boundary publishes
+the exact core/full ink bounds and positive clearance. The installed Qt E2E
+replays the same Rust-owned corpus and proves that the expanded exclusion does
+not intersect issued bond ink.
+
+`BondAttachmentAxisV1` is the accompanying frozen semantic fact on every bond
+batch. Its endpoints are the uncut structural connection points: an atom uses
+its exact core-glyph center and a compact group uses its catalog connection
+point. Rust constructs the axis before clipping; final typed operations remain
+the only paint geometry. PyO3 transports the axis unchanged and Qt validates
+but neither paints nor hit-tests it. Thus a bond has a durable center-to-center
+attachment truth while visible ink still respects full-glyph clearance.
 
 **Owner.** `packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
 `packages/ferrum-rust/crates/render/src/verified_telex_glyph_metrics.rs`, and
 `packages/ferrum-rust/crates/render/src/atom_bond/`.
+
+### One selected-root export owns all singular text representations
+
+**Decision.** One public `document.molecule.export.v1` operation owns export
+of one authenticated direct molecule root as Molfile V2000/V3000, SDF
+V2000/V3000, canonical SMILES, Standard InChI, or Fixed-Hydrogen InChI. Its
+unversioned document core prepares the selected root once and contains no
+runtime, path, publication, protocol, PyO3, or Qt state. The protocol returns
+UTF-8 text; the named CLI may atomically create a new output file only after
+that computation succeeds. The existing plural `document export-sdf` workflow
+remains a separate multi-record operation.
+
+**Why.** Separate format-specific routes had repeated root authentication,
+graph preparation, native-runtime access, refusal mapping, and publication
+logic. A file path is presentation concern, while root identity and chemistry
+representation are document concerns.
+
+**Consequence.** The exact request snapshot, direct-root ID, closed format
+enum, source revision/digest, and typed refusal travel through protocol, PyO3,
+Qt, and CLI without a second exporter. Coordinate-required formats require
+coordinates; graph-only formats do not. The compact-group graph lowerer is the
+single representation-support gate. Native writers receive the 128 KiB export
+text ceiling before allocation, and the envelope is bounded again before
+delivery. CLI publication reuses descriptor-relative atomic create-new
+publication and rejects aliases or unsafe destinations.
+
+**Owner.** `packages/ferrum-rust/crates/document/src/chemistry/document_molecule_export.rs`
+and `packages/ferrum-rust/crates/api/src/protocol/document_molecule_export_v1.rs`.
+
+### One live command catalog serves discovery surfaces
+
+**Decision.** The unversioned Qt `CommandCatalogEntry` is the one immutable
+presentation projection of a live `ActionRegistry` action joined with its
+already validated YAML menu placement. Both Command Palette and the modeless
+Command Reference consume that catalog; neither owns command metadata or
+activation policy.
+
+**Why.** Duplicating labels, shortcuts, help text, availability, or menu paths
+would make help drift from the action a user can actually invoke.
+
+**Consequence.** F1 and **Help > Command Reference...** open a nonmutating
+surface that searches the live label, help, ID, native shortcut, and breadcrumb;
+it reports unavailable commands rather than hiding them. Opening focuses the
+filter, closing or Escape restores the invoking focus, and accessible names,
+descriptions, and tab order remain explicit. The reference has no activation
+route; Command Palette remains the action-invoking client.
+
+**Owner.** `packages/ferrum-chem-qt.app/ferrum_qt/actions/command_catalog.py`
+and `packages/ferrum-chem-qt.app/ferrum_qt/actions/command_reference.py`.
 
 ### Complete rendering is an atomic authoring invariant
 
@@ -76,7 +135,7 @@ undoable, but no operation-specific bypass or Qt fallback may admit new missing
 ink.
 
 **Owner.** `packages/ferrum-rust/crates/render/src/complete_document_admission_v1.rs`
-and `packages/ferrum-rust/crates/document/src/session/renderer_admitted_pending_v1.rs`.
+and `packages/ferrum-rust/crates/document/src/session/renderer_admitted_pending.rs`.
 
 ### Native linear-form spacing has one domain owner
 

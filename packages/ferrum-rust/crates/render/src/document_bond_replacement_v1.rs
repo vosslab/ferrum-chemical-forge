@@ -268,7 +268,15 @@ mod tests {
             vec![RenderBatchV4::bond_target(
                 bond,
                 paint_order,
-                BondRenderBatchV1::new(vec![BondRenderOpV1::Line(line)]).expect("bond content"),
+                BondRenderBatchV1::new(
+                    crate::BondAttachmentAxisV1::new(
+                        RenderPoint::new(0.0, 0.0).expect("point"),
+                        RenderPoint::new(1.0, 0.0).expect("point"),
+                    )
+                    .expect("attachment axis"),
+                    vec![BondRenderOpV1::Line(line)],
+                )
+                .expect("bond content"),
             )],
             vec![],
         )

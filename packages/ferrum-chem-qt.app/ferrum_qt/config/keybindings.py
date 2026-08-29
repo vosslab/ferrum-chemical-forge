@@ -19,6 +19,7 @@ STANDARD_KEYBINDINGS = {
 	"edit.cut": PySide6.QtGui.QKeySequence.StandardKey.Cut,
 	"edit.copy": PySide6.QtGui.QKeySequence.StandardKey.Copy,
 	"edit.paste": PySide6.QtGui.QKeySequence.StandardKey.Paste,
+	"help.command_reference": PySide6.QtGui.QKeySequence.StandardKey.HelpContents,
 }
 
 DEFAULT_KEYBINDINGS = {

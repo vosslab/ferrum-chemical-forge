@@ -61,6 +61,8 @@ run_e2e "Ferrum CLI template catalog E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_template_catalog_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum document SDF export E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_document_export_sdf_cli.py" --ferrum "${LOCAL_CLI}"
+run_e2e "Ferrum singular selected-root export E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_document_molecule_export_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum CLI CDXML open E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_cdxml_open_cli.py" --ferrum "${LOCAL_CLI}"
 run_e2e "Ferrum Qt CDXML open E2E" \
@@ -71,6 +73,10 @@ run_e2e "Ferrum Qt peptide sequence import E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_peptide_sequence_import.py"
 run_e2e "Ferrum Qt render interaction E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_render_interaction_selection.py"
+run_e2e "Ferrum installed Rust-to-Qt atom-label alignment corpus E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_atom_label_bond_alignment.py"
+run_e2e "Ferrum Qt attached-cyclohexane renderer admission E2E" \
+	python3 "${REPO_ROOT}/tests/e2e/e2e_attached_cyclohexane_renderer_admission.py"
 run_e2e "Ferrum Qt atom oxidation observation E2E" \
 	python3 "${REPO_ROOT}/tests/e2e/e2e_atom_oxidation_observation.py"
 run_e2e "Ferrum Qt attached-Me authoring and materialization E2E" \

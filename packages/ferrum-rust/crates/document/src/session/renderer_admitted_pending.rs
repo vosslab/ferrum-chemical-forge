@@ -18,7 +18,7 @@ use crate::derive_document_render_observation_from_accepted_operation_v2;
 
 /// Renderer acceptance bound to one document-session pending identity.
 #[derive(Debug)]
-pub(super) struct RendererAdmittedPendingV1 {
+pub(super) struct RendererAdmittedPending {
     identity: CompleteRenderPendingIdentityV1,
     candidate: DocumentCompleteRenderCandidateV1,
     acceptance: AcceptedCompleteRenderV1,
@@ -32,11 +32,11 @@ enum RendererAdmissionPolicy {
     RetainedHistoryTarget,
 }
 
-impl RendererAdmittedPendingV1 {
+impl RendererAdmittedPending {
     pub(super) fn admit(
         session: &mut DocumentSession,
         observation: &SessionDocumentObservationV1,
-    ) -> Result<Self, RendererAdmittedPendingErrorV1> {
+    ) -> Result<Self, RendererAdmissionError> {
         Self::admit_with_policy(
             session,
             observation,
@@ -47,7 +47,7 @@ impl RendererAdmittedPendingV1 {
     pub(super) fn admit_retained_history_target(
         session: &mut DocumentSession,
         observation: &SessionDocumentObservationV1,
-    ) -> Result<Self, RendererAdmittedPendingErrorV1> {
+    ) -> Result<Self, RendererAdmissionError> {
         Self::admit_with_policy(
             session,
             observation,
@@ -59,29 +59,26 @@ impl RendererAdmittedPendingV1 {
         session: &mut DocumentSession,
         observation: &SessionDocumentObservationV1,
         policy: RendererAdmissionPolicy,
-    ) -> Result<Self, RendererAdmittedPendingErrorV1> {
-        let identity = session.next_renderer_pending_identity_v1();
+    ) -> Result<Self, RendererAdmissionError> {
+        let identity = session.next_renderer_pending_identity();
         let source_observation = session
             .document_observation()
-            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
-        let candidate = candidate_from_observation_v1(
-            observation,
-            session.renderer_admission_issuer,
-            identity,
-        )?;
+            .map_err(|_| RendererAdmissionError::Admission)?;
+        let candidate =
+            candidate_from_observation(observation, session.renderer_admission_issuer, identity)?;
         let render_observation =
             derive_document_render_observation_from_accepted_operation_v2(observation)
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         let source_render_observation =
             derive_document_render_observation_from_accepted_operation_v2(&source_observation)
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         let baseline = match policy {
             RendererAdmissionPolicy::AuthoringDelta => source_render_observation.resolved(),
             RendererAdmissionPolicy::RetainedHistoryTarget => render_observation.resolved(),
         };
         let acceptance =
             admit_complete_document_render_v1(&candidate, baseline, render_observation.resolved())
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         Ok(Self {
             identity,
             candidate,
@@ -94,50 +91,50 @@ impl RendererAdmittedPendingV1 {
         &self,
         source_observation: &SessionDocumentObservationV1,
         observation: &SessionDocumentObservationV1,
-    ) -> Result<(), RendererAdmittedPendingErrorV1> {
-        let candidate = candidate_from_observation_v1(
+    ) -> Result<(), RendererAdmissionError> {
+        let candidate = candidate_from_observation(
             observation,
             self.candidate.source_fence().issuer(),
             self.identity,
         )?;
         if candidate != self.candidate {
-            return Err(RendererAdmittedPendingErrorV1::Admission);
+            return Err(RendererAdmissionError::Admission);
         }
         let render_observation =
             derive_document_render_observation_from_accepted_operation_v2(observation)
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         let source_render_observation =
             derive_document_render_observation_from_accepted_operation_v2(source_observation)
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         let baseline = match self.policy {
             RendererAdmissionPolicy::AuthoringDelta => source_render_observation.resolved(),
             RendererAdmissionPolicy::RetainedHistoryTarget => render_observation.resolved(),
         };
         let reaccepted =
             admit_complete_document_render_v1(&candidate, baseline, render_observation.resolved())
-                .map_err(|_| RendererAdmittedPendingErrorV1::Admission)?;
+                .map_err(|_| RendererAdmissionError::Admission)?;
         (reaccepted == self.acceptance)
             .then_some(())
-            .ok_or(RendererAdmittedPendingErrorV1::Admission)
+            .ok_or(RendererAdmissionError::Admission)
     }
 
-    pub(super) fn precommit_overlay_v1(
+    pub(super) fn precommit_overlay(
         &self,
         request: &AcceptedRenderOverlayRequestV1,
-    ) -> Result<ferrum_render::DocumentPrecommitOverlayV1, RendererAdmittedPendingErrorV1> {
+    ) -> Result<ferrum_render::DocumentPrecommitOverlayV1, RendererAdmissionError> {
         self.acceptance
             .precommit_overlay_v1(request)
-            .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
+            .map_err(|_| RendererAdmissionError::Admission)
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum RendererAdmittedPendingErrorV1 {
+pub(super) enum RendererAdmissionError {
     Admission,
 }
 
 impl DocumentSession {
-    fn next_renderer_pending_identity_v1(&mut self) -> CompleteRenderPendingIdentityV1 {
+    fn next_renderer_pending_identity(&mut self) -> CompleteRenderPendingIdentityV1 {
         let identity = CompleteRenderPendingIdentityV1::new(
             self.renderer_admission_issuer,
             self.next_renderer_admission_sequence,
@@ -150,17 +147,17 @@ impl DocumentSession {
     }
 }
 
-fn candidate_from_observation_v1(
+fn candidate_from_observation(
     observation: &SessionDocumentObservationV1,
     issuer: u64,
     identity: CompleteRenderPendingIdentityV1,
-) -> Result<DocumentCompleteRenderCandidateV1, RendererAdmittedPendingErrorV1> {
+) -> Result<DocumentCompleteRenderCandidateV1, RendererAdmissionError> {
     let projection = observation.projection();
     let roots = projection
         .direct_roots()
         .iter()
-        .map(|root| direct_root_candidate_v1(projection, root))
-        .collect::<Result<Vec<_>, RendererAdmittedPendingErrorV1>>()?;
+        .map(|root| direct_root_candidate(projection, root))
+        .collect::<Result<Vec<_>, RendererAdmissionError>>()?;
     DocumentCompleteRenderCandidateV1::new(
         CompleteDocumentSourceFenceV1::new(
             issuer,
@@ -170,14 +167,14 @@ fn candidate_from_observation_v1(
         identity,
         roots,
     )
-    .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
+    .map_err(|_| RendererAdmissionError::Admission)
 }
 
-fn direct_root_candidate_v1(
+fn direct_root_candidate(
     projection: &ferrum_document_projection::DocumentProjectionV1,
     direct_root: &DocumentDirectRootV1,
-) -> Result<CompleteRenderRootCandidateV1, RendererAdmittedPendingErrorV1> {
-    let identity = durable_identity_v1(direct_root.document_object_id())?;
+) -> Result<CompleteRenderRootCandidateV1, RendererAdmissionError> {
+    let identity = durable_identity(direct_root.document_object_id())?;
     let lowering = match direct_root.kind() {
         DocumentDirectRootKindV1::Molecule => projection
             .molecules()
@@ -186,7 +183,7 @@ fn direct_root_candidate_v1(
             .then_some(CompleteRenderRootLoweringV1::Visual(
                 CompleteRenderPrimitiveV1::Molecule,
             ))
-            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+            .ok_or(RendererAdmissionError::Admission)?,
         DocumentDirectRootKindV1::Presentation(kind) => projection
             .presentation_stack()
             .entries()
@@ -194,8 +191,8 @@ fn direct_root_candidate_v1(
             .find(|entry| {
                 entry.root().target().document_object_id() == direct_root.document_object_id()
             })
-            .and_then(|entry| presentation_root_lowering_v1(entry.root(), kind))
-            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+            .and_then(|entry| presentation_root_lowering(entry.root(), kind))
+            .ok_or(RendererAdmissionError::Admission)?,
         DocumentDirectRootKindV1::RejectedPresentation(code) => projection
             .presentation_stack()
             .issues()
@@ -205,7 +202,7 @@ fn direct_root_candidate_v1(
                     && issue.code() == code
             })
             .then_some(CompleteRenderRootLoweringV1::MissingRequiredPrimitive)
-            .ok_or(RendererAdmittedPendingErrorV1::Admission)?,
+            .ok_or(RendererAdmissionError::Admission)?,
     };
     Ok(CompleteRenderRootCandidateV1::new(
         identity,
@@ -214,7 +211,7 @@ fn direct_root_candidate_v1(
     ))
 }
 
-fn presentation_root_lowering_v1(
+fn presentation_root_lowering(
     root: &PresentationRootProjectionV1,
     expected_kind: PresentationRecordKindV1,
 ) -> Option<CompleteRenderRootLoweringV1> {
@@ -267,11 +264,11 @@ fn presentation_root_lowering_v1(
     (kind == expected_kind).then_some(lowering)
 }
 
-fn durable_identity_v1(
+fn durable_identity(
     identity: &crate::DocumentObjectIdV1,
-) -> Result<CompleteRenderRootIdentityV1, RendererAdmittedPendingErrorV1> {
+) -> Result<CompleteRenderRootIdentityV1, RendererAdmissionError> {
     CompleteRenderRootIdentityV1::new(identity.as_str())
-        .map_err(|_| RendererAdmittedPendingErrorV1::Admission)
+        .map_err(|_| RendererAdmissionError::Admission)
 }
 
 #[cfg(test)]
@@ -287,12 +284,9 @@ mod tests {
         );
         let session = DocumentSession::load(source).expect("source loads");
         let observation = session.observe(0).expect("observation projects");
-        let candidate = candidate_from_observation_v1(
-            &observation,
-            7,
-            CompleteRenderPendingIdentityV1::new(7, 1),
-        )
-        .expect("candidate derives");
+        let candidate =
+            candidate_from_observation(&observation, 7, CompleteRenderPendingIdentityV1::new(7, 1))
+                .expect("candidate derives");
 
         assert_eq!(
             candidate.roots()[0].lowering(),
@@ -320,12 +314,9 @@ mod tests {
         );
         let session = DocumentSession::load(source).expect("source loads");
         let observation = session.observe(0).expect("observation projects");
-        let candidate = candidate_from_observation_v1(
-            &observation,
-            7,
-            CompleteRenderPendingIdentityV1::new(7, 1),
-        )
-        .expect("candidate derives");
+        let candidate =
+            candidate_from_observation(&observation, 7, CompleteRenderPendingIdentityV1::new(7, 1))
+                .expect("candidate derives");
 
         assert_eq!(
             observation

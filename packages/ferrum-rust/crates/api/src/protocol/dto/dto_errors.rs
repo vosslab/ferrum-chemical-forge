@@ -56,6 +56,42 @@ pub struct OperationProtocolErrorV1 {
     /// Closed compact-attachment recovery facts when this operation refused one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compact_group_attachment_refusal: Option<CompactGroupAttachmentRefusalV1>,
+    /// Closed selected-root text-export recovery facts when this operation refused one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_molecule_export_refusal: Option<DocumentMoleculeExportRefusalV1>,
+}
+
+/// Typed refusal facts for `document.molecule.export.v1`.
+///
+/// Consumers must branch on this closed fact rather than the diagnostic
+/// message or an implementation-specific document/chemistry error.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DocumentMoleculeExportRefusalV1 {
+    pub category: ProtocolDocumentMoleculeExportCategoryV1,
+    pub recovery: ProtocolDocumentMoleculeExportRecoveryV1,
+}
+
+/// Closed selected-root text-export refusal categories.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolDocumentMoleculeExportCategoryV1 {
+    SnapshotNotAdmitted,
+    UnknownOrNonDirectRoot,
+    RepresentationUnsupported,
+    ChemistryUnavailable,
+    OutputLimitExceeded,
+}
+
+/// Closed recovery instructions for selected-root text-export refusals.
+#[derive(Clone, Copy, Debug, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolDocumentMoleculeExportRecoveryV1 {
+    RefreshAuthenticatedSnapshot,
+    SelectDirectMoleculeRoot,
+    ChooseSupportedRepresentation,
+    RestoreChemistryRuntime,
+    SelectSmallerRoot,
 }
 
 /// Typed public facts for a protocol-wide resource-limit refusal.
@@ -318,4 +354,6 @@ pub enum ProtocolOperationKindV1 {
     /// `document.molecule.interchange.import.v1`.
     #[serde(rename = "document.molecule.interchange.import.v1")]
     DocumentMoleculeInterchangeImport,
+    #[serde(rename = "document.molecule.export.v1")]
+    DocumentMoleculeExport,
 }

@@ -2,7 +2,9 @@
 #include "ferrum_chem_complete_graph.h"
 #include "ferrum_chem_molblock_request.h"
 #include "ferrum_chem_text_response.h"
+#include "ferrum_chem_text_output_limit.h"
 #include "ferrum_chem_utf8.h"
+#include "ferrum_chem_writer_probe.h"
 
 #include <Geometry/point.h>
 #include <GraphMol/Conformer.h>
@@ -65,10 +67,20 @@ bool valid_title(const std::string &title) {
 }
 
 uint32_t write_molblock(RDKit::RWMol &molecule, uint32_t format,
-		ferrum_chem_owned_buffer *response) {
+		uint64_t maximum_text_bytes, ferrum_chem_owned_buffer *response,
+		ferrum_chem::NativeTextWriter writer) {
+	std::string title;
+	molecule.getPropIfPresent(RDKit::common_properties::_Name, title);
+	const uint64_t upper_bound = ferrum_chem::molblock_text_upper_bound(format,
+		molecule.getNumAtoms(), molecule.getNumBonds(), title.size());
+	if (!ferrum_chem::text_output_is_admitted(upper_bound, maximum_text_bytes)) {
+		return ferrum_chem::emit_text_response(FERRUM_CHEM_RESULT_RESOURCE_LIMIT,
+			"molblock output upper bound exceeds the requested text limit", "", response);
+	}
 	RDKit::MolWriterParams parameters;
 	parameters.includeStereo = true;
 	parameters.kekulize = true;
+	ferrum_chem::record_native_text_writer_invocation(writer);
 	const std::string output = format == FERRUM_CHEM_MOLBLOCK_FORMAT_V2000 ?
 		RDKit::MolToV2KMolBlock(molecule, parameters) :
 		RDKit::MolToV3KMolBlock(molecule, parameters);
@@ -176,7 +188,7 @@ bool ferrum_chem::parse_molblock_request(const uint8_t *request, uint64_t reques
 }
 
 extern "C" uint32_t ferrum_chem_molecule_to_molblock_v1(
-		const uint8_t *request, uint64_t request_len,
+		const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
 		ferrum_chem_owned_buffer *response) noexcept {
 	if (response == nullptr) {
 		return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
@@ -192,7 +204,8 @@ extern "C" uint32_t ferrum_chem_molecule_to_molblock_v1(
 			return ferrum_chem::emit_text_response(
 				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
 		}
-		return write_molblock(molecule, format, response);
+		return write_molblock(molecule, format, maximum_text_bytes, response,
+			ferrum_chem::NativeTextWriter::Molblock);
 	} catch (const std::bad_alloc &) {
 		return FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (const std::exception &error) {
@@ -205,7 +218,7 @@ extern "C" uint32_t ferrum_chem_molecule_to_molblock_v1(
 }
 
 extern "C" uint32_t ferrum_chem_molecule_to_molblock_with_title_v1(
-		const uint8_t *request, uint64_t request_len,
+		const uint8_t *request, uint64_t request_len, uint64_t maximum_text_bytes,
 		ferrum_chem_owned_buffer *response) noexcept {
 	if (response == nullptr) {
 		return FERRUM_CHEM_CALL_INVALID_ARGUMENT;
@@ -221,7 +234,8 @@ extern "C" uint32_t ferrum_chem_molecule_to_molblock_with_title_v1(
 			return ferrum_chem::emit_text_response(
 				FERRUM_CHEM_RESULT_MALFORMED_REQUEST, error, "", response);
 		}
-		return write_molblock(molecule, format, response);
+		return write_molblock(molecule, format, maximum_text_bytes, response,
+			ferrum_chem::NativeTextWriter::TitledMolblock);
 	} catch (const std::bad_alloc &) {
 		return FERRUM_CHEM_CALL_ALLOCATION_FAILURE;
 	} catch (const std::exception &error) {

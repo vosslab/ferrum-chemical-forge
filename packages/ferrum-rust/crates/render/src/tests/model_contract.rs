@@ -42,6 +42,10 @@ fn line() -> LineOp {
     .expect("line operation")
 }
 
+fn bond_attachment_axis() -> BondAttachmentAxisV1 {
+    BondAttachmentAxisV1::new(point(0.0, 0.0), point(5.0, 0.0)).expect("test bond attachment axis")
+}
+
 fn filled_path() -> PathOpV3 {
     PathOpV3::new(
         vec![
@@ -73,7 +77,7 @@ fn bond_batch(
     RenderBatchV4::bond_target(
         target,
         paint_order,
-        BondRenderBatchV1::new(operations).expect("bond content"),
+        BondRenderBatchV1::new(bond_attachment_axis(), operations).expect("bond content"),
     )
 }
 
@@ -160,7 +164,10 @@ fn private_context_carries_source_kind_and_paint_order_into_batch_construction()
 #[test]
 fn scene_path_requires_closed_finite_drawable_painted_geometry() {
     let accepted = filled_path();
-    assert!(BondRenderBatchV1::new(vec![BondRenderOpV1::Path(accepted)]).is_ok());
+    assert!(
+        BondRenderBatchV1::new(bond_attachment_axis(), vec![BondRenderOpV1::Path(accepted)])
+            .is_ok()
+    );
     assert!(
         PathOpV3::new(
             vec![
@@ -213,6 +220,15 @@ fn scene_path_requires_closed_finite_drawable_painted_geometry() {
     wire["batches"][0]["content"]["content"]["operations"][0]["operation"]["commands"][0]["command"]
         ["x"] = serde_json::Value::Null;
     assert!(MoleculeRenderPlanV4::from_json(&wire.to_string()).is_err());
+}
+
+#[test]
+fn bond_attachment_axis_requires_finite_distinct_structural_endpoints() {
+    assert!(RenderPoint::new(f64::NAN, 0.0).is_err());
+    assert!(BondAttachmentAxisV1::new(point(1.0, 2.0), point(1.0, 2.0)).is_err());
+    let axis = bond_attachment_axis();
+    assert_eq!(axis.start(), point(0.0, 0.0));
+    assert_eq!(axis.end(), point(5.0, 0.0));
 }
 
 #[test]
@@ -323,7 +339,9 @@ fn inbound_text_runs_reject_forged_or_non_scalar_telex_layouts() {
 
 #[test]
 fn coordinate_space_target_and_operation_grammar_is_closed() {
-    assert!(BondRenderBatchV1::new(vec![BondRenderOpV1::Line(line())]).is_ok());
+    assert!(
+        BondRenderBatchV1::new(bond_attachment_axis(), vec![BondRenderOpV1::Line(line())]).is_ok()
+    );
     assert!(
         AtomRenderBatchV1::new(
             point(0.0, 0.0),
@@ -339,8 +357,11 @@ fn coordinate_space_target_and_operation_grammar_is_closed() {
         .is_ok()
     );
     assert!(
-        BondRenderBatchV1::from_render_operations(vec![RenderOp::Text(label().text().clone(),)])
-            .is_err()
+        BondRenderBatchV1::from_render_operations(
+            bond_attachment_axis(),
+            vec![RenderOp::Text(label().text().clone(),)],
+        )
+        .is_err()
     );
 }
 
@@ -389,10 +410,10 @@ fn batches_and_operations_require_explicit_stable_order() {
     )
     .expect("line");
     assert!(
-        BondRenderBatchV1::new(vec![
-            BondRenderOpV1::Line(back),
-            BondRenderOpV1::Line(front)
-        ])
+        BondRenderBatchV1::new(
+            bond_attachment_axis(),
+            vec![BondRenderOpV1::Line(back), BondRenderOpV1::Line(front)]
+        )
         .is_err()
     );
 }

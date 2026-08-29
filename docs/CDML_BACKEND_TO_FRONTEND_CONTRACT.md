@@ -229,7 +229,7 @@ The backend exposes these behavioral operations:
 | Observe direct groups | Exact expected revision | Immutable visible group facts, unambiguous durable addresses only where selectable, exact implicit-expansion eligibility, and display-only diagnostics | Invalid query or revision conflict |
 | Observe molecule core | Exact expected revision | Immutable molecule, atom, bond, endpoint-order, and depiction facts with renderability, actionability, and diagnostics. Child actionability requires a unique durable direct-root molecule and child ID; a bond renders only when both endpoint IDs name one observed direct atom. | Invalid query or revision conflict |
 | Observe atom chemistry facts | Exact expected revision | Immutable complete-direct-graph atom facts associated by durable molecule/atom IDs plus source positions. Usable records include plain element and charge display facts, effective, occupied, and free valency, implicit hydrogen count, and atomic number; malformed, ambiguous, foreign, nested, preservation-only, or undecodable content remains display-only with diagnostics. | Invalid query or revision conflict |
-| Observe molecule render | Exact expected revision | Immutable atom and bond paint batches from that same canonical molecule snapshot. The closed grammar is line, polygon, circle, path, and structured text runs; geometry is finite and colors are explicit or use a semantic foreground/document-background role. | Invalid query, revision conflict, or render preparation failure |
+| Observe molecule render | Exact expected revision | Immutable `RenderObservationV2` with V4 batches from that same canonical snapshot. Each batch carries one closed atom, compact-group, or bond payload; atom labels include renderer-issued Telex runs, structural core identity, exact full/core ink bounds, and positive bond-ink clearance, while bonds have already passed final-ink admission. | Invalid query, revision conflict, or render preparation failure |
 | Observe drawing standard | Exact expected revision | Immutable effective line, color, font, atom-hydrogen, and bond drawing defaults plus plain diagnostics | Invalid query or revision conflict |
 | Expand implicit group | Expected revision, one direct-root molecule ID, and one direct implicit-group ID with exactly one editable exterior bond | Immutable accepted snapshot and generated durable atom/bond IDs | Invalid request, unsupported target content, formula, geometry, bond, target, or revision conflict |
 | Convert to linear form | Expected revision, one direct-root molecule ID, and a nonempty ordered sequence of unique selected direct atom IDs | Immutable accepted snapshot, changed/commit semantics, backend fragment ID, and derived ordered atom/bond IDs | Invalid path, target, coordinate/mark geometry, external bridge, ambiguity, or revision conflict |
@@ -246,6 +246,7 @@ The backend exposes these behavioral operations:
 | Set paper properties | Expected revision plus explicit field intent: recognized type or orientation, boolean crop/minus fields, nonnegative crop margin, and an atomic positive finite dimensions pair only for effective `custom` type | Immutable accepted canonical snapshot, or unchanged current snapshot for a no-op | Invalid request shape, repeated or unsupported field, invalid paper value, or revision conflict |
 | Apply drawing standard | Expected revision; unique changed default fields; exact `defaults`, `selected`, or `all` scope; durable selected root IDs where applicable; and unique fields to materialize as overrides | Immutable accepted canonical snapshot, or unchanged current snapshot for a no-op | Invalid request shape, scope, repeated or unsupported field, target, ambiguous direct font, value, or revision conflict |
 | Query molecule SMILES | Expected revision and one direct-root molecule durable ID | Immutable revision-tagged canonical/isomeric SMILES value | Invalid request, target, unavailable chemistry conversion, or revision conflict |
+| Export selected molecule | Authenticated snapshot, one direct-root molecule durable ID, and closed `molfile_v2000`, `molfile_v3000`, `sdf_v2000`, `sdf_v3000`, `canonical_smiles`, `inchi_standard`, or `inchi_fixed_hydrogen` format | Immutable source revision/digest, molecule ID, format, and bounded UTF-8 representation text | Snapshot not admitted, unknown/non-direct root, unsupported representation, chemistry unavailable, or output limit; no mutation or publication |
 | Repair geometry | Expected revision, nonempty direct-root molecule IDs, supported kind, and finite-positive `target_spacing_pt` in PostScript points | Immutable current snapshot; a changed repair includes one immutable accepted commit | Invalid request, target, geometry, or revision conflict |
 | Transform top level | Expected revision, exact supported mode, nonempty unique durable direct-root IDs, scale factors only for `scale`, or an exact finite two-value scene/PostScript-point delta only for `translate` | Immutable accepted snapshot, or unchanged current snapshot for a canonical no-op | Invalid request, target, geometry, scalar, or revision conflict |
 | Reorder presentation stack | Expected revision, declared `bring-to-front`, `send-back`, or `swap-at-slots` mode, and nonempty unique durable IDs for direct-root core presentation records | Immutable accepted snapshot, or unchanged current snapshot for a no-op | Invalid request, target, mode, or revision conflict |
@@ -720,6 +721,28 @@ serialize or rewrite CDML, allocate IDs, or change document content, revision,
 history, saved baseline, or dirty state. Missing, nested, opaque, and
 wrong-kind IDs are typed target failures; a direct-root molecule without a
 supported chemistry conversion returns the typed SMILES-unavailable failure.
+
+`document.molecule.export.v1` is the corresponding closed selected-root text
+export operation, not a path-bearing frontend helper. Its request carries one
+admitted complete-CDML snapshot, direct-root molecule ID, and one of seven
+format values: Molfile V2000/V3000, SDF V2000/V3000, canonical SMILES, Standard
+InChI, or Fixed-Hydrogen InChI. Its immutable result echoes the authenticated
+source revision/digest, root ID, format, and UTF-8 text. The document export
+core authenticates and prepares the direct root once; format clients do not
+construct separate graph, coordinate, or compact-group policies. Molfile and
+SDF require coordinates. The shared compact-group lowerer returns the typed
+`representation_unsupported` refusal where the requested representation cannot
+be made; bad snapshots, non-direct roots, unavailable chemistry, and text-limit
+exhaustion have distinct typed refusals. The core sends a 128 KiB ceiling to
+native writers before allocation and the public envelope remains separately
+bounded.
+
+The operation itself never accepts a destination or publishes a file. CLI and
+desktop clients may present its text or use the existing descriptor-relative,
+atomic create-new publisher after success; aliases, symlinks, unsafe
+destinations, and input/output aliasing refuse. This singular operation does
+not replace the existing plural multi-record SDF export, whose selected records
+and publication semantics remain distinct.
 
 For rendering, Rust carries chemical E/Z configuration only in
 `stereo_semantics` and issues any editable E/Z `up` or `down` carrier marks in

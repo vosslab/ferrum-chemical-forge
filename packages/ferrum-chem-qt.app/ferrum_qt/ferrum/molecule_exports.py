@@ -19,7 +19,6 @@ import ferrum_qt.ferrum.molecule_inspection
 _INCHI_EXPORT = "inchi"
 _SMILES_EXPORT = "smiles"
 _SMILES_PROFILE = "canonical-isomeric-v1"
-_SMILES_SCHEMA = "ferrum-document-molecule-smiles-v1"
 _INCHI_FILE_FILTER = "InChI files (*.inchi);;All Files (*)"
 _SMILES_FILE_FILTER = "SMILES files (*.smi);;All Files (*)"
 
@@ -110,10 +109,14 @@ class FerrumNativeMoleculeInchiExportWorker(_FerrumNativeMoleculeExportWorker):
 			raise ValueError("Ferrum InChI export requires a durable molecule selector")
 		if type(mode) is not engine.InchiModeV1:
 			raise TypeError("Ferrum InChI export requires an exact Ferrum mode")
-		super().__init__(
-			engine.export_document_molecule_inchi_v1,
-			(observation, molecule_id, mode),
+		snapshot = observation.snapshot
+		format = (
+			engine.DocumentMoleculeExportFormat.inchi_standard
+			if mode is engine.InchiModeV1.standard else
+			engine.DocumentMoleculeExportFormat.inchi_fixed_hydrogen
 		)
+		super().__init__(engine.export_document_molecule,
+			(observation, snapshot.revision, snapshot.digest, molecule_id, format))
 
 
 #============================================
@@ -128,10 +131,9 @@ class FerrumNativeMoleculeSmilesExportWorker(_FerrumNativeMoleculeExportWorker):
 		if type(molecule_id) is not str or not molecule_id:
 			raise ValueError("Ferrum SMILES export requires a durable molecule selector")
 		snapshot = observation.snapshot
-		super().__init__(
-			engine.export_document_molecule_smiles_v1,
-			(observation, snapshot.revision, snapshot.digest, molecule_id),
-		)
+		super().__init__(engine.export_document_molecule,
+			(observation, snapshot.revision, snapshot.digest, molecule_id,
+				engine.DocumentMoleculeExportFormat.canonical_smiles))
 
 
 #============================================
@@ -557,49 +559,53 @@ class FerrumNativeMoleculeExportsMixin:
 		if intent is None:
 			self._show_stale_molecule_export(_INCHI_EXPORT)
 			return
-		if type(result) is not engine.DocumentMoleculeInchiV1:
+		if type(result) is not engine.DocumentMoleculeExport:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected export value."))
 			return
 		if (
 			result.source_revision != intent.revision
 			or result.source_digest != intent.digest
 			or result.molecule_id != intent.molecule_id
-			or result.mode is not intent.mode
+			or result.format is not (
+				engine.DocumentMoleculeExportFormat.inchi_standard
+				if intent.mode is engine.InchiModeV1.standard else
+				engine.DocumentMoleculeExportFormat.inchi_fixed_hydrogen
+			)
 		):
 			self._show_stale_molecule_export(_INCHI_EXPORT)
 			return
 		if intent.destination is not None:
-			self._publish_document_molecule_inchi_file(result, intent.destination)
+			self._publish_document_molecule_export_file(result, intent.destination, "InChI")
 			return
-		PySide6.QtWidgets.QApplication.clipboard().setText(result.inchi)
+		PySide6.QtWidgets.QApplication.clipboard().setText(result.text)
 		PySide6.QtWidgets.QMessageBox.information(
 			self, self.tr("Ferrum InChI Export"),
-			self.tr("InChI copied to the clipboard:\n\n{0}").format(result.inchi),
+			self.tr("InChI copied to the clipboard:\n\n{0}").format(result.text),
 		)
 
 	#============================================
-	def _publish_document_molecule_inchi_file(
-			self, receipt: object, destination: str) -> None:
-		"""Publish one verified InChI receipt through Rust's artifact writer."""
+	def _publish_document_molecule_export_file(
+			self, receipt: object, destination: str, label: str) -> None:
+		"""Publish one verified frozen receipt through Rust's artifact writer."""
 		try:
-			publication = engine.publish_document_molecule_inchi_v1(
+			publication = engine.publish_document_molecule_export(
 				receipt, destination,
 			)
 		except Exception as exc:
-			self._report_molecule_file_publication_error("InChI", destination, exc)
+			self._report_molecule_file_publication_error(label, destination, exc)
 			return
-		if type(publication) is not engine.DocumentMoleculeInchiPublicationV1:
+		if type(publication) is not engine.DocumentMoleculeExportPublication:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected publication value. Inspect the destination "
 				"because Rust may already have written it."))
 			return
 		if publication.directory_entry_confirmed:
 			self.statusBar().showMessage(
-				self.tr("InChI file exported: %s") % destination, 5000,
+				self.tr("%s file exported: %s") % (label, destination), 5000,
 			)
 			return
-		self._show_edit_refusal(self._unavailable_edit_refusal("The exact InChI file is present at %s, but directory-entry durability "
+		self._show_edit_refusal(self._unavailable_edit_refusal("The exact %s file is present at %s, but directory-entry durability "
 			"needs verification. Inspect the destination before relying on it."
-			% destination))
+			% (label, destination)))
 
 	#============================================
 	def _on_document_molecule_smiles_exported(self, worker: object, result: object) -> None:
@@ -608,47 +614,24 @@ class FerrumNativeMoleculeExportsMixin:
 		if intent is None:
 			self._show_stale_molecule_export(_SMILES_EXPORT)
 			return
-		if type(result) is not engine.DocumentMoleculeSmilesV1:
+		if type(result) is not engine.DocumentMoleculeExport:
 			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected export value."))
 			return
 		if (
-			result.schema != _SMILES_SCHEMA
-			or result.source_revision != intent.revision
+			result.source_revision != intent.revision
 			or result.source_digest != intent.digest
 			or result.molecule_id != intent.molecule_id
-			or result.profile != _SMILES_PROFILE
+			or result.format is not engine.DocumentMoleculeExportFormat.canonical_smiles
 		):
 			self._show_stale_molecule_export(_SMILES_EXPORT)
 			return
 		if intent.destination is not None:
-			self._publish_document_molecule_smiles_file(result, intent.destination)
+			self._publish_document_molecule_export_file(result, intent.destination, "SMILES")
 			return
-		PySide6.QtWidgets.QApplication.clipboard().setText(result.smiles)
-		self._show_document_molecule_smiles(result.smiles)
+		PySide6.QtWidgets.QApplication.clipboard().setText(result.text)
+		self._show_document_molecule_smiles(result.text)
 
 	#============================================
-	def _publish_document_molecule_smiles_file(
-			self, receipt: object, destination: str) -> None:
-		"""Publish one verified receipt through Rust's secure artifact writer."""
-		try:
-			publication = engine.publish_document_molecule_smiles_v1(
-				receipt, destination,
-			)
-		except Exception as exc:
-			self._report_molecule_file_publication_error("SMILES", destination, exc)
-			return
-		if type(publication) is not engine.DocumentMoleculeSmilesPublicationV1:
-			self._show_edit_refusal(self._unavailable_edit_refusal("Ferrum returned an unexpected publication value. Inspect the destination "
-				"because Rust may already have written it."))
-			return
-		if publication.directory_entry_confirmed:
-			self.statusBar().showMessage(
-				self.tr("SMILES file exported: %s") % destination, 5000,
-			)
-			return
-		self._show_edit_refusal(self._unavailable_edit_refusal("The exact SMILES file is present at %s, but directory-entry durability "
-			"needs verification. Inspect the destination before relying on it."
-			% destination))
 
 	#============================================
 	def _report_molecule_file_publication_error(
