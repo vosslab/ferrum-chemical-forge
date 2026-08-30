@@ -50,6 +50,9 @@ mod draw_stream_molecule_v1;
 mod draw_stream_v1;
 mod error;
 mod font_environment;
+#[cfg(any(test, feature = "glyph_bond_raster_test_support"))]
+#[doc(hidden)]
+pub mod glyph_bond_raster;
 mod glyph_metrics;
 mod glyph_placement;
 mod haworth;

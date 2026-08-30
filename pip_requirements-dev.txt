@@ -7,3 +7,5 @@ pytest-qt  # PySide6 Qt lifecycle fixtures used by the test suite
 rich  # formatted terminal output in developer tools
 lxml  # package-test XML assertions
 maturin  # build the Ferrum-Chem PyO3 native wheel
+numpy  # bounded pixel-array measurement for developer visual evidence
+opencv-python  # bounded raster ingestion and diagnostics for developer visual evidence

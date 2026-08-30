@@ -4,60 +4,96 @@
     {
       "name": "chlorine_normal_horizontal_mask",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"cl\" name=\"Cl\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom><bond id=\"cl-c\" start=\"cl\" end=\"c\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "cl", "core_run": "Cl"}, {"source_id": "c", "core_run": "C"}],
+      "bonds": [{"source_id": "cl-c", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "require_mask": true}
     },
     {
       "name": "bromine_hydrogen_charge_vertical",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"br\" name=\"Br\" charge=\"1\" valency=\"3\" explicit_hydrogens=\"2\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"40\"/></atom><bond id=\"br-c\" start=\"br\" end=\"c\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "br", "core_run": "Br"}, {"source_id": "c", "core_run": "C"}],
+      "bonds": [{"source_id": "br-c", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "core_run": {"text": "Br", "index": 0}, "runs": [{"text": "Br", "script": "baseline"}, {"text": "H", "script": "baseline"}, {"text": "2", "script": "subscript"}, {"text": "+", "script": "superscript"}]}
     },
     {
       "name": "three_letter_element_charge_non_lattice_diagonal",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"uue\" name=\"Uue\" charge=\"2\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"37\" y=\"19\"/></atom><bond id=\"uue-c\" start=\"uue\" end=\"c\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "uue", "core_run": "Uue"}, {"source_id": "c", "core_run": "C"}],
+      "bonds": [{"source_id": "uue-c", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "core_run": {"text": "Uue", "index": 0}}
     },
     {
       "name": "isotope_carbon_hydrogen_charge",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"carbon\" name=\"C\" isotope=\"13\" charge=\"1\" valency=\"4\" explicit_hydrogens=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c-o\" start=\"carbon\" end=\"o\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "carbon", "core_run": "C"}, {"source_id": "o", "core_run": "O"}],
+      "bonds": [{"source_id": "c-o", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "core_run": {"text": "C", "index": 1}, "leading_superscript": "13", "runs": [{"text": "13", "script": "superscript"}, {"text": "C", "script": "baseline"}, {"text": "H", "script": "baseline"}, {"text": "3", "script": "subscript"}, {"text": "+", "script": "superscript"}]}
     },
     {
       "name": "decorated_endpoints_double_triple_diagonal",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"N\" charge=\"1\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\" charge=\"-1\"><point x=\"32\" y=\"17\"/></atom><atom id=\"c\" name=\"N\"><point x=\"64\" y=\"34\"/></atom><bond id=\"double\" start=\"a\" end=\"b\" type=\"n2\"/><bond id=\"triple\" start=\"b\" end=\"c\" type=\"n3\"/></molecule></cdml>",
+      "atoms": [{"source_id": "a", "core_run": "N"}, {"source_id": "b", "core_run": "O"}, {"source_id": "c", "core_run": "N"}],
+      "bonds": [{"source_id": "double", "style": "n2", "display_layer": "ordinary", "operation_shape": "parallel_double_lines"}, {"source_id": "triple", "style": "n3", "display_layer": "ordinary", "operation_shape": "parallel_triple_lines"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
       "name": "opposed_solid_and_hashed_wedges",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"left\" name=\"Cl\"><point x=\"-35\" y=\"18\"/></atom><atom id=\"right\" name=\"Br\"><point x=\"35\" y=\"18\"/></atom><bond id=\"solid\" start=\"center\" end=\"left\" type=\"w1\"/><bond id=\"hashed\" start=\"center\" end=\"right\" type=\"h1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "center", "core_run": "C"}, {"source_id": "left", "core_run": "Cl"}, {"source_id": "right", "core_run": "Br"}],
+      "bonds": [{"source_id": "solid", "style": "w1", "display_layer": "ordinary", "operation_shape": "solid_wedge_path"}, {"source_id": "hashed", "style": "h1", "display_layer": "ordinary", "operation_shape": "hashed_wedge_lines"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
       "name": "haworth_front_stroke_and_wedge",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><atom id=\"c\" name=\"N\"><point x=\"80\" y=\"0\"/></atom><bond id=\"front\" start=\"a\" end=\"b\" type=\"q1\" haworth_position=\"front\"/><bond id=\"wedge\" start=\"b\" end=\"c\" type=\"w1\" haworth_position=\"front\"/></molecule></cdml>",
+      "atoms": [{"source_id": "a", "core_run": "C"}, {"source_id": "b", "core_run": "O"}, {"source_id": "c", "core_run": "N"}],
+      "bonds": [{"source_id": "front", "style": "q1", "display_layer": "haworth_front_stroke", "operation_shape": "haworth_front_path"}, {"source_id": "wedge", "style": "w1", "display_layer": "haworth_front_wedge", "operation_shape": "haworth_front_path"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
       "name": "bold_dashed_wavy_maximum_footprint",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"N\"><point x=\"35\" y=\"0\"/></atom><atom id=\"c\" name=\"O\"><point x=\"70\" y=\"0\"/></atom><atom id=\"d\" name=\"F\"><point x=\"105\" y=\"0\"/></atom><bond id=\"bold\" start=\"a\" end=\"b\" type=\"b1\"/><bond id=\"dashed\" start=\"b\" end=\"c\" type=\"d1\"/><bond id=\"wavy\" start=\"c\" end=\"d\" type=\"s1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "a", "core_run": "C"}, {"source_id": "b", "core_run": "N"}, {"source_id": "c", "core_run": "O"}, {"source_id": "d", "core_run": "F"}],
+      "bonds": [{"source_id": "bold", "style": "b1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "dashed", "style": "d1", "display_layer": "ordinary", "operation_shape": "dashed_lines"}, {"source_id": "wavy", "style": "s1", "display_layer": "ordinary", "operation_shape": "wavy_path"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
       "name": "ring_direction_cover",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"N\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"35\" y=\"0\"/></atom><atom id=\"c\" name=\"O\"><point x=\"35\" y=\"35\"/></atom><atom id=\"d\" name=\"S\"><point x=\"0\" y=\"70\"/></atom><atom id=\"e\" name=\"Cl\"><point x=\"-25\" y=\"35\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/><bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/><bond id=\"cd\" start=\"c\" end=\"d\" type=\"n1\"/><bond id=\"de\" start=\"d\" end=\"e\" type=\"n1\"/><bond id=\"ea\" start=\"e\" end=\"a\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "a", "core_run": "N"}, {"source_id": "b", "core_run": "C"}, {"source_id": "c", "core_run": "O"}, {"source_id": "d", "core_run": "S"}, {"source_id": "e", "core_run": "Cl"}],
+      "bonds": [{"source_id": "ab", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bc", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "cd", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "de", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "ea", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
+      "name": "eight_endpoint_directions_visible_elements",
+      "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"east\" name=\"F\"><point x=\"40\" y=\"0\"/></atom><atom id=\"north_east\" name=\"Cl\"><point x=\"30\" y=\"30\"/></atom><atom id=\"north\" name=\"Br\"><point x=\"0\" y=\"40\"/></atom><atom id=\"north_west\" name=\"I\"><point x=\"-30\" y=\"30\"/></atom><atom id=\"west\" name=\"N\"><point x=\"-40\" y=\"0\"/></atom><atom id=\"south_west\" name=\"O\"><point x=\"-30\" y=\"-30\"/></atom><atom id=\"south\" name=\"S\"><point x=\"0\" y=\"-40\"/></atom><atom id=\"south_east\" name=\"P\"><point x=\"30\" y=\"-30\"/></atom><bond id=\"bond_east\" start=\"center\" end=\"east\" type=\"n1\"/><bond id=\"bond_north_east\" start=\"center\" end=\"north_east\" type=\"n1\"/><bond id=\"bond_north\" start=\"center\" end=\"north\" type=\"n1\"/><bond id=\"bond_north_west\" start=\"center\" end=\"north_west\" type=\"n1\"/><bond id=\"bond_west\" start=\"center\" end=\"west\" type=\"n1\"/><bond id=\"bond_south_west\" start=\"center\" end=\"south_west\" type=\"n1\"/><bond id=\"bond_south\" start=\"center\" end=\"south\" type=\"n1\"/><bond id=\"bond_south_east\" start=\"center\" end=\"south_east\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "center", "core_run": "C"}, {"source_id": "east", "core_run": "F"}, {"source_id": "north_east", "core_run": "Cl"}, {"source_id": "north", "core_run": "Br"}, {"source_id": "north_west", "core_run": "I"}, {"source_id": "west", "core_run": "N"}, {"source_id": "south_west", "core_run": "O"}, {"source_id": "south", "core_run": "S"}, {"source_id": "south_east", "core_run": "P"}],
+      "bonds": [{"source_id": "bond_east", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_north_east", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_north", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_north_west", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_west", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_south_west", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_south", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}, {"source_id": "bond_south_east", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
+      "expected_outcome": "render",
+      "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "require_mask": true}
+    },
+    {
+      "name": "phosphorus_isotope_hydrogen_charge_mask",
+      "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"p\" name=\"P\" isotope=\"31\" charge=\"1\" valency=\"5\" explicit_hydrogens=\"4\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"i\" name=\"I\"><point x=\"37\" y=\"19\"/></atom><bond id=\"p-i\" start=\"p\" end=\"i\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "p", "core_run": "P"}, {"source_id": "i", "core_run": "I"}],
+      "bonds": [{"source_id": "p-i", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
+      "expected_outcome": "render",
+      "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "require_mask": true, "core_run": {"text": "P", "index": 1}, "leading_superscript": "31"}
+    },
+    {
       "name": "third_label_crossing_refusal",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"first\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"third\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"20\" y=\"0\"/></atom><atom id=\"second\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"40\" y=\"0\"/></atom><bond id=\"crossing\" start=\"first\" end=\"second\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "first", "core_run": "N"}, {"source_id": "third", "core_run": "N"}, {"source_id": "second", "core_run": "N"}],
+      "bonds": [],
       "expected_outcome": "unrenderable_target",
       "offending_bond": "crossing",
       "checks": {"finite_geometry": true, "ordered_operations": true, "full_ink_clearance": true}
@@ -65,12 +101,16 @@
     {
       "name": "third_label_near_miss",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"first\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"third\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"20\" y=\"20\"/></atom><atom id=\"second\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"40\" y=\"0\"/></atom><bond id=\"near\" start=\"first\" end=\"second\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "first", "core_run": "N"}, {"source_id": "third", "core_run": "N"}, {"source_id": "second", "core_run": "N"}],
+      "bonds": [{"source_id": "near", "style": "n1", "display_layer": "ordinary", "operation_shape": "single_line"}],
       "expected_outcome": "render",
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
       "name": "coincident_or_no_segment_refusal",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"Cl\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"Br\"><point x=\"0\" y=\"0\"/></atom><bond id=\"coincident\" start=\"a\" end=\"b\" type=\"n1\"/></molecule></cdml>",
+      "atoms": [{"source_id": "a", "core_run": "Cl"}, {"source_id": "b", "core_run": "Br"}],
+      "bonds": [],
       "expected_outcome": "unrenderable_target",
       "offending_bond": "coincident",
       "checks": {"finite_geometry": true, "ordered_operations": true, "full_ink_clearance": true}

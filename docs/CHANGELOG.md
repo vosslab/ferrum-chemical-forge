@@ -4,6 +4,25 @@ Earlier history is in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), continuing
 [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md), [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md),
 and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
+## 2026-08-29
+
+### Developer Tests and Notes
+
+- Added Ferrum-owned `devel/glyph_bond_alignment_measurement.py`, a developer-only
+  NumPy/OpenCV raster measurement library. It derives centerline drift, signed
+  endpoint-label gap, non-endpoint collisions, and composite footprint coverage
+  from raster layers plus fixture graph identity only; it never consumes issued
+  glyph bounds, attachment axes, clearances, clipped endpoints, or Qt objects.
+- Hardened that measurement handoff with a closed, bounded JSON/raster manifest,
+  identity and cross-field validation, checked diagnostic/report publication, and
+  a deterministic pixel oracle for metrics, collision detection, and generated
+  diagnostics. The explicit developer gate no longer depends on manual review.
+- Added default-off Rust test support that reuses the ordinary Telex draw stream
+  to emit 8x composites, source-identified core-glyph masks, and final bond
+  footprints for the extended alignment corpus. The corpus now closes expected
+  atom core runs plus source-bond style, display-layer, and operation-shape
+  semantics; accepted 12-case baseline measurement has no collisions or gaps.
+
 ## 2026-08-28
 
 ### Behavior or Interface Changes

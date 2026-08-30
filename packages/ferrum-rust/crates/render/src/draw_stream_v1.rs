@@ -712,6 +712,35 @@ fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
     sink.end_text_operation().map_err(DrawStreamErrorV1::Sink)
 }
 
+/// Lower only the structural element run from one atom label through the same
+/// verified Telex outline path used by ordinary molecule replay.
+///
+/// This test-only diagnostic helper deliberately receives the typed atom
+/// label, rather than reproducing its run selection from bounds or text.
+#[cfg(any(test, feature = "glyph_bond_raster_test_support"))]
+pub(crate) fn lower_atom_label_core_run_to_sink_v1<S: DrawSinkV1>(
+    label: &crate::AtomLabelRenderV1,
+    face: &Face<'_>,
+    sink: &mut S,
+) -> Result<(), DrawStreamErrorV1<S::Error>> {
+    let index = usize::try_from(label.core_element_run_index())
+        .map_err(|_| DrawStreamErrorV1::NonFiniteGeometry)?;
+    let run = label
+        .text()
+        .runs()
+        .get(index)
+        .ok_or(DrawStreamErrorV1::NonFiniteGeometry)?;
+    lower_text_runs(
+        label.text().z(),
+        label.text().paint(),
+        label.text().size().get(),
+        label.text().origin(),
+        std::slice::from_ref(run),
+        face,
+        sink,
+    )
+}
+
 fn lower_presentation_text_runs<S: DrawSinkV1>(
     z: i32,
     paint: &RenderPaintV3,

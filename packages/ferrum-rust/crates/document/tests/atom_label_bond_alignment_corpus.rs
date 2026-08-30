@@ -1,11 +1,15 @@
 //! Shared semantic atom-label/bond alignment corpus at the document/render boundary.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::PathBuf;
 
 use ferrum_document::DocumentSession;
+use ferrum_render::glyph_bond_raster::{
+    GlyphBondRasterBondIdentity, GlyphBondRasterSourceMapping, rasterize_glyph_bond_layers,
+};
 use ferrum_render::{
-    AtomRenderBatchV1, BondRenderOpV1, RenderBatchContentV4, RenderIssueKind, RenderOp,
-    RenderPoint, TextScript,
+    AtomRenderBatchV1, BondRenderOpV1, RenderBatchContentV4, RenderDisplayLayerV1, RenderIssueKind,
+    RenderOp, RenderPoint, TextScript,
 };
 use serde::Deserialize;
 
@@ -26,9 +30,58 @@ struct AlignmentCase {
     name: String,
     cdml: String,
     expected_outcome: ExpectedOutcome,
+    atoms: Vec<ExpectedAtom>,
+    bonds: Vec<ExpectedBond>,
     #[serde(default)]
     offending_bond: Option<String>,
     checks: SemanticChecks,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExpectedAtom {
+    source_id: String,
+    core_run: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExpectedBond {
+    source_id: String,
+    style: String,
+    display_layer: ExpectedDisplayLayer,
+    operation_shape: ExpectedBondOperationShape,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum ExpectedDisplayLayer {
+    Ordinary,
+    HaworthFrontStroke,
+    HaworthFrontWedge,
+}
+
+impl ExpectedDisplayLayer {
+    const fn render_layer(self) -> RenderDisplayLayerV1 {
+        match self {
+            Self::Ordinary => RenderDisplayLayerV1::Ordinary,
+            Self::HaworthFrontStroke => RenderDisplayLayerV1::HaworthFrontStroke,
+            Self::HaworthFrontWedge => RenderDisplayLayerV1::HaworthFrontWedge,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum ExpectedBondOperationShape {
+    SingleLine,
+    ParallelDoubleLines,
+    ParallelTripleLines,
+    SolidWedgePath,
+    HashedWedgeLines,
+    DashedLines,
+    WavyPath,
+    HaworthFrontPath,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -68,10 +121,19 @@ struct LabelRunCheck {
 fn corpus() -> AlignmentCorpus {
     let corpus: AlignmentCorpus = serde_json::from_str(CORPUS).expect("corpus has closed schema");
     assert_eq!(corpus.schema, SCHEMA, "corpus schema tag is exact");
+    assert!(
+        !corpus.cases.is_empty(),
+        "alignment corpus has semantic cases"
+    );
+    let case_names = corpus
+        .cases
+        .iter()
+        .map(|case| case.name.as_str())
+        .collect::<HashSet<_>>();
     assert_eq!(
+        case_names.len(),
         corpus.cases.len(),
-        12,
-        "approved corpus has no silent row loss"
+        "each semantic alignment case has one unique name"
     );
     corpus
 }
@@ -94,6 +156,44 @@ fn all_label_batches<'a>(
         RenderBatchContentV4::Atom(atom) => Some(atom.as_ref()),
         RenderBatchContentV4::CompactGroup(_) | RenderBatchContentV4::Bond(_) => None,
     })
+}
+
+fn bond_operations_match_shape(
+    operations: &[BondRenderOpV1],
+    expected: ExpectedBondOperationShape,
+) -> bool {
+    match expected {
+        ExpectedBondOperationShape::SingleLine => {
+            matches!(operations, [BondRenderOpV1::Line(_)])
+        }
+        ExpectedBondOperationShape::ParallelDoubleLines => {
+            matches!(
+                operations,
+                [BondRenderOpV1::Line(_), BondRenderOpV1::Line(_)]
+            )
+        }
+        ExpectedBondOperationShape::ParallelTripleLines => {
+            matches!(
+                operations,
+                [
+                    BondRenderOpV1::Line(_),
+                    BondRenderOpV1::Line(_),
+                    BondRenderOpV1::Line(_)
+                ]
+            )
+        }
+        ExpectedBondOperationShape::SolidWedgePath
+        | ExpectedBondOperationShape::WavyPath
+        | ExpectedBondOperationShape::HaworthFrontPath => {
+            matches!(operations, [BondRenderOpV1::Path(_)])
+        }
+        ExpectedBondOperationShape::HashedWedgeLines | ExpectedBondOperationShape::DashedLines => {
+            !operations.is_empty()
+                && operations
+                    .iter()
+                    .all(|operation| matches!(operation, BondRenderOpV1::Line(_)))
+        }
+    }
 }
 
 fn atom_anchors_by_document_object_id(
@@ -133,6 +233,97 @@ fn atom_anchors_by_document_object_id(
     anchors
 }
 
+fn glyph_bond_raster_output_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("document crate has repository-root ancestor")
+        .join("output_glyph_alignment")
+}
+
+fn glyph_bond_raster_mapping(
+    observation: &ferrum_document::DocumentRenderObservationV2,
+) -> GlyphBondRasterSourceMapping {
+    let molecule = &observation.document().projection().molecules()[0];
+    let atoms = molecule
+        .atoms()
+        .iter()
+        .map(|atom| {
+            (
+                atom.document_object_id().as_str().to_owned(),
+                atom.source_id()
+                    .expect("fixture atom has source ID")
+                    .to_owned(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let bonds = molecule
+        .bonds()
+        .iter()
+        .map(|bond| {
+            (
+                bond.document_object_id().as_str().to_owned(),
+                bond.source_id()
+                    .expect("fixture bond has source ID")
+                    .to_owned(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    GlyphBondRasterSourceMapping::new(atoms, bonds)
+}
+
+fn glyph_bond_raster_bonds(
+    observation: &ferrum_document::DocumentRenderObservationV2,
+) -> Vec<GlyphBondRasterBondIdentity> {
+    observation.document().projection().molecules()[0]
+        .bonds()
+        .iter()
+        .map(|bond| {
+            GlyphBondRasterBondIdentity::new(
+                bond.source_id().expect("fixture bond has source ID"),
+                bond.start()
+                    .source_id()
+                    .expect("fixture atom has source ID"),
+                bond.end().source_id().expect("fixture atom has source ID"),
+                bond.source_type().expect("fixture bond has source type"),
+            )
+        })
+        .collect()
+}
+
+#[test]
+#[ignore = "developer raster handoff; run through the glyph-bond measurement gate"]
+fn glyph_bond_raster_handoff_emits_every_renderable_alignment_case() {
+    let output_root = glyph_bond_raster_output_root();
+    std::fs::create_dir_all(&output_root).expect("ignored developer output root is creatable");
+    for case in corpus().cases {
+        if case.expected_outcome != ExpectedOutcome::Render {
+            continue;
+        }
+        let session = DocumentSession::load(&case.cdml)
+            .unwrap_or_else(|error| panic!("{} CDML must load: {error}", case.name));
+        let observation = session
+            .observe_render_v2(0)
+            .unwrap_or_else(|error| panic!("{} must resolve V4/V2: {error}", case.name));
+        let plan = observation.resolved().molecule_plans()[0].plan();
+        let viewport = ferrum_render::RenderViewportV1::new(-200.0, -200.0, 400.0, 400.0)
+            .expect("developer diagnostic viewport is finite");
+        let mapping = glyph_bond_raster_mapping(&observation);
+        let layers = rasterize_glyph_bond_layers(plan, viewport, &mapping)
+            .unwrap_or_else(|error| panic!("{} rasterizes: {error}", case.name));
+        let case_directory = output_root.join(&case.name);
+        let manifest = layers
+            .write_measurement_manifest(&case_directory, &glyph_bond_raster_bonds(&observation))
+            .unwrap_or_else(|error| panic!("{} emits handoff: {error}", case.name));
+        assert!(manifest.is_file(), "{} emits raster manifest", case.name);
+        assert!(
+            layers.normal_composite().nontransparent_pixels() > 0,
+            "{} emits composite ink",
+            case.name
+        );
+    }
+}
+
 #[test]
 fn atom_label_bond_alignment_cases_are_closed_and_schema_tagged() {
     let parsed = corpus();
@@ -163,6 +354,62 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
         );
         let plan = resolved.molecule_plans()[0].plan();
         let anchors = atom_anchors_by_document_object_id(&observation, plan.batches(), &case.name);
+        let source_molecule = &observation.document().projection().molecules()[0];
+
+        assert_eq!(
+            source_molecule.atoms().len(),
+            case.atoms.len(),
+            "{} declares every source atom's core run",
+            case.name
+        );
+
+        let atom_ids = case
+            .atoms
+            .iter()
+            .map(|atom| atom.source_id.as_str())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            atom_ids.len(),
+            case.atoms.len(),
+            "{} names each expected atom once",
+            case.name
+        );
+        for expected in &case.atoms {
+            let source_atom = source_molecule
+                .atoms()
+                .iter()
+                .find(|atom| atom.source_id() == Some(expected.source_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("{} source atom {} projects", case.name, expected.source_id)
+                });
+            let batch = plan
+                .batches()
+                .iter()
+                .find(|batch| {
+                    batch.target().document_object_id() == source_atom.document_object_id()
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} source atom {} has a target batch",
+                        case.name, expected.source_id
+                    )
+                });
+            let RenderBatchContentV4::Atom(atom) = batch.content() else {
+                panic!(
+                    "{} source atom {} has atom content",
+                    case.name, expected.source_id
+                );
+            };
+            let core_index = usize::try_from(atom.label().core_element_run_index())
+                .expect("core index fits usize");
+            assert_eq!(
+                atom.label().text().runs()[core_index].text(),
+                expected.core_run,
+                "{} source atom {} retains its expected core run",
+                case.name,
+                expected.source_id
+            );
+        }
 
         if case.checks.finite_geometry {
             for label in all_label_batches(plan.batches().iter()).map(|atom| atom.label()) {
@@ -244,6 +491,13 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
         }
 
         if let Some(expected) = case.checks.leading_superscript.as_deref() {
+            let expected_core = case
+                .checks
+                .core_run
+                .as_ref()
+                .expect("isotope checks name their core element")
+                .text
+                .as_str();
             let atom = all_label_batches(plan.batches().iter())
                 .find(|atom| {
                     atom.label()
@@ -257,7 +511,7 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
             assert_eq!(label.text().runs()[0].script(), TextScript::Superscript);
             let core =
                 usize::try_from(label.core_element_run_index()).expect("core index fits usize");
-            assert_eq!(label.text().runs()[core].text(), "C");
+            assert_eq!(label.text().runs()[core].text(), expected_core);
             assert_eq!(label.text().runs()[core].script(), TextScript::Baseline);
         }
 
@@ -292,6 +546,70 @@ fn authoritative_v4_observation_consumes_every_alignment_case() {
                 RenderBatchContentV4::Atom(_) | RenderBatchContentV4::CompactGroup(_) => None,
             })
             .collect::<Vec<_>>();
+        let bond_ids = case
+            .bonds
+            .iter()
+            .map(|bond| bond.source_id.as_str())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            bond_ids.len(),
+            case.bonds.len(),
+            "{} names each expected bond once",
+            case.name
+        );
+        assert_eq!(
+            bond_batches.len(),
+            case.bonds.len(),
+            "{} emits exactly its declared target-specific bond batches",
+            case.name
+        );
+        for expected in &case.bonds {
+            let source_bond = source_molecule
+                .bonds()
+                .iter()
+                .find(|bond| bond.source_id() == Some(expected.source_id.as_str()))
+                .unwrap_or_else(|| {
+                    panic!("{} source bond {} projects", case.name, expected.source_id)
+                });
+            assert_eq!(
+                source_bond.source_type(),
+                Some(expected.style.as_str()),
+                "{} source bond {} retains its expected style token",
+                case.name,
+                expected.source_id
+            );
+            let batch = plan
+                .batches()
+                .iter()
+                .find(|batch| {
+                    batch.target().document_object_id() == source_bond.document_object_id()
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} source bond {} has a target batch",
+                        case.name, expected.source_id
+                    )
+                });
+            assert_eq!(
+                batch.display_layer(),
+                expected.display_layer.render_layer(),
+                "{} source bond {} has its declared display layer",
+                case.name,
+                expected.source_id
+            );
+            let RenderBatchContentV4::Bond(bond) = batch.content() else {
+                panic!(
+                    "{} source bond {} has bond content",
+                    case.name, expected.source_id
+                );
+            };
+            assert!(
+                bond_operations_match_shape(bond.operations(), expected.operation_shape),
+                "{} source bond {} has its declared operation shape",
+                case.name,
+                expected.source_id
+            );
+        }
         if case.checks.positive_bond_content == Some(true) {
             assert!(
                 bond_batches

@@ -12,6 +12,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Opt-in crate-internal developer raster handoff for cross-crate integration tests.
+glyph_bond_raster_test_support = []
+
 [dependencies]
 ferrum-core = { path = "../core" }
 ferrum-chemistry = { path = "../chemistry" }

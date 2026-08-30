@@ -32,6 +32,6 @@ xot = { version = "*" }
 xmlparser = { version = "*" }
 
 [dev-dependencies]
-ferrum-render = { path = "../render" }
+ferrum-render = { path = "../render", features = ["glyph_bond_raster_test_support"] }
 proptest = { version = "*" }
 serde_json = { version = "*" }

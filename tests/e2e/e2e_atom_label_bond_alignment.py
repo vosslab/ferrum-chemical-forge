@@ -40,8 +40,10 @@ _CORPUS_PATH = (
 _SCHEMA = "atom_label_bond_alignment_cases_v1"
 _TOLERANCE = 0.000_001
 _THIRD_LABEL_DETAIL = "bond final ink intersects a non-endpoint atom label"
-_CASE_KEYS = frozenset(("name", "cdml", "expected_outcome", "offending_bond", "checks"))
-_REQUIRED_CASE_KEYS = frozenset(("name", "cdml", "expected_outcome", "checks"))
+_CASE_KEYS = frozenset((
+	"name", "cdml", "expected_outcome", "atoms", "bonds", "offending_bond", "checks",
+))
+_REQUIRED_CASE_KEYS = frozenset(("name", "cdml", "expected_outcome", "atoms", "bonds", "checks"))
 _CHECK_KEYS = frozenset((
 	"finite_geometry", "ordered_operations", "positive_bond_content",
 	"full_ink_clearance", "require_mask", "core_run", "leading_superscript", "runs",
@@ -70,6 +72,17 @@ def _corpus() -> tuple[dict[str, object], ...]:
 		assert _REQUIRED_CASE_KEYS <= set(case) <= _CASE_KEYS
 		assert type(case["name"]) is str and case["name"]
 		assert type(case["cdml"]) is str and case["cdml"]
+		atoms = case["atoms"]
+		assert type(atoms) is list
+		for atom in atoms:
+			assert type(atom) is dict and set(atom) == {"source_id", "core_run"}
+			assert all(type(atom[key]) is str and atom[key] for key in atom)
+		bonds = case["bonds"]
+		assert type(bonds) is list
+		for bond in bonds:
+			assert type(bond) is dict
+			assert set(bond) == {"source_id", "style", "display_layer", "operation_shape"}
+			assert all(type(bond[key]) is str and bond[key] for key in bond)
 		assert case["expected_outcome"] in {"render", "unrenderable_target"}
 		if case["expected_outcome"] == "unrenderable_target":
 			assert type(case.get("offending_bond")) is str and case["offending_bond"]
