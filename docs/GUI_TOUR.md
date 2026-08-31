@@ -63,7 +63,7 @@ may write one path, but it does not publish or validate the complete tour.
 | `docs/screenshots/inserted_cyclohexane.png` | Detached six-carbon cyclohexane beside the original carbon. |
 | `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
-| `docs/screenshots/selected_atom_edit.png` | Nitrogen visible in the document. |
+| `docs/screenshots/selected_atom_edit.png` | Carbon changed to nitrogen through the selected-atom editing workflow. |
 | `docs/screenshots/smarts_result.png` | SMARTS Query dock showing `[C]` and one match in the carbonyl document. |
 | `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed beside the authored carbon. |
 | `docs/screenshots/presentation_vector.png` | Presentation line committed beside the authored carbon. |
@@ -74,21 +74,21 @@ may write one path, but it does not publish or validate the complete tour.
 ## Current capture status
 
 The complete 13-scene set was regenerated transactionally at 1440 by 900 on
-2026-08-31 with `./capture_gui_screenshots.sh --backend qt`. Every staged scene passed
+2026-08-31 with `./capture_gui_screenshots.sh --backend qt`; the selected-atom
+scene retires its keyboard cursor after the completed edit. Every staged scene passed
 its semantic postcondition and full-window surface check; the harness also requires the
 fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
 complete visible title. The resulting PNGs include the top ribbon, document tabs,
 canvas, readable Properties title where relevant, and bottom status bar. The Command
 Palette frame retains those application surfaces while showing its live query and results.
 
-This capture is not accepted as current visual documentation. Native-resolution review
-rejected the atom-label/bond clearance in the carbonyl scenes: the double-bond ink lies
-visibly too close to the C and O glyph ink. The affected evidence includes `workspace`,
-`atom_authoring`, `smarts_result`, and `view_controls`; `cdxml_open` also needs review
-after the renderer repair. Retain the files only as failed diagnostic evidence and do not
-add them to the README managed screenshot block. A fresh capture and visual review are
-required after the renderer correction. This is separate from human visual and
-accessibility acceptance.
+A native-resolution review accepted this current documentation capture. The repaired
+atom-label/bond spacing is visibly clear in the `workspace`, `atom_authoring`,
+`smarts_result`, and `view_controls` carbonyl scenes, and the `cdxml_open` wavy, bold,
+and dashed bonds remain clearly separated from their C, O, N, and F glyph ink. The
+review found no clipping, stale product branding, or image-to-caption mismatch. This
+documentation acceptance remains separate from final human native visual, accessibility,
+contrast, and focus acceptance.
 
 The documentation framing uses Ferrum's document-root content bounds and visible
 status-bar zoom client so completed chemistry remains legible in the application frame.
@@ -124,9 +124,8 @@ application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete 2026-08-31 diagnostic capture set. They are not accepted
-as current documentation proof pending the renderer correction. Focused diagnostic captures
-remain outside this section.
+These embeds are the complete accepted 2026-08-31 documentation tour. Focused diagnostic
+captures remain outside this section.
 
 ![Editable carbonyl fragment in the Ferrum workspace](screenshots/workspace.png)
 
@@ -140,7 +139,7 @@ remain outside this section.
 
 ![Alpha-D-glucofuranose selected in the Template Catalog before placement](screenshots/template_catalog.png)
 
-![Nitrogen visible in the Ferrum document](screenshots/selected_atom_edit.png)
+![Carbon changed to nitrogen through the selected-atom editing workflow](screenshots/selected_atom_edit.png)
 
 ![SMARTS Query dock showing one carbon match](screenshots/smarts_result.png)
 

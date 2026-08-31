@@ -41,10 +41,15 @@ boundary and [docs/ROADMAP.md](docs/ROADMAP.md) for the remaining release work.
 
 Ferrum is a chemical drawing workspace, not a separate file-format viewer. The editor
 opens the supported CDML slice and presents Rust-issued document and rendering facts.
-The screenshot pass will place current desktop proof in the managed block below; the
-full capture workflow and candidate scenes are in [docs/GUI_TOUR.md](docs/GUI_TOUR.md).
+The inspected current desktop tour appears in the managed block below; its complete
+capture workflow and all 13 scenes are in [docs/GUI_TOUR.md](docs/GUI_TOUR.md).
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
+![Ferrum workspace showing a carbonyl with clear atom-label and double-bond spacing](docs/screenshots/workspace.png)
+![Template Catalog showing the selected alpha-D-glucofuranose before placement](docs/screenshots/template_catalog.png)
+![SMARTS Query dock reporting one carbon match in the open carbonyl document](docs/screenshots/smarts_result.png)
+![ChemDraw XML C-O-N-F document with wavy, bold, and dashed bonds](docs/screenshots/cdxml_open.png)
+![Command Palette listing registered reaction commands above a reaction arrow](docs/screenshots/command_palette_reaction.png)
 <!-- screenshots:end -->
 
 ## Quick start

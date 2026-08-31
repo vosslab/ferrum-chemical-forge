@@ -45,8 +45,11 @@ one geometry contract before Qt, SVG, PDF, or PNG consume its plan.
 **Consequence.** The renderer uses one y-down script-baseline calculation,
 centers the core-element ink for every admitted label, and treats masks plus
 non-core visible ink as exclusion geometry. It reserves an optical gap and each
-style's actual cap, transverse width, axial overhang, or axial retreat, refusing
-an unrenderable target rather than emitting intersecting or partial ink. Qt
+style's actual cap, transverse width, axial overhang, or axial retreat. Double
+and triple bonds resolve one additional bounded clearance from the complete
+parallel terminal envelope, then every lane shares the resulting axial clips.
+The renderer refuses an unrenderable target rather than emitting intersecting
+or partial ink. Qt
 replays the issued glyph and bond operations without choosing a text anchor,
 recomputing glyph bounds, or relaxing clearance. The closed
 `RenderObservationV2`/`RenderPlanV4` boundary publishes the exact core/full ink
@@ -60,6 +63,11 @@ point. Rust constructs the axis before clipping; final typed operations remain
 the only paint geometry. PyO3 transports the axis unchanged and Qt validates
 but neither paints nor hit-tests it. Thus a bond has a durable center-to-center
 attachment truth while visible ink still respects full-glyph clearance.
+
+The independent pixel policy requires at least 0.60 measured stroke widths of
+clearance for double and triple bonds, compared with 0.20 for single-stroke
+styles. This stronger parallel threshold makes the optical distinction
+executable without supplying renderer geometry to the measurement process.
 
 **Owner.** `packages/ferrum-rust/crates/render/src/glyph_outline_support.rs`,
 `packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,

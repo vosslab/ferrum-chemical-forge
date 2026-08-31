@@ -79,7 +79,7 @@ run and a current rendering cannot tune it.
 
 | Criterion | Required result |
 | --- | --- |
-| Intended label gap | 0.20-1.75 final stroke widths and no more than 0.22 target-glyph heights |
+| Intended label gap | 0.20-1.75 final stroke widths for single-stroke styles, 0.60-1.75 for double/triple bonds, and no more than 0.22 target-glyph heights |
 | Serving axis | Perpendicular error no more than 0.12 target-glyph heights |
 | Target and third-label collision | Zero final-footprint pixels in the target full label or every non-endpoint full label |
 | Footprint evidence | At least 99.5 percent final-footprint coverage in the composite; no missing declared component |
@@ -159,7 +159,9 @@ The Qt evidence correction is capture-only: fixed-profile rendering now uses
 one isotropic scale and centered letterboxing instead of stretching the scene.
 Three tightened source rectangles replace their superseded definitions under
 one unversioned live profile ID each. Neither Qt nor the measurement library
-adds a visual offset, and `MeasurementPolicy` thresholds are unchanged.
+adds a visual offset. Human review of the documentation capture exposed a
+parallel-bond gap that the original 0.20-stroke minimum admitted, so the
+independent policy now requires 0.60 strokes for double and triple bonds.
 
 Two one-time 2026-08-30 outline experiments remain rejected evidence: a raw
 convex support plus radial clearance made the native receipt worse (18
@@ -203,7 +205,7 @@ This goal is complete only when:
 1. the V2 manifests, full-layer inventory, fixture catalog, test-only Rust
    producer, and deterministic actual-Qt capture remain reproducible;
 2. the synthetic oracle accepts every approved row and rejects every named bad
-   row under the unchanged policy;
+   row under the fixed current policy;
 3. native Rust strict measurement and actual Qt strict replay have zero visual
    violations for every accepted renderable fixture, while typed-refusal
    contract cases remain green in their Rust semantic lane;

@@ -36,7 +36,7 @@ That is substantial progress, not a feature-parity or release-complete claim.
   bond-style, Haworth, near-miss, coincident, and third-label-refusal cases at
   the Rust document-to-observation seam and the installed Qt consumer. The
   independent native and actual-Qt pixel lanes accept all twelve renderable
-  cases with zero violations under the unchanged V2 policy. Broader desktop
+  cases with zero violations under the strengthened V2 policy. Broader desktop
   usability and accessibility acceptance remains a separate maintainer gate.
 - The Rust-first direct drawing, selected-root, regular-ring, presentation,
   compact-group, SMARTS, bounded oxidation, command-palette, and semantic-theme

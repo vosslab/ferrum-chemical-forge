@@ -24,11 +24,17 @@ an offscreen real `QGraphicsScene` replay; native evidence uses the test-only
 
 ## Current conclusion
 
-The measurement system is operational and non-circular. It accepts the current
-renderer under the unchanged V2 policy: native and actual-Qt evidence each
-report zero findings across the 12 renderable fixtures. The Qt baseline freezes
-that accepted-zero state so a renderer regression cannot silently become a new
-presentation baseline.
+The measurement system is operational and non-circular. Human inspection of the
+documentation capture showed that the original 0.20-stroke lower bound admitted
+a double bond with only 0.44 stroke widths of Qt clearance. The current policy
+retains 0.20 for single-stroke styles and requires 0.60 for double/triple bonds.
+Rust now resolves parallel endpoints from one bounded terminal-envelope
+clearance. Native and actual-Qt evidence each report zero findings across the 12
+renderable fixtures, and the Qt baseline freezes that accepted-zero state.
+
+In the diagonal N=O/O&equiv;N fixture, native parallel gaps are 1.35-1.49 measured
+stroke widths. Actual Qt gaps are 0.90-1.08 strokes, or 3.95-4.72 pixels. The
+superseded Qt double-bond gaps were 0.44-0.61 strokes, or 1.92-2.70 pixels.
 
 Two one-time private outline-support experiments remain discarded. Raw convex
 support reached 18 native findings; support dilated by the rectangle clearance
@@ -41,7 +47,7 @@ decoration exclusion gaps in Rust; both real lanes validate it.
 
 ```bash
 source source_me.sh && python3 -m pytest measure_stack/tests -q
-# 15 passed
+# 16 passed
 
 # Produces native raster layers, reports, and a zero-violation strict receipt.
 ./devel/run_measure_stack_rust.sh
@@ -70,7 +76,7 @@ This report records automated corpus acceptance for the selected Atkinson
 Hyperlegible Next Regular molecule-label face. It does not establish broad
 desktop usability acceptance beyond the fixed corpus.
 
-Permanent coverage is limited to the 15 deterministic measurement tests, the
+Permanent coverage is limited to the 16 deterministic measurement tests, the
 selected default resource/scalar contracts, Rust semantic and renderer tests,
 and installed consumer contracts. Upstream comparison of all 92 pinned font
 binaries and both licenses, catalog/file census, proportional-versus-monospace

@@ -1,3 +1,8 @@
+# Changelog archive: 2026-08-21
+
+This archive continues the history before [CHANGELOG.md](CHANGELOG.md). Earlier
+history is in [CHANGELOG-2026-08d.md](CHANGELOG-2026-08d.md).
+
 ## 2026-08-21
 
 ### Fixes and Maintenance

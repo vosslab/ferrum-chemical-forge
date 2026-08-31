@@ -99,8 +99,8 @@ and offscreen Qt boundaries when they protect a supported, recurring,
 deterministic, offline user workflow. Run the focused E2E runner while changing
 that workflow, then `./all_test.sh` for its aggregate integration lane.
 
-Do not add a permanent pytest or E2E merely to retain an implementation probe.
-Use [PYTEST_STYLE.md](PYTEST_STYLE.md) and
+Reserve permanent pytest and E2E coverage for stable behavioral contracts. Use
+[PYTEST_STYLE.md](PYTEST_STYLE.md) and
 [FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md) to decide whether a check has a
 stable behavioral contract and the appropriate execution model.
 

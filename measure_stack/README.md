@@ -56,10 +56,11 @@ against a newly generated output.
 ## Permanent tests versus rebuild evidence
 
 `source source_me.sh && python3 -m pytest measure_stack/tests -q` is the
-permanent 15-test lane. It uses inline/generated arrays and `tmp_path`, stays
+permanent 16-test lane. It uses inline/generated arrays and `tmp_path`, stays
 offline, completes in under one second, and tests manifest rejection, content
-hashing, pure metric behavior, style classification, framing behavior, and
-nonfinite JSON refusal. It does not assert the exact fixture inventory, render
+hashing, pure metric behavior, parallel optical-clearance rejection, style
+classification, framing behavior, and nonfinite JSON refusal. It does not
+assert the exact fixture inventory, render
 Qt scenes, or publish contact sheets.
 
 The synthetic runner, native Rust raster command, actual Qt capture, baseline,

@@ -1,8 +1,7 @@
 # Changelog
 
-Earlier history is in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), continuing through
-[CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md), [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md),
-and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
+Earlier history begins in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), whose
+archive navigation continues chronologically back through 2026-08-11.
 
 ## 2026-08-31
 
@@ -29,6 +28,11 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   outline support from the current byte-verified measurement font. Rust now separates
   core optical clearance from painted mask/decoration exclusion and models
   final endpoint caps, widths, overhang, and retreat per bond style.
+- Corrected double- and triple-bond optical attachment. Rust now treats the
+  complete parallel terminal as one visual unit, derives a bounded group
+  clearance, and gives every lane the same axial clips. The independent pixel
+  policy now requires at least 0.60 measured stroke widths for parallel bonds;
+  actual Qt double-bond clearance increased from 1.92-2.70 to 4.16-4.72 pixels.
 - Corrected decorated-label layout for a sole rightward bond: explicit hydrogen
   and count ink move left of the structural glyph while isotope and charge keep
   conventional corners. Exact run metrics recompute the full label bounds.
@@ -84,7 +88,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 - Used a focused square-in-square Qt capture check to prove isotropic scaling
   during the rebuild, then removed it because real raster capture is too slow
   for permanent pytest. The strict actual-Qt corpus remains the ongoing lane.
-- The unchanged V2 pixel policy now accepts the complete corpus: the synthetic
+- The strengthened V2 pixel policy now accepts the complete corpus: the synthetic
   oracle reports 19 fixtures and zero violations, while native final-ink and
   actual Qt strict lanes each report 12 fixtures and zero violations. Contact
   sheets were inspected for ordinary, parallel, decorated, ring, wedge,
@@ -93,7 +97,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   only the embedded hash-verified font is parsed, and V2 JSON continues to
   enforce closed fields, bounded paths and dimensions, content hashes, and
   related-item consistency (ASVS 1.5.2, 2.1.1-2.1.2, and 2.2.1-2.2.3).
-- Focused gates passed: 15 measurement-stack tests, 164 permanent
+- Focused gates passed: 16 measurement-stack tests, 165 permanent
   `ferrum-render` tests with one ignored developer receipt, the two active Rust
   alignment-corpus semantic checks, the 14-case
   installed Rust-to-Qt alignment E2E, both Qt accepted-zero modes, and a clean

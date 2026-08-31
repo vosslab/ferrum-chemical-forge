@@ -647,13 +647,16 @@ def _rearm_atom_authoring(window: PySide6.QtWidgets.QMainWindow,
 #============================================
 def _reselect_edited_nitrogen(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Restore the named visible nitrogen selection after neutral scene framing."""
+	"""Restore the edited nitrogen selection and retire the keyboard cursor."""
 	tab = _active_tab(window)
 	_activate_command(window, application, "Select Structure")
-	_click(_canvas(tab), _scene_point(tab, 300.0, 360.0))
+	canvas = _canvas(tab)
+	_click(canvas, _scene_point(tab, 300.0, 360.0))
 	application.processEvents()
 	if not tab.has_one_selected_atom() or tab.selected_atom_projection().element != "N":
 		raise CaptureError("Ferrum did not visibly reselect the edited nitrogen")
+	canvas.hide_keyboard_cursor()
+	application.processEvents()
 
 
 #============================================

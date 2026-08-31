@@ -2,8 +2,7 @@
 
 Entries through 2026-08-25 are archived here. For current changes, see
 [CHANGELOG.md](CHANGELOG.md). Earlier history is in
-[CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md), which continues through
-[CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
+[CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md).
 
 ## 2026-08-25
 

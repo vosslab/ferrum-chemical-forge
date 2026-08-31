@@ -91,7 +91,7 @@ specific endpoint and metric that failed.
 | Statistic | Meaning | Strict policy |
 | --- | --- | --- |
 | `signed_gap_px` | Along-axis distance from target core-glyph edge to the nearest bond footprint. Negative means bond ink overlaps the full label. | Reported in pixels and normalized forms. |
-| `signed_gap_strokes` | Gap divided by measured bond stroke width. | 0.20 to 1.75 strokes. |
+| `signed_gap_strokes` | Gap divided by measured bond stroke width. | At least 0.20 strokes for single-stroke styles and 0.60 for double/triple bonds; no more than 1.75. |
 | `signed_gap_glyph_height` | Gap divided by target-core glyph height. | No more than 0.22 glyph heights. |
 | `perpendicular_error_px` | Sideways displacement of the local endpoint footprint from the core-to-core axis. | Reported in pixels and normalized form. |
 | `perpendicular_error_glyph_height` | Sideways error divided by target-core glyph height. | No more than 0.12 glyph heights. |

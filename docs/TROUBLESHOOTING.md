@@ -164,8 +164,8 @@ tour:
 ```
 
 The capture command uses the same staged runtime that `source_me.sh` validates.
-Do not point it at a globally installed extension or set the offscreen Qt
-platform: the tour documents real visible windows. A complete run stages every
+Use that repository-owned runtime and an on-screen Qt platform so the tour
+documents real visible windows. A complete run stages every
 scene before it replaces the stable PNG files in `docs/screenshots/`.
 
 ### The screen-capture backend fails or crops Ferrum
@@ -207,8 +207,8 @@ other images:
 If the focused capture succeeds after the underlying application repair, run
 `./capture_gui_screenshots.sh --backend qt` to refresh the complete tour from
 one local build. If the focused scene still reports a missing command, control,
-or completed document state, treat that error as a failed GUI capability rather
-than publishing a partial or manually cropped replacement.
+or completed document state, preserve the last complete published tour and
+record the scene as a failed GUI capability.
 
 ### Refresh one screenshot while diagnosing a scene
 
