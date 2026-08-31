@@ -313,6 +313,14 @@ def _require_installed_qt_projection_for_renderable_cases() -> None:
 			)
 			assert bool(bond_items) is case["checks"].get("positive_bond_content", False)
 			verified_telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex)
+			bond_source_ids = {
+				bond.document_object_id: bond.source_id
+				for bond in observation.document.projection.molecules[0].bonds
+			}
+			atom_source_ids = {
+				batch.target.document_object_id: source_id
+				for source_id, batch in atom_batches.items()
+			}
 			for bond_item in bond_items:
 				for atom_batch in atom_batches.values():
 					label = atom_batch.content.label
@@ -322,7 +330,11 @@ def _require_installed_qt_projection_for_renderable_cases() -> None:
 					stroker = PySide6.QtGui.QPainterPathStroker()
 					stroker.setWidth(2.0 * label.bond_ink_clearance)
 					exclusion_path = label_path.united(stroker.createStroke(label_path))
-					assert not bond_item.shape().intersects(exclusion_path)
+					assert not bond_item.shape().intersects(exclusion_path), (
+						case["name"],
+						bond_source_ids[projection.item_targets[bond_item].document_object_id],
+						atom_source_ids[atom_batch.target.document_object_id],
+					)
 		finally:
 			projection.dispose()
 

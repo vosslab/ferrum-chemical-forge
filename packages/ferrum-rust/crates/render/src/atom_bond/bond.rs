@@ -34,6 +34,19 @@ pub(crate) struct NormalBondEndpointClipPolicy {
 }
 
 impl NormalBondEndpointClipPolicy {
+    /// Resolve the sole font-derived clearance shared by all normal-bond paths.
+    pub(crate) fn label_clearance_for_font(
+        font_size: PositiveFinite,
+    ) -> Result<BondInkClearance, RenderIssueKind> {
+        const LABEL_GAP_FONT_FACTOR: f64 = 0.05;
+        let gap = PositiveFinite::new(font_size.get() * LABEL_GAP_FONT_FACTOR).map_err(|_| {
+            RenderIssueKind::UnrenderableTarget {
+                reason: "normal bond label clearance is not representable".to_owned(),
+            }
+        })?;
+        Ok(BondInkClearance::new(gap))
+    }
+
     /// Resolve the normal-single final-ink envelope from depiction facts.
     ///
     /// This is the sole renderer owner of the font-derived label clearance.
@@ -41,12 +54,12 @@ impl NormalBondEndpointClipPolicy {
         stroke_width: PositiveFinite,
         font_size: PositiveFinite,
     ) -> Result<Self, RenderIssueKind> {
-        let clearance =
-            BondInkClearance::new(PositiveFinite::new(font_size.get() * 0.125).map_err(|_| {
-                RenderIssueKind::UnrenderableTarget {
-                    reason: "normal bond label clearance is not representable".to_owned(),
-                }
-            })?);
+        // The final footprint already reserves its own half-stroke radius.
+        // Keep the additional label-to-ink gap visibly positive but below the
+        // V2 final-pixel detachment ceiling at the verified Telex 12-point
+        // depiction scale. This policy is also used for label envelopes and
+        // compact-group admission, so one value owns every normal-bond edge.
+        let clearance = Self::label_clearance_for_font(font_size)?;
         Ok(Self {
             clearance,
             footprint: final_ink_footprint(&BondStyle::NormalSingle, stroke_width, stroke_width)?,
@@ -83,7 +96,10 @@ impl NormalBondEndpointClipPolicy {
                         ),
                     }
                 })?,
-                clipping: EndpointClipGeometry::AtomLabelInk(bounds),
+                clipping: EndpointClipGeometry::AtomLabelInk {
+                    core: bounds,
+                    non_core_run_ink_bounds: Vec::new(),
+                },
             },
             direction,
             Vector2::new(0.0, 0.0).map_err(|error| RenderIssueKind::UnrenderableTarget {
@@ -310,13 +326,13 @@ pub(super) fn build_bond_batch(
     };
     let normal_single_policy =
         matches!(bond.style, BondStyle::NormalSingle).then_some(resolved_normal_single_policy);
-    let footprint = normal_single_policy.map_or_else(
-        || final_ink_footprint(&bond.style, stroke_width, wedge_width),
-        |policy| Ok(policy.footprint),
+    let footprints = normal_single_policy.map_or_else(
+        || final_ink_footprints(&bond.style, stroke_width, wedge_width),
+        |policy| Ok(EndpointBondInkFootprints::symmetric(policy.footprint)),
     )?;
     let clip = BondClipConfiguration {
         clearance: resolved_normal_single_policy.clearance(),
-        footprint,
+        footprints,
         normal_single_policy,
     };
     if matches!(bond.style, BondStyle::SolidWedge | BondStyle::HashedWedge) {
@@ -346,7 +362,7 @@ pub(super) fn build_bond_batch(
         bond.style,
         BondStyle::Bold | BondStyle::Dashed | BondStyle::Wavy
     ) {
-        let axis = build_bond_line(&line_context, 0.0, stroke_width, clip, paint, 10)?;
+        let axis = build_bond_line(&line_context, 0.0, stroke_width, clip, None, paint, 10)?;
         let operations = match &bond.style {
             BondStyle::Bold => bond_presentation_geometry::bold(axis),
             BondStyle::Dashed => bond_presentation_geometry::dashed(axis),
@@ -365,19 +381,27 @@ pub(super) fn build_bond_batch(
             reason: format!("styled bond batch is not renderable: {error}"),
         });
     }
-    let mut operations = Vec::with_capacity(offsets.len());
-    for (index, factor) in offsets.iter().enumerate() {
-        let offset = lane_spacing.get() * *factor;
-        if !offset.is_finite() {
-            return Err(RenderIssueKind::UnrenderableTarget {
-                reason: "bond line spacing is not representable".to_owned(),
-            });
-        }
+    let lane_offsets = offsets
+        .iter()
+        .map(|factor| lane_offset(lane_spacing, *factor))
+        .collect::<Result<Vec<_>, _>>()?;
+    // A double or triple bond is one chemical connection with a multi-lane
+    // final footprint.  Clip its complete lane envelope once at each label,
+    // then lower every symmetric lane from those shared axial positions.
+    // Per-lane clipping permits a near lane to enter label ink while a farther
+    // lane happens to stop safely, which is neither a valid final footprint
+    // nor a stable attachment relation.
+    let shared_parallel_clips = (lane_offsets.len() > 1)
+        .then(|| parallel_endpoint_clips(&line_context, &lane_offsets, clip))
+        .transpose()?;
+    let mut operations = Vec::with_capacity(lane_offsets.len());
+    for (index, offset) in lane_offsets.into_iter().enumerate() {
         let line = build_bond_line(
             &line_context,
             offset,
             stroke_width,
             clip,
+            shared_parallel_clips,
             paint.clone(),
             10 + i32::try_from(index).expect("bond line count fits i32"),
         )?;
@@ -420,7 +444,7 @@ fn build_haworth_front_bond_batch(
     clip: BondClipConfiguration,
     paint: RenderPaintV3,
 ) -> Result<RenderBatchV4, RenderIssueKind> {
-    let center = build_bond_line(context, 0.0, stroke_width, clip, paint.clone(), 10)?;
+    let center = build_bond_line(context, 0.0, stroke_width, clip, None, paint.clone(), 10)?;
     build_haworth_front_batch(HaworthFrontBondInput {
         target: bond.context.target().clone(),
         paint_order: bond.context.paint_order(),
@@ -443,7 +467,7 @@ fn build_directed_stereo_batch(
     clip: BondClipConfiguration,
     paint: RenderPaintV3,
 ) -> Result<RenderBatchV4, RenderIssueKind> {
-    let center = build_bond_line(context, 0.0, stroke_width, clip, paint.clone(), 10)?;
+    let center = build_bond_line(context, 0.0, stroke_width, clip, None, paint.clone(), 10)?;
     let tip = center.start();
     let base = center.end();
     let operations = directed_stereo_operations(
@@ -482,6 +506,7 @@ fn build_bond_line(
     offset: f64,
     width: PositiveFinite,
     clip: BondClipConfiguration,
+    endpoint_clips: Option<(f64, f64)>,
     paint: RenderPaintV3,
     z: i32,
 ) -> Result<LineOp, RenderIssueKind> {
@@ -493,8 +518,15 @@ fn build_bond_line(
         reason: format!("bond line offset is not representable: {error}"),
     })?;
     let reverse = negated(context.direction)?;
-    let first_clip = clip.endpoint_clip_distance(context.first, context.direction, local_offset)?;
-    let second_clip = clip.endpoint_clip_distance(context.second, reverse, local_offset)?;
+    let (first_clip, second_clip) = endpoint_clips.map_or_else(
+        || {
+            Ok((
+                clip.first_endpoint_clip_distance(context.first, context.direction, local_offset)?,
+                clip.second_endpoint_clip_distance(context.second, reverse, local_offset)?,
+            ))
+        },
+        Ok,
+    )?;
     let has_positive_segment = clip.normal_single_policy.map_or_else(
         || normal_bond_has_positive_visible_segment(context.length, first_clip, second_clip),
         |policy| policy.has_positive_visible_segment(context.length, first_clip, second_clip),
@@ -536,6 +568,48 @@ fn build_bond_line(
     })
 }
 
+/// Return the shared axial clips for every lane in one parallel-bond footprint.
+fn parallel_endpoint_clips(
+    context: &BondLineContext<'_>,
+    lane_offsets: &[f64],
+    clip: BondClipConfiguration,
+) -> Result<(f64, f64), RenderIssueKind> {
+    let reverse = negated(context.direction)?;
+    let mut first_clip = 0.0_f64;
+    let mut second_clip = 0.0_f64;
+    for offset in lane_offsets {
+        let local_offset = Vector2::new(
+            context.perpendicular.x() * offset,
+            context.perpendicular.y() * offset,
+        )
+        .map_err(|error| RenderIssueKind::UnrenderableTarget {
+            reason: format!("bond line offset is not representable: {error}"),
+        })?;
+        first_clip = first_clip.max(clip.first_endpoint_clip_distance(
+            context.first,
+            context.direction,
+            local_offset,
+        )?);
+        second_clip = second_clip.max(clip.second_endpoint_clip_distance(
+            context.second,
+            reverse,
+            local_offset,
+        )?);
+    }
+    Ok((first_clip, second_clip))
+}
+
+fn lane_offset(lane_spacing: PositiveFinite, factor: f64) -> Result<f64, RenderIssueKind> {
+    let offset = lane_spacing.get() * factor;
+    if offset.is_finite() {
+        Ok(offset)
+    } else {
+        Err(RenderIssueKind::UnrenderableTarget {
+            reason: "bond line spacing is not representable".to_owned(),
+        })
+    }
+}
+
 /// Return whether a normal bond retains a strictly positive visible segment.
 fn normal_bond_has_positive_visible_segment(
     center_distance: f64,
@@ -549,12 +623,12 @@ fn normal_bond_has_positive_visible_segment(
 #[derive(Clone, Copy)]
 struct BondClipConfiguration {
     clearance: BondInkClearance,
-    footprint: BondInkFootprint,
+    footprints: EndpointBondInkFootprints,
     normal_single_policy: Option<NormalBondEndpointClipPolicy>,
 }
 
 impl BondClipConfiguration {
-    fn endpoint_clip_distance(
+    fn first_endpoint_clip_distance(
         self,
         endpoint: &RenderEndpointGeometry,
         direction: Vector2,
@@ -567,7 +641,27 @@ impl BondClipConfiguration {
                     direction,
                     local_offset,
                     self.clearance,
-                    self.footprint,
+                    self.footprints.first,
+                )
+            },
+            |policy| policy.endpoint_clip_distance(endpoint, direction, local_offset),
+        )
+    }
+
+    fn second_endpoint_clip_distance(
+        self,
+        endpoint: &RenderEndpointGeometry,
+        direction: Vector2,
+        local_offset: Vector2,
+    ) -> Result<f64, RenderIssueKind> {
+        self.normal_single_policy.map_or_else(
+            || {
+                endpoint_clip_distance_with_footprint(
+                    endpoint,
+                    direction,
+                    local_offset,
+                    self.clearance,
+                    self.footprints.second,
                 )
             },
             |policy| policy.endpoint_clip_distance(endpoint, direction, local_offset),
@@ -583,14 +677,26 @@ fn endpoint_clip_distance_with_footprint(
     footprint: BondInkFootprint,
 ) -> Result<f64, RenderIssueKind> {
     match &endpoint.clipping {
-        EndpointClipGeometry::AtomLabelInk(bounds) => clip_glyph_distance(
-            inflate_glyph_bounds(
-                *bounds,
-                clearance.gap().get() + footprint.transverse_radius + footprint.axial_overhang,
-            )?,
-            direction,
-            local_offset,
-        ),
+        EndpointClipGeometry::AtomLabelInk {
+            core,
+            non_core_run_ink_bounds,
+        } => {
+            let (x_inflation, y_inflation) =
+                footprint.glyph_bounds_inflation(clearance.gap().get(), direction)?;
+            let mut distance = clip_glyph_distance(
+                inflate_glyph_bounds(*core, x_inflation, y_inflation)?,
+                direction,
+                local_offset,
+            )?;
+            for decoration in non_core_run_ink_bounds {
+                distance = distance.max(clip_glyph_distance(
+                    inflate_glyph_bounds(*decoration, x_inflation, y_inflation)?,
+                    direction,
+                    local_offset,
+                )?);
+            }
+            Ok(distance)
+        }
         EndpointClipGeometry::FixedConnectionPoint {
             label_ink_exclusion,
         } => {
@@ -613,8 +719,75 @@ fn endpoint_clip_distance_with_footprint(
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct BondInkFootprint {
-    transverse_radius: f64,
+    /// Radius of final ink at the endpoint along every direction (for example,
+    /// a round line cap). This preserves the exact circular normal-bond
+    /// envelope instead of conservatively expanding diagonal labels twice.
+    endpoint_radius: f64,
+    /// Additional half-width normal to the carrier axis at a widened endpoint.
+    /// Filled wedges contribute this at their base but not at their tip.
+    transverse_half_width: f64,
+    /// Extra final ink extending beyond the clipped endpoint along the carrier axis.
     axial_overhang: f64,
+}
+
+impl BondInkFootprint {
+    fn glyph_bounds_inflation(
+        self,
+        clearance: f64,
+        direction: Vector2,
+    ) -> Result<(f64, f64), RenderIssueKind> {
+        let perpendicular = direction.perpendicular_left();
+        let base = clearance + self.endpoint_radius + self.axial_overhang;
+        let x = base + self.transverse_half_width * perpendicular.x().abs();
+        let y = base + self.transverse_half_width * perpendicular.y().abs();
+        if x.is_finite() && x >= 0.0 && y.is_finite() && y >= 0.0 {
+            Ok((x, y))
+        } else {
+            Err(RenderIssueKind::UnrenderableTarget {
+                reason: "bond ink clearance is not representable".to_owned(),
+            })
+        }
+    }
+}
+
+/// Directional endpoint envelopes for one final bond footprint.
+#[derive(Clone, Copy)]
+struct EndpointBondInkFootprints {
+    first: BondInkFootprint,
+    second: BondInkFootprint,
+}
+
+impl EndpointBondInkFootprints {
+    const fn symmetric(footprint: BondInkFootprint) -> Self {
+        Self {
+            first: footprint,
+            second: footprint,
+        }
+    }
+}
+
+fn final_ink_footprints(
+    style: &BondStyle,
+    stroke_width: PositiveFinite,
+    wedge_width: PositiveFinite,
+) -> Result<EndpointBondInkFootprints, RenderIssueKind> {
+    let symmetric = final_ink_footprint(style, stroke_width, wedge_width)?;
+    match style {
+        // Directed wedge lowering emits a narrow tip at source endpoint one
+        // and its full width only at endpoint two. Reserving the base radius
+        // at both ends detached the tip from its intended atom character.
+        BondStyle::SolidWedge | BondStyle::HashedWedge | BondStyle::HaworthFrontWedge => {
+            Ok(EndpointBondInkFootprints {
+                first: BondInkFootprint {
+                    endpoint_radius: stroke_width.get() / 2.0,
+                    transverse_half_width: 0.0,
+                    axial_overhang: 0.0,
+                },
+                second: symmetric,
+            })
+        }
+        _ => Ok(EndpointBondInkFootprints::symmetric(symmetric)),
+    }
 }
 
 fn final_ink_footprint(
@@ -622,29 +795,47 @@ fn final_ink_footprint(
     stroke_width: PositiveFinite,
     wedge_width: PositiveFinite,
 ) -> Result<BondInkFootprint, RenderIssueKind> {
-    let transverse_radius = match style {
+    let endpoint_radius = match style {
         BondStyle::Bold => stroke_width.get(),
-        BondStyle::Wavy => stroke_width.get() * 2.5,
-        BondStyle::SolidWedge
-        | BondStyle::HashedWedge
-        | BondStyle::HaworthFrontStroke
-        | BondStyle::HaworthFrontWedge => wedge_width.get() / 2.0,
+        // A wavy bond starts and ends on its carrier axis. Its endpoint clip
+        // needs only the round-cap radius there; the later lateral amplitude
+        // belongs to complete-plan collision admission, not label clearance.
+        BondStyle::Wavy => stroke_width.get() / 2.0,
+        BondStyle::HaworthFrontStroke => wedge_width.get() / 2.0,
+        BondStyle::SolidWedge | BondStyle::HaworthFrontWedge => 0.0,
+        BondStyle::HashedWedge => stroke_width.get() / 2.0,
         _ => stroke_width.get() / 2.0,
+    };
+    let transverse_half_width = match style {
+        BondStyle::SolidWedge | BondStyle::HashedWedge | BondStyle::HaworthFrontWedge => {
+            wedge_width.get() / 2.0
+        }
+        _ => 0.0,
     };
     let axial_overhang = match style {
         // q1 pads its emitted centerline 0.35w toward each label after the
-        // shared axis has been clipped. Its round cap is already captured by
-        // the transverse radius, while this distinct fact reserves the pad.
-        BondStyle::HaworthFrontStroke => wedge_width.get() * 0.35,
+        // shared axis has been clipped. Rasterized round caps and the final
+        // path shape need a half-width axial reserve in addition to their
+        // transverse radius; smaller reserve visibly crowds endpoint glyphs.
+        BondStyle::HaworthFrontStroke => wedge_width.get() / 2.0,
+        // The filled Haworth-front wedge carries its wide base one quarter
+        // width past the clipped endpoint. Its rounded closing curve also
+        // occupies the terminal half-width in the actual Qt path, so reserve
+        // the complete half-width axially rather than clipping to the ideal
+        // polygon's extension alone.
+        BondStyle::HaworthFrontWedge => wedge_width.get() / 2.0,
         _ => 0.0,
     };
-    if transverse_radius.is_finite()
-        && transverse_radius >= 0.0
+    if endpoint_radius.is_finite()
+        && endpoint_radius >= 0.0
+        && transverse_half_width.is_finite()
+        && transverse_half_width >= 0.0
         && axial_overhang.is_finite()
         && axial_overhang >= 0.0
     {
         Ok(BondInkFootprint {
-            transverse_radius,
+            endpoint_radius,
+            transverse_half_width,
             axial_overhang,
         })
     } else {
@@ -654,17 +845,21 @@ fn final_ink_footprint(
     }
 }
 
-fn inflate_glyph_bounds(bounds: GlyphBounds, amount: f64) -> Result<GlyphBounds, RenderIssueKind> {
-    if !amount.is_finite() || amount < 0.0 {
+fn inflate_glyph_bounds(
+    bounds: GlyphBounds,
+    x_amount: f64,
+    y_amount: f64,
+) -> Result<GlyphBounds, RenderIssueKind> {
+    if !x_amount.is_finite() || x_amount < 0.0 || !y_amount.is_finite() || y_amount < 0.0 {
         return Err(RenderIssueKind::UnrenderableTarget {
             reason: "bond ink clearance is not representable".to_owned(),
         });
     }
     GlyphBounds::new(
-        bounds.min_x() - amount,
-        bounds.min_y() - amount,
-        bounds.max_x() + amount,
-        bounds.max_y() + amount,
+        bounds.min_x() - x_amount,
+        bounds.min_y() - y_amount,
+        bounds.max_x() + x_amount,
+        bounds.max_y() + y_amount,
     )
     .map_err(|error| RenderIssueKind::UnrenderableTarget {
         reason: format!("inflated atom-label ink is not representable: {error}"),

@@ -97,7 +97,6 @@ impl AtomLabelAttachmentGeometry {
             core_element_ink_center: RenderPoint::new(0.0, 0.0)?,
         })
     }
-
     /// Return the exact structural-element ink rectangle.
     #[must_use]
     pub(crate) const fn core_element_ink_bounds(self) -> GlyphBounds {
@@ -118,6 +117,7 @@ pub(crate) struct LaidOutAtomLabel {
     bounds: GlyphBounds,
     attachment: AtomLabelAttachmentGeometry,
     core_element_run_index: u32,
+    non_core_run_ink_bounds: Vec<GlyphBounds>,
 }
 
 impl LaidOutAtomLabel {
@@ -127,6 +127,7 @@ impl LaidOutAtomLabel {
         bounds: GlyphBounds,
         attachment: AtomLabelAttachmentGeometry,
         core_element_run_index: u32,
+        non_core_run_ink_bounds: Vec<GlyphBounds>,
     ) -> Result<Self, RenderError> {
         if runs.is_empty() {
             return Err(RenderError::InvalidRequest(
@@ -168,6 +169,7 @@ impl LaidOutAtomLabel {
             bounds,
             attachment,
             core_element_run_index,
+            non_core_run_ink_bounds,
         })
     }
     /// Return drawing runs with fully explicit local geometry.
@@ -193,6 +195,12 @@ impl LaidOutAtomLabel {
     #[must_use]
     pub(crate) const fn core_element_run_index(&self) -> u32 {
         self.core_element_run_index
+    }
+
+    /// Return exact non-core Telex run ink rectangles for directional clipping.
+    #[must_use]
+    pub(crate) fn non_core_run_ink_bounds(&self) -> &[GlyphBounds] {
+        &self.non_core_run_ink_bounds
     }
 }
 
@@ -285,7 +293,6 @@ mod tests {
             .expect("forged bounds are geometrically nonempty");
         assert!(AtomLabelAttachmentGeometry::new(forged).is_err());
     }
-
     #[test]
     fn durable_label_rejects_reordered_baseline_run_as_the_structural_core() {
         let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");

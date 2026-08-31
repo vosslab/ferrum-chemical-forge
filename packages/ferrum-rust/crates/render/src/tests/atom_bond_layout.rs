@@ -104,14 +104,12 @@ fn styled_single_bonds_share_normal_label_clipping_before_explicit_lowering() {
 
     let dashes = rendered_bond_lines(BondStyle::Dashed);
     assert!(dashes.len() > 1);
-    let first_margin = dashes.first().expect("first dash").start().x() - normal.start().x();
-    let final_margin = normal.end().x() - dashes.last().expect("last dash").end().x();
-    assert!(first_margin > 0.0);
-    assert!((first_margin - final_margin).abs() < 1.0e-12);
+    assert_eq!(dashes.first().expect("first dash").start(), normal.start());
+    assert_eq!(dashes.last().expect("last dash").end(), normal.end());
     for pair in dashes.windows(2) {
         assert!(pair[0].end().x() < pair[1].start().x());
         assert!((pair[0].end().x() - pair[0].start().x() - 3.0).abs() < 1.0e-12);
-        assert!((pair[1].start().x() - pair[0].end().x() - 3.0).abs() < 1.0e-12);
+        assert!(pair[1].start().x() - pair[0].end().x() >= 3.0);
     }
 
     let wave = rendered_bond_operations(BondStyle::Wavy);
@@ -125,8 +123,8 @@ fn styled_single_bonds_share_normal_label_clipping_before_explicit_lowering() {
     let ScenePathCommandV3::CubicTo { end, .. } = path.commands().last().expect("wave end") else {
         panic!("wave ends in cubic")
     };
-    assert!(start.x() > normal.start().x());
-    assert!(end.x() < normal.end().x());
+    assert_eq!(start, normal.start());
+    assert_eq!(*end, normal.end());
 }
 
 fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<RenderOp> {
@@ -586,7 +584,8 @@ fn haworth_front_forms_emit_source_owned_paths_with_cap_layer_and_direction() {
             &atom_bond_font(),
         )
         .expect("label layout")
-        .bounds();
+        .attachment()
+        .core_element_ink_bounds();
     let gap = 1.25;
     let q = rendered_haworth_front_batch(BondStyle::HaworthFrontStroke, false);
     let w = rendered_haworth_front_batch(BondStyle::HaworthFrontWedge, false);
@@ -857,9 +856,11 @@ fn over_cap_styled_bonds_become_target_issues_without_partial_batches() {
 }
 
 #[test]
-fn atom_bond_builder_rejects_touching_or_overlapping_label_clips_in_every_direction() {
+fn atom_bond_builder_rejects_touching_or_overlapping_core_glyph_clips_in_every_direction() {
     let metrics = atom_bond_metrics();
-    for (suffix, x, y) in [("horizontal", 16.5, 0.0), ("diagonal", 6.0, 6.0)] {
+    // Decorations must not determine attachment, so these deliberately place
+    // the *structural core glyphs* too close for a visible bond segment.
+    for (suffix, x, y) in [("horizontal", 8.0, 0.0), ("diagonal", 4.0, 4.0)] {
         let first = atom_target(0x11, &format!("a1-{suffix}"), 1, 0.0, 0.0);
         let second = atom_target(0x12, &format!("a2-{suffix}"), 3, x, y);
         let bond = BondRenderTarget::new(

@@ -4,6 +4,134 @@ Earlier history is in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), continuing
 [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md), [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md),
 and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
+## 2026-08-30
+
+### Developer Tests and Notes
+
+- Added `GLYPH_BOND_MEASUREMENT.md`, a maintainer guide to the independent
+  raster evidence boundary, developer lanes, output artifacts, measurement
+  statistics, thresholds, and the distinction between a green instrument and
+  current red bond-glyph alignment.
+- Completed an independent audit of the V2 glyph-bond measurement stack.
+  Unified the Rust/Qt raster-manifest basename, made the Rust gate locate the
+  repository from Git, documented its final-footprint field, removed an unused
+  duplicate single-manifest CLI, and clarified the automated glyph-acceptance
+  boundary in architecture, usage, and historical V1 records. The audit also
+  leaves the public Rust test-support boundary, duplicated Qt aggregate
+  receipt, and permanent-test lane violations as explicit follow-up work.
+- Added the V2 glyph-bond measurement evidence report. It records the closed
+  pixel-only boundary, native and real-Qt evidence lanes, current strict-red
+  receipts, rejected calibration experiments, and commands that distinguish a
+  healthy measurement stack from unresolved renderer quality.
+- Recorded and removed two one-time Rust-private outline-clip experiments. A
+  raw convex core support increased the native strict receipt from 15 to 18,
+  while a support dilated by the current rectangle-clearance kernel reached 10
+  native findings but rebuilt Qt replay regressed to 17 findings, including
+  full-label collisions. The unchanged renderer restores the 15-finding native
+  receipt and the frozen Qt expected-red baseline; future calibration requires
+  both lanes to improve together.
+- Refined Rust-private endpoint footprints to distinguish round endpoint ink
+  from wedge-only transverse width and explicit axial extensions. The policy
+  now clips against the actual directional final footprint rather than using a
+  symmetric wedge-radius approximation. The native 12-fixture strict receipt
+  improved from 22 to 15 findings, eliminating all opposed solid/hashed-wedge
+  topology and connection findings without changing the independent policy.
+  The Haworth-front terminal reserve restores the installed Qt contract and
+  reduces Qt replay to eight detached endpoints and seven label overlaps; its
+  higher-resolution native raster now reaches the same fifteen strict findings.
+  The measurement metric
+  gives each final parallel lane equal weight, avoiding antialiasing-area drift
+  in a geometrically centered double/triple attachment.
+- Added `measure_stack.batch`, the common aggregate receipt for real raster
+  evidence. The Rust developer lane now publishes an atomic `run_summary.json`
+  alongside every per-fixture JSON report, overlay, and contact sheet, with
+  stable failure categories derived only from the independent pixel policy.
+  Its current 12-fixture receipt reports 26 strict-policy violations across
+  seven renderable fixtures; this is evidence of remaining Rust geometry work,
+  not a relaxed baseline.
+- Refreshed the frozen Qt expected-red receipt after the parallel-lane
+  correction. The actual consumer now reports two centerline misses and seven
+  target-overlap findings instead of nine target-overlap findings; all other
+  categories are unchanged and strict acceptance remains red.
+- Recorded the font-ownership transition rule: Atkinson Hyperlegible is the
+  preferred written-UI/prose candidate and mononoki remains fixed-width-only.
+  A molecule-label change requires a versioned Rust font resource and fresh
+  native/Qt measurement evidence; Qt may not replace the face locally.
+- Corrected the independent wedge-topology predicate to sample terminal widths
+  inside the final footprint rather than at fixed fractions of the atom-center
+  span. Reversed or label-clipped wedges now measure as connected expanding
+  footprints. This removes one false native violation (25 remain) and one
+  obsolete Qt expected-red category without changing renderer geometry or the
+  endpoint collision/gap policy.
+- Corrected double/triple lowering to compute one axial endpoint clip across
+  the complete parallel-lane footprint before emitting symmetric lanes. This
+  removes an invalid per-lane ownership split; regenerated native evidence
+  still has seven strict-red fixtures, so style-specific geometry remains open.
+- Added the active glyph-bond visual-quality goal. It defines the owned
+  `measure_stack/` artifact, noncircular pixel evidence, normalized target/gap/
+  axis/collision thresholds, style and scene predicates, normal-scale Qt QImage
+  capture, a versioned visual fixture corpus, deterministic diagnostics, and
+  the Rust correction loop. During that intermediate V1 stage, its raster
+  script remained a narrow regression lane rather than visual acceptance.
+- Finalized the V2 goal record against the implemented hash-bound layer
+  contract, 12 authoritative renderable fixtures, seven named synthetic
+  negatives, deterministic pixel oracle, and actual offscreen Qt consumer
+  capture. It now distinguishes the passing expected-red baseline from the
+  still-failing strict Rust/Qt geometry gate, removes manual-review language,
+  and reserves green acceptance for a later Rust geometry correction.
+- Made the unpublished measurement lane V2-only. Removed the V1 manifest
+  reader, loose legacy metric policy, generic Haworth alias, Qt fixture fallback,
+  and compatibility launcher; renamed the Rust developer entry point to
+  `devel/run_measure_stack_rust.sh`. Product render DTO contracts remain
+  unchanged.
+- Split the closed V2 capture contract into explicit `presentation` and
+  `raw_final_ink` evaluation semantics. Native 8x diagnostic rasters retain
+  all pixel-integrity, connection, and chemistry geometry checks without being
+  misclassified by a user-viewport framing policy; actual Qt captures remain
+  strict fixed-profile presentation evidence. The normal-bond clip policy is
+  now also the sole font-clearance owner in test construction, eliminating the
+  remaining test-only duplicate factor.
+- Calibrated normal, bold, dashed, and wavy endpoint behavior against native
+  final-ink evidence. Dashed lowering now serves both clipped endpoints,
+  wavy clipping reserves its endpoint cap rather than its later amplitude, and
+  V2 measurement distinguishes endpoint attachment from intentional mid-bond
+  topology. Parallel double/triple lane-envelope admission remains an active
+  Rust geometry item; a shared-zero-offset experiment was rejected because it
+  regressed measured decorated diagonal endpoints.
+- Refreshed the Qt expected-red category receipt after rebuilding the staged
+  local runtime from the Rust clip/style corrections. The baseline remains
+  strictly capture-healthy and red for unresolved geometry; only observed
+  category counts changed, not the V2 metric policy or fixture catalog.
+- Replaced the one-size Qt presentation viewport with graph-authored fixed
+  profiles for the 12 visual fixtures. Strict Qt evidence no longer reports
+  systematic occupancy or under-framing failures; its remaining reports are
+  endpoint/style/capture facts tied to individual Rust render owners.
+- Classified measurement verification by execution model. Removed the brittle
+  hardcoded profile-count assertion and CLI smoke test from the permanent
+  pytest lane; native, Qt, and CLI rebuild evidence remains in explicit
+  developer gates.
+- Corrected the Rust-private atom endpoint contract so final bond clipping uses
+  the exact structural core glyph rather than the full decorated label
+  rectangle. Full-label rectangles remain complete-plan collision evidence.
+  The regenerated native V2 corpus improved from nine red renderable fixtures
+  to seven without relaxing measurement thresholds; parallel lanes and
+  stereochemical/Haworth endpoints remain open style-specific work.
+- Rebuilt the staged local runtime and refreshed the observed Qt expected-red
+  baseline after the core-glyph and directional-decoration corrections. The
+  consumer baseline now records eleven detached endpoints, one missing endpoint
+  connection, one orphaned core, one style-topology failure, and nine
+  target-overlap failures; strict visual acceptance remains red.
+- Removed the slow synthetic-runner artifact rebuild from permanent pytest.
+  That check exercised real CLI publication, 19 fixture manifests, images, and
+  contact sheets, so it remains an explicit developer-oracle action instead of
+  violating the repository's fast deterministic pytest lane.
+- Refined the Rust-private atom-label clipping model to retain exact Telex
+  bounds for each non-core run. Bond endpoints now attach to the structural
+  glyph and clip around only decorations that actually lie on their approach
+  ray, rather than treating the decorated label's aggregate rectangle as ink.
+  The bromine decorated-label representative remains green; isotope and
+  phosphorus collisions remain visible strict-red geometry evidence.
+
 ## 2026-08-29
 
 ### Developer Tests and Notes

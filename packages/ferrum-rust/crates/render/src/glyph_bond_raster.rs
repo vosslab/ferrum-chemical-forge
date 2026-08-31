@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use ttf_parser::Face;
 
@@ -22,13 +23,13 @@ use crate::{
     RenderPaintV3, RenderPoint, RenderTarget, RenderViewportV1,
 };
 
-/// Fixed diagnostic resolution in device pixels per Ferrum scene unit.
 pub(crate) const GLYPH_BOND_RASTER_SCALE: u32 = 8;
+
+pub const RUST_FINAL_INK_CAPTURE_PROFILE_ID: &str = "rust_final_ink_8x_400_square_v1";
 
 const MAX_RASTER_PIXELS: u64 = 64 * 1024 * 1024;
 
-/// Fixture-owned graph identity for one emitted bond-footprint layer.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct GlyphBondRasterBondIdentity {
     bond_id: String,
     start_atom: String,
@@ -36,9 +37,56 @@ pub struct GlyphBondRasterBondIdentity {
     style: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GlyphBondRasterFixtureIdentity {
+    fixture_id: String,
+    fixture_cdml_sha256: String,
+    expected_relations: Vec<GlyphBondRasterRelation>,
+    negative_cases: Vec<GlyphBondRasterRelation>,
+}
+
+impl GlyphBondRasterFixtureIdentity {
+    pub fn from_cdml(
+        fixture_id: impl Into<String>,
+        fixture_cdml: &str,
+        expected_relations: Vec<GlyphBondRasterRelation>,
+        negative_cases: Vec<GlyphBondRasterRelation>,
+    ) -> Self {
+        Self {
+            fixture_id: fixture_id.into(),
+            fixture_cdml_sha256: sha256_hex(fixture_cdml.as_bytes()),
+            expected_relations,
+            negative_cases,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GlyphBondRasterRelation {
+    relation: String,
+    subject_id: String,
+    object_id: String,
+    expectation: String,
+}
+
+impl GlyphBondRasterRelation {
+    pub fn new(
+        relation: impl Into<String>,
+        subject_id: impl Into<String>,
+        object_id: impl Into<String>,
+        expectation: impl Into<String>,
+    ) -> Self {
+        Self {
+            relation: relation.into(),
+            subject_id: subject_id.into(),
+            object_id: object_id.into(),
+            expectation: expectation.into(),
+        }
+    }
+}
+
 impl GlyphBondRasterBondIdentity {
     /// Construct one closed fixture graph bond identity.
-    #[must_use]
     pub fn new(
         bond_id: impl Into<String>,
         start_atom: impl Into<String>,
@@ -54,44 +102,53 @@ impl GlyphBondRasterBondIdentity {
     }
 }
 
-/// Complete source-identity map between one V4 plan and its fixture graph.
-///
-/// Keys are emitted durable render target IDs. Values are fixture atom or bond
-/// IDs. The rasterizer verifies that each plan target appears exactly once
-/// before it replaces opaque target IDs in its developer handoff.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GlyphBondRasterSourceMapping {
     atom_target_sources: BTreeMap<String, String>,
+    atom_source_elements: BTreeMap<String, String>,
     bond_target_sources: BTreeMap<String, String>,
 }
 
 impl GlyphBondRasterSourceMapping {
-    /// Construct a closed source mapping for the exact accepted V4 plan.
-    #[must_use]
     pub fn new(
         atom_target_sources: BTreeMap<String, String>,
         bond_target_sources: BTreeMap<String, String>,
     ) -> Self {
+        let atom_source_elements = atom_target_sources
+            .values()
+            .map(|source_id| (source_id.clone(), "unknown".to_owned()))
+            .collect();
         Self {
             atom_target_sources,
+            atom_source_elements,
+            bond_target_sources,
+        }
+    }
+
+    #[must_use]
+    pub fn with_atom_elements(
+        atom_target_sources: BTreeMap<String, String>,
+        atom_source_elements: BTreeMap<String, String>,
+        bond_target_sources: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            atom_target_sources,
+            atom_source_elements,
             bond_target_sources,
         }
     }
 }
 
-/// Owned PNG-ready pixels for one transparent diagnostic layer.
 #[derive(Debug)]
 pub struct GlyphBondRasterLayer {
     pixmap: tiny_skia::Pixmap,
 }
 
 impl GlyphBondRasterLayer {
-    #[must_use]
     pub fn width(&self) -> u32 {
         self.pixmap.width()
     }
 
-    #[must_use]
     pub fn height(&self) -> u32 {
         self.pixmap.height()
     }
@@ -136,11 +193,12 @@ fn encode_png(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, GlyphBondRasterErro
     Ok(output)
 }
 
-/// Complete raster handoff for one accepted molecule plan.
 #[derive(Debug)]
 pub struct GlyphBondRasterLayers {
     normal_composite: GlyphBondRasterLayer,
     target_core_glyph_masks: BTreeMap<String, GlyphBondRasterLayer>,
+    full_label_masks: BTreeMap<String, GlyphBondRasterLayer>,
+    target_core_glyph_elements: BTreeMap<String, String>,
     final_bond_footprints: BTreeMap<String, GlyphBondRasterLayer>,
 }
 
@@ -156,17 +214,19 @@ impl GlyphBondRasterLayers {
     }
 
     #[must_use]
+    pub fn full_label_masks(&self) -> &BTreeMap<String, GlyphBondRasterLayer> {
+        &self.full_label_masks
+    }
+
+    #[must_use]
     pub fn final_bond_footprints(&self) -> &BTreeMap<String, GlyphBondRasterLayer> {
         &self.final_bond_footprints
     }
 
-    /// Write opaque manifest-relative layer names for the Python measurement lane.
-    ///
-    /// The supplied graph identities come from the CDML fixture, not emitted
-    /// attachment axes, clipped endpoints, bounds, or clearance values.
-    pub fn write_measurement_manifest(
+    pub fn write_measurement_manifest_v2(
         &self,
         directory: &Path,
+        fixture: &GlyphBondRasterFixtureIdentity,
         bonds: &[GlyphBondRasterBondIdentity],
     ) -> Result<PathBuf, GlyphBondRasterError> {
         fs::create_dir_all(directory).map_err(|source| GlyphBondRasterError::CreateDirectory {
@@ -178,28 +238,83 @@ impl GlyphBondRasterLayers {
             &self.final_bond_footprints,
             bonds,
         )?;
-
-        let composite_name = "normal_composite.png".to_owned();
-        self.normal_composite
-            .write_png(&directory.join(&composite_name))?;
-        let core_names = write_layers(
-            directory,
-            "target_core_glyph",
+        validate_atom_elements(
             &self.target_core_glyph_masks,
+            &self.target_core_glyph_elements,
         )?;
-        let footprint_names = write_layers(
-            directory,
-            "final_bond_footprint",
-            &self.final_bond_footprints,
-        )?;
-        let manifest = MeasurementManifest {
-            schema: "ferrum-glyph-bond-raster-layers-v1",
-            normal_composite: composite_name,
-            target_core_glyph_masks: core_names,
-            final_bond_footprints: footprint_names,
-            bonds,
+        if self.full_label_masks.len() != self.target_core_glyph_masks.len()
+            || self
+                .target_core_glyph_masks
+                .keys()
+                .any(|atom_id| !self.full_label_masks.contains_key(atom_id))
+        {
+            return Err(GlyphBondRasterError::IncompleteFullLabelMasks);
+        }
+        if self.normal_composite.width() != 3200 || self.normal_composite.height() != 3200 {
+            return Err(GlyphBondRasterError::UnexpectedCaptureProfileExtent {
+                width: self.normal_composite.width(),
+                height: self.normal_composite.height(),
+            });
+        }
+
+        let composite_name = "final_composite.png".to_owned();
+        let composite = write_hashed_layer(directory, &composite_name, &self.normal_composite)?;
+        let core_names = write_layers(directory, "core_glyph", &self.target_core_glyph_masks)?;
+        let full_label_names = write_layers(directory, "full_label", &self.full_label_masks)?;
+        let footprint_names = write_layers(directory, "final_bond", &self.final_bond_footprints)?;
+        let atoms = core_names
+            .into_iter()
+            .map(|(atom_id, core_glyph_layer)| MeasurementAtomV2 {
+                atom_id: atom_id.clone(),
+                core_glyph_layer,
+                full_label_layer: full_label_names
+                    .get(&atom_id)
+                    .expect("validated full-label layer")
+                    .clone(),
+            })
+            .collect();
+        let bond_layers = bonds
+            .iter()
+            .map(|bond| MeasurementBondV2 {
+                bond_id: bond.bond_id.clone(),
+                final_bond_layer: footprint_names
+                    .get(&bond.bond_id)
+                    .expect("validated bond footprint")
+                    .clone(),
+            })
+            .collect();
+        let graph = MeasurementGraphV2 {
+            atoms: self
+                .target_core_glyph_elements
+                .iter()
+                .map(|(atom_id, element)| MeasurementGraphAtomV2 {
+                    atom_id: atom_id.clone(),
+                    element: element.clone(),
+                })
+                .collect(),
+            bonds: bonds
+                .iter()
+                .map(|identity| MeasurementGraphBondV2 {
+                    bond_id: identity.bond_id.clone(),
+                    start_atom_id: identity.start_atom.clone(),
+                    end_atom_id: identity.end_atom.clone(),
+                    style: identity.style.clone(),
+                })
+                .collect(),
         };
-        let path = directory.join("glyph_bond_raster_manifest.json");
+        let manifest = MeasurementManifestV2 {
+            schema: "ferrum-measure-stack-raster-layers-v2",
+            fixture_id: fixture.fixture_id.clone(),
+            fixture_cdml_sha256: fixture.fixture_cdml_sha256.clone(),
+            capture_profile: MeasurementCaptureProfileV2::rust_final_ink(),
+            graph,
+            composite_layer: composite,
+            atom_layers: atoms,
+            bond_layers,
+            expected_relations: fixture.expected_relations.clone(),
+            negative_cases: fixture.negative_cases.clone(),
+        };
+        let path = directory.join("raster_layer_manifest_v2.json");
         let document = serde_json::to_vec_pretty(&manifest)
             .map_err(|error| GlyphBondRasterError::Manifest(error.to_string()))?;
         fs::write(&path, document).map_err(|source| GlyphBondRasterError::Write {
@@ -210,7 +325,6 @@ impl GlyphBondRasterLayers {
     }
 }
 
-/// Typed test/developer failures before a diagnostic handoff is published.
 #[derive(Debug, Error)]
 pub enum GlyphBondRasterError {
     #[error("8x glyph-bond raster dimensions are not representable")]
@@ -245,6 +359,14 @@ pub enum GlyphBondRasterError {
     MissingBondFootprint { bond_id: String },
     #[error("fixture bond identity {bond_id} references absent core glyph {atom_id}")]
     MissingCoreGlyph { bond_id: String, atom_id: String },
+    #[error("target core glyph {atom_id} has no fixture element identity")]
+    MissingCoreElement { atom_id: String },
+    #[error("fixture element identity {atom_id} has no target core glyph")]
+    StaleCoreElement { atom_id: String },
+    #[error("each target core glyph needs one matching full-label mask")]
+    IncompleteFullLabelMasks,
+    #[error("V2 Rust final-ink capture must use the fixed 3200x3200 profile, got {width}x{height}")]
+    UnexpectedCaptureProfileExtent { width: u32, height: u32 },
     #[error("rendered bond footprint {bond_id} has no fixture graph identity")]
     UnidentifiedBondFootprint { bond_id: String },
     #[error("rendered {kind} target {target_id} has no fixture source identity")]
@@ -264,7 +386,6 @@ pub enum GlyphBondRasterError {
     },
 }
 
-/// Rasterize one accepted V4 molecule plan through Ferrum's ordinary lowering.
 pub fn rasterize_glyph_bond_layers(
     plan: &MoleculeRenderPlanV4,
     viewport: RenderViewportV1,
@@ -278,6 +399,7 @@ pub fn rasterize_glyph_bond_layers(
     let face = Face::parse(environment.descriptor(FerrumFontId::TelexRegular).data(), 0)
         .map_err(|error| GlyphBondRasterError::Font(error.to_string()))?;
     let mut target_core_glyph_masks = BTreeMap::new();
+    let mut full_label_masks = BTreeMap::new();
     let mut final_bond_footprints = BTreeMap::new();
     for batch in plan.batches() {
         let target_id = target_identity(batch.target());
@@ -304,6 +426,11 @@ pub fn rasterize_glyph_bond_layers(
                         target_id: target_id.clone(),
                     })?;
                 target_core_glyph_masks.insert(source_id.clone(), core.into_layer());
+                let mut full_label = RasterSink::new(viewport)?;
+                full_label.begin_page(viewport)?;
+                lower_molecule_batch(batch, &face, &mut full_label).map_err(map_draw_error)?;
+                full_label.finish_page()?;
+                full_label_masks.insert(source_id.clone(), full_label.into_layer());
             }
             RenderBatchContentV4::Bond(_) => {
                 let mut footprint = RasterSink::new(viewport)?;
@@ -337,6 +464,8 @@ pub fn rasterize_glyph_bond_layers(
     Ok(GlyphBondRasterLayers {
         normal_composite: normal.into_layer(),
         target_core_glyph_masks,
+        full_label_masks,
+        target_core_glyph_elements: source_mapping.atom_source_elements.clone(),
         final_bond_footprints,
     })
 }
@@ -407,16 +536,32 @@ fn map_draw_error(error: DrawStreamErrorV1<GlyphBondRasterError>) -> GlyphBondRa
     }
 }
 
+fn write_hashed_layer(
+    directory: &Path,
+    name: &str,
+    layer: &GlyphBondRasterLayer,
+) -> Result<MeasurementLayerV2, GlyphBondRasterError> {
+    let path = directory.join(name);
+    layer.write_png(&path)?;
+    let bytes = fs::read(&path).map_err(|source| GlyphBondRasterError::Write { path, source })?;
+    Ok(MeasurementLayerV2 {
+        relative_path: name.to_owned(),
+        sha256: sha256_hex(&bytes),
+    })
+}
+
 fn write_layers(
     directory: &Path,
     prefix: &str,
     layers: &BTreeMap<String, GlyphBondRasterLayer>,
-) -> Result<BTreeMap<String, String>, GlyphBondRasterError> {
+) -> Result<BTreeMap<String, MeasurementLayerV2>, GlyphBondRasterError> {
     let mut names = BTreeMap::new();
     for (index, (identity, layer)) in layers.iter().enumerate() {
         let name = format!("{prefix}_{index:04}.png");
-        layer.write_png(&directory.join(&name))?;
-        names.insert(identity.clone(), name);
+        names.insert(
+            identity.clone(),
+            write_hashed_layer(directory, &name, layer)?,
+        );
     }
     Ok(names)
 }
@@ -458,37 +603,117 @@ fn validate_bond_identities(
     Ok(())
 }
 
-#[derive(Serialize)]
-#[serde(deny_unknown_fields)]
-struct MeasurementManifest<'a> {
-    schema: &'static str,
-    normal_composite: String,
-    target_core_glyph_masks: BTreeMap<String, String>,
-    final_bond_footprints: BTreeMap<String, String>,
-    bonds: &'a [GlyphBondRasterBondIdentity],
+fn validate_atom_elements(
+    core_masks: &BTreeMap<String, GlyphBondRasterLayer>,
+    elements: &BTreeMap<String, String>,
+) -> Result<(), GlyphBondRasterError> {
+    for atom_id in core_masks.keys() {
+        if !elements.contains_key(atom_id) {
+            return Err(GlyphBondRasterError::MissingCoreElement {
+                atom_id: atom_id.clone(),
+            });
+        }
+    }
+    if let Some(atom_id) = elements
+        .keys()
+        .find(|atom_id| !core_masks.contains_key(*atom_id))
+    {
+        return Err(GlyphBondRasterError::StaleCoreElement {
+            atom_id: atom_id.clone(),
+        });
+    }
+    Ok(())
 }
 
-impl Serialize for GlyphBondRasterBondIdentity {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        #[serde(deny_unknown_fields)]
-        struct Wire<'a> {
-            bond_id: &'a str,
-            start_atom: &'a str,
-            end_atom: &'a str,
-            style: &'a str,
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementManifestV2 {
+    schema: &'static str,
+    fixture_id: String,
+    fixture_cdml_sha256: String,
+    capture_profile: MeasurementCaptureProfileV2,
+    graph: MeasurementGraphV2,
+    composite_layer: MeasurementLayerV2,
+    atom_layers: Vec<MeasurementAtomV2>,
+    bond_layers: Vec<MeasurementBondV2>,
+    expected_relations: Vec<GlyphBondRasterRelation>,
+    negative_cases: Vec<GlyphBondRasterRelation>,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementCaptureProfileV2 {
+    profile_id: &'static str,
+    source_rect: [f64; 4],
+    pixel_width: u32,
+    pixel_height: u32,
+    device_pixel_ratio: f64,
+    scene_evaluation: &'static str,
+}
+
+impl MeasurementCaptureProfileV2 {
+    const fn rust_final_ink() -> Self {
+        Self {
+            profile_id: RUST_FINAL_INK_CAPTURE_PROFILE_ID,
+            source_rect: [-200.0, -200.0, 400.0, 400.0],
+            pixel_width: 3200,
+            pixel_height: 3200,
+            device_pixel_ratio: 8.0,
+            scene_evaluation: "raw_final_ink",
         }
-        Wire {
-            bond_id: &self.bond_id,
-            start_atom: &self.start_atom,
-            end_atom: &self.end_atom,
-            style: &self.style,
-        }
-        .serialize(serializer)
     }
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementGraphV2 {
+    atoms: Vec<MeasurementGraphAtomV2>,
+    bonds: Vec<MeasurementGraphBondV2>,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementGraphAtomV2 {
+    atom_id: String,
+    element: String,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementGraphBondV2 {
+    bond_id: String,
+    start_atom_id: String,
+    end_atom_id: String,
+    style: String,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementAtomV2 {
+    atom_id: String,
+    core_glyph_layer: MeasurementLayerV2,
+    full_label_layer: MeasurementLayerV2,
+}
+
+#[derive(Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementBondV2 {
+    bond_id: String,
+    final_bond_layer: MeasurementLayerV2,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(deny_unknown_fields)]
+struct MeasurementLayerV2 {
+    relative_path: String,
+    sha256: String,
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 struct RasterSink {
@@ -760,7 +985,6 @@ fn f32_value(value: f64) -> Result<f32, GlyphBondRasterError> {
         Err(GlyphBondRasterError::NonFiniteGeometry)
     }
 }
-
 fn mask_paint() -> tiny_skia::Paint<'static> {
     tiny_skia::Paint {
         shader: tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(0, 0, 0, 255)),
@@ -770,188 +994,6 @@ fn mask_paint() -> tiny_skia::Paint<'static> {
         force_hq_pipeline: false,
     }
 }
-
 #[cfg(test)]
-mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    use ferrum_core::{Identifier, RecordId, RecordKind};
-    use ferrum_document_projection::DocumentObjectIdV1;
-
-    use super::*;
-    use crate::atom_bond::build_atom_bond_plan;
-    use crate::render_target::RenderPlanEntryContextV1;
-    use crate::{
-        AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomRenderTarget,
-        BondInkClearance, BondRenderTarget, BondStyle, FontFace, PositiveFinite, RenderProvenance,
-        RenderRevision, Rgb24, TargetVisibility, VerifiedTelexGlyphMetrics,
-    };
-
-    fn point(x: f64, y: f64) -> RenderPoint {
-        RenderPoint::new(x, y).expect("test point is finite")
-    }
-
-    fn size(value: f64) -> PositiveFinite {
-        PositiveFinite::new(value).expect("test extent is positive")
-    }
-
-    fn paint(value: &str) -> RenderPaintV3 {
-        RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test paint is valid"))
-    }
-
-    fn record_id(kind: RecordKind, value: &str) -> RecordId {
-        RecordId::new(
-            kind,
-            Identifier::new(value).expect("test identifier is valid"),
-        )
-        .expect("test record ID")
-    }
-
-    fn context(
-        entropy: u8,
-        kind: RecordKind,
-        source: &str,
-        paint_order: u32,
-    ) -> RenderPlanEntryContextV1 {
-        RenderPlanEntryContextV1::new(
-            RenderTarget::document_object(DocumentObjectIdV1::from_entropy_bytes([entropy; 16])),
-            record_id(kind, source),
-            paint_order,
-            None,
-        )
-    }
-
-    fn metrics() -> VerifiedTelexGlyphMetrics {
-        let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-        VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
-    }
-
-    fn two_label_plan() -> MoleculeRenderPlanV4 {
-        let first = AtomRenderTarget::new(
-            context(0x11, RecordKind::Atom, "raster-left", 1),
-            point(0.0, 0.0),
-            AtomLabelFacts::new("N", Some(15), 1, 1).expect("atom facts"),
-            TargetVisibility::Visible,
-        )
-        .expect("atom target");
-        let second = AtomRenderTarget::new(
-            context(0x12, RecordKind::Atom, "raster-right", 3),
-            point(40.0, 0.0),
-            AtomLabelFacts::new("O", None, -1, 0).expect("atom facts"),
-            TargetVisibility::Visible,
-        )
-        .expect("atom target");
-        let bond = BondRenderTarget::new(
-            context(0x13, RecordKind::Bond, "raster-bond", 2),
-            record_id(RecordKind::Atom, "raster-left"),
-            record_id(RecordKind::Atom, "raster-right"),
-            BondStyle::Double,
-            TargetVisibility::Visible,
-        )
-        .expect("bond target");
-        let request = AtomBondRenderRequest::new(
-            RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x35; 32]),
-            vec![first, second],
-            vec![bond],
-            AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000"))
-                .with_label_mask(paint("ffffff")),
-            size(1.0),
-            size(8.0),
-            BondInkClearance::new(size(1.25)),
-            paint("112233"),
-        )
-        .expect("render request");
-        build_atom_bond_plan(&request, &metrics()).expect("accepted plan")
-    }
-
-    fn viewport() -> RenderViewportV1 {
-        RenderViewportV1::new(-20.0, -20.0, 80.0, 40.0).expect("test viewport")
-    }
-
-    fn source_mapping(plan: &MoleculeRenderPlanV4) -> GlyphBondRasterSourceMapping {
-        let mut atoms = BTreeMap::new();
-        let mut bonds = BTreeMap::new();
-        for batch in plan.batches() {
-            match batch.content() {
-                RenderBatchContentV4::Atom(_) => {
-                    let source = format!("atom_{}", atoms.len());
-                    atoms.insert(target_identity(batch.target()), source);
-                }
-                RenderBatchContentV4::Bond(_) => {
-                    let source = format!("bond_{}", bonds.len());
-                    bonds.insert(target_identity(batch.target()), source);
-                }
-                RenderBatchContentV4::CompactGroup(_) => {}
-            }
-        }
-        GlyphBondRasterSourceMapping::new(atoms, bonds)
-    }
-
-    #[test]
-    fn raster_sink_emits_8x_composite_core_and_final_bond_layers() {
-        let plan = two_label_plan();
-        let layers = rasterize_glyph_bond_layers(&plan, viewport(), &source_mapping(&plan))
-            .expect("raster layers");
-
-        assert_eq!(layers.normal_composite().width(), 640);
-        assert_eq!(layers.normal_composite().height(), 320);
-        assert!(layers.normal_composite().nontransparent_pixels() > 0);
-        assert_eq!(layers.target_core_glyph_masks().len(), 2);
-        assert_eq!(layers.final_bond_footprints().len(), 1);
-        assert!(
-            layers
-                .target_core_glyph_masks()
-                .values()
-                .all(|mask| mask.nontransparent_pixels() > 0)
-        );
-        assert!(
-            layers
-                .final_bond_footprints()
-                .values()
-                .all(|mask| mask.nontransparent_pixels() > 0)
-        );
-    }
-
-    #[test]
-    fn raster_sink_writes_the_closed_python_measurement_manifest() {
-        let plan = two_label_plan();
-        let layers = rasterize_glyph_bond_layers(&plan, viewport(), &source_mapping(&plan))
-            .expect("raster layers");
-        let atom_ids: Vec<_> = layers.target_core_glyph_masks().keys().cloned().collect();
-        let bond_id = layers
-            .final_bond_footprints()
-            .keys()
-            .next()
-            .expect("one bond layer")
-            .clone();
-        let directory = std::env::temp_dir().join(format!(
-            "ferrum_glyph_bond_raster_{}_{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("system time after epoch")
-                .as_nanos(),
-        ));
-        let manifest = layers
-            .write_measurement_manifest(
-                &directory,
-                &[GlyphBondRasterBondIdentity::new(
-                    bond_id,
-                    atom_ids[0].clone(),
-                    atom_ids[1].clone(),
-                    "double",
-                )],
-            )
-            .expect("measurement manifest");
-        let value: serde_json::Value =
-            serde_json::from_slice(&fs::read(&manifest).expect("manifest reads"))
-                .expect("manifest is JSON");
-        assert_eq!(
-            value["schema"],
-            serde_json::Value::String("ferrum-glyph-bond-raster-layers-v1".to_owned())
-        );
-        assert!(directory.join("normal_composite.png").is_file());
-        assert_eq!(value.as_object().expect("manifest object").len(), 5);
-        fs::remove_dir_all(directory).expect("test artifacts remove");
-    }
-}
+#[path = "glyph_bond_raster_tests.rs"]
+mod tests;

@@ -38,13 +38,14 @@ pub(crate) fn bold(axis: LineOp) -> Result<Vec<RenderOp>, RenderIssueKind> {
     Ok(vec![RenderOp::Line(line)])
 }
 
-/// Expand an already clipped axis into explicit, endpoint-symmetric dash lines.
+/// Expand an already clipped axis into explicit endpoint-serving dash lines.
 ///
-/// Each emitted dash is exactly `3w` long and each interior gap exactly `3w`.
-/// Any unused visible axis is split into equal endpoint margins.  A visible
-/// axis shorter than one exact dash, or one that would require more than the
-/// bounded number of dash primitives, is unrenderable rather than silently
-/// changing that contract.
+/// Each emitted dash is exactly `3w` long. The first and last dashes meet the
+/// already clipped axis, so both labels retain a visible chemical attachment.
+/// Interior gaps are equal and no smaller than `3w`; any remainder is assigned
+/// between dashes rather than converted into label-facing blank margins. A
+/// visible axis that cannot carry a serving dash at both endpoints, or that
+/// would require more than the bounded number of primitives, is unrenderable.
 pub(crate) fn dashed(axis: LineOp) -> Result<Vec<RenderOp>, RenderIssueKind> {
     let frame = AxisFrame::from_line(&axis)?;
     let width = axis.width().get();
@@ -54,21 +55,25 @@ pub(crate) fn dashed(axis: LineOp) -> Result<Vec<RenderOp>, RenderIssueKind> {
     if !dash.is_finite() || !gap.is_finite() || !period.is_finite() {
         return Err(unrenderable("dashed bond period is not finite"));
     }
-    if frame.length < dash {
+    if frame.length < 2.0 * dash + gap {
         return Err(unrenderable(
-            "dashed bond visible axis is shorter than one exact 3w dash",
+            "dashed bond visible axis cannot serve both endpoints with exact 3w dashes",
         ));
     }
     let requested_count = ((frame.length + gap) / period).floor();
     let count = bounded_primitive_count(requested_count, "dashed bond")?;
-    let used_length = count as f64 * dash + (count - 1) as f64 * gap;
-    let endpoint_margin = (frame.length - used_length) / 2.0;
-    if !endpoint_margin.is_finite() || endpoint_margin < 0.0 {
+    if count < 2 {
+        return Err(unrenderable(
+            "dashed bond visible axis cannot serve both endpoints with exact 3w dashes",
+        ));
+    }
+    let interior_gap = (frame.length - count as f64 * dash) / (count - 1) as f64;
+    if !interior_gap.is_finite() || interior_gap < gap {
         return Err(unrenderable("dashed bond placement is not finite"));
     }
     let mut operations = Vec::with_capacity(count);
     for index in 0..count {
-        let start_distance = endpoint_margin + index as f64 * period;
+        let start_distance = index as f64 * (dash + interior_gap);
         let end_distance = start_distance + dash;
         let line = LineOp::new(
             frame.point_at(start_distance)?,
@@ -248,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn dashes_preserve_the_exact_period_and_symmetric_nonzero_margins() {
+    fn dashes_serve_both_clipped_endpoints_and_distribute_remainder_interiorly() {
         let operations = dashed(axis(24.0)).expect("dash geometry");
         let lines = operations
             .iter()
@@ -258,22 +263,22 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(lines.len(), 4);
-        assert_near(lines.first().expect("first").start().x(), 1.5);
-        assert_near(lines.last().expect("last").end().x(), 22.5);
+        assert_near(lines.first().expect("first").start().x(), 0.0);
+        assert_near(lines.last().expect("last").end().x(), 24.0);
         for pair in lines.windows(2) {
             assert!(pair[0].end().x() < pair[1].start().x());
             assert!(pair[0].z() < pair[1].z());
             assert_near(pair[0].end().x() - pair[0].start().x(), 3.0);
-            assert_near(pair[1].start().x() - pair[0].end().x(), 3.0);
+            assert_near(pair[1].start().x() - pair[0].end().x(), 4.0);
         }
     }
 
     #[test]
     fn short_dash_axis_is_refused_instead_of_shrinking_the_exact_dash() {
         assert!(matches!(
-            dashed(axis(2.0)),
+            dashed(axis(8.999_999_999_999)),
             Err(RenderIssueKind::UnrenderableTarget { reason })
-                if reason.contains("shorter than one exact 3w dash")
+                if reason.contains("cannot serve both endpoints")
         ));
     }
 
@@ -366,7 +371,6 @@ mod tests {
 
     #[test]
     fn styled_geometry_obeys_exact_count_thresholds_and_refuses_cap_breaches() {
-        assert_eq!(dashed(axis(8.999_999_999_999)).expect("dashes").len(), 1);
         assert_eq!(dashed(axis(9.0)).expect("dashes").len(), 2);
         let exact_target = dashed(axis(24.0)).expect("dashes");
         let exact_target = exact_target
@@ -377,11 +381,11 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(exact_target.len(), 4);
-        assert_near(exact_target[0].start().x(), 1.5);
-        assert_near(24.0 - exact_target.last().expect("last").end().x(), 1.5);
+        assert_near(exact_target[0].start().x(), 0.0);
+        assert_near(exact_target.last().expect("last").end().x(), 24.0);
         for pair in exact_target.windows(2) {
             assert_near(pair[0].end().x() - pair[0].start().x(), 3.0);
-            assert_near(pair[1].start().x() - pair[0].end().x(), 3.0);
+            assert_near(pair[1].start().x() - pair[0].end().x(), 4.0);
         }
         assert_eq!(wave_command_count(17.999_999_999_999), 5);
         assert_eq!(wave_command_count(18.0), 9);

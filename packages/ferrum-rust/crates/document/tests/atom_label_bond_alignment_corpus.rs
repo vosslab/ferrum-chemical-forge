@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 use ferrum_document::DocumentSession;
 use ferrum_render::glyph_bond_raster::{
-    GlyphBondRasterBondIdentity, GlyphBondRasterSourceMapping, rasterize_glyph_bond_layers,
+    GlyphBondRasterBondIdentity, GlyphBondRasterFixtureIdentity, GlyphBondRasterRelation,
+    GlyphBondRasterSourceMapping, rasterize_glyph_bond_layers,
 };
 use ferrum_render::{
     AtomRenderBatchV1, BondRenderOpV1, RenderBatchContentV4, RenderDisplayLayerV1, RenderIssueKind,
@@ -16,12 +17,55 @@ use serde::Deserialize;
 const CORPUS: &str = include_str!("fixtures/atom_label_bond_alignment_cases_v1.json");
 const SCHEMA: &str = "atom_label_bond_alignment_cases_v1";
 const THIRD_LABEL_REFUSAL: &str = "bond final ink intersects a non-endpoint atom label";
+const V2_FIXTURE_CATALOG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../measure_stack/fixtures/v2/fixtures.json"
+));
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AlignmentCorpus {
     schema: String,
     cases: Vec<AlignmentCase>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2FixtureCatalog {
+    fixtures: Vec<V2Fixture>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2Fixture {
+    fixture_id: String,
+    fixture_cdml: String,
+    graph: V2FixtureGraph,
+    expected_relations: Vec<V2FixtureRelation>,
+    negative_cases: Vec<V2FixtureRelation>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2FixtureGraph {
+    atoms: Vec<V2FixtureAtom>,
+    bonds: Vec<V2FixtureBond>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2FixtureAtom {
+    atom_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2FixtureBond {
+    bond_id: String,
+    style: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct V2FixtureRelation {
+    relation: String,
+    subject_id: String,
+    object_id: String,
+    expectation: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -257,6 +301,20 @@ fn glyph_bond_raster_mapping(
             )
         })
         .collect::<BTreeMap<_, _>>();
+    let elements = molecule
+        .atoms()
+        .iter()
+        .map(|atom| {
+            (
+                atom.source_id()
+                    .expect("fixture atom has source ID")
+                    .to_owned(),
+                atom.element()
+                    .expect("fixture atom has an element")
+                    .to_owned(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let bonds = molecule
         .bonds()
         .iter()
@@ -269,35 +327,136 @@ fn glyph_bond_raster_mapping(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    GlyphBondRasterSourceMapping::new(atoms, bonds)
+    GlyphBondRasterSourceMapping::with_atom_elements(atoms, elements, bonds)
 }
 
 fn glyph_bond_raster_bonds(
     observation: &ferrum_document::DocumentRenderObservationV2,
+    case: &AlignmentCase,
 ) -> Vec<GlyphBondRasterBondIdentity> {
     observation.document().projection().molecules()[0]
         .bonds()
         .iter()
         .map(|bond| {
+            let source_id = bond.source_id().expect("fixture bond has source ID");
+            let expected = case
+                .bonds
+                .iter()
+                .find(|expected| expected.source_id == source_id)
+                .expect("fixture bond has a measurement style declaration");
             GlyphBondRasterBondIdentity::new(
-                bond.source_id().expect("fixture bond has source ID"),
+                source_id,
                 bond.start()
                     .source_id()
                     .expect("fixture atom has source ID"),
                 bond.end().source_id().expect("fixture atom has source ID"),
-                bond.source_type().expect("fixture bond has source type"),
+                measurement_style(expected),
             )
         })
         .collect()
 }
 
+fn measurement_style(expected: &ExpectedBond) -> &'static str {
+    match expected.operation_shape {
+        ExpectedBondOperationShape::SingleLine => match expected.style.as_str() {
+            "b1" => "bold",
+            _ => "normal",
+        },
+        ExpectedBondOperationShape::ParallelDoubleLines => "double",
+        ExpectedBondOperationShape::ParallelTripleLines => "triple",
+        ExpectedBondOperationShape::SolidWedgePath => "solid-wedge",
+        ExpectedBondOperationShape::HashedWedgeLines => "hashed-wedge",
+        ExpectedBondOperationShape::DashedLines => "dashed",
+        ExpectedBondOperationShape::WavyPath => "wavy",
+        ExpectedBondOperationShape::HaworthFrontPath => match expected.display_layer {
+            ExpectedDisplayLayer::HaworthFrontStroke => "haworth-front-stroke",
+            ExpectedDisplayLayer::HaworthFrontWedge => "haworth-front-wedge",
+            ExpectedDisplayLayer::Ordinary => "haworth-front",
+        },
+    }
+}
+
+fn v2_fixture_identity(case: &AlignmentCase) -> GlyphBondRasterFixtureIdentity {
+    let catalog: V2FixtureCatalog =
+        serde_json::from_str(V2_FIXTURE_CATALOG).expect("V2 fixture catalog has valid JSON");
+    let fixture = catalog
+        .fixtures
+        .iter()
+        .find(|fixture| fixture.fixture_id == case.name)
+        .unwrap_or_else(|| panic!("{} has a V2 fixture catalog row", case.name));
+    assert_eq!(
+        fixture.fixture_cdml, case.cdml,
+        "{} V2 fixture CDML is the authoritative corpus CDML",
+        case.name
+    );
+    let fixture_atoms = fixture
+        .graph
+        .atoms
+        .iter()
+        .map(|atom| atom.atom_id.as_str())
+        .collect::<HashSet<_>>();
+    let case_atoms = case
+        .atoms
+        .iter()
+        .map(|atom| atom.source_id.as_str())
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        fixture_atoms, case_atoms,
+        "{} V2 graph names every source atom",
+        case.name
+    );
+    let fixture_bonds = fixture
+        .graph
+        .bonds
+        .iter()
+        .map(|bond| (bond.bond_id.as_str(), bond.style.as_str()))
+        .collect::<HashSet<_>>();
+    let case_bonds = case
+        .bonds
+        .iter()
+        .map(|bond| (bond.source_id.as_str(), measurement_style(bond)))
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        fixture_bonds, case_bonds,
+        "{} V2 graph names every source bond/style",
+        case.name
+    );
+    let relation = |row: &V2FixtureRelation| {
+        GlyphBondRasterRelation::new(
+            &row.relation,
+            &row.subject_id,
+            &row.object_id,
+            &row.expectation,
+        )
+    };
+    GlyphBondRasterFixtureIdentity::from_cdml(
+        &fixture.fixture_id,
+        &fixture.fixture_cdml,
+        fixture.expected_relations.iter().map(relation).collect(),
+        fixture.negative_cases.iter().map(relation).collect(),
+    )
+}
+
 #[test]
 #[ignore = "developer raster handoff; run through the glyph-bond measurement gate"]
 fn glyph_bond_raster_handoff_emits_every_renderable_alignment_case() {
-    let output_root = glyph_bond_raster_output_root();
+    let output_root = glyph_bond_raster_output_root().join("v2");
     std::fs::create_dir_all(&output_root).expect("ignored developer output root is creatable");
+    let requested_cases = std::env::var("FERRUM_GLYPH_BOND_RASTER_CASE")
+        .ok()
+        .map(|case_name| {
+            case_name
+                .split(',')
+                .map(str::to_owned)
+                .collect::<HashSet<_>>()
+        })
+        .unwrap_or_default();
+    let mut emitted_cases = 0;
     for case in corpus().cases {
         if case.expected_outcome != ExpectedOutcome::Render {
+            continue;
+        }
+        if !requested_cases.is_empty() && !requested_cases.contains(&case.name) {
             continue;
         }
         let session = DocumentSession::load(&case.cdml)
@@ -313,7 +472,11 @@ fn glyph_bond_raster_handoff_emits_every_renderable_alignment_case() {
             .unwrap_or_else(|error| panic!("{} rasterizes: {error}", case.name));
         let case_directory = output_root.join(&case.name);
         let manifest = layers
-            .write_measurement_manifest(&case_directory, &glyph_bond_raster_bonds(&observation))
+            .write_measurement_manifest_v2(
+                &case_directory,
+                &v2_fixture_identity(&case),
+                &glyph_bond_raster_bonds(&observation, &case),
+            )
             .unwrap_or_else(|error| panic!("{} emits handoff: {error}", case.name));
         assert!(manifest.is_file(), "{} emits raster manifest", case.name);
         assert!(
@@ -321,7 +484,12 @@ fn glyph_bond_raster_handoff_emits_every_renderable_alignment_case() {
             "{} emits composite ink",
             case.name
         );
+        emitted_cases += 1;
     }
+    assert!(
+        emitted_cases > 0,
+        "developer raster selection emits a renderable case"
+    );
 }
 
 #[test]

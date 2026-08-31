@@ -628,7 +628,14 @@ impl RenderBatchV4 {
         let full = InkBoundsV1::from_glyph_bounds(
             metrics.v1_atom_label_ink_bounds(&normalized, core_index as usize)?,
         );
-        let bond_ink_clearance = PositiveFinite::new(font.size().get() * 0.125)?;
+        let bond_ink_clearance =
+            crate::atom_bond::bond::NormalBondEndpointClipPolicy::label_clearance_for_font(
+                font.size(),
+            )
+            .map_err(|issue| {
+                RenderError::InvalidRequest(format!("test atom label clearance failed: {issue:?}"))
+            })?
+            .gap();
         AtomLabelRenderV1::new(mask, normalized, core_index, bond_ink_clearance, full, core)
     }
 

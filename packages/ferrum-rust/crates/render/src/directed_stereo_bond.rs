@@ -81,22 +81,28 @@ fn build_hashed_wedge_operations(
         });
     }
     let requested = (length / spacing).ceil();
+    // One small tip-support hatch and one full-width base hatch are emitted in
+    // addition to these interior hatches, so preserve the declared primitive
+    // ceiling for the complete final footprint.
     let count = if requested.is_finite() && requested > 0.0 {
-        requested.min(MAX_HASHED_WEDGE_STROKES_V1 as f64) as usize
+        requested.min((MAX_HASHED_WEDGE_STROKES_V1 - 1) as f64) as usize
     } else {
         return Err(RenderIssueKind::UnrenderableTarget {
             reason: "hashed wedge stroke density is not representable".to_owned(),
         });
     };
-    let mut operations = Vec::with_capacity(count);
-    for index in 1..=count {
-        let fraction = index as f64 / (count + 1) as f64;
+    let tip_support = (stroke_width.get() / length).min(0.20);
+    let mut fractions = Vec::with_capacity(count + 1);
+    fractions.push(tip_support);
+    fractions.extend((1..=count).map(|index| index as f64 / count as f64));
+    let mut operations = Vec::with_capacity(fractions.len());
+    for (index, fraction) in fractions.into_iter().enumerate() {
         let center = RenderPoint::new(tip.x() + dx * fraction, tip.y() + dy * fraction)
             .map_err(render_point_issue)?;
         let half_width = wedge_width.get() * fraction / 2.0;
         let start = render_offset(center, perpendicular, half_width)?;
         let end = render_offset(center, perpendicular, -half_width)?;
-        let z = 10
+        let z = 11
             + i32::try_from(index).map_err(|_| RenderIssueKind::UnrenderableTarget {
                 reason: "hashed wedge operation ordering is exhausted".to_owned(),
             })?;

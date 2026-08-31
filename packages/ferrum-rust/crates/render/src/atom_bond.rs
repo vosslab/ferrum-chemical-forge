@@ -219,7 +219,7 @@ pub(crate) fn build_atom_bond_plan(
             |kind| Ok(Err(kind)),
         );
         match outcome? {
-            Ok((batch, bounds, attachment)) => {
+            Ok((batch, bounds, attachment, non_core_run_ink_bounds)) => {
                 let center = attachment.core_element_ink_center();
                 let position = render_point_to_geometry(atom.position)?
                     .offset(
@@ -240,7 +240,15 @@ pub(crate) fn build_atom_bond_plan(
                     RenderEndpointGeometry {
                         kind: RecordKind::Atom,
                         position,
-                        clipping: EndpointClipGeometry::AtomLabelInk(bounds),
+                        // Bonds attach to the structural element glyph, never
+                        // to an isotope, hydrogen, or charge decoration.  The
+                        // complete full-label envelope remains below for
+                        // third-label admission; it is deliberately not used
+                        // as this endpoint's optical attachment target.
+                        clipping: EndpointClipGeometry::AtomLabelInk {
+                            core: attachment.core_element_ink_bounds(),
+                            non_core_run_ink_bounds,
+                        },
                     },
                 );
                 let envelope = LabelInkEnvelope::from_local_bounds(
@@ -347,7 +355,14 @@ struct RenderEndpointGeometry {
 
 #[derive(Clone, Debug)]
 enum EndpointClipGeometry {
-    AtomLabelInk(GlyphBounds),
+    /// Exact visible ink of the structural element run at an atom endpoint.
+    ///
+    /// Decorations contribute to the separate full-label collision envelope,
+    /// but do not move the bond attachment away from its target glyph.
+    AtomLabelInk {
+        core: GlyphBounds,
+        non_core_run_ink_bounds: Vec<GlyphBounds>,
+    },
     FixedConnectionPoint {
         label_ink_exclusion: crate::compact_group::CompactGroupLabelInkEnvelope,
     },

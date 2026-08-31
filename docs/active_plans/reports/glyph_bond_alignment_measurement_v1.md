@@ -1,14 +1,27 @@
 # Glyph-bond alignment measurement V1
 
-## Ownership and purpose
+## Superseded record
+
+This is historical implementation evidence for the removed V1 measurement
+contract. Ferrum is pre-production, so the V1 reader, its reduced layer model,
+its relaxed policy, and its compatibility entry points were deliberately
+removed instead of preserved. Do not run the commands recorded below or use
+the measurements as current acceptance evidence.
+
+The current V2-only owner record is
+`docs/active_plans/active/glyph_bond_visual_quality_goal.md`. It requires
+hash-bound CDML and graph identity, fixed capture profiles, complete full-label
+masks, distinct Haworth forms, and the current strict policy.
+
+## Historical ownership and purpose
 
 Rust remains the owner of glyph placement, clipping, clearance, and refusal.
 Qt remains a consumer of the closed V4/V2 render contract. This developer lane
-does not alter either boundary. It applies an OASA/BKChem-inspired *method*—
-measure the rendered result independently—using Ferrum-owned code and never
+does not alter either boundary. It applies an OASA/BKChem-inspired *method*-
+measure the rendered result independently-using Ferrum-owned code and never
 imports their runtime or source.
 
-`devel/glyph_bond_alignment_measurement.py` accepts only a closed raster-layer
+The former `devel/glyph_bond_alignment_measurement.py` accepted a closed raster-layer
 manifest, its normal composite, target core-glyph masks, final bond-footprint
 masks, and fixture graph identity. The library does not accept `GlyphBounds`,
 `BondAttachmentAxisV1`, clearance, or emitted clipped endpoint values.
@@ -23,20 +36,16 @@ the implementation and documentation controls for ASVS V1.5.2, V2.1.1,
 V2.1.2, V2.1.3, V2.2.1, and V2.2.3. The tool checks both JSON and diagnostic
 image writes and refuses an unwritable output target.
 
-## Current developer interface
+## Retired developer interface
 
-The manifest schema is `ferrum-glyph-bond-raster-layers-v1`. It names adjacent
+The retired manifest schema was `ferrum-glyph-bond-raster-layers-v1`. It named adjacent
 PNG layers and identifies every bond by its fixture source ID, endpoint atom
 IDs, and style. The tool writes `alignment_metrics.json`, four annotated layer
 overlays, and a four-panel per-case contact sheet under ignored
 `output_glyph_alignment/`:
 
-```text
-source source_me.sh && python3 devel/glyph_bond_alignment_measurement.py --self-test
-source source_me.sh && python3 devel/glyph_bond_alignment_measurement.py \
-  --manifest path/to/raster_layers.json --fail-on-violation
-./devel/run_glyph_bond_alignment_measurement.sh
-```
+The V1 commands and launcher were removed; the V2 developer entry points are
+recorded in the active goal document.
 
 Its per-endpoint metrics are inferred from actual target-core and final-bond
 pixels: centerline/perpendicular error, signed target-label gap, and
@@ -44,11 +53,11 @@ non-endpoint label collision. Per-bond metrics record final-footprint presence
 and composite coverage. Threshold failure is an explicit developer/E2E gate,
 not a pytest lane.
 
-## Deterministic acceptance boundary
+## Historical deterministic acceptance boundary
 
-The present commit establishes the locally implemented measurement library and
+The historical commit established the locally implemented measurement library and
 its deterministic pixel/metric snapshot plus the first 12-renderable-case
-baseline. The observed maximum attachment-locus error is 20.602 pixels at the
+baseline. The observed maximum attachment-locus error was 20.602 pixels at the
 fixed 8x raster scale, on an approved asymmetric double-bond footprint; the
 supported wavy footprint reaches 4.772 pixels. These values are intentional
 style footprint offsets in final ink, not label collisions or unapproved
@@ -63,8 +72,8 @@ third-label collision detection, and readable annotated outputs. This is the
 automated acceptance gate for the measurement implementation; it replaces the
 former manual-review dependency.
 
-The default-off Rust test support now emits 8x layers for every renderable
-semantic-corpus row. The ignored Rust harness deliberately writes those
+The default-off Rust test support emitted 8x layers for every renderable
+semantic-corpus row. The ignored Rust harness deliberately wrote those
 developer artifacts only when explicitly invoked, so ordinary fast tests do not
 mutate the checkout. Threshold changes require the same corpus's recorded
 before/after JSON and the deterministic oracle to pass. The gate rejects

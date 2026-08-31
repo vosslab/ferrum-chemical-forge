@@ -10,6 +10,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 ## Direct preferences
 
+- Atkinson HyperLegible https://www.brailleinstitute.org/freefont/ is my
+  favorite for written text and mononoki font https://madmalik.github.io/mononoki/ for monospace
 - Keep it simple: avoid speculative machinery when a focused durable design will do.
 - Plans must continue to completion while I am unavailable; do not make my interaction a gate.
 - Run `all_test.sh` periodically to detect repository drift and overly complicated permanent

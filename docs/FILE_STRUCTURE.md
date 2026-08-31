@@ -7,6 +7,7 @@ ferrum-chemical-forge/
 +- AGENTS.md                    Required repository workflow
 +- README.md                    Project entry point and current scope
 +- docs/                        Durable reference docs and active planning records
++- measure_stack/               Developer-only independent raster measurement library
 +- packages/
 |  +- ferrum-rust/              Ferrum-Chem Rust workspace
 |  `- ferrum-chem-qt.app/       Ferrum PySide6 desktop application
@@ -53,6 +54,8 @@ ferrum-chemical-forge/
   subtree includes private final-ink collision admission, and
   [src/verified_telex_glyph_metrics.rs](../packages/ferrum-rust/crates/render/src/verified_telex_glyph_metrics.rs)
   owns exact Telex measurements.
+  Its test-only `src/glyph_bond_raster.rs` sink produces closed V2 raster
+  evidence for the independent `measure_stack/` developer lane.
 - [../packages/ferrum-rust/crates/api/](../packages/ferrum-rust/crates/api/)
   owns CLI/public composition and the source for PyO3 bindings.
   [../packages/ferrum-rust/crates/api-python/](../packages/ferrum-rust/crates/api-python/)

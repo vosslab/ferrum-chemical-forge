@@ -18,7 +18,6 @@ use crate::{
     PresentationTextLayout, PresentationTextOp, PresentationTextSourceRun, RenderError,
     RenderPaintV3, RenderPoint, TextOp, TextRun, TextScript,
 };
-
 /// Exact unhinted Telex extents for one fully specified text run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GlyphRunMetrics {
@@ -29,7 +28,6 @@ pub struct GlyphRunMetrics {
     x_advance: f64,
     y_advance: f64,
 }
-
 /// Return whether an outline-less placement is Telex's exact non-drawing whitespace.
 ///
 /// Presentation layout retains the advance for supported whitespace, but a missing
@@ -49,7 +47,6 @@ pub(crate) fn is_verified_outlineless_whitespace_glyph(
         Some(TelexScalarCapabilityV1::WhitespaceAdvanceOnly)
     ) && face.glyph_index(scalar) == Some(GlyphId(glyph_id))
 }
-
 impl GlyphRunMetrics {
     /// Return the horizontal bearing from the text origin.
     #[must_use]
@@ -82,7 +79,6 @@ impl GlyphRunMetrics {
         self.y_advance
     }
 }
-
 /// Exact unhinted Telex baseline metrics for one font size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FontBaselineMetrics {
@@ -90,7 +86,6 @@ pub struct FontBaselineMetrics {
     descent: f64,
     height: f64,
 }
-
 impl FontBaselineMetrics {
     /// Return the exact ascent above the baseline.
     #[must_use]
@@ -108,7 +103,6 @@ impl FontBaselineMetrics {
         self.height
     }
 }
-
 /// Pure-Rust exact metrics for the verified, unshaped Telex V1 face.
 ///
 /// The verified resource has UPM 1000 and no kerning table.  V1 deliberately
@@ -121,7 +115,6 @@ pub struct VerifiedTelexGlyphMetrics {
     data: Arc<[u8]>,
     units_per_em: f64,
 }
-
 impl VerifiedTelexGlyphMetrics {
     /// Measure exact visible ink for an already-validated V4 text operation.
     pub(crate) fn v1_text_ink_bounds(&self, text: &TextOp) -> Result<GlyphBounds, RenderError> {
@@ -142,7 +135,6 @@ impl VerifiedTelexGlyphMetrics {
             RenderError::InvalidRequest("text operation has no visible Telex ink".to_owned())
         })
     }
-
     /// Measure a label's exact canonical ink envelope.
     ///
     /// The structurally selected core run uses the same symmetric float
@@ -162,7 +154,6 @@ impl VerifiedTelexGlyphMetrics {
             full.max_y().max(core.max_y()),
         )
     }
-
     /// Verify and canonicalize the source-issued structural atom-label run.
     ///
     /// Atom layout places this one run at the negated mathematical center of
@@ -198,7 +189,6 @@ impl VerifiedTelexGlyphMetrics {
         self.v1_run_ink_bounds(text, run)?
             .canonical_centered_at_origin()
     }
-
     fn v1_run_ink_bounds(&self, text: &TextOp, run: &TextRun) -> Result<GlyphBounds, RenderError> {
         self.validate_v1_run(
             run.text(),
@@ -231,7 +221,6 @@ impl VerifiedTelexGlyphMetrics {
             units_per_em,
         })
     }
-
     /// Measure one nonempty Telex run with V1's no-hinting, no-shaping contract.
     pub fn measure_text_run(
         &self,
@@ -249,7 +238,6 @@ impl VerifiedTelexGlyphMetrics {
             y_advance: 0.0,
         })
     }
-
     /// Measure V1 baseline facts from unhinted Telex design metrics.
     pub fn baseline_metrics(
         &self,
@@ -283,7 +271,6 @@ impl VerifiedTelexGlyphMetrics {
             ))
         }
     }
-
     /// Lay out the closed fixed-content plus glyph around an anchor-local origin.
     ///
     /// This is not a general rich-text API. V1 admits only `+` here, uses the
@@ -322,7 +309,6 @@ impl VerifiedTelexGlyphMetrics {
         )?;
         Ok(CenteredTextLayout::new(operation, bounds))
     }
-
     /// Lay out one closed compact-group label around an anchor-local origin.
     ///
     /// The accepted labels are derived solely from the document compact-group
@@ -442,7 +428,6 @@ impl VerifiedTelexGlyphMetrics {
             bounds,
         ))
     }
-
     fn append_presentation_segment(
         &self,
         layout: &mut PresentationLayoutAccumulator,
@@ -484,7 +469,6 @@ impl VerifiedTelexGlyphMetrics {
         }
         Ok(())
     }
-
     /// Return closed V1 Telex scalar placements for a fully specified run.
     pub(crate) fn v1_glyphs_for_run(
         &self,
@@ -494,7 +478,6 @@ impl VerifiedTelexGlyphMetrics {
     ) -> Result<Vec<GlyphPlacement>, RenderError> {
         Ok(self.layout_unshaped_run(text, size, scale)?.glyphs)
     }
-
     /// Verify inbound V1 placements against the exact embedded Telex resource.
     pub(crate) fn validate_v1_run(
         &self,
@@ -517,7 +500,6 @@ impl VerifiedTelexGlyphMetrics {
         }
         Ok(())
     }
-
     fn design_to_scene(
         &self,
         design_units: i64,
@@ -533,7 +515,6 @@ impl VerifiedTelexGlyphMetrics {
             ))
         }
     }
-
     fn face(&self) -> Result<Face<'_>, RenderError> {
         // `new` verifies this immutable embedded byte resource once. Parsing it here
         // keeps the parser borrow tied directly to the retained `Arc` without a
@@ -780,6 +761,7 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
         let mut cursor = -core_center_x - prefix_advance;
         let baseline_y = -core_center_y;
         let mut runs = Vec::with_capacity(pieces.len());
+        let mut non_core_run_ink_bounds = Vec::new();
         let mut ink_bounds: Option<(f64, f64, f64, f64)> = None;
         for (index, ((text, script), layout)) in pieces.into_iter().zip(layouts).enumerate() {
             let scale = if script == TextScript::Baseline {
@@ -793,6 +775,15 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
                 cursor
             };
             let y = script_baseline_y(script, baseline_y, baseline);
+            let run_bounds = GlyphBounds::new(
+                x + layout.min_x,
+                y + layout.min_y,
+                x + layout.max_x,
+                y + layout.max_y,
+            )?;
+            if index != core_element_run_index as usize {
+                non_core_run_ink_bounds.push(run_bounds);
+            }
             ink_bounds = Some(match ink_bounds {
                 Some((min_x, min_y, max_x, max_y)) => (
                     min_x.min(x + layout.min_x),
@@ -839,9 +830,9 @@ impl GlyphMetrics for VerifiedTelexGlyphMetrics {
             bounds,
             AtomLabelAttachmentGeometry::new(core_bounds)?,
             core_element_run_index,
+            non_core_run_ink_bounds,
         )
     }
-
     fn layout_atom_number(
         &self,
         number: u64,

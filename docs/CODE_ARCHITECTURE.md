@@ -170,14 +170,23 @@ shortcut, availability, and action identity.
   label ink, and the target-specific third-label refusal without duplicating a
   fixture table in Python. It is an explicit artifact-dependent E2E lane, not a
   deterministic pytest fixture.
+- `measure_stack/` is a developer-only, independently owned pixel-measurement
+  library. It validates closed raster-layer manifests and writes diagnostic
+  reports without consuming Rust-issued geometry. Rust's test-only raster sink
+  produces native layers; `tests/e2e/e2e_measure_stack_qt.py` captures the Qt
+  consumer. The two developer gates preserve expected-red evidence while Rust
+  geometry is still being corrected; they are not product APIs or a normal
+  pytest lane.
 - `packages/ferrum-chem-qt.app/tests/test_ferrum_render_projection.py`
   retains one small behavioral projection check. Rust crate tests own renderer
   and document invariants; `tests/e2e/e2e_attached_cyclohexane_renderer_admission.py`
   owns the real-window gesture and admission path.
 - [../check_rust.sh](../check_rust.sh), [../build.sh](../build.sh), and
   [../all_test.sh](../all_test.sh) are repository-provided aggregate routes.
-  GUI screenshots and human visual/accessibility review remain separate
-  evidence lanes; passing unit tests does not replace either review.
+  GUI screenshots and release-oriented visual/accessibility review remain
+  separate evidence lanes; passing unit tests does not replace either review.
+  Glyph-bond visual acceptance is instead defined by the automated
+  `measure_stack/` policy and its fixed corpus.
 
 ## Extension points
 
@@ -198,6 +207,7 @@ shortcut, availability, and action identity.
 
 - Full BKChem/OASA feature parity remains an active migration goal; consult the
   parity ledger before presenting a bounded implemented slice as complete.
-- Refresh native-window screenshots and obtain human visual/accessibility
-  acceptance after renderer or Qt visual changes. Those checks are intentionally
-  not reduced to pixel snapshots or unit assertions.
+- Refresh native-window screenshots and obtain release-oriented visual and
+  accessibility evidence after general desktop visual changes. Glyph-bond
+  acceptance is the exception: its fixed corpus and pixel policy are the
+  automated acceptance authority.

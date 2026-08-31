@@ -13,6 +13,13 @@ use ferrum_document_model::is_admitted_atom_symbol_v1;
 
 use super::TargetVisibility;
 
+type BuiltAtomBatch = (
+    RenderBatchV4,
+    GlyphBounds,
+    AtomLabelAttachmentGeometry,
+    Vec<GlyphBounds>,
+);
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomLabelFontProfile {
     face: FontFace,
@@ -293,10 +300,7 @@ pub(super) fn build_atom_batch(
     font: &AtomLabelFontProfile,
     bond_ink_clearance: PositiveFinite,
     metrics: &VerifiedTelexGlyphMetrics,
-) -> Result<
-    Result<(RenderBatchV4, GlyphBounds, AtomLabelAttachmentGeometry), RenderIssueKind>,
-    RenderError,
-> {
+) -> Result<Result<BuiltAtomBatch, RenderIssueKind>, RenderError> {
     let layout = match metrics.layout_atom_label(&atom.label, font) {
         Ok(layout) => layout,
         Err(error) => {
@@ -354,7 +358,12 @@ pub(super) fn build_atom_batch(
         atom.context.clone(),
         AtomRenderBatchV1::new(atom.position, label, decorations)?,
     )?;
-    Ok(Ok((batch, layout.bounds(), layout.attachment())))
+    Ok(Ok((
+        batch,
+        layout.bounds(),
+        layout.attachment(),
+        layout.non_core_run_ink_bounds().to_vec(),
+    )))
 }
 
 fn append_mark_operations(

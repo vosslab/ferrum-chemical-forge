@@ -28,6 +28,32 @@ the same local program:
 source source_me.sh && python3 -m pytest
 ```
 
+## Glyph-bond measurement evidence
+
+`measure_stack/` is a maintainer-quality, independent pixel measurement lane;
+it is not a product command or the normal pytest suite. The Rust producer and
+the real Qt consumer write ignored JSON reports, annotated overlays, and
+contact sheets. The current renderer-quality gates are intentionally red while
+Rust geometry is being corrected; the Qt baseline instead proves that the
+known-red receipt remains stable.
+
+```bash
+devel/run_measure_stack_rust.sh
+./build.sh
+devel/run_measure_stack_qt.sh --baseline
+```
+
+For the closed contract's synthetic pixel-oracle check, run:
+
+```bash
+source source_me.sh && python3 -m measure_stack.runner \
+  --output-dir output_measure_stack_runner --fail-on-violation
+```
+
+The checkout includes a maintainer glyph-bond measurement guide with the layer
+model, statistics, result interpretation, policy, corpus, and current
+strict-red evidence.
+
 ## CLI discovery
 
 ```bash
