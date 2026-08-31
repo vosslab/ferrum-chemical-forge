@@ -437,13 +437,16 @@ def _write_fake_repository(root: Path) -> Path:
 	(repository / "build.sh").chmod(0o755)
 	for caller_entry in ("caller-python-one", "caller-python-two"):
 		(repository / caller_entry).mkdir()
+	# Mirror the production first-build boundary: source_me requires a published
+	# extension, so build.sh must construct and promote its candidate independently.
 	(repository / "source_me.sh").write_text(
+		"[[ -f \"${BASH_SOURCE[0]%/*}/build/runtime/python/ferrum_chem.fake\" ]] || return 1\n"
 		"FERRUM_CALLER_PYTHONPATH=\"${PYTHONPATH-}\"\n"
 		"export PYTHONPATH=\"${BASH_SOURCE[0]%/*}/packages/ferrum-chem-qt.app:"
 		"${BASH_SOURCE[0]%/*}/build/current/runtime/python"
 		"${FERRUM_CALLER_PYTHONPATH:+:${FERRUM_CALLER_PYTHONPATH}}\"\n"
-		"export PYTHONUNBUFFERED=1\nexport PYTHONDONTWRITEBYTECODE=1\n"
-		"export FERRUM_FAKE_SOURCE_ME_READY=1\n", encoding="utf-8"
+		"export PYTHONUNBUFFERED=1\nexport PYTHONDONTWRITEBYTECODE=1\n",
+		encoding="utf-8"
 	)
 	rust_root = repository / "packages/ferrum-rust"
 	engine_lib = rust_root / "engine_lib"
@@ -478,7 +481,6 @@ def _write_fake_repository(root: Path) -> Path:
 		"parser.add_argument('--runtime-root', type=Path, required=True)\nargs = parser.parse_args()\n"
 		"if args.command == 'extension-path': print(args.runtime_root / 'ferrum_chem.fake')\n"
 		"elif args.command == 'validate':\n"
-		"    if os.environ.get('FERRUM_FAKE_SOURCE_ME_READY') != '1': raise SystemExit(2)\n"
 		"    mode = os.environ['FERRUM_FAKE_RECEIPT_MODE']\n"
 		"    is_staging = '/.staging-' in str(args.runtime_root)\n"
 		"    if mode == 'staging-failure' and is_staging: raise SystemExit(1)\n",

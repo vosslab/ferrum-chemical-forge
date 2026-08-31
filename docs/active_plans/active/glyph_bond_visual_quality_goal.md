@@ -11,9 +11,9 @@ issued V4/V2 plan and must not apply visual corrections.
 
 This is a Ferrum-owned implementation of measurement ideas documented in the
 read-only BKChem/OASA provenance records
-[GLYPH_ALIGNMENT_METRICS.md](../../../OTHER_REPOS/bkchem-oasa/docs/GLYPH_ALIGNMENT_METRICS.md)
+[GLYPH_ALIGNMENT_METRICS.md](https://github.com/vosslab/bkchem/blob/main/docs/GLYPH_ALIGNMENT_METRICS.md)
 and
-[GLYPH_ALIGNMENT_TECHNIQUE_SUMMARY.md](../../../OTHER_REPOS/bkchem-oasa/docs/GLYPH_ALIGNMENT_TECHNIQUE_SUMMARY.md).
+[GLYPH_ALIGNMENT_TECHNIQUE_SUMMARY.md](https://github.com/vosslab/bkchem/blob/main/docs/GLYPH_ALIGNMENT_TECHNIQUE_SUMMARY.md).
 Ferrum neither imports nor copies OASA runtime or source.
 
 ## Evidence boundary

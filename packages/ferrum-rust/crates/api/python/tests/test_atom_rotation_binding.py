@@ -11,7 +11,7 @@ import ferrum_chem
 
 SOURCE = (
 	'<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="a" name="C"><point x="0" y="0"/></atom>'
-	'<atom id="b" name="O"><point x="10" y="0" z="3"/></atom>'
+	'<atom id="b" name="O"><point x="40" y="0" z="3"/></atom>'
 	'<bond id="ab" start="a" end="b" type="n1"/></molecule></cdml>'
 )
 FOREIGN_SOURCE = (
@@ -42,9 +42,9 @@ def test_atom_rotation_is_one_revisioned_semantic_operation() -> None:
 	rotated = session.apply_document_operation_v1(0, operation).observation
 	atoms = rotated.projection.molecules[0].atoms
 	assert atoms[1].position.x == pytest.approx(0.0, abs=HALF_AUTHORED_UNIT_POINTS)
-	assert atoms[1].position.y == pytest.approx(10.0, abs=HALF_AUTHORED_UNIT_POINTS)
+	assert atoms[1].position.y == pytest.approx(40.0, abs=HALF_AUTHORED_UNIT_POINTS)
 	assert atoms[1].position.z == 3.0
-	assert session.undo(1).observation.projection.molecules[0].atoms[1].position.x == 10.0
+	assert session.undo(1).observation.projection.molecules[0].atoms[1].position.x == 40.0
 
 
 def test_atom_rotation_factory_and_resolution_fail_without_mutation() -> None:

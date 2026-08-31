@@ -116,8 +116,8 @@ def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> No
     """The frozen kind delegates slot ownership and coordinate work to Rust."""
     source = (
         '<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="root" name="C"><point x="0" y="0"/>'
-        '</atom><atom id="z_first" name="N"><point x="10" y="1" z="3"/></atom>'
-        '<atom id="a_second" name="O"><point x="10" y="2"/></atom>'
+        '</atom><atom id="z_first" name="N"><point x="40" y="1" z="3"/></atom>'
+        '<atom id="a_second" name="O"><point x="40" y="2"/></atom>'
         '<bond id="z_first_bond" start="root" end="z_first" type="n1"/>'
         '<bond id="a_second_bond" start="root" end="a_second" type="n1"/>'
         '</molecule></cdml>'
@@ -127,8 +127,8 @@ def test_normalize_bond_angles_preserves_length_and_authored_child_order() -> No
         ferrum_chem.DocumentGeometryRepairKindV1.normalize_bond_angles, 20.0,
     )
     root, first, second = repaired.projection.molecules[0].atoms
-    first_distance = math.hypot(10.0, 1.0)
-    second_distance = math.hypot(10.0, 2.0)
+    first_distance = math.hypot(40.0, 1.0)
+    second_distance = math.hypot(40.0, 2.0)
     assert (first.position.x, first.position.y) == pytest.approx(
         (first_distance, 0.0), abs=HALF_AUTHORED_UNIT_POINTS,
     )

@@ -211,7 +211,6 @@ build_local_program() {
 	extension_source="${CARGO_TARGET_DIR}/release/libferrum_chem.dylib"
 	[[ -f "${extension_source}" ]] || fail "Cargo did not produce ${extension_source}"
 
-	source "${REPO_ROOT}/source_me.sh"
 	local_extension="$(python3 "${LOCAL_RUNTIME_RECEIPT}" extension-path \
 		--runtime-root "${CANDIDATE_PYTHON_ROOT}")"
 	python3 "${RUST_ROOT}/local_engine_builder.py" \

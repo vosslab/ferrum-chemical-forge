@@ -131,8 +131,10 @@ ferrum-chemical-forge/
   [FILE_FORMATS.md](FILE_FORMATS.md), and [YAML_FILE_FORMAT.md](YAML_FILE_FORMAT.md)
   document public API, desktop, interchange, and packaged-resource contracts.
 - [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) records settled technical
-  decisions; [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md) preserves human owner
-  guidance; [CHANGELOG.md](CHANGELOG.md) records implementation history.
+  decisions; [SECURITY_DECISIONS.md](SECURITY_DECISIONS.md) owns restrictive
+  security-boundary choices; [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md) preserves
+  human owner guidance; [CHANGELOG.md](CHANGELOG.md) records implementation
+  history.
 
 ## Where to add work
 

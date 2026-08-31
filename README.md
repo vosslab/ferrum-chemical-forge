@@ -115,6 +115,8 @@ Start here for the task at hand:
   boundaries and data flow.
 - [docs/FILE_STRUCTURE.md](docs/FILE_STRUCTURE.md) - repository map and where each kind
   of work belongs.
+- [docs/SECURITY_DECISIONS.md](docs/SECURITY_DECISIONS.md) - restrictive parser,
+  dependency, and security-boundary decisions that future changes preserve.
 - [docs/QT_CONTRACT.md](docs/QT_CONTRACT.md) - the desktop integration contract and
   supported interaction boundaries; [docs/YAML_FILE_FORMAT.md](docs/YAML_FILE_FORMAT.md)
   explains the maintained menu, ribbon, and theme resource format.

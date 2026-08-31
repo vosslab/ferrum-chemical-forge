@@ -6,8 +6,27 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
 ## 2026-08-30
 
+### Fixes and Maintenance
+
+- Synchronized shared style guides, tests, and repository support files from the starter template.
+
 ### Developer Tests and Notes
 
+- Fixed the first-build bootstrap cycle in `build.sh`: candidate construction
+  no longer sources `source_me.sh`, which correctly requires an already
+  published local extension. The explicit build-lifecycle E2E now mirrors
+  that refusal and proves a clean checkout can publish its first runtime.
+- Fixed aggregate hygiene failures in the V2 measurement corpus while keeping
+  XML parsing on repository-standard hardened `lxml`; runtime shape checks
+  replace `typing.cast`, runnable measurement scripts carry executable modes,
+  and BKChem provenance links use their tracked upstream GitHub documents.
+- Added `SECURITY_DECISIONS.md` and recorded the Python XML security decision:
+  `lxml.etree.XMLParser` is secure at this boundary because every instance
+  explicitly disables DTD loading, entity resolution, network access, recovery,
+  and huge-tree mode; production CDML parsing remains Rust/`xot` owned.
+- Updated PyO3 geometry-operation success fixtures to use renderer-admissible
+  40-unit drawing geometry, so rotation and angle normalization exercise their
+  semantic boundary without violating document-session overlap admission.
 - Added `GLYPH_BOND_MEASUREMENT.md`, a maintainer guide to the independent
   raster evidence boundary, developer lanes, output artifacts, measurement
   statistics, thresholds, and the distinction between a green instrument and
