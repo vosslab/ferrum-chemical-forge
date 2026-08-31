@@ -51,7 +51,9 @@ ferrum-chemical-forge/
 - [../packages/ferrum-rust/crates/render/](../packages/ferrum-rust/crates/render/)
   owns the V4 molecule-plan grammar and renderer geometry. Its
   [src/atom_bond/](../packages/ferrum-rust/crates/render/src/atom_bond/)
-  subtree includes private final-ink collision admission, and
+  subtree includes private final-ink collision admission;
+  `src/atom_bond/bond/ink.rs` owns endpoint footprints and parallel-terminal
+  optical clearance. The separate
   `src/verified_molecule_label_glyph_metrics.rs` owns exact molecule-label
   measurements, while `src/molecule_label_font_verification.rs` verifies the
   selected physical face against the shared scalar contract. The
@@ -100,6 +102,10 @@ ferrum-chemical-forge/
   [../packages/ferrum-chem-qt.app/ferrum_qt/themes/](../packages/ferrum-chem-qt.app/ferrum_qt/themes/),
   and [../packages/ferrum-chem-qt.app/ferrum_qt/resources/](../packages/ferrum-chem-qt.app/ferrum_qt/resources/)
   own Qt dialogs, display themes, and packaged YAML/image assets.
+- `ferrum_qt/documentation_capture_models.py` and
+  `ferrum_qt/documentation_capture_surfaces.py` own immutable screenshot-scene
+  facts and verified full-window/dialog capture surfaces. The developer driver
+  composes those helpers without becoming a second UI implementation.
 - [../packages/ferrum-chem-qt.app/tests/](../packages/ferrum-chem-qt.app/tests/)
   contains deterministic focused app behavior tests.
 
@@ -109,8 +115,8 @@ ferrum-chemical-forge/
   coverage. [../tests/e2e/](../tests/e2e/) holds artifact-dependent scenarios,
   including the installed Qt consumer of the shared atom-label alignment corpus
   and the real-window attached-cyclohexane admission workflow.
-- [../devel/](../devel/) contains maintainer-only helpers such as changelog and
-  release support.
+- [../devel/](../devel/) contains maintainer-only helpers such as changelog,
+  release, measurement, and the GUI screenshot workflow.
 - [active_plans/](active_plans/) holds in-flight plans, audits, reports,
   decisions, and workstreams. [active_plans/active/FULL_PARITY_RUST_FIRST.md](active_plans/active/FULL_PARITY_RUST_FIRST.md)
   is the current migration/parity authority.

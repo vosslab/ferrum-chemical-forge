@@ -30,9 +30,11 @@ archive navigation continues chronologically back through 2026-08-11.
   final endpoint caps, widths, overhang, and retreat per bond style.
 - Corrected double- and triple-bond optical attachment. Rust now treats the
   complete parallel terminal as one visual unit, derives a bounded group
-  clearance, and gives every lane the same axial clips. The independent pixel
-  policy now requires at least 0.60 measured stroke widths for parallel bonds;
-  actual Qt double-bond clearance increased from 1.92-2.70 to 4.16-4.72 pixels.
+  clearance from its occupied final-ink interval, and gives every lane the
+  same axial clips. The envelope remains stable if future depiction support
+  places parallel lanes asymmetrically. The independent pixel policy now
+  requires at least 0.60 measured stroke widths for parallel bonds; actual Qt
+  double-bond clearance increased from 1.92-2.70 to 4.16-4.72 pixels.
 - Corrected decorated-label layout for a sole rightward bond: explicit hydrogen
   and count ink move left of the structural glyph while isotope and charge keep
   conventional corners. Exact run metrics recompute the full label bounds.
@@ -59,6 +61,10 @@ archive navigation continues chronologically back through 2026-08-11.
   scale, and made direct-bond grid evidence compare snapped candidates with
   their exact canonical points. These tests now prove their owned semantic
   contracts instead of depending on incidental renderer rejection.
+- Split endpoint-footprint and parallel-terminal geometry into the private
+  Rust `atom_bond/bond/ink.rs` owner. Split verified Qt window/dialog capture
+  surfaces from the screenshot workflow driver. Both source owners now remain
+  below the repository's authored-file size limit without compressing logic.
 
 ### Developer Tests and Notes
 
@@ -73,6 +79,12 @@ archive navigation continues chronologically back through 2026-08-11.
   the metric JSONL receipt behind an explicit ignored developer invocation; and
   added a reproducible offline checker for all 92 font binaries, both licenses,
   catalog structure, distribution forms, lengths, and hashes.
+- Completed a follow-up six-pass review of the parallel-terminal and
+  documentation-capture ownership splits. Corrected stale focused-test receipts,
+  named the private `bond/ink.rs` terminal-envelope owner, and clarified its
+  two-endpoint contract. Review found no fragile-test, style, dependency, or
+  legacy-duplication defect. The completed goal awaits its human-owned archive
+  move and the new capture helper awaits tracking before a release receipt.
 - Applied `PYTEST_STYLE.md` to the font rebuild evidence. Removed the permanent
   exact 92-file catalog inventory test; upstream completeness, hashes, license
   equality, width comparison, and real raster publication remain one-time
@@ -97,12 +109,12 @@ archive navigation continues chronologically back through 2026-08-11.
   only the embedded hash-verified font is parsed, and V2 JSON continues to
   enforce closed fields, bounded paths and dimensions, content hashes, and
   related-item consistency (ASVS 1.5.2, 2.1.1-2.1.2, and 2.2.1-2.2.3).
-- Focused gates passed: 16 measurement-stack tests, 165 permanent
+- Focused gates passed: 16 measurement-stack tests, 166 permanent
   `ferrum-render` tests with one ignored developer receipt, the two active Rust
   alignment-corpus semantic checks, the 14-case
   installed Rust-to-Qt alignment E2E, both Qt accepted-zero modes, and a clean
   staged runtime rebuild.
-- `./all_test.sh` exited zero: 8,473 repository-hygiene tests, every registered
+- `./all_test.sh` exited zero: 8,624 repository-hygiene tests, every registered
   CLI/Qt E2E, 283 installed PyO3 tests, and 444 Qt tests passed.
 - `./check_rust.sh` exited zero: workspace formatting, workspace check, strict
   Clippy, the complete Rust workspace test suite, doc tests, and workspace

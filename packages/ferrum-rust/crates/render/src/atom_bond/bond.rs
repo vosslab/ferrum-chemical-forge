@@ -1,5 +1,7 @@
 //! Bond target validation, clipping geometry, and stereo lowering.
 
+mod ink;
+
 use std::collections::HashMap;
 
 use ferrum_core::{RecordId, RecordKind};
@@ -15,6 +17,11 @@ use crate::{
     BondAttachmentAxisV1, BondRenderBatchV1, DoubleBondCarrierMarkDirectionV1,
     DoubleBondCarrierMarkOp, LineOp, PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind,
     RenderOp, RenderPaintV3, RenderTarget,
+};
+
+use ink::{
+    BondInkFootprint, EndpointBondInkFootprints, ParallelBondTerminalEnvelope, final_ink_footprint,
+    final_ink_footprints,
 };
 
 use super::{
@@ -625,33 +632,9 @@ struct BondClipConfiguration {
 
 impl BondClipConfiguration {
     fn for_parallel_lanes(self, lane_offsets: &[f64]) -> Result<Self, RenderIssueKind> {
-        const TERMINAL_WIDTH_GAP_FACTOR: f64 = 0.25;
-        const MAXIMUM_BASE_CLEARANCE_FACTOR: f64 = 1.75;
-
-        let maximum_lane_offset = lane_offsets
-            .iter()
-            .map(|offset| offset.abs())
-            .fold(0.0_f64, f64::max);
-        let endpoint_half_width = [self.footprints.first, self.footprints.second]
-            .into_iter()
-            .map(|footprint| {
-                footprint
-                    .endpoint_radius
-                    .max(footprint.transverse_half_width)
-            })
-            .fold(0.0_f64, f64::max);
-        let terminal_width = 2.0 * (maximum_lane_offset + endpoint_half_width);
-        let base_clearance = self.clearance.gap().get();
-        let width_clearance = terminal_width * TERMINAL_WIDTH_GAP_FACTOR;
-        let maximum_clearance = base_clearance * MAXIMUM_BASE_CLEARANCE_FACTOR;
-        let resolved_clearance = base_clearance.max(width_clearance.min(maximum_clearance));
-        let gap = PositiveFinite::new(resolved_clearance).map_err(|_| {
-            RenderIssueKind::UnrenderableTarget {
-                reason: "parallel-bond optical clearance is not representable".to_owned(),
-            }
-        })?;
+        let terminal = ParallelBondTerminalEnvelope::from_lanes(lane_offsets, self.footprints)?;
         Ok(Self {
-            clearance: BondInkClearance::new(gap),
+            clearance: terminal.optical_clearance(self.clearance)?,
             ..self
         })
     }
@@ -757,54 +740,6 @@ fn endpoint_clip_distance_with_footprint(
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct BondInkFootprint {
-    /// Radius of final ink at the endpoint along every direction (for example,
-    /// a round line cap). This preserves the exact circular normal-bond
-    /// envelope instead of conservatively expanding diagonal labels twice.
-    endpoint_radius: f64,
-    /// Half-width normal to the carrier axis at the endpoint. Butt-capped
-    /// lines and filled wedge bases contribute here, never to axial reach.
-    transverse_half_width: f64,
-    /// Extra final ink extending beyond the clipped endpoint along the carrier axis.
-    axial_overhang: f64,
-    /// Final ink beginning inward from the clipped carrier endpoint.
-    axial_retreat: f64,
-}
-
-impl BondInkFootprint {
-    fn axial_clip_reserve(self, clearance: f64) -> Result<f64, RenderIssueKind> {
-        const ENDPOINT_WIDTH_GAP_FACTOR: f64 = 0.25;
-        let endpoint_width = 2.0 * self.endpoint_radius.max(self.transverse_half_width);
-        let optical_clearance = clearance.max(endpoint_width * ENDPOINT_WIDTH_GAP_FACTOR);
-        let reserve =
-            optical_clearance + self.endpoint_radius + self.axial_overhang - self.axial_retreat;
-        validate_clip_distance(reserve)
-    }
-
-    fn glyph_bounds_inflation(
-        self,
-        clearance: f64,
-        direction: Vector2,
-    ) -> Result<(f64, f64), RenderIssueKind> {
-        let perpendicular = direction.perpendicular_left();
-        let base = clearance + self.endpoint_radius;
-        let x = base
-            + self.axial_overhang * direction.x().abs()
-            + self.transverse_half_width * perpendicular.x().abs();
-        let y = base
-            + self.axial_overhang * direction.y().abs()
-            + self.transverse_half_width * perpendicular.y().abs();
-        if x.is_finite() && x >= 0.0 && y.is_finite() && y >= 0.0 {
-            Ok((x, y))
-        } else {
-            Err(RenderIssueKind::UnrenderableTarget {
-                reason: "bond ink clearance is not representable".to_owned(),
-            })
-        }
-    }
-}
-
 fn glyph_bounds_directional_extent(bounds: GlyphBounds, direction: Vector2) -> f64 {
     let x = if direction.x() >= 0.0 {
         bounds.max_x()
@@ -825,104 +760,6 @@ fn validate_clip_distance(distance: f64) -> Result<f64, RenderIssueKind> {
     } else {
         Err(RenderIssueKind::UnrenderableTarget {
             reason: "bond endpoint clip distance is not representable".to_owned(),
-        })
-    }
-}
-
-/// Directional endpoint envelopes for one final bond footprint.
-#[derive(Clone, Copy)]
-struct EndpointBondInkFootprints {
-    first: BondInkFootprint,
-    second: BondInkFootprint,
-}
-
-impl EndpointBondInkFootprints {
-    const fn symmetric(footprint: BondInkFootprint) -> Self {
-        Self {
-            first: footprint,
-            second: footprint,
-        }
-    }
-}
-
-fn final_ink_footprints(
-    style: &BondStyle,
-    stroke_width: PositiveFinite,
-    wedge_width: PositiveFinite,
-) -> Result<EndpointBondInkFootprints, RenderIssueKind> {
-    let symmetric = final_ink_footprint(style, stroke_width, wedge_width)?;
-    match style {
-        // Directed wedge lowering emits a narrow tip at source endpoint one
-        // and its full width only at endpoint two. Reserving the base radius
-        // at both ends detached the tip from its intended atom character.
-        BondStyle::SolidWedge | BondStyle::HashedWedge | BondStyle::HaworthFrontWedge => {
-            Ok(EndpointBondInkFootprints {
-                first: BondInkFootprint {
-                    endpoint_radius: 0.0,
-                    transverse_half_width: 0.0,
-                    axial_overhang: 0.0,
-                    axial_retreat: if matches!(style, BondStyle::HashedWedge) {
-                        stroke_width.get() / 2.0
-                    } else {
-                        0.0
-                    },
-                },
-                second: symmetric,
-            })
-        }
-        _ => Ok(EndpointBondInkFootprints::symmetric(symmetric)),
-    }
-}
-
-fn final_ink_footprint(
-    style: &BondStyle,
-    stroke_width: PositiveFinite,
-    wedge_width: PositiveFinite,
-) -> Result<BondInkFootprint, RenderIssueKind> {
-    let endpoint_radius = match style {
-        // A wavy bond starts and ends on its carrier axis. Its endpoint clip
-        // needs only the round-cap radius there; the later lateral amplitude
-        // belongs to complete-plan collision admission, not label clearance.
-        BondStyle::Wavy => stroke_width.get() / 2.0,
-        BondStyle::HaworthFrontStroke => wedge_width.get() / 2.0,
-        _ => 0.0,
-    };
-    let transverse_half_width = match style {
-        BondStyle::SolidWedge | BondStyle::HashedWedge | BondStyle::HaworthFrontWedge => {
-            wedge_width.get() / 2.0
-        }
-        BondStyle::Bold => stroke_width.get(),
-        BondStyle::Wavy | BondStyle::HaworthFrontStroke => 0.0,
-        _ => stroke_width.get() / 2.0,
-    };
-    let axial_overhang = match style {
-        // Each terminal hashed-wedge stroke is perpendicular to the carrier,
-        // so its butt-capped stroke extends half a line width along the axis.
-        BondStyle::HashedWedge => stroke_width.get() / 2.0,
-        // q1 pads its emitted centerline 0.35w toward each label; its separate
-        // round-cap radius is represented above.
-        BondStyle::HaworthFrontStroke => wedge_width.get() * 0.35,
-        // The filled Haworth-front wedge extends its base exactly 0.25w past
-        // the already-clipped carrier endpoint.
-        BondStyle::HaworthFrontWedge => wedge_width.get() * 0.25,
-        _ => 0.0,
-    };
-    if endpoint_radius.is_finite()
-        && endpoint_radius >= 0.0
-        && transverse_half_width.is_finite()
-        && transverse_half_width >= 0.0
-        && axial_overhang.is_finite()
-        && axial_overhang >= 0.0
-    {
-        Ok(BondInkFootprint {
-            endpoint_radius,
-            transverse_half_width,
-            axial_overhang,
-            axial_retreat: 0.0,
-        })
-    } else {
-        Err(RenderIssueKind::UnrenderableTarget {
-            reason: "final bond ink footprint is not representable".to_owned(),
         })
     }
 }
@@ -986,56 +823,4 @@ fn negated(vector: Vector2) -> Result<Vector2, RenderIssueKind> {
     Vector2::new(-vector.x(), -vector.y()).map_err(|error| RenderIssueKind::UnrenderableTarget {
         reason: format!("bond direction is not representable: {error}"),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parallel_terminal_envelope_increases_clearance_as_one_visual_unit() {
-        let base = BondInkClearance::new(PositiveFinite::new(0.75).expect("base clearance"));
-        let footprint = final_ink_footprint(
-            &BondStyle::Double,
-            PositiveFinite::new(1.0).expect("stroke width"),
-            PositiveFinite::new(5.0).expect("wedge width"),
-        )
-        .expect("double-bond footprint");
-        let clip = BondClipConfiguration {
-            clearance: base,
-            footprints: EndpointBondInkFootprints::symmetric(footprint),
-            normal_single_policy: None,
-        };
-        let double = clip
-            .for_parallel_lanes(&[-3.0, 3.0])
-            .expect("double-bond clearance")
-            .clearance
-            .gap()
-            .get();
-        let triple = clip
-            .for_parallel_lanes(&[-4.2, 0.0, 4.2])
-            .expect("triple-bond clearance")
-            .clearance
-            .gap()
-            .get();
-        assert!(base.gap().get() < double && double <= triple);
-    }
-
-    #[test]
-    fn wide_endpoint_uses_a_quarter_width_optical_gap_floor() {
-        let wide = BondInkFootprint {
-            endpoint_radius: 2.0,
-            transverse_half_width: 0.0,
-            axial_overhang: 1.4,
-            axial_retreat: 0.0,
-        };
-        let ordinary = BondInkFootprint {
-            endpoint_radius: 0.0,
-            transverse_half_width: 0.4,
-            axial_overhang: 0.0,
-            axial_retreat: 0.0,
-        };
-        assert_eq!(wide.axial_clip_reserve(0.75), Ok(4.4));
-        assert_eq!(ordinary.axial_clip_reserve(0.75), Ok(0.75));
-    }
 }

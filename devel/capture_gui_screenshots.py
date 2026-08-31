@@ -26,6 +26,10 @@ from ferrum_qt.documentation_capture_models import (
 	CDXML as _CDXML, DOCUMENTATION_PROPERTY_DOCK_WIDTH as _DOCUMENTATION_PROPERTY_DOCK_WIDTH,
 	PAIR_CDML as _PAIR_CDML, Scene,
 )
+from ferrum_qt.documentation_capture_surfaces import (
+	CaptureError, capture_with_qt as _capture_with_qt,
+	save_dialog_over_window as _save_dialog_over_window,
+)
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -33,11 +37,6 @@ OUTPUT_DIRECTORY = REPO_ROOT / "docs" / "screenshots"
 WINDOW_SIZE = PySide6.QtCore.QSize(1440, 900)
 CAPTURE_TITLE_PREFIX = "Ferrum GUI Tour"
 _PRE_DIALOG_SURFACES: dict[int, PySide6.QtGui.QPixmap] = {}
-#============================================
-class CaptureError(RuntimeError):
-	"""A scene did not reach its documented, observable ready state."""
-
-
 #============================================
 def _normalized_action_text(action: PySide6.QtGui.QAction) -> str:
 	"""Return the visible command label independent of mnemonic ampersands."""
@@ -519,67 +518,6 @@ def _presentation_vector_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("Draw Line did not create a durable presentation vector")
 	return window
 #============================================
-def _capture_with_qt(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path) -> None:
-	"""Capture the same visible top-level Ferrum window without Screen Recording access."""
-	handle = window.windowHandle()
-	if handle is None or handle.screen() is None:
-		raise CaptureError("Ferrum window has no screen for the Qt capture fallback")
-	pixmap = handle.screen().grabWindow(window.winId())
-	if pixmap.isNull():
-		pixmap = window.grab()
-	if pixmap.isNull() or not pixmap.save(str(output), "PNG"):
-		raise CaptureError("Qt could not capture the visible Ferrum window")
-
-#============================================
-def _save_dialog_over_window(window: PySide6.QtWidgets.QMainWindow,
-		dialog: PySide6.QtWidgets.QDialog, output: pathlib.Path,
-		background: PySide6.QtGui.QPixmap | None = None,
-		) -> None:
-	"""Capture one real visible child dialog over the complete Ferrum application surface."""
-	if not dialog.isVisible():
-		raise CaptureError("Ferrum dialog overlay is not visible for capture")
-	position = dialog.frameGeometry().topLeft() - window.frameGeometry().topLeft()
-	if background is None:
-		dialog.hide()
-		PySide6.QtWidgets.QApplication.processEvents()
-		pixmap = window.grab()
-		dialog.show()
-		dialog.raise_()
-		PySide6.QtWidgets.QApplication.processEvents()
-	else:
-		pixmap = background.copy()
-	dialog_pixmap = dialog.grab()
-	painter = PySide6.QtGui.QPainter(pixmap)
-	painter.drawPixmap(position, dialog_pixmap)
-	painter.end()
-	if pixmap.isNull() or not pixmap.save(str(output), "PNG"):
-		raise CaptureError("Qt could not capture the visible Ferrum dialog overlay")
-	_verify_overlay_window_chrome(pixmap, output, position, dialog_pixmap.size())
-
-#============================================
-def _verify_overlay_window_chrome(background: PySide6.QtGui.QPixmap,
-		output: pathlib.Path, position: PySide6.QtCore.QPoint,
-		dialog_size: PySide6.QtCore.QSize) -> None:
-	"""Prove an overlay retained the complete live window above and below itself."""
-	background_image = background.toImage()
-	overlay_image = PySide6.QtGui.QImage(str(output))
-	if background_image.size() != overlay_image.size():
-		raise CaptureError("Ferrum overlay capture changed the full-window surface dimensions")
-	width = background_image.width()
-	height = background_image.height()
-	top_height = max(0, min(position.y(), height))
-	bottom_start = max(0, min(position.y() + dialog_size.height(), height))
-	if top_height <= 0 or bottom_start >= height:
-		raise CaptureError("Ferrum overlay does not leave visible ribbon and status-bar surfaces")
-	if (
-		overlay_image.copy(0, 0, width, top_height)
-		!= background_image.copy(0, 0, width, top_height)
-		or overlay_image.copy(0, bottom_start, width, height - bottom_start)
-		!= background_image.copy(0, bottom_start, width, height - bottom_start)
-		):
-		raise CaptureError("Ferrum overlay failed to preserve its ribbon, tab, or status surface")
-
-#============================================
 def _capture_template_catalog_with_qt(window: PySide6.QtWidgets.QMainWindow,
 		output: pathlib.Path) -> None:
 	"""Capture the current Rust catalog selection and provenance before placement."""
@@ -642,21 +580,6 @@ def _rearm_atom_authoring(window: PySide6.QtWidgets.QMainWindow,
 	_activate_command(window, application, "Add Atom at Point")
 	if not _find_action(window, "Add Atom at Point").isChecked():
 		raise CaptureError("Add Atom at Point did not visibly rearm after authoring")
-
-
-#============================================
-def _reselect_edited_nitrogen(window: PySide6.QtWidgets.QMainWindow,
-		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Restore the edited nitrogen selection and retire the keyboard cursor."""
-	tab = _active_tab(window)
-	_activate_command(window, application, "Select Structure")
-	canvas = _canvas(tab)
-	_click(canvas, _scene_point(tab, 300.0, 360.0))
-	application.processEvents()
-	if not tab.has_one_selected_atom() or tab.selected_atom_projection().element != "N":
-		raise CaptureError("Ferrum did not visibly reselect the edited nitrogen")
-	canvas.hide_keyboard_cursor()
-	application.processEvents()
 
 
 #============================================
@@ -803,10 +726,7 @@ SCENES = (
 		"template_catalog", "Browse Rust-owned template catalog", _template_catalog_scene,
 		overlay_capture=_capture_template_catalog_with_qt,
 	),
-	Scene(
-		"selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene,
-		post_prepare=_reselect_edited_nitrogen,
-	),
+	Scene("selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene),
 	Scene("smarts_result", "Find carbon SMARTS match", _smarts_result_scene),
 	Scene(
 		"reaction_arrow", "Draw durable reaction arrow", _reaction_arrow_scene,

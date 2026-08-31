@@ -117,13 +117,13 @@ replays only clipped final ink without a second alignment model. The Rust-owned
 covers undecorated and decorated labels, isotopes, styled and cyclic geometry,
 strict near-misses, and whole-target refusal. Its Rust consumer and the explicit
 installed Rust-to-Qt E2E both expand full label ink by the issued clearance and
-require disjoint final bond ink. Current source evidence includes the 15-test
-measurement suite, the 14-case installed alignment E2E, and 165
+require disjoint final bond ink. Current source evidence includes the 16-test
+measurement suite, the 14-case installed alignment E2E, and 166
 `ferrum-render` tests. The synthetic oracle reports 19 fixtures with zero
 violations; native final ink and actual Qt each report 12 fixtures with zero
 violations. `./check_rust.sh` passes formatting, workspace check, strict
 Clippy, workspace tests, doc tests, and Rustdoc. The post-change
-`./all_test.sh` aggregate passes 8,473 hygiene tests, every registered CLI/Qt
+`./all_test.sh` aggregate passes 8,624 hygiene tests, every registered CLI/Qt
 E2E, 283 installed PyO3 tests, and 444 Qt tests. The fixed-corpus renderer and
 transport acceptance is complete. Broader human desktop/accessibility review,
 remote CI/release evidence, and full parity remain open.

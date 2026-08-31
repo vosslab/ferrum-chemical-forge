@@ -150,10 +150,13 @@ The correction remains Rust-owned. Exact quadratic/cubic outline support for
 the current verified reference face replaces rectangular corner clipping;
 core optical clearance is distinct from mask and decoration exclusion; and
 style lowering models actual endpoint caps, transverse widths, axial overhang,
-and axial retreat. A sole rightward bond relocates explicit hydrogen/count ink
-to the left while preserving isotope and charge conventions. The wide-endpoint
-gap floor is normalized to final endpoint width, so Haworth-front ink retains
-the same minimum visible separation as ordinary strokes.
+and axial retreat. Parallel terminals use the full occupied ink interval rather
+than distance from the attachment axis, preserving the same clearance contract
+for future asymmetric lane placement. A sole rightward bond relocates explicit
+hydrogen/count ink to the left while preserving isotope and charge conventions.
+The wide-endpoint gap floor is normalized to final endpoint width, so
+Haworth-front ink retains the same minimum visible separation as ordinary
+strokes.
 
 The Qt evidence correction is capture-only: fixed-profile rendering now uses
 one isotropic scale and centered letterboxing instead of stretching the scene.
@@ -177,7 +180,7 @@ Qt-specific offset:
 | --- | --- | --- |
 | Systematic target-axis drift | Private `GlyphMetrics` / `AtomLabelAttachmentGeometry` | Verified molecule-label font hash, tight outline bounds, and glyph-class optical-anchor calibration |
 | Gap, target overlap, or serving-lane error | `NormalBondEndpointClipPolicy` and style lowering | Clip-policy or final-footprint correction |
-| Parallel-lane disagreement | `atom_bond/bond.rs` multi-lane lowering | One combined lane-envelope clip, validated against full-label pixels before symmetric lane emission |
+| Parallel-lane disagreement | `atom_bond/bond/ink.rs` parallel-terminal envelope | One combined lane-envelope clip, validated against full-label pixels before symmetric lane emission |
 | Third-label crossing or crowding | Complete-plan admission | Typed refusal or globally valid placement decision |
 | Qt-only mismatch | Qt replay contract test | Consumer defect correction without visual offsets |
 | Crop/composition defect | Fixture capture profile | Fixed-profile correction, never molecule paint offsets |

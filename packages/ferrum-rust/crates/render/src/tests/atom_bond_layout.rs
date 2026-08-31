@@ -505,11 +505,15 @@ fn normal_double_and_triple_bonds_emit_parallel_symmetric_bounded_lines() {
     ] {
         let lines = rendered_bond_lines(style);
         assert_eq!(lines.len(), expected_offsets.len());
+        let shared_start = lines[0].start().x();
+        let shared_end = lines[0].end().x();
         for (index, (line, expected_offset)) in
             lines.iter().zip(expected_offsets.iter()).enumerate()
         {
             assert_near(line.start().y(), *expected_offset);
             assert_near(line.end().y(), *expected_offset);
+            assert_near(line.start().x(), shared_start);
+            assert_near(line.end().x(), shared_end);
             assert!(line.start().x() >= 0.0);
             assert!(line.end().x() <= 40.0);
             assert!(line.start().x() < line.end().x());

@@ -47,7 +47,9 @@ centers the core-element ink for every admitted label, and treats masks plus
 non-core visible ink as exclusion geometry. It reserves an optical gap and each
 style's actual cap, transverse width, axial overhang, or axial retreat. Double
 and triple bonds resolve one additional bounded clearance from the complete
-parallel terminal envelope, then every lane shares the resulting axial clips.
+parallel terminal envelope. That envelope measures the occupied final-ink
+interval, so its width remains stable when lanes are not centered on the
+attachment axis; every lane then shares the resulting axial clips.
 The renderer refuses an unrenderable target rather than emitting intersecting
 or partial ink. Qt
 replays the issued glyph and bond operations without choosing a text anchor,

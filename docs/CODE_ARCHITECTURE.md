@@ -59,6 +59,11 @@ product dependency. The current parity ledger is
   including stroke and path geometry, rather than reconstructing an axis or
   querying screen pixels. An intersection emits an `UnrenderableTarget` issue
   instead of a partial or rerouted bond.
+- The renderer's private `atom_bond/bond/ink.rs` owns final endpoint footprints
+  and the complete parallel-terminal ink envelope. It derives optical
+  clearance from occupied transverse ink, independent of whether future lane
+  placement is centered or asymmetric; `bond.rs` owns only clipping and
+  lowering against that resolved geometry.
 - Each admitted bond also carries frozen `BondAttachmentAxisV1` semantic scene
   geometry. It runs from exact structural connection point to connection point
   before clipping; atom anchors are core-glyph centers and it survives Rust to PyO3

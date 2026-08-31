@@ -64,11 +64,11 @@ source source_me.sh && python3 -m measure_stack.batch \
 # {"fixtures":12,"status":"ok","violations":0}
 
 ./all_test.sh
-# 8,473 hygiene, 283 installed PyO3, and 444 Qt tests passed;
+# 8,624 hygiene, 283 installed PyO3, and 444 Qt tests passed;
 # every registered CLI/Qt E2E passed.
 
 ./check_rust.sh
-# Formatting, workspace check, strict Clippy, 164 permanent ferrum-render tests,
+# Formatting, workspace check, strict Clippy, 166 permanent ferrum-render tests,
 # one ignored developer receipt, complete workspace tests, doc tests, and Rustdoc passed.
 ```
 

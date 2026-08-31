@@ -64,15 +64,15 @@ must replay.
 The renderer's deterministic molecule-label corpus now checks exact core centering,
 full-ink containment, y-down script placement, and style-aware final-footprint
 clearance, including the Haworth front axial extension. The focused local render
-lane passes 164 permanent tests with one ignored developer receipt;
+lane passes 166 permanent tests with one ignored developer receipt;
 `./check_rust.sh` also passes formatting, workspace
 check, strict Clippy, all workspace and doc tests, and Rustdoc. The permanent
-measurement suite passes 15 tests. A shared 12-row corpus has both a Rust
+measurement suite passes 16 tests. A shared 12-row corpus has both a Rust
 consumer and an installed 14-case Rust-to-Qt E2E consumer; each requires final
 bond ink to remain disjoint from full label ink expanded by the issued
 clearance. The independent native and actual-Qt pixel lanes each accept all 12
 renderable fixtures with zero violations. The post-change `./all_test.sh` gate
-passes 8,473 hygiene tests, all registered CLI/Qt E2Es, 283 installed PyO3
+passes 8,624 hygiene tests, all registered CLI/Qt E2Es, 283 installed PyO3
 tests, and 444 Qt tests.
 
 The rebuilt 13-scene screenshot set has independent image-review acceptance.
