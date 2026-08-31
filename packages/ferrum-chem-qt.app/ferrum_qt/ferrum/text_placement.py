@@ -97,7 +97,7 @@ def dialog_for_placement(model: FerrumTextPlacementDialogModel, parent: object,
 		italic=False,
 		font_family=False,
 		disabled_reason=(
-			"The verified Ferrum renderer currently uses its regular Telex face only."
+			"The verified Ferrum renderer currently uses its regular Atkinson Hyperlegible Next face only."
 		),
 	)
 	return ferrum_qt.dialogs.rich_text_dialog.RichTextDialog(

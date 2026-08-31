@@ -1,13 +1,16 @@
 //! Atom-local label, number, and mark lowering.
 
 use ferrum_core::RecordKind;
+use ferrum_geometry::Vector2;
 
 use crate::glyph_metrics::{AtomLabelAttachmentGeometry, GlyphBounds, GlyphMetrics};
+use crate::glyph_outline_support::GlyphOutlineSupport;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomDecorationRenderOpV1, AtomLabelRenderV1, AtomRenderBatchV1, EllipseOp, FontFace,
     InkBoundsV1, LineOp, MaskOp, PositiveFinite, RenderBatchV4, RenderError, RenderIssueKind,
-    RenderPaintV3, RenderPoint, RenderTarget, TextOp, TextScript, VerifiedTelexGlyphMetrics,
+    RenderPaintV3, RenderPoint, RenderTarget, TextOp, TextScript,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 use ferrum_document_model::is_admitted_atom_symbol_v1;
 
@@ -17,6 +20,8 @@ type BuiltAtomBatch = (
     RenderBatchV4,
     GlyphBounds,
     AtomLabelAttachmentGeometry,
+    GlyphOutlineSupport,
+    Option<GlyphBounds>,
     Vec<GlyphBounds>,
 );
 
@@ -299,7 +304,8 @@ pub(super) fn build_atom_batch(
     atom: &AtomRenderTarget,
     font: &AtomLabelFontProfile,
     bond_ink_clearance: PositiveFinite,
-    metrics: &VerifiedTelexGlyphMetrics,
+    sole_bond_direction: Option<Vector2>,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<Result<BuiltAtomBatch, RenderIssueKind>, RenderError> {
     let layout = match metrics.layout_atom_label(&atom.label, font) {
         Ok(layout) => layout,
@@ -308,6 +314,16 @@ pub(super) fn build_atom_batch(
                 reason: format!("atom label metrics unavailable: {error}"),
             }));
         }
+    };
+    let layout = if let Some(direction) = sole_bond_direction {
+        layout.avoid_rightward_bond_with_explicit_hydrogen(
+            direction,
+            PositiveFinite::new(font.size.get() * 0.05)?,
+            font.size,
+            metrics,
+        )?
+    } else {
+        layout
     };
     let operation = TextOp::new(
         RenderPoint::new(0.0, 0.0)?,
@@ -318,10 +334,12 @@ pub(super) fn build_atom_batch(
         30,
     )?;
     let mask = if let Some(paint) = font.label_mask.clone() {
-        let width = PositiveFinite::new(layout.bounds().max_x() - layout.bounds().min_x())?;
-        let height = PositiveFinite::new(layout.bounds().max_y() - layout.bounds().min_y())?;
+        let bounds =
+            inset_label_mask_bounds(layout.attachment().core_element_ink_bounds(), font.size)?;
+        let width = PositiveFinite::new(bounds.max_x() - bounds.min_x())?;
+        let height = PositiveFinite::new(bounds.max_y() - bounds.min_y())?;
         Some(MaskOp::new(
-            RenderPoint::new(layout.bounds().min_x(), layout.bounds().min_y())?,
+            RenderPoint::new(bounds.min_x(), bounds.min_y())?,
             width,
             height,
             paint,
@@ -330,6 +348,15 @@ pub(super) fn build_atom_batch(
     } else {
         None
     };
+    let label_mask_ink_bounds = mask.as_ref().map(|mask| {
+        GlyphBounds::new(
+            mask.origin().x(),
+            mask.origin().y(),
+            mask.origin().x() + mask.width().get(),
+            mask.origin().y() + mask.height().get(),
+        )
+        .expect("validated mask operation retains finite positive bounds")
+    });
     let label = AtomLabelRenderV1::new(
         mask,
         operation,
@@ -362,8 +389,30 @@ pub(super) fn build_atom_batch(
         batch,
         layout.bounds(),
         layout.attachment(),
+        layout.core_outline_support().clone(),
+        label_mask_ink_bounds,
         layout.non_core_run_ink_bounds().to_vec(),
     )))
+}
+
+fn inset_label_mask_bounds(
+    bounds: GlyphBounds,
+    font_size: PositiveFinite,
+) -> Result<GlyphBounds, RenderError> {
+    const MASK_INSET_FONT_FACTOR: f64 = 0.075;
+    const MAX_AXIS_INSET_FRACTION: f64 = 0.20;
+    let requested = font_size.get() * MASK_INSET_FONT_FACTOR;
+    let width = bounds.max_x() - bounds.min_x();
+    let height = bounds.max_y() - bounds.min_y();
+    let inset = requested
+        .min(width * MAX_AXIS_INSET_FRACTION)
+        .min(height * MAX_AXIS_INSET_FRACTION);
+    GlyphBounds::new(
+        bounds.min_x() + inset,
+        bounds.min_y() + inset,
+        bounds.max_x() - inset,
+        bounds.max_y() - inset,
+    )
 }
 
 fn append_mark_operations(

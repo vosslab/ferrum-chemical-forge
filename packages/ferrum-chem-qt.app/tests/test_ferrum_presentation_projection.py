@@ -121,7 +121,7 @@ def test_renderer_plan_scene_preserves_durable_target_selection() -> None:
 		'<point x="40" y="0"/></arrow></cdml>',
 	)
 	scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-		plan, ferrum_qt.ferrum.engine.verified_telex_regular(), _palette("light"),
+		plan, ferrum_qt.ferrum.engine.molecule_label_font(), _palette("light"),
 	)
 	graphics_scene = PySide6.QtWidgets.QGraphicsScene()
 	for root in scene.roots:
@@ -142,7 +142,7 @@ def test_renderer_plan_scene_rejects_non_native_plan() -> None:
 		ferrum_qt.canvas.ferrum_presentation_render_plan.PresentationRenderPlanError,
 	):
 		ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-			object(), ferrum_qt.ferrum.engine.verified_telex_regular(), _palette("light"),
+			object(), ferrum_qt.ferrum.engine.molecule_label_font(), _palette("light"),
 		)
 
 
@@ -156,7 +156,7 @@ def test_curved_arrow_plan_scene_retains_renderer_target() -> None:
 		'<point x="40" y="0"/></arrow></cdml>',
 	)
 	scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-		plan, ferrum_qt.ferrum.engine.verified_telex_regular(), _palette("light"),
+		plan, ferrum_qt.ferrum.engine.molecule_label_font(), _palette("light"),
 	)
 	target = scene.roots[0].target
 	assert target.kind == "document_object"
@@ -174,7 +174,7 @@ def test_renderer_plan_refresh_replaces_vector_material_without_replacing_identi
 		'<point x="40" y="0"/></arrow></cdml>',
 	)
 	scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-		plan, ferrum_qt.ferrum.engine.verified_telex_regular(), _palette("light"),
+		plan, ferrum_qt.ferrum.engine.molecule_label_font(), _palette("light"),
 	)
 	root = scene.roots[0]
 	bounds = root.boundingRect()
@@ -237,15 +237,15 @@ def test_native_persistent_and_preview_roots_refresh_their_materials_in_place(
 			'<ftext>Ferrum</ftext></text></cdml>',
 		)
 		scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-			plan, ferrum_qt.ferrum.engine.verified_telex_regular(), light,
+			plan, ferrum_qt.ferrum.engine.molecule_label_font(), light,
 		)
 	elif route == "preview_vector":
 		scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_preview_render_plan(
-			_preview_plan("vector"), ferrum_qt.ferrum.engine.verified_telex_regular(), light,
+			_preview_plan("vector"), ferrum_qt.ferrum.engine.molecule_label_font(), light,
 		)
 	else:
 		scene = ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_preview_render_plan(
-			_preview_plan("plus"), ferrum_qt.ferrum.engine.verified_telex_regular(), light,
+			_preview_plan("plus"), ferrum_qt.ferrum.engine.molecule_label_font(), light,
 		)
 	try:
 		assert tuple(type(root) for root in scene.roots) == expected_types

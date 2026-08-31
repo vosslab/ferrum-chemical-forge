@@ -108,7 +108,7 @@ the exclusion geometry, and an explicit positive clearance plus the final
 style-specific ink footprint determines every clipped bond endpoint. This removes
 baseline- and decoration-dependent attachment while keeping Qt a plan consumer.
 `RenderObservationV2` and `RenderPlanV4` now publish the closed typed atom,
-compact-group, and bond payloads, including exact core/full Telex ink bounds and
+compact-group, and bond payloads, including exact core/full molecule-label ink bounds and
 the positive `bond_ink_clearance`; every bond also carries its frozen,
 unpainted, and unhit-tested `BondAttachmentAxisV1` from exact structural
 connection point to connection point. PyO3 transports those facts and Qt
@@ -117,15 +117,16 @@ replays only clipped final ink without a second alignment model. The Rust-owned
 covers undecorated and decorated labels, isotopes, styled and cyclic geometry,
 strict near-misses, and whole-target refusal. Its Rust consumer and the explicit
 installed Rust-to-Qt E2E both expand full label ink by the issued clearance and
-require disjoint final bond ink. Current source evidence is 158 renderer tests,
-520 document tests, the two-test Rust corpus target, the all-features API
-suite, formatting, and strict workspace Clippy. The 13-scene Qt screenshot set
-has a fresh independent image review. The post-change `./all_test.sh` aggregate
-passes 8,297 hygiene tests, every registered CLI/Qt E2E including the 12-row
-alignment corpus, 299 installed PyO3 tests, and 437 Qt tests. Human
-real-window/accessibility review, remote CI/release evidence, and full parity
-remain open. This is renderer and transport closure, not a claim of human visual
-acceptance or parity.
+require disjoint final bond ink. Current source evidence includes the 15-test
+measurement suite, the 14-case installed alignment E2E, and 165
+`ferrum-render` tests. The synthetic oracle reports 19 fixtures with zero
+violations; native final ink and actual Qt each report 12 fixtures with zero
+violations. `./check_rust.sh` passes formatting, workspace check, strict
+Clippy, workspace tests, doc tests, and Rustdoc. The post-change
+`./all_test.sh` aggregate passes 8,473 hygiene tests, every registered CLI/Qt
+E2E, 283 installed PyO3 tests, and 444 Qt tests. The fixed-corpus renderer and
+transport acceptance is complete. Broader human desktop/accessibility review,
+remote CI/release evidence, and full parity remain open.
 The exact grammar, security boundary, resource limits, evidence, and exclusions
 are frozen in [m2_cdxml_simple_molecule_import_v1.md](../decisions/m2_cdxml_simple_molecule_import_v1.md).
 This bounded claim has current local automated evidence: `./check_rust.sh` and

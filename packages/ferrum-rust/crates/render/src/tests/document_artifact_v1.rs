@@ -24,9 +24,10 @@ fn width(value: f64) -> PositiveFinite {
 }
 
 fn presentation_text() -> DocumentTextOpV1 {
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("Telex metrics");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+    )
+    .expect("Atkinson Hyperlegible Next metrics");
     let source_runs = vec![
         PresentationTextSourceRun::new("Line one\nH", TextScript::Baseline)
             .expect("baseline source"),
@@ -125,7 +126,7 @@ fn styled_bond_document_plan(style: BondStyle) -> DocumentRenderPlanV1 {
         TargetVisibility::Visible,
     )
     .expect("bond");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), width(10.0), paint("000000"));
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), width(10.0), paint("000000"));
     let molecule = build_atom_bond_plan(
         &AtomBondRenderRequest::new(
             RenderProvenance::new(RenderRevision::new(42).expect("revision"), [0x42; 32]),
@@ -138,8 +139,10 @@ fn styled_bond_document_plan(style: BondStyle) -> DocumentRenderPlanV1 {
             paint("112233"),
         )
         .expect("request"),
-        &VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("metrics"),
+        &VerifiedMoleculeLabelGlyphMetrics::new(
+            &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+        )
+        .expect("metrics"),
     )
     .expect("molecule plan");
     DocumentRenderPlanV1::new(

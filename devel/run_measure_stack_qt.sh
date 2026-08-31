@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the real-Qt V2 measurement gate in baseline or strict-red mode.
+# Run the real-Qt V2 measurement gate in strict or accepted-baseline mode.
 
 set -euo pipefail
 
@@ -14,10 +14,10 @@ projection and write immutable layer manifests, reports, overlays, contact
 sheets, and a run summary below output_measure_stack_qt/.
 
 Modes:
-  --baseline  Require healthy Qt capture plus the frozen, known renderer-failure
-              category counts. This is the default developer evidence lane.
-  --strict    Fail for every visual-quality violation. Do not add this mode to
-              a normal aggregate until the renderer has no expected-red rows.
+  --strict    Fail for every visual-quality violation. This is the default
+              developer evidence lane.
+  --baseline  Require healthy Qt capture plus the frozen accepted-zero renderer
+              failure-category receipt.
 
 Prerequisites:
   Run ./build.sh first. The script validates the staged local Python runtime
@@ -28,9 +28,10 @@ EOF
 
 
 #============================================
-mode="baseline"
-case "${1:---baseline}" in
+mode="strict"
+case "${1:---strict}" in
 	--baseline)
+		mode="baseline"
 		;;
 	--strict)
 		mode="strict"

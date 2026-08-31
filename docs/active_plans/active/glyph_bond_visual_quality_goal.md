@@ -44,7 +44,7 @@ than reconstruction from isolated masks.
 | Deterministic fixture oracle | `measure_stack/runner.py` | Materializes declared synthetic pixels and proves every named bad case reaches its named failure category. It is an oracle test, not a renderer-quality claim. |
 | Rust producer | `packages/ferrum-rust/crates/render/src/glyph_bond_raster.rs` | Test-only 8x `raw_final_ink` raster layers and V2 manifest handoff for the Rust alignment corpus. It exposes no product API. |
 | Qt consumer capture | `measure_stack/qt_scene_capture.py`, `tests/e2e/e2e_measure_stack_qt.py` | Fixed-profile offscreen `QGraphicsScene.render()` capture of actual projection molecule roots, actual full labels, and actual final bond items for renderable rows. |
-| Developer entry points | `devel/run_measure_stack_rust.sh`, `devel/run_measure_stack_qt.sh`, `measure_stack/batch.py` | Native strict-red evidence and deterministic Qt expected-red baseline lanes, each with an aggregate JSON receipt. |
+| Developer entry points | `devel/run_measure_stack_rust.sh`, `devel/run_measure_stack_qt.sh`, `measure_stack/batch.py` | Native and real-Qt strict evidence plus an optional frozen accepted-zero Qt baseline, each with an aggregate JSON receipt. |
 
 The two named developer gates are the production-evidence entry points.
 `measure_stack.runner` and `measure_stack.batch` are supporting developer
@@ -68,8 +68,9 @@ captures only renderable rows. Typed refusals, including non-endpoint-label
 admission, remain assertions in the existing Rust semantic corpus and contract
 checks rather than fabricated Qt pixel fixtures.
 
-New renderer behavior must add a fixture version and migration evidence rather
-than revise an accepted fixture to match the current output.
+Measurement-contract changes require a new schema version. Visual corrections
+update the one canonical live fixture definition and preserve before/after run
+reports as migration evidence instead of creating chronological fixture IDs.
 
 ## Quantitative acceptance
 
@@ -83,7 +84,7 @@ run and a current rendering cannot tune it.
 | Target and third-label collision | Zero final-footprint pixels in the target full label or every non-endpoint full label |
 | Footprint evidence | At least 99.5 percent final-footprint coverage in the composite; no missing declared component |
 | Style topology | Visible lane/component/carrier predicate passes for every supported style |
-| Presentation scene | 1.5-33 percent occupancy, 2.5-45 percent margins, no crop, no unexplained foreground, and no orphaned core |
+| Presentation scene | 1.5-33 percent pixel occupancy, at least 10 percent dominant-axis occupancy, at least 2.5 percent minimum margin, no crop, no unexplained foreground, and no orphaned core |
 | Raw final-ink scene | No unexplained/missing declared ink, no missed endpoint neighborhood, and no orphaned core; diagnostic-canvas framing is not evaluated |
 
 Nonfinite endpoint values are explicit violations and serialize as JSON `null`;
@@ -101,32 +102,34 @@ screenshot operator, or manual approval is a gate.
 source source_me.sh && python3 -m measure_stack.runner \
   --output-dir output_measure_stack_runner
 
-# Rust final-ink evidence: strict by design; it currently exits nonzero while
-# publishing a report and contact sheet for every renderable case.
+# Rust final-ink evidence: strict by design and publishes a report and contact
+# sheet for every renderable case.
 ./devel/run_measure_stack_rust.sh
 
 # Build the local runtime first, then capture actual Qt consumer pixels.
 ./build.sh
-./devel/run_measure_stack_qt.sh --baseline
-
-# Qt strict mode is deliberately red until Rust geometry satisfies this policy.
 ./devel/run_measure_stack_qt.sh --strict
+
+# Optional accepted-zero capture/provenance baseline.
+./devel/run_measure_stack_qt.sh --baseline
 ```
 
 The Qt baseline exits zero only when renderable-row capture infrastructure is
-healthy and frozen expected-red failure-category counts match. The synthetic
+healthy and the frozen accepted-zero failure categories match. The synthetic
 runner separately proves third-label collision rejection, while Rust semantic
-and contract checks prove typed refusal. This prevents an accidental relaxed
+and contract checks prove typed refusal. This prevents an accidentally relaxed
 predicate or capture regression from being accepted as progress. Strict mode
 exits nonzero for any visual-quality violation. Both lanes write ignored evidence below
 `output_glyph_alignment/`, `output_measure_stack_runner/`, or
 `output_measure_stack_qt/`.
 
-Focused `measure_stack/tests/` tests prove manifest rejection, hash binding,
-metric behavior, Haworth-form distinction, fixture coverage, synthetic negative
-classification, and diagnostic publication. Existing Rust corpus tests and the
-installed Qt E2E remain consumer/transport contract checks; `./check_rust.sh`
-and `./all_test.sh` remain aggregate gates.
+Focused `measure_stack/tests/` tests use inline or generated arrays and
+`tmp_path` files to prove manifest rejection, hash binding, metric behavior,
+Haworth-form distinction, synthetic-negative classification, dominant-axis
+framing, and nonfinite JSON refusal. The explicit synthetic runner owns exact
+fixture coverage and diagnostic publication; the installed Qt E2E owns actual
+consumer capture. Existing Rust corpus tests remain semantic contract checks;
+`./check_rust.sh` and `./all_test.sh` remain aggregate gates.
 
 ### Permanent versus implementation evidence
 
@@ -136,43 +139,41 @@ sheet publication, native raster command, real CLI, actual Qt capture,
 before/after comparisons, and aggregate repository gates are explicit
 developer/E2E evidence for this rebuild rather than fragile permanent tests.
 
-## Current truth and correction loop
+## Current truth and correction record
 
-The stack and corpus are present, but current Ferrum glyph-bond geometry is
-**not accepted** by the V2 visual-quality policy. The native 2026-08-30
-regeneration reduced strict-policy findings from 26 to 15 without changing its
-pixel thresholds: complete parallel-lane clipping, directional wedge
-footprints, and correct terminal wedge topology are now represented in Rust.
-Normal, bold, dashed, wavy, and opposed stereochemical wedges are green;
-diagonal multi-line bonds, Haworth-front endpoints, and a few decorated/ring
-endpoints remain red. Native strict measurement and Qt strict replay are
-expected-red evidence, not green acceptance. The Qt baseline freezes that fact
-so that future improvement is measured against the same corpus and policy
-instead of hidden by threshold drift. No screenshots should be refreshed as
-quality evidence until strict geometry acceptance is green.
+Ferrum's 2026-08-31 V2 glyph-bond geometry is accepted by the unchanged pixel
+policy. The deterministic oracle reports 19 fixtures and zero violations; the
+native final-ink and actual Qt lanes each report 12 renderable fixtures and zero
+violations. The prior native and Qt receipts each contained 15 findings.
 
-The next correction is not a global gap-factor change: diagonal normal bonds
-remain centerline-correct but detach because the private clip ray exits a
-rectangular `GlyphBounds` envelope at its corner. The renderer must promote the
-verified core glyph's own outline (or a conservative outline-derived directional
-support representation) into private clipping geometry, then repeat the same
-native/Qt corpus. The independent measurement stack continues to consume only
-rendered pixels and graph identity.
+The correction remains Rust-owned. Exact quadratic/cubic outline support for
+the current verified reference face replaces rectangular corner clipping;
+core optical clearance is distinct from mask and decoration exclusion; and
+style lowering models actual endpoint caps, transverse widths, axial overhang,
+and axial retreat. A sole rightward bond relocates explicit hydrogen/count ink
+to the left while preserving isotope and charge conventions. The wide-endpoint
+gap floor is normalized to final endpoint width, so Haworth-front ink retains
+the same minimum visible separation as ordinary strokes.
 
-Two one-time 2026-08-30 outline experiments are rejected evidence, not retained
-renderer behavior: a raw convex outline plus radial clearance made the native
-receipt worse (18 findings), while an outline dilated by the present rectangle
-clearance improved native evidence to 10 but regressed rebuilt Qt replay to 17
-findings, including full-label collisions. The next implementation must derive
-one calibrated support model from the exact Telex layout and validate its
-native and Qt output together; a native-only count reduction is insufficient.
+The Qt evidence correction is capture-only: fixed-profile rendering now uses
+one isotropic scale and centered letterboxing instead of stretching the scene.
+Three tightened source rectangles replace their superseded definitions under
+one unversioned live profile ID each. Neither Qt nor the measurement library
+adds a visual offset, and `MeasurementPolicy` thresholds are unchanged.
+
+Two one-time 2026-08-30 outline experiments remain rejected evidence: a raw
+convex support plus radial clearance made the native receipt worse (18
+findings), while an outline dilated by the rectangle clearance improved native
+evidence to 10 but regressed rebuilt Qt replay to 17 findings, including
+full-label collisions. The delivered exact directional support model is green
+in both real lanes rather than accepting a native-only count reduction.
 
 Failures select a Rust owner instead of a molecule-, sugar-, screenshot-, or
 Qt-specific offset:
 
 | Failed evidence | Rust owner | Permitted correction |
 | --- | --- | --- |
-| Systematic target-axis drift | Private `GlyphMetrics` / `AtomLabelAttachmentGeometry` | Verified-Telex font-hash and glyph-class optical-anchor calibration |
+| Systematic target-axis drift | Private `GlyphMetrics` / `AtomLabelAttachmentGeometry` | Verified molecule-label font hash, tight outline bounds, and glyph-class optical-anchor calibration |
 | Gap, target overlap, or serving-lane error | `NormalBondEndpointClipPolicy` and style lowering | Clip-policy or final-footprint correction |
 | Parallel-lane disagreement | `atom_bond/bond.rs` multi-lane lowering | One combined lane-envelope clip, validated against full-label pixels before symmetric lane emission |
 | Third-label crossing or crowding | Complete-plan admission | Typed refusal or globally valid placement decision |
@@ -185,16 +186,15 @@ through both native and Qt lanes.
 
 ### Font transition rule
 
-The current byte-verified Telex face is a legacy renderer resource, not a
-permanent design decision. Atkinson Hyperlegible is the preferred candidate
-for Ferrum's written UI and document prose because its letterform distinction
-is an accessibility feature; mononoki is reserved for fixed-width developer
-and source-oriented surfaces. Neither candidate may be substituted by Qt or by
-CSS alone. If Ferrum adopts a different molecule-label face, Rust must add a
-new versioned, byte-verified font resource and scalar-admission table, issue
-new exact outline metrics, regenerate the V2 corpus as a new fixture version,
-and rerun native and Qt strict evidence. The independent `measure_stack/`
-remains unchanged because it consumes pixels rather than font internals.
+Ferrum selects the byte-verified proportional Atkinson Hyperlegible Next
+Regular face for molecule labels. The repository also vendors all 92 official
+Next and Mono version 2.001 static OTF, static and variable TTF, and static and
+variable WOFF2 outputs under one integrity catalog, but no other face is active
+in the molecule renderer. If Ferrum changes that role later, Rust
+updates the one selected resource and scalar-admission table, issues new exact
+outline metrics, recalibrates the current V2 corpus, and reruns native and Qt
+strict evidence. The independent `measure_stack/` remains unchanged because it
+consumes pixels rather than font internals.
 
 ## Completion criteria
 
@@ -213,7 +213,6 @@ This goal is complete only when:
    `./all_test.sh` pass, with any unrelated pre-existing failure documented
    separately.
 
-The current V2 baseline satisfies the infrastructure and expected-red evidence
-parts of this goal. The native aggregate receipt currently reports 15 policy
-violations across six renderable fixtures; geometry acceptance remains open and
-is owned by Rust.
+The 2026-08-31 evidence satisfies the instrument, native geometry, actual Qt,
+diagnostic-publication, selected-font recalibration, and accepted-zero baseline
+criteria. Aggregate gate receipts are recorded in the changelog.

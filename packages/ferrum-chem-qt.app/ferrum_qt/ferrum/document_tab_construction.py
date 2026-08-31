@@ -98,7 +98,7 @@ def _construct_tab(
 		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
 			raise TypeError("Ferrum document tab requires a document display palette")
 		view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(palette, tab)
-		resource = engine.verified_telex_regular()
+		resource = engine.molecule_label_font()
 		controller = (
 			ferrum_qt.canvas.ferrum_render_projection.
 			FerrumRenderProjectionController(view, resource, palette)

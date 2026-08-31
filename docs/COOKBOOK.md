@@ -57,6 +57,25 @@ and chemistry features remain outside this bounded profile. Capability limits,
 accepted suffixes, and declared losses are defined by
 [FILE_FORMATS.md](FILE_FORMATS.md), not inferred from an extension.
 
+## Import a CML simple molecule
+
+Use CML/CML2 simple-molecule import when you need a new editable Ferrum
+document from a declared CML source. The source remains input-only; the
+published result is CDML.
+
+```bash
+build/bin/ferrum formats --json
+build/bin/ferrum open molecule.cml --format cml --output molecule.cdml --json
+build/bin/ferrum validate molecule.cdml --level typed
+build/bin/ferrum-qt molecule.cdml
+```
+
+The JSON response summarizes the completed import without embedding the source
+or the new document. Ferrum publishes `molecule.cdml` only after decoding,
+candidate-document admission, and an issue-free render observation succeed. A
+typed refusal leaves no partial CDML output. CML's accepted profile and its
+resource limits are defined in [FILE_FORMATS.md](FILE_FORMATS.md).
+
 ## Open styled CDXML in the desktop application
 
 Use the normal File > Open command to keep desktop import on the Rust-owned

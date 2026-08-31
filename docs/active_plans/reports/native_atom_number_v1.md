@@ -28,7 +28,7 @@ typed failure without changing the snapshot.
 
 The immutable atom projection exposes a validated positive number and authored
 visibility separately. A visible number becomes a second atom-local Rust text
-operation with verified Telex glyph IDs and origins, explicit size `9`, RGB
+operation with verified molecule-label glyph IDs and origins, explicit size `9`, RGB
 `0000c8`, z value `40`, and local origin `(8, -12)`. A hidden number stays in
 the document projection but produces no number operation. Invalid authored
 number or visibility text creates a presentation issue; Qt never repairs,

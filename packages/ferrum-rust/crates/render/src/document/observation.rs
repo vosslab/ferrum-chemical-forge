@@ -145,7 +145,7 @@ impl DocumentMoleculeRenderPlanV4 {
 /// A revision-checked immutable document observation with its complete render result.
 ///
 /// This type is constructed only by [`resolve_document_render_v2`]. That call accepts
-/// one immutable document projection, invokes the closed verified-Telex depiction entry,
+/// one immutable document projection, invokes the closed verified-Atkinson Hyperlegible Next depiction entry,
 /// and lowers the projection. It therefore has no API for combining separately-read
 /// projections, resolutions, or plans.
 #[derive(Debug)]
@@ -215,13 +215,13 @@ impl ResolvedDocumentRenderV2 {
         &self.molecule_plans
     }
 
-    /// Return verified-Telex plus layouts in document root order.
+    /// Return verified-Atkinson Hyperlegible Next plus layouts in document root order.
     #[must_use]
     pub fn plus_renders(&self) -> &[DocumentPlusRenderV1] {
         &self.plus_renders
     }
 
-    /// Return verified-Telex direct-root Text layouts in document root order.
+    /// Return verified-Atkinson Hyperlegible Next direct-root Text layouts in document root order.
     #[must_use]
     pub fn text_renders(&self) -> &[DocumentTextRenderV1] {
         &self.text_renders

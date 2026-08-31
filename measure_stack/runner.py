@@ -123,7 +123,7 @@ def _bond_mask(
 				half_width = max(1, int(round(fraction * 8)))
 				line(point - normal * half_width, point + normal * half_width, 1)
 	elif style in {"solid-wedge", "haworth-front-wedge"}:
-		polygon = numpy.rint(numpy.array((start - normal, start + normal, end + normal * 8, end - normal * 8))[:, ::-1]).astype(numpy.int32)
+		polygon = numpy.rint(numpy.array((start, end + normal * 8, end - normal * 8))[:, ::-1]).astype(numpy.int32)
 		cv2.fillConvexPoly(mask, polygon, True, cv2.LINE_8)
 	elif style == "wavy":
 		points = numpy.array([start + (end - start) * fraction + normal * 3.0 * numpy.sin(fraction * 8.0 * numpy.pi) for fraction in numpy.linspace(0.0, 1.0, 80)])

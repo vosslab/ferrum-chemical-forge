@@ -1,4 +1,4 @@
-//! Closed Unicode-scalar Telex glyph placement facts.
+//! Closed Unicode-scalar Atkinson Hyperlegible Next glyph placement facts.
 
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ pub enum TextScript {
     Superscript,
 }
 
-/// One exact verified-Telex outline placement relative to its containing run.
+/// One exact verified-Atkinson Hyperlegible Next outline placement relative to its containing run.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GlyphPlacement {
@@ -37,7 +37,7 @@ impl GlyphPlacement {
             origin,
         })
     }
-    /// Return the exact Telex glyph identifier used by `QRawFont.pathForGlyph`.
+    /// Return the exact Atkinson Hyperlegible Next glyph identifier used by `QRawFont.pathForGlyph`.
     #[must_use]
     pub const fn glyph_index(self) -> u32 {
         self.glyph_index

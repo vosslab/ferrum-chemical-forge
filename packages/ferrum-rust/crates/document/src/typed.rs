@@ -311,7 +311,6 @@ impl TypedDocument {
         super::document_object_identity_v1::normalize_document_object_ids_v1(&mut indexed, &root)?;
         validate_canonical_values(&root)?;
         super::typed_molecule_insertion::validate_document_stereo_semantics(&indexed)?;
-        canonicalize_presentation_face_aliases(&mut indexed);
         let tree = &indexed.xml.tree;
         let root_node = tree
             .document_element(indexed.xml.document)
@@ -618,38 +617,6 @@ fn find_record_at_path<'a>(record: &'a TypedRecord, path: &[u32]) -> Option<&'a 
         .typed_children()
         .iter()
         .find_map(|child| find_record_at_path(child.record(), path))
-}
-
-/// Serialize every admitted presentation-face alias as the one canonical CDML spelling.
-fn canonicalize_presentation_face_aliases(indexed: &mut IndexedDocument) {
-    let tree = &mut indexed.xml.tree;
-    let root = tree
-        .document_element(indexed.xml.document)
-        .expect("an indexed XML document has a document element");
-    let family_name = tree.add_name("family");
-    let roots = tree.children(root).collect::<Vec<_>>();
-    for presentation in roots {
-        let is_presentation = element_name(tree, presentation).is_some_and(|(local, namespace)| {
-            namespace == CDML_NAMESPACE && matches!(local.as_str(), "text" | "plus")
-        });
-        if !is_presentation {
-            continue;
-        }
-        let fonts = tree.children(presentation).collect::<Vec<_>>();
-        for font in fonts {
-            let is_font = element_name(tree, font)
-                .is_some_and(|(local, namespace)| namespace == CDML_NAMESPACE && local == "font");
-            if !is_font {
-                continue;
-            }
-            let Some(family) = tree.get_attribute(font, family_name) else {
-                continue;
-            };
-            if let Some(face) = super::PresentationFontFaceV1::from_cdml_family(family) {
-                tree.set_attribute(font, family_name, face.cdml_family());
-            }
-        }
-    }
 }
 
 /// Enforce facts whose meaning is shared by every typed-document consumer.

@@ -101,7 +101,7 @@ class RichTextDialog(FerrumAccessibleDialog):
 		toolbar.addStretch()
 		layout.addLayout(toolbar)
 		form = PySide6.QtWidgets.QFormLayout()
-		self._font_face = PySide6.QtWidgets.QLabel("Telex Regular (bundled)", self)
+		self._font_face = PySide6.QtWidgets.QLabel("Atkinson Hyperlegible Next Regular (bundled)", self)
 		self._font_face.setAccessibleName("Typeface")
 		self._font_face.setAccessibleDescription("Renderer-owned bundled typeface")
 		self._font_face.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.NoFocus)

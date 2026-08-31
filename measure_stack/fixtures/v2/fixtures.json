@@ -1,7 +1,7 @@
 {
   "schema": "ferrum-measure-stack-fixtures-v2",
   "capture_profiles": {
-    "normal_document_4x3_v1": {
+    "normal_document_4x3": {
       "source_rect": [
         -120.0,
         -90.0,
@@ -13,56 +13,56 @@
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "compact_horizontal_v1": {
+    "compact_horizontal": {
       "source_rect": [-30.0, -30.0, 100.0, 60.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "compact_vertical_v1": {
-      "source_rect": [-30.0, -30.0, 60.0, 100.0],
+    "compact_vertical": {
+      "source_rect": [-24.5, -20.0, 49.0, 80.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "three_atom_diagonal_v1": {
+    "three_atom_diagonal": {
       "source_rect": [-30.0, -30.0, 124.0, 94.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "opposed_wedges_v1": {
+    "opposed_wedges": {
       "source_rect": [-65.0, -31.0, 130.0, 80.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "wide_three_atom_v1": {
-      "source_rect": [-30.0, -30.0, 140.0, 60.0],
+    "wide_three_atom": {
+      "source_rect": [-18.0, -25.0, 116.0, 50.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "wide_four_atom_v1": {
-      "source_rect": [-30.0, -30.0, 165.0, 60.0],
+    "wide_four_atom": {
+      "source_rect": [-7.0, -21.5, 119.0, 43.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "ring_v1": {
+    "ring": {
       "source_rect": [-55.0, -30.0, 120.0, 130.0],
       "pixel_width": 480,
       "pixel_height": 360,
       "device_pixel_ratio": 2.0,
       "scene_evaluation": "presentation"
     },
-    "eight_direction_v1": {
+    "eight_direction": {
       "source_rect": [-70.0, -70.0, 140.0, 140.0],
       "pixel_width": 480,
       "pixel_height": 360,
@@ -74,7 +74,7 @@
     {
       "fixture_id": "chlorine_normal_horizontal_mask",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"cl\" name=\"Cl\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"40\" y=\"0\"/></atom><bond id=\"cl-c\" start=\"cl\" end=\"c\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_horizontal_v1",
+      "capture_profile_id": "compact_horizontal",
       "graph": {
         "atoms": [
           {
@@ -127,7 +127,7 @@
     {
       "fixture_id": "bromine_hydrogen_charge_vertical",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"br\" name=\"Br\" charge=\"1\" valency=\"3\" explicit_hydrogens=\"2\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"0\" y=\"40\"/></atom><bond id=\"br-c\" start=\"br\" end=\"c\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_vertical_v1",
+      "capture_profile_id": "compact_vertical",
       "graph": {
         "atoms": [
           {
@@ -180,7 +180,7 @@
     {
       "fixture_id": "three_letter_element_charge_non_lattice_diagonal",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"uue\" name=\"Uue\" charge=\"2\"><point x=\"0\" y=\"0\"/></atom><atom id=\"c\" name=\"C\"><point x=\"37\" y=\"19\"/></atom><bond id=\"uue-c\" start=\"uue\" end=\"c\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_horizontal_v1",
+      "capture_profile_id": "compact_horizontal",
       "graph": {
         "atoms": [
           {
@@ -233,7 +233,7 @@
     {
       "fixture_id": "isotope_carbon_hydrogen_charge",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"carbon\" name=\"C\" isotope=\"13\" charge=\"1\" valency=\"4\" explicit_hydrogens=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c-o\" start=\"carbon\" end=\"o\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_horizontal_v1",
+      "capture_profile_id": "compact_horizontal",
       "graph": {
         "atoms": [
           {
@@ -286,7 +286,7 @@
     {
       "fixture_id": "decorated_endpoints_double_triple_diagonal",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"N\" charge=\"1\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\" charge=\"-1\"><point x=\"32\" y=\"17\"/></atom><atom id=\"c\" name=\"N\"><point x=\"64\" y=\"34\"/></atom><bond id=\"double\" start=\"a\" end=\"b\" type=\"n2\"/><bond id=\"triple\" start=\"b\" end=\"c\" type=\"n3\"/></molecule></cdml>",
-      "capture_profile_id": "three_atom_diagonal_v1",
+      "capture_profile_id": "three_atom_diagonal",
       "graph": {
         "atoms": [
           {
@@ -367,7 +367,7 @@
     {
       "fixture_id": "opposed_solid_and_hashed_wedges",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"left\" name=\"Cl\"><point x=\"-35\" y=\"18\"/></atom><atom id=\"right\" name=\"Br\"><point x=\"35\" y=\"18\"/></atom><bond id=\"solid\" start=\"center\" end=\"left\" type=\"w1\"/><bond id=\"hashed\" start=\"center\" end=\"right\" type=\"h1\"/></molecule></cdml>",
-      "capture_profile_id": "opposed_wedges_v1",
+      "capture_profile_id": "opposed_wedges",
       "graph": {
         "atoms": [
           {
@@ -448,7 +448,7 @@
     {
       "fixture_id": "haworth_front_stroke_and_wedge",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><atom id=\"c\" name=\"N\"><point x=\"80\" y=\"0\"/></atom><bond id=\"front\" start=\"a\" end=\"b\" type=\"q1\" haworth_position=\"front\"/><bond id=\"wedge\" start=\"b\" end=\"c\" type=\"w1\" haworth_position=\"front\"/></molecule></cdml>",
-      "capture_profile_id": "wide_three_atom_v1",
+      "capture_profile_id": "wide_three_atom",
       "graph": {
         "atoms": [
           {
@@ -529,7 +529,7 @@
     {
       "fixture_id": "bold_dashed_wavy_maximum_footprint",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"N\"><point x=\"35\" y=\"0\"/></atom><atom id=\"c\" name=\"O\"><point x=\"70\" y=\"0\"/></atom><atom id=\"d\" name=\"F\"><point x=\"105\" y=\"0\"/></atom><bond id=\"bold\" start=\"a\" end=\"b\" type=\"b1\"/><bond id=\"dashed\" start=\"b\" end=\"c\" type=\"d1\"/><bond id=\"wavy\" start=\"c\" end=\"d\" type=\"s1\"/></molecule></cdml>",
-      "capture_profile_id": "wide_four_atom_v1",
+      "capture_profile_id": "wide_four_atom",
       "graph": {
         "atoms": [
           {
@@ -638,7 +638,7 @@
     {
       "fixture_id": "ring_direction_cover",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"a\" name=\"N\"><point x=\"0\" y=\"0\"/></atom><atom id=\"b\" name=\"C\"><point x=\"35\" y=\"0\"/></atom><atom id=\"c\" name=\"O\"><point x=\"35\" y=\"35\"/></atom><atom id=\"d\" name=\"S\"><point x=\"0\" y=\"70\"/></atom><atom id=\"e\" name=\"Cl\"><point x=\"-25\" y=\"35\"/></atom><bond id=\"ab\" start=\"a\" end=\"b\" type=\"n1\"/><bond id=\"bc\" start=\"b\" end=\"c\" type=\"n1\"/><bond id=\"cd\" start=\"c\" end=\"d\" type=\"n1\"/><bond id=\"de\" start=\"d\" end=\"e\" type=\"n1\"/><bond id=\"ea\" start=\"e\" end=\"a\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "ring_v1",
+      "capture_profile_id": "ring",
       "graph": {
         "atoms": [
           {
@@ -799,7 +799,7 @@
     {
       "fixture_id": "eight_endpoint_directions_visible_elements",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"east\" name=\"F\"><point x=\"40\" y=\"0\"/></atom><atom id=\"north_east\" name=\"Cl\"><point x=\"30\" y=\"30\"/></atom><atom id=\"north\" name=\"Br\"><point x=\"0\" y=\"40\"/></atom><atom id=\"north_west\" name=\"I\"><point x=\"-30\" y=\"30\"/></atom><atom id=\"west\" name=\"N\"><point x=\"-40\" y=\"0\"/></atom><atom id=\"south_west\" name=\"O\"><point x=\"-30\" y=\"-30\"/></atom><atom id=\"south\" name=\"S\"><point x=\"0\" y=\"-40\"/></atom><atom id=\"south_east\" name=\"P\"><point x=\"30\" y=\"-30\"/></atom><bond id=\"bond_east\" start=\"center\" end=\"east\" type=\"n1\"/><bond id=\"bond_north_east\" start=\"center\" end=\"north_east\" type=\"n1\"/><bond id=\"bond_north\" start=\"center\" end=\"north\" type=\"n1\"/><bond id=\"bond_north_west\" start=\"center\" end=\"north_west\" type=\"n1\"/><bond id=\"bond_west\" start=\"center\" end=\"west\" type=\"n1\"/><bond id=\"bond_south_west\" start=\"center\" end=\"south_west\" type=\"n1\"/><bond id=\"bond_south\" start=\"center\" end=\"south\" type=\"n1\"/><bond id=\"bond_south_east\" start=\"center\" end=\"south_east\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "eight_direction_v1",
+      "capture_profile_id": "eight_direction",
       "graph": {
         "atoms": [
           {
@@ -1048,7 +1048,7 @@
     {
       "fixture_id": "phosphorus_isotope_hydrogen_charge_mask",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><standard area_color=\"#ffffff\"/><molecule id=\"m\"><atom id=\"p\" name=\"P\" isotope=\"31\" charge=\"1\" valency=\"5\" explicit_hydrogens=\"4\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"i\" name=\"I\"><point x=\"37\" y=\"19\"/></atom><bond id=\"p-i\" start=\"p\" end=\"i\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_horizontal_v1",
+      "capture_profile_id": "compact_horizontal",
       "graph": {
         "atoms": [
           {
@@ -1101,7 +1101,7 @@
     {
       "fixture_id": "third_label_near_miss",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"first\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"third\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"20\" y=\"20\"/></atom><atom id=\"second\" name=\"N\" charge=\"1\" valency=\"3\" hydrogens=\"on\"><point x=\"40\" y=\"0\"/></atom><bond id=\"near\" start=\"first\" end=\"second\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "compact_horizontal_v1",
+      "capture_profile_id": "compact_horizontal",
       "graph": {
         "atoms": [
           {
@@ -1162,9 +1162,9 @@
       "synthetic_kind": "connected"
     },
     {
-      "fixture_id": "negative_detached_endpoint_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_detached_endpoint_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_detached_endpoint",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_detached_endpoint\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1197,9 +1197,9 @@
       "synthetic_kind": "detached"
     },
     {
-      "fixture_id": "negative_target_overlap_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_target_overlap_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_target_overlap",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_target_overlap\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1232,9 +1232,9 @@
       "synthetic_kind": "target_overlap"
     },
     {
-      "fixture_id": "negative_centerline_miss_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_centerline_miss_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_centerline_miss",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_centerline_miss\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1267,9 +1267,9 @@
       "synthetic_kind": "centerline_miss"
     },
     {
-      "fixture_id": "negative_style_topology_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_style_topology_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"n1\" name=\"N\"><point x=\"40\" y=\"0\"/></atom><bond id=\"broken_double\" start=\"c1\" end=\"n1\" type=\"n2\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_style_topology",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_style_topology\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"n1\" name=\"N\"><point x=\"40\" y=\"0\"/></atom><bond id=\"broken_double\" start=\"c1\" end=\"n1\" type=\"n2\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1302,9 +1302,9 @@
       "synthetic_kind": "style_topology"
     },
     {
-      "fixture_id": "negative_cropped_scene_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_cropped_scene_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_cropped_scene",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_cropped_scene\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1337,9 +1337,9 @@
       "synthetic_kind": "cropped"
     },
     {
-      "fixture_id": "negative_orphan_atom_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_orphan_atom_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><atom id=\"orphan\" name=\"Cl\"><point x=\"80\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_orphan_atom",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_orphan_atom\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><atom id=\"orphan\" name=\"Cl\"><point x=\"80\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {
@@ -1376,9 +1376,9 @@
       "synthetic_kind": "orphan"
     },
     {
-      "fixture_id": "negative_third_label_collision_v1",
-      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_third_label_collision_v1\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"n1\" name=\"N\"><point x=\"40\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"80\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
-      "capture_profile_id": "normal_document_4x3_v1",
+      "fixture_id": "negative_third_label_collision",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"negative_third_label_collision\"><atom id=\"c1\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"n1\" name=\"N\"><point x=\"40\" y=\"0\"/></atom><atom id=\"o1\" name=\"O\"><point x=\"80\" y=\"0\"/></atom><bond id=\"c1_o1\" start=\"c1\" end=\"o1\" type=\"n1\"/></molecule></cdml>",
+      "capture_profile_id": "normal_document_4x3",
       "graph": {
         "atoms": [
           {

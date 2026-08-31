@@ -1,4 +1,4 @@
-//! Closed verified-Telex layouts for direct-root presentation text.
+//! Closed verified-Atkinson Hyperlegible Next layouts for direct-root presentation text.
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -20,7 +20,7 @@ impl CenteredTextLayout {
         Self { operation, bounds }
     }
 
-    /// Return the exact Telex operation centered around the local origin.
+    /// Return the exact Atkinson Hyperlegible Next operation centered around the local origin.
     #[must_use]
     pub fn operation(&self) -> &TextOp {
         &self.operation
@@ -87,7 +87,7 @@ impl<'de> Deserialize<'de> for PresentationTextSourceRun {
     }
 }
 
-/// One exact single-line Telex run positioned relative to a Text anchor.
+/// One exact single-line Atkinson Hyperlegible Next run positioned relative to a Text anchor.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationGlyphRun {
@@ -113,7 +113,7 @@ impl PresentationGlyphRun {
         }
         if glyphs.len() != text.chars().count() {
             return Err(RenderError::InvalidRequest(
-                "presentation text requires one Telex glyph placement per Unicode scalar"
+                "presentation text requires one Atkinson Hyperlegible Next glyph placement per Unicode scalar"
                     .to_owned(),
             ));
         }
@@ -202,7 +202,7 @@ impl PresentationTextOp {
         }
         Ok(Self {
             runs,
-            face: FontFace::telex_regular(),
+            face: FontFace::molecule_label(),
             size,
             paint,
             z,
@@ -215,7 +215,7 @@ impl PresentationTextOp {
         &self.runs
     }
 
-    /// Return the closed verified Telex face.
+    /// Return the closed verified Atkinson Hyperlegible Next face.
     #[must_use]
     pub fn face(&self) -> &FontFace {
         &self.face
@@ -255,9 +255,9 @@ impl<'de> Deserialize<'de> for PresentationTextOp {
             z: i32,
         }
         let wire = Wire::deserialize(deserializer)?;
-        if wire.face != FontFace::telex_regular() {
+        if wire.face != FontFace::molecule_label() {
             return Err(serde::de::Error::custom(
-                "presentation Text requires the verified Telex face",
+                "presentation Text requires the verified Atkinson Hyperlegible Next face",
             ));
         }
         Self::new(wire.runs, wire.size, wire.paint, wire.z).map_err(serde::de::Error::custom)

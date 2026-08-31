@@ -1,6 +1,6 @@
 # YAML resource format
 
-Ferrum packages three YAML resources that define the visible desktop command surfaces and
+Ferrum packages three YAML resource families that define the visible desktop command surfaces and
 appearance. They are maintainership inputs shipped with `ferrum-qt`, not molecular interchange,
 saved-document data, user preferences, or a public plugin format. Rust remains the authority for
 chemistry, document state, and rendering facts; the action registry remains the authority for
@@ -23,12 +23,13 @@ registered client here.
 
 ## Loading and validation
 
-The neutral packaged-resource loader reads YAML with `yaml.safe_load`. Window startup performs a
-failure-atomic preflight before it constructs either a menu or ribbon client: each static action
-must be an existing registered action, and each dynamic menu must be an existing registered
-dynamic-menu client. Ribbon loading then resolves every declared action to that same existing
-`QAction`. Invalid resources raise `DeclarativeResourceError`; they are never silently repaired or
-partially applied.
+The neutral packaged-resource loader reads YAML with `yaml.safe_load` and returns only its parsed
+data; resource-specific validators own the schemas. Window startup performs a failure-atomic
+preflight before it constructs either a menu or ribbon client: each static action must be an
+existing registered action, and each dynamic menu must be an existing registered dynamic-menu
+client. Ribbon loading then resolves every declared action to that same existing `QAction`.
+Invalid menu or ribbon resources raise `DeclarativeResourceError`; they are never silently
+repaired or partially applied.
 
 The menu and ribbon schemas reject unknown keys, empty required strings and lists, duplicate
 declaration IDs, duplicate action placements within their respective surface, and unresolved

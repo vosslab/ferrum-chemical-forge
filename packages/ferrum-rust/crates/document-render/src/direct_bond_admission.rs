@@ -325,7 +325,6 @@ mod tests {
         let mut grid_session =
             DocumentSession::load("<cdml xmlns=\"urn:ferrum:cdml\" version=\"26.08\"/>")
                 .expect("empty session");
-        let before_short_candidate = grid_session.snapshot().expect("short candidate snapshot");
         let short_grid_gesture = begin_direct_bond_gesture(
             &grid_session,
             fence(&grid_session),
@@ -335,20 +334,27 @@ mod tests {
             DirectBondSnapPolicyV1::new(true, None, None).expect("grid policy"),
         )
         .expect("short grid begin");
-        assert!(matches!(
-            resolve_and_prepare(&mut grid_session, short_grid_gesture, no_hit(14.0, 6.0)),
-            Err(DirectBondAdmissionError::Refusal(
-                DirectBondAdmissionRefusal::UnrenderableCandidate
-            ))
-        ));
-        let after_short_candidate = grid_session.snapshot().expect("short candidate snapshot");
+        let short_grid_admission =
+            resolve_and_prepare(&mut grid_session, short_grid_gesture, no_hit(14.0, 6.0))
+                .expect("short grid candidate");
+        let exact_short_grid_gesture = begin_direct_bond_gesture(
+            &grid_session,
+            fence(&grid_session),
+            no_hit(0.0, 0.0),
+            DocumentBondPresentationV1::Normal(DocumentBondOrderV1::Single),
+            "C".to_owned(),
+            DirectBondSnapPolicyV1::free(),
+        )
+        .expect("exact short grid point begins");
+        let exact_short_grid_admission = resolve_and_prepare(
+            &mut grid_session,
+            exact_short_grid_gesture,
+            no_hit(10.0, 10.0),
+        )
+        .expect("exact short grid candidate");
         assert_eq!(
-            after_short_candidate.revision(),
-            before_short_candidate.revision()
-        );
-        assert_eq!(
-            after_short_candidate.digest(),
-            before_short_candidate.digest()
+            preview_primitives(&short_grid_admission),
+            preview_primitives(&exact_short_grid_admission)
         );
 
         let grid_gesture = begin_direct_bond_gesture(

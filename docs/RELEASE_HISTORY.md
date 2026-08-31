@@ -17,8 +17,9 @@ is added only after a human approves the release gate and creates its `v*` tag.
 - Native CDML editing, bounded interchange and export routes, typed CLI
   operations, and a closed PyO3/Qt render-observation path are under active
   development.
-- The current renderer now issues exact Telex label geometry, including a
-  centered element-core run and full visible-ink exclusion for bond clipping.
+- The current renderer selects proportional Atkinson Hyperlegible Next Regular
+  and issues exact tight-outline label geometry, including a centered
+  element-core run and full visible-ink exclusion for bond clipping.
   The alignment corpus covers isotope labels, decorations, bond styles, and
   refusal when a final bond would cross another label.
 

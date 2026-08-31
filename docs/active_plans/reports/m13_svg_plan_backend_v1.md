@@ -10,13 +10,13 @@ the existing Qt snapshot route.
 ## Accepted boundary
 
 The backend preserves plan batch source order and batch-local paint order. It lowers
-the closed V1 line, mask, ellipse, verified-Telex text, and nine direct-root vector
+the closed V1 line, mask, ellipse, verified molecule-label text, and nine direct-root vector
 kinds: Arrow, Polyline, Wavy, round-bracket, Rectangle, Square, Oval, Circle, and
 Polygon. Vector paths retain issued commands and normalized shapes retain issued
 bounds. Their V1 paint profile explicitly uses butt caps, miter joins with a fixed 4.0
 bevel fallback, and even-odd fill; no sink inherits an appearance default. Degenerate
 box shapes are rejected at document projection rather than becoming renderer-specific
-hairlines or points. Text becomes outline paths from the bundled digest-verified Telex
+hairlines or points. Text becomes outline paths from the bundled digest-verified molecule-label
 face, using the explicit TrueType-up to Ferrum-scene-down Y conversion. Atom batches
 use their supplied anchor; scene batches gain no invented transform.
 
@@ -24,7 +24,7 @@ The whole-page plan holds one exact revision/digest provenance, a finite physica
 and one source-order sequence of paintable roots or named exclusions. The API composer
 derives the page from the authoritative paper fact in one final observation; molecule,
 fixed-plus, and Text roots retain their issued durable-or-local identity, anchor,
-bounds, optional background, and existing Telex layout. Roots without a supported
+bounds, optional background, and existing molecule-label layout. Roots without a supported
 operation stay as named profile, rejected-projection, or `not_yet_lowered` exclusions.
 Invalid presentation suppression returns a typed no-plan result before a partial page
 can be formed.

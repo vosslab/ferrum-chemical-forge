@@ -44,7 +44,7 @@ fn atom_label(z: i32) -> AtomLabelRenderV1 {
             .expect("label mask"),
         ),
         AtomLabelFacts::new("C", None, 0, 0).expect("label facts"),
-        AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("102030")),
+        AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint("102030")),
         z,
     )
     .expect("verified atom label")
@@ -100,9 +100,10 @@ fn mixed_plan() -> DocumentRenderPlanV1 {
         vec![],
     )
     .expect("molecule plan");
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("metrics");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+    )
+    .expect("metrics");
     let plus = metrics
         .layout_centered_plus(size(10.0), paint("000000"))
         .expect("plus layout");
@@ -317,8 +318,9 @@ fn presentation_plan(operation: PresentationTextOp, bounds: GlyphBounds) -> Docu
 }
 
 fn laid_out_presentation(text: &str) -> PresentationTextLayout {
-    let environment = FerrumFontEnvironmentV1::load().expect("verified Telex");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment).expect("Telex metrics");
+    let environment = FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("Atkinson Hyperlegible Next metrics");
     metrics
         .layout_presentation_text(
             &[PresentationTextSourceRun::new(text, TextScript::Baseline).expect("source")],
@@ -539,7 +541,7 @@ fn private_stream_skips_only_verified_outline_less_whitespace() {
     let run = &layout.operation().runs()[0];
     let space = &run.glyphs()[1];
     let trailing_visible = &run.glyphs()[2];
-    assert_eq!(space.glyph_index(), 3);
+    assert_ne!(space.glyph_index(), 0);
     assert!(trailing_visible.origin().x() > space.origin().x());
 
     let mut sink = RecordingSink::default();
@@ -557,8 +559,10 @@ fn private_stream_skips_only_verified_outline_less_whitespace() {
 #[test]
 fn private_stream_rejects_a_visible_scalar_forged_to_the_space_glyph() {
     let layout = laid_out_presentation("L");
+    let whitespace_layout = laid_out_presentation("L L");
+    let space_glyph_index = whitespace_layout.operation().runs()[0].glyphs()[1].glyph_index();
     let mut wire = serde_json::to_value(layout.operation()).expect("presentation wire");
-    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(3);
+    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(space_glyph_index);
     let forged: PresentationTextOp = serde_json::from_value(wire).expect("render-level plan");
 
     let result = lower_document_plan_to_sink_v1(
@@ -567,7 +571,8 @@ fn private_stream_rejects_a_visible_scalar_forged_to_the_space_glyph() {
     );
     assert!(matches!(
         result,
-        Err(DrawStreamErrorV1::MissingGlyphOutline { glyph_index: 3 })
+        Err(DrawStreamErrorV1::MissingGlyphOutline { glyph_index })
+            if glyph_index == space_glyph_index
     ));
 }
 
@@ -748,7 +753,7 @@ fn private_stream_preserves_page_order_scopes_profiles_and_exclusions() {
         .enumerate()
         .skip(background + 1)
         .find_map(|(index, event)| event.contains("MoleculeText").then_some(index))
-        .expect("Telex outline");
+        .expect("Atkinson Hyperlegible Next outline");
     assert!(text < background && background < glyph);
     assert!(
         sink.events

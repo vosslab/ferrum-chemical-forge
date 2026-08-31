@@ -73,17 +73,22 @@ may write one path, but it does not publish or validate the complete tour.
 
 ## Current capture status
 
-The complete 13-scene set was freshly regenerated transactionally at 1440 by 900 on
-2026-08-28 with `./capture_gui_screenshots.sh --backend qt` after the promoted Rust
-renderer atom-label alignment rebuild. Before publication, every staged scene passed its
-semantic postcondition and full-window surface check; the harness also requires the
+The complete 13-scene set was regenerated transactionally at 1440 by 900 on
+2026-08-31 with `./capture_gui_screenshots.sh --backend qt`. Every staged scene passed
+its semantic postcondition and full-window surface check; the harness also requires the
 fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
-complete visible title. The current PNGs visibly include the top ribbon, document tabs,
+complete visible title. The resulting PNGs include the top ribbon, document tabs,
 canvas, readable Properties title where relevant, and bottom status bar. The Command
-Palette frame preserves those application surfaces while showing its live query and
-results. A native-resolution documentation review found no clipping, stale product
-branding, render failure, or image-to-caption mismatch. That documentation review is not
-human visual or accessibility acceptance.
+Palette frame retains those application surfaces while showing its live query and results.
+
+This capture is not accepted as current visual documentation. Native-resolution review
+rejected the atom-label/bond clearance in the carbonyl scenes: the double-bond ink lies
+visibly too close to the C and O glyph ink. The affected evidence includes `workspace`,
+`atom_authoring`, `smarts_result`, and `view_controls`; `cdxml_open` also needs review
+after the renderer repair. Retain the files only as failed diagnostic evidence and do not
+add them to the README managed screenshot block. A fresh capture and visual review are
+required after the renderer correction. This is separate from human visual and
+accessibility acceptance.
 
 The documentation framing uses Ferrum's document-root content bounds and visible
 status-bar zoom client so completed chemistry remains legible in the application frame.
@@ -119,8 +124,9 @@ application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete current 2026-08-28 documentation tour. Focused diagnostic
-captures remain outside this section.
+These embeds are the complete 2026-08-31 diagnostic capture set. They are not accepted
+as current documentation proof pending the renderer correction. Focused diagnostic captures
+remain outside this section.
 
 ![Editable carbonyl fragment in the Ferrum workspace](screenshots/workspace.png)
 

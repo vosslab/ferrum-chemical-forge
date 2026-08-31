@@ -137,7 +137,7 @@ fn scene_path_document_plan() -> DocumentRenderPlanV1 {
 }
 
 #[test]
-fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics() {
+fn pdf_backend_lowers_molecule_label_quadratics_and_rotated_molecule_ellipses_as_cubics() {
     let source = provenance(8);
     let molecule_target = target(0x22);
     let molecule = MoleculeRenderPlanV4::new(
@@ -166,16 +166,18 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
         vec![],
     )
     .expect("molecule plan");
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("Telex metrics");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+    )
+    .expect("Atkinson Hyperlegible Next metrics");
     let text_layout = metrics
         .layout_presentation_text(
-            &[PresentationTextSourceRun::new("O", TextScript::Baseline).expect("Telex source")],
+            &[PresentationTextSourceRun::new("O", TextScript::Baseline)
+                .expect("Atkinson Hyperlegible Next source")],
             width(12.0),
             paint("000000"),
         )
-        .expect("Telex layout");
+        .expect("Atkinson Hyperlegible Next layout");
     let text = DocumentTextOpV1::presentation(
         point(20.0, 15.0),
         text_layout.operation().clone(),
@@ -213,7 +215,7 @@ fn pdf_backend_lowers_telex_quadratics_and_rotated_molecule_ellipses_as_cubics()
     .into_owned();
     assert!(
         source.matches(" c\n").count() > 4,
-        "the rotated ellipse contributes four cubics and Telex adds an outline cubic"
+        "the rotated ellipse contributes four cubics and Atkinson Hyperlegible Next adds an outline cubic"
     );
     assert!(!source.contains(" Tf"));
     assert!(!source.contains(" Tj"));
@@ -240,9 +242,10 @@ fn pdf_backend_treats_v2_path_commands_as_structural_render_work() {
 
 #[test]
 fn pdf_preflight_accepts_verified_space_and_rejects_a_visible_space_glyph_forgery() {
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("Telex metrics");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+    )
+    .expect("Atkinson Hyperlegible Next metrics");
     let layout = metrics
         .layout_presentation_text(
             &[PresentationTextSourceRun::new("L L", TextScript::Baseline).expect("source")],
@@ -256,15 +259,17 @@ fn pdf_preflight_accepts_verified_space_and_rejects_a_visible_space_glyph_forger
     )
     .expect("verified space requires no PDF outline commands");
 
+    let space_glyph_index = layout.operation().runs()[0].glyphs()[1].glyph_index();
     let mut wire = serde_json::to_value(layout.operation()).expect("presentation wire");
-    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(3);
+    wire["runs"][0]["glyphs"][0]["glyph_index"] = serde_json::Value::from(space_glyph_index);
     let forged: PresentationTextOp = serde_json::from_value(wire).expect("render-level plan");
     assert!(matches!(
         render_document_plan_to_pdf_v1(
             &presentation_text_plan(forged, layout.bounds()),
             ample_request(),
         ),
-        Err(PdfRenderError::MissingGlyphOutline { glyph_index: 3 })
+        Err(PdfRenderError::MissingGlyphOutline { glyph_index })
+            if glyph_index == space_glyph_index
     ));
 }
 
@@ -380,17 +385,19 @@ fn pdf_backend_rejects_a_vector_path_above_its_explicit_command_limit() {
 }
 
 #[test]
-fn pdf_backend_rejects_telex_outline_above_zero_command_limit() {
-    let metrics =
-        VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("verified Telex"))
-            .expect("Telex metrics");
+fn pdf_backend_rejects_molecule_label_outline_above_zero_command_limit() {
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("verified Atkinson Hyperlegible Next"),
+    )
+    .expect("Atkinson Hyperlegible Next metrics");
     let layout = metrics
         .layout_presentation_text(
-            &[PresentationTextSourceRun::new("O", TextScript::Baseline).expect("Telex source")],
+            &[PresentationTextSourceRun::new("O", TextScript::Baseline)
+                .expect("Atkinson Hyperlegible Next source")],
             width(12.0),
             paint("000000"),
         )
-        .expect("Telex layout");
+        .expect("Atkinson Hyperlegible Next layout");
     let text = DocumentTextOpV1::presentation(
         point(0.0, 0.0),
         layout.operation().clone(),

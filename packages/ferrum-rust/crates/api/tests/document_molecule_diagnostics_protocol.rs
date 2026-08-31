@@ -107,6 +107,70 @@ fn compact_materialization_request(document: &str) -> Value {
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NamedDiagnosticsProcessOutcome {
+    Success,
+    Refusal,
+}
+
+impl NamedDiagnosticsProcessOutcome {
+    const fn exit_code(self) -> i32 {
+        match self {
+            Self::Success => 0,
+            Self::Refusal => 1,
+        }
+    }
+}
+
+fn run_named_diagnostics(
+    request: &Value,
+    expected_outcome: NamedDiagnosticsProcessOutcome,
+) -> Value {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_ferrum"))
+        .args([
+            "document",
+            "command",
+            "document.molecule.diagnostics.v1",
+            "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("named diagnostics CLI starts");
+    child
+        .stdin
+        .take()
+        .expect("CLI stdin")
+        .write_all(request.to_string().as_bytes())
+        .expect("CLI input writes");
+    let output = child.wait_with_output().expect("named CLI completes");
+    assert_eq!(
+        output.status.code(),
+        Some(expected_outcome.exit_code()),
+        "named diagnostics CLI outcome mismatch; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "named diagnostics JSON CLI wrote stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let envelope: Value =
+        serde_json::from_slice(&output.stdout).expect("CLI emits one JSON envelope");
+    match expected_outcome {
+        NamedDiagnosticsProcessOutcome::Success => {
+            assert!(envelope.get("outcome").is_some());
+            assert!(envelope.get("error").is_none());
+        }
+        NamedDiagnosticsProcessOutcome::Refusal => {
+            assert!(envelope.get("error").is_some());
+            assert!(envelope.get("outcome").is_none());
+        }
+    }
+    envelope
+}
+
 #[test]
 fn diagnostics_preserve_source_fence_and_root_order() {
     let ids = molecule_ids(SOURCE);
@@ -206,32 +270,8 @@ fn diagnostics_refuse_aggregate_selector_bytes_before_parsing() {
 
 #[test]
 fn named_diagnostics_cli_forwards_the_generic_protocol_envelope() {
-    let payload = request(SOURCE, 0, vec![molecule_ids(SOURCE)[0].clone()]).to_string();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_ferrum"))
-        .args([
-            "document",
-            "command",
-            "document.molecule.diagnostics.v1",
-            "-",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("named diagnostics CLI starts");
-    child
-        .stdin
-        .take()
-        .expect("CLI stdin")
-        .write_all(payload.as_bytes())
-        .expect("CLI input writes");
-    let output = child.wait_with_output().expect("named CLI completes");
-    assert!(
-        output.status.success(),
-        "CLI stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let response: Value = serde_json::from_slice(&output.stdout).expect("CLI emits JSON envelope");
+    let request = request(SOURCE, 0, vec![molecule_ids(SOURCE)[0].clone()]);
+    let response = run_named_diagnostics(&request, NamedDiagnosticsProcessOutcome::Success);
     assert_eq!(response["request_id"], "molecule-diagnostics-protocol-test");
     assert_eq!(
         response["outcome"]["kind"],
@@ -241,38 +281,14 @@ fn named_diagnostics_cli_forwards_the_generic_protocol_envelope() {
 
 #[test]
 fn named_diagnostics_cli_refuses_a_mutating_operation_before_execution() {
-    let payload = compact_materialization_request(ATTACHED_METHYL_SOURCE).to_string();
-    let generic_response = execute(serde_json::from_str(&payload).expect("request JSON"));
+    let request = compact_materialization_request(ATTACHED_METHYL_SOURCE);
+    let generic_response = execute(request.clone());
     assert_eq!(
         generic_response["outcome"]["kind"], "document.compact-group.materialize.v1",
         "generic materialization request must be executable: {generic_response}"
     );
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_ferrum"))
-        .args([
-            "document",
-            "command",
-            "document.molecule.diagnostics.v1",
-            "-",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("named diagnostics CLI starts");
-    child
-        .stdin
-        .take()
-        .expect("CLI stdin")
-        .write_all(payload.as_bytes())
-        .expect("CLI input writes");
-    let output = child.wait_with_output().expect("named CLI completes");
-    assert!(
-        output.status.success(),
-        "CLI stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let response: Value = serde_json::from_slice(&output.stdout).expect("CLI emits JSON envelope");
+    let response = run_named_diagnostics(&request, NamedDiagnosticsProcessOutcome::Refusal);
     assert_eq!(response["schema"], "ferrum-operation-error-v1");
     assert_eq!(response["error"]["category"], "invalid_request");
     assert_eq!(

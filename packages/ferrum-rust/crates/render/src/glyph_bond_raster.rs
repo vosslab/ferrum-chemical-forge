@@ -19,8 +19,8 @@ use crate::draw_stream_v1::{
     lower_molecule_plan_to_sink_v1, scoped_translate,
 };
 use crate::{
-    BatchSpace, FerrumFontEnvironmentV1, FerrumFontId, MoleculeRenderPlanV4, RenderBatchContentV4,
-    RenderPaintV3, RenderPoint, RenderTarget, RenderViewportV1,
+    BatchSpace, FerrumFontEnvironment, MoleculeRenderPlanV4, RenderBatchContentV4, RenderPaintV3,
+    RenderPoint, RenderTarget, RenderViewportV1,
 };
 
 pub(crate) const GLYPH_BOND_RASTER_SCALE: u32 = 8;
@@ -335,9 +335,9 @@ pub enum GlyphBondRasterError {
     RasterAllocationFailed,
     #[error("glyph-bond raster contains non-finite geometry")]
     NonFiniteGeometry,
-    #[error("could not parse verified Telex outline face: {0}")]
+    #[error("could not parse verified Atkinson Hyperlegible Next outline face: {0}")]
     Font(String),
-    #[error("required Telex glyph {glyph_index} has no usable outline")]
+    #[error("required Atkinson Hyperlegible Next glyph {glyph_index} has no usable outline")]
     MissingGlyphOutline { glyph_index: u32 },
     #[error("could not encode diagnostic PNG: {0}")]
     Png(String),
@@ -394,9 +394,9 @@ pub fn rasterize_glyph_bond_layers(
     let mut normal = RasterSink::new(viewport)?;
     lower_molecule_plan_to_sink_v1(plan, viewport, &mut normal).map_err(map_draw_error)?;
 
-    let environment = FerrumFontEnvironmentV1::load()
+    let environment = FerrumFontEnvironment::load()
         .map_err(|error| GlyphBondRasterError::Font(error.to_string()))?;
-    let face = Face::parse(environment.descriptor(FerrumFontId::TelexRegular).data(), 0)
+    let face = Face::parse(environment.molecule_label().data(), 0)
         .map_err(|error| GlyphBondRasterError::Font(error.to_string()))?;
     let mut target_core_glyph_masks = BTreeMap::new();
     let mut full_label_masks = BTreeMap::new();

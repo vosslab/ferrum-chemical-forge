@@ -12,10 +12,10 @@ clipped endpoints, transforms, and calculated metrics.
 
 | Lane | Producer | Current result |
 | --- | --- | --- |
-| Synthetic metric oracle | `measure_stack.runner` | Green: accepted synthetic scenes pass and named bad scenes reach their declared failure category. |
-| Native final ink | `devel/run_measure_stack_rust.sh` | Strict-red: 15 findings across the 12 renderable V2 fixtures. |
-| Qt replay | `devel/run_measure_stack_qt.sh --baseline` | Green expected-red infrastructure receipt; frozen categories remain eight detached endpoints and seven target overlaps. |
-| Qt strict geometry | `devel/run_measure_stack_qt.sh --strict` | Strict-red until Rust-owned geometry reaches zero findings. |
+| Synthetic metric oracle | `measure_stack.runner` | Green: 19 fixtures, zero violations; named bad scenes reach their declared failure category. |
+| Native final ink | `devel/run_measure_stack_rust.sh` | Green: 12 renderable V2 fixtures, zero violations. |
+| Qt strict geometry | `devel/run_measure_stack_qt.sh --strict` | Green: 12 actual-Qt fixtures, zero violations. |
+| Qt replay baseline | `devel/run_measure_stack_qt.sh --baseline` | Green capture/provenance receipt with frozen zero failure categories. |
 
 Each lane writes JSON, per-fixture reports, annotated overlays, contact sheets,
 and an aggregate run summary under ignored output directories. The Qt lane uses
@@ -24,38 +24,58 @@ an offscreen real `QGraphicsScene` replay; native evidence uses the test-only
 
 ## Current conclusion
 
-The measurement system is operational and non-circular. It proves the current
-renderer is not visually accepted: native evidence reports 11 detached
-endpoints, one missing endpoint connection, and three target-label overlaps.
-Qt's healthy expected-red receipt prevents a Rust-only geometry change from
-silently becoming a presentation baseline change.
+The measurement system is operational and non-circular. It accepts the current
+renderer under the unchanged V2 policy: native and actual-Qt evidence each
+report zero findings across the 12 renderable fixtures. The Qt baseline freezes
+that accepted-zero state so a renderer regression cannot silently become a new
+presentation baseline.
 
-Two one-time private outline-support experiments were discarded. Raw convex
-support reached 18 native findings; support dilated by the current clearance
+Two one-time private outline-support experiments remain discarded. Raw convex
+support reached 18 native findings; support dilated by the rectangle clearance
 kernel reached 10 native findings but produced 17 rebuilt-Qt findings,
-including full-label collisions. The remaining correction needs one calibrated
-Rust clip model verified by both receipt types, not a threshold change.
+including full-label collisions. The accepted correction uses the exact
+directional outline, final-ink footprint geometry, and distinct optical versus
+decoration exclusion gaps in Rust; both real lanes validate it.
 
 ## Verification
 
 ```bash
 source source_me.sh && python3 -m pytest measure_stack/tests -q
-# 24 passed
+# 15 passed
 
-# Produces the native raster layers, reports, and a strict-red exit while
-# geometry remains unresolved.
+# Produces native raster layers, reports, and a zero-violation strict receipt.
 ./devel/run_measure_stack_rust.sh
 
+./build.sh
+./devel/run_measure_stack_qt.sh --strict
 ./devel/run_measure_stack_qt.sh --baseline
-# PASS: real Qt V2 measurement baseline completed
 
 source source_me.sh && python3 tests/e2e/e2e_atom_label_bond_alignment.py
 # {"status":"ok","cases":14}
 
 source source_me.sh && python3 -m measure_stack.batch \
   --manifest-root output_glyph_alignment/v2
-# {"fixtures":12,"status":"ok","violations":15}
+# {"fixtures":12,"status":"ok","violations":0}
+
+./all_test.sh
+# 8,473 hygiene, 283 installed PyO3, and 444 Qt tests passed;
+# every registered CLI/Qt E2E passed.
+
+./check_rust.sh
+# Formatting, workspace check, strict Clippy, 164 permanent ferrum-render tests,
+# one ignored developer receipt, complete workspace tests, doc tests, and Rustdoc passed.
 ```
 
-Strict renderer gates intentionally remain nonzero. This report is evidence
-that the measurement stack is implemented, not a visual-acceptance claim.
+This report records automated corpus acceptance for the selected Atkinson
+Hyperlegible Next Regular molecule-label face. It does not establish broad
+desktop usability acceptance beyond the fixed corpus.
+
+Permanent coverage is limited to the 15 deterministic measurement tests, the
+selected default resource/scalar contracts, Rust semantic and renderer tests,
+and installed consumer contracts. Upstream comparison of all 92 pinned font
+binaries and both licenses, catalog/file census, proportional-versus-monospace
+width measurement, native and Qt raster publication, contact-sheet inspection,
+and the rebuild are implementation evidence rather than additional permanent
+tests. The catalog/file census is reproducible through
+`packages/ferrum-rust/devel/verify_vendored_font_catalog.py`. All render-owned,
+corpus, installed-consumer, and aggregate gates for this goal are green.

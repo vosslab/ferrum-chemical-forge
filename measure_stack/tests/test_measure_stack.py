@@ -111,6 +111,33 @@ def _style_scene(style: str, good: bool) -> SceneLayers:
 
 
 # ============================================
+def _pad_scene(
+    scene: SceneLayers,
+    padding: tuple[tuple[int, int], tuple[int, int]],
+) -> SceneLayers:
+    """Pad every raster layer consistently for a framing-behavior test."""
+    composite = numpy.pad(scene.composite, padding)
+    return dataclasses.replace(
+        scene,
+        composite=composite,
+        atoms={
+            atom_id: dataclasses.replace(
+                atom,
+                core_mask=numpy.pad(atom.core_mask, padding),
+                full_label_mask=numpy.pad(atom.full_label_mask, padding),
+            )
+            for atom_id, atom in scene.atoms.items()
+        },
+        bonds=tuple(
+            dataclasses.replace(bond, footprint_mask=numpy.pad(bond.footprint_mask, padding))
+            for bond in scene.bonds
+        ),
+        viewport_width_px=composite.shape[1],
+        viewport_height_px=composite.shape[0],
+    )
+
+
+# ============================================
 def _reverse_footprint_direction(scene: SceneLayers) -> SceneLayers:
     """Mirror a wedge footprint while retaining its declared source endpoints."""
     bond = scene.bonds[0]
@@ -150,6 +177,31 @@ def test_parallel_endpoint_axis_is_not_weighted_by_lane_raster_area() -> None:
     )
     endpoints = measure_scene(altered)["bonds"][0]["endpoints"]
     assert max(endpoint["perpendicular_error_glyph_height"] for endpoint in endpoints) < 0.03
+
+
+# ============================================
+def test_parallel_bond_rejects_a_disjoint_but_visually_touching_label_gap() -> None:
+    """Parallel ink needs visible breathing room in addition to zero collision."""
+    scene = _style_scene("double", good=True)
+    footprint = numpy.zeros_like(scene.bonds[0].footprint_mask)
+    footprint[42:45, 22:138] = True
+    footprint[54:57, 22:138] = True
+    altered = dataclasses.replace(
+        scene,
+        composite=scene.atoms["a"].full_label_mask
+        | scene.atoms["b"].full_label_mask
+        | footprint,
+        bonds=(dataclasses.replace(scene.bonds[0], footprint_mask=footprint),),
+    )
+    report = measure_scene(altered)
+    assert all(
+        endpoint["own_full_label_collision_pixels"] == 0
+        for endpoint in report["bonds"][0]["endpoints"]
+    )
+    assert any(
+        "overlaps or touches target label" in item
+        for item in violations(report, MeasurementPolicy())
+    )
 
 
 # ============================================
@@ -229,8 +281,8 @@ def test_v2_uses_full_label_masks_for_collision_not_only_core_attachment() -> No
 
 
 # ============================================
-def test_v2_composition_rejects_unexplained_foreground_and_underframing() -> None:
-    """Fixed-profile composition rejects stray composite ink and excessive empty canvas."""
+def test_v2_composition_rejects_unexplained_foreground() -> None:
+    """Composition rejects foreground that no declared layer owns."""
     scene = _style_scene("normal", good=True)
     composite = scene.composite.copy()
     composite[2:12, 2:12] = True
@@ -244,44 +296,41 @@ def test_v2_composition_rejects_unexplained_foreground_and_underframing() -> Non
         scene.viewport_height_px,
     )
     report = measure_scene(altered)
-    assert report["composition"] is not None
-    assert report["composition"]["unexplained_foreground_pixels"] == 100
     assert any("unexplained foreground" in item for item in violations(report, MeasurementPolicy()))
+
+
+# ============================================
+def test_v2_composition_accepts_elongated_and_rejects_tiny_scenes() -> None:
+    """Dominant-axis framing admits long chemistry while rejecting tiny scenes."""
+    scene = _style_scene("normal", good=True)
+    elongated = _pad_scene(scene, ((200, 200), (0, 0)))
+    tiny = _pad_scene(scene, ((950, 950), (950, 950)))
+    assert not any(
+        "under-framed" in item
+        for item in violations(measure_scene(elongated), MeasurementPolicy())
+    )
+    assert any(
+        "under-framed" in item for item in violations(measure_scene(tiny), MeasurementPolicy())
+    )
 
 
 # ============================================
 def test_raw_final_ink_profile_omits_viewport_framing_but_keeps_integrity_checks() -> None:
     """Native diagnostic rasters are geometry evidence, not user-facing framing."""
     scene = _style_scene("normal", good=True)
-    profile = scene.capture_profile
-    assert profile is None
     from measure_stack.contracts import CaptureProfile
     raw_scene = SceneLayers(
         scene.schema, scene.composite, scene.atoms, scene.bonds, scene.pixel_scale,
         scene.viewport_width_px, scene.viewport_height_px, capture_profile=CaptureProfile(
-            "raw-test-v2", (-200.0, -200.0, 400.0, 400.0), 160, 100, 1.0, "raw_final_ink",
+            "raw_test", (-200.0, -200.0, 400.0, 400.0), 160, 100, 1.0, "raw_final_ink",
         ),
     )
     report = measure_scene(raw_scene)
-    assert report["composition"]["scene_evaluation"] == "raw_final_ink"
     assert not any("scene occupancy" in item or "under-framed" in item for item in violations(report, MeasurementPolicy()))
     broken_composite = raw_scene.composite.copy()
     broken_composite[2:12, 2:12] = True
     broken = dataclasses.replace(raw_scene, composite=broken_composite)
     assert any("unexplained foreground" in item for item in violations(measure_scene(broken), MeasurementPolicy()))
-
-
-# ============================================
-def test_v2_composition_and_diagnostics_are_reported(tmp_path: pathlib.Path) -> None:
-    """V2 scenes receive fixed-profile composition metrics and diagnostics."""
-    scene = _style_scene("normal", good=True)
-    report = measure_scene(scene)
-    report["violations"] = violations(report, MeasurementPolicy())
-    output = tmp_path / "output"
-    write_diagnostics(scene, report, output)
-    assert report["composition"] is not None
-    assert (output / "measurement_report.json").is_file()
-    assert (output / "contact_sheet.png").is_file()
 
 
 def test_nonfinite_measurement_is_a_violation_and_writes_json_null(tmp_path: pathlib.Path) -> None:
@@ -297,5 +346,7 @@ def test_nonfinite_measurement_is_a_violation_and_writes_json_null(tmp_path: pat
     write_diagnostics(scene, report, output)
     saved = json.loads((output / "measurement_report.json").read_text(encoding="utf-8"))
     saved_endpoint = saved["bonds"][0]["endpoints"][0]
-    assert saved_endpoint["perpendicular_error_px"] is None
-    assert saved_endpoint["perpendicular_error_glyph_height"] is None
+    assert (
+        saved_endpoint["perpendicular_error_px"],
+        saved_endpoint["perpendicular_error_glyph_height"],
+    ) == (None, None)

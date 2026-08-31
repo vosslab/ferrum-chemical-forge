@@ -4,6 +4,106 @@ Earlier history is in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), continuing
 [CHANGELOG-2026-08j.md](CHANGELOG-2026-08j.md), [CHANGELOG-2026-08i.md](CHANGELOG-2026-08i.md),
 and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
 
+## 2026-08-31
+
+### Behavior or Interface Changes
+
+- Recorded the pre-production design rule: choose one strong canonical schema,
+  contract, abstraction, and ownership boundary in a coordinated cutover while
+  no users or production data depend on an earlier design.
+- Moved molecule-label font selection behind the unversioned Rust
+  `FerrumFontEnvironment::molecule_label()` role. PyO3 now exposes
+  `molecule_label_font()` and the unversioned `VerifiedMoleculeLabelFont` value,
+  so changing the selected face has one owner without a font-generation schema.
+- Selected proportional Atkinson Hyperlegible Next Regular version 2.001 as the
+  molecule-label default. The repository now vendors all 92 official Next and
+  Mono OTF, static TTF, variable TTF, and WOFF2 outputs, their two exact OFL-1.1
+  notices, immutable upstream revisions, and a closed byte-length/SHA-256 catalog.
+- Changed the real-Qt glyph-bond developer command to default to strict visual
+  acceptance. Its optional baseline now freezes the accepted zero-finding
+  receipt instead of the superseded eight-detachment/seven-overlap evidence.
+
+### Fixes and Maintenance
+
+- Replaced rectangular core-glyph corner clipping with exact directional
+  outline support from the current byte-verified measurement font. Rust now separates
+  core optical clearance from painted mask/decoration exclusion and models
+  final endpoint caps, widths, overhang, and retreat per bond style.
+- Corrected decorated-label layout for a sole rightward bond: explicit hydrogen
+  and count ink move left of the structural glyph while isotope and charge keep
+  conventional corners. Exact run metrics recompute the full label bounds.
+- Corrected Qt measurement capture to retain one isotropic scene scale with
+  centered letterboxing. The fixture catalog now owns one unversioned ID per
+  live presentation profile; three superseded rectangles were removed.
+- Corrected the synthetic solid-wedge oracle to emit the same triangular
+  topology that its positive fixture declares.
+- Narrowed the installed Qt semantic replay E2E to prove that issued bond ink
+  does not enter issued label ink. The independent raster lane remains the sole
+  quantitative oracle for core optical gap and decoration exclusion instead of
+  duplicating Rust clearance with a Qt outline-stroker approximation.
+- Replaced conservative TrueType glyph-header boxes with tight extrema derived
+  from the actual line, quadratic, and cubic outline curves. Rust and Qt now
+  agree on proportional curved-glyph ink without a resource-specific tolerance.
+- Corrected fixed-profile under-framing policy to measure dominant-axis extent
+  alongside total pixel occupancy. Long horizontal or vertical chemistry is
+  accepted at its authored scale while a genuinely tiny scene is still rejected.
+- Corrected the Rust named-CLI integration boundary to model successful and
+  refused protocol processes explicitly. Typed JSON refusals now require exit
+  one, empty stderr, one envelope, and an error-only payload across inspect,
+  diagnostics, and presentation-authoring tests.
+- Updated geometry-operation evidence to use renderer-admissible native drawing
+  scale, and made direct-bond grid evidence compare snapped candidates with
+  their exact canonical points. These tests now prove their owned semantic
+  contracts instead of depending on incidental renderer rejection.
+
+### Developer Tests and Notes
+
+- Reconciled the completed Atkinson glyph-bond acceptance across the active
+  goal, measurement report, parity ledger, roadmap, and short dispatch queue.
+  Added `native_visual_accessibility_acceptance.md` as the owner-facing receipt
+  template for the still-open full-desktop human gate, with explicit
+  preconditions, success criteria, review fields, and repair ownership.
+- Completed the six-pass pre-merge audit. Split physical selected-font
+  verification out of the oversized glyph-metrics module; removed CDML font
+  aliases; made Rust-issued font identity the sole Qt comparison source; moved
+  the metric JSONL receipt behind an explicit ignored developer invocation; and
+  added a reproducible offline checker for all 92 font binaries, both licenses,
+  catalog structure, distribution forms, lengths, and hashes.
+- Applied `PYTEST_STYLE.md` to the font rebuild evidence. Removed the permanent
+  exact 92-file catalog inventory test; upstream completeness, hashes, license
+  equality, width comparison, and real raster publication remain one-time
+  implementation checks. Removed exact fixture-inventory and offscreen-Qt
+  capture pytest modules plus the contact-sheet publication pytest; their
+  developer/E2E lanes remain authoritative. Replaced full-corpus parser setup
+  with a minimal inline `tmp_path` manifest. Kept the dominant-axis framing
+  regression as two deterministic behavioral assertions and removed its exact
+  occupancy probes.
+- Removed the permanent aggregate baseline-summary pytest because it asserted a
+  fixture-name collection from a developer corpus. Deterministic corpus receipts
+  remain in the explicit synthetic, native, and Qt measurement lanes.
+- Used a focused square-in-square Qt capture check to prove isotropic scaling
+  during the rebuild, then removed it because real raster capture is too slow
+  for permanent pytest. The strict actual-Qt corpus remains the ongoing lane.
+- The unchanged V2 pixel policy now accepts the complete corpus: the synthetic
+  oracle reports 19 fixtures and zero violations, while native final-ink and
+  actual Qt strict lanes each report 12 fixtures and zero violations. Contact
+  sheets were inspected for ordinary, parallel, decorated, ring, wedge,
+  Haworth-front, and three-letter-label alignment.
+- Preserved the closed manifest safety boundary while adding the outline path:
+  only the embedded hash-verified font is parsed, and V2 JSON continues to
+  enforce closed fields, bounded paths and dimensions, content hashes, and
+  related-item consistency (ASVS 1.5.2, 2.1.1-2.1.2, and 2.2.1-2.2.3).
+- Focused gates passed: 15 measurement-stack tests, 164 permanent
+  `ferrum-render` tests with one ignored developer receipt, the two active Rust
+  alignment-corpus semantic checks, the 14-case
+  installed Rust-to-Qt alignment E2E, both Qt accepted-zero modes, and a clean
+  staged runtime rebuild.
+- `./all_test.sh` exited zero: 8,473 repository-hygiene tests, every registered
+  CLI/Qt E2E, 283 installed PyO3 tests, and 444 Qt tests passed.
+- `./check_rust.sh` exited zero: workspace formatting, workspace check, strict
+  Clippy, the complete Rust workspace test suite, doc tests, and workspace
+  documentation generation passed in a disposable Cargo target.
+
 ## 2026-08-30
 
 ### Fixes and Maintenance
@@ -144,7 +244,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   That check exercised real CLI publication, 19 fixture manifests, images, and
   contact sheets, so it remains an explicit developer-oracle action instead of
   violating the repository's fast deterministic pytest lane.
-- Refined the Rust-private atom-label clipping model to retain exact Telex
+- Refined the Rust-private atom-label clipping model to retain exact selected-font
   bounds for each non-core run. Bond endpoints now attach to the structural
   glyph and clip around only decorations that actually lie on their approach
   ray, rather than treating the decorated label's aggregate rectangle as ink.
@@ -164,7 +264,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   identity and cross-field validation, checked diagnostic/report publication, and
   a deterministic pixel oracle for metrics, collision detection, and generated
   diagnostics. The explicit developer gate no longer depends on manual review.
-- Added default-off Rust test support that reuses the ordinary Telex draw stream
+- Added default-off Rust test support that reuses the ordinary molecule-label draw stream
   to emit 8x composites, source-identified core-glyph masks, and final bond
   footprints for the extended alignment corpus. The corpus now closes expected
   atom core runs plus source-bond style, display-layer, and operation-shape
@@ -190,7 +290,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   availability without activation, and restores focus after dismissal.
 - Replaced the PyO3 render-observation transport in place with frozen V4/V2 DTOs. Render batches
   now expose one closed atom, compact-group, or bond content value; atom labels carry Rust-issued
-  exact Telex bounds and core-run identity, while V3/V1 render-plan compatibility classes are gone.
+  exact molecule-label bounds and core-run identity, while V3/V1 render-plan compatibility classes are gone.
 - Corrected M4b SMARTS ownership: complete projection children now make the non-atom inventory
   explicit, the new `ferrum-graph-lowering` crate lowers capability-free facts only, and the API
   privately joins graph positions to durable IDs from exactly one accepted observation. The public
@@ -212,7 +312,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   it explicitly retains P2 directory-sync fault injection as deferred and makes
   no parity or release-readiness claim.
 - Migrated the production Qt molecule renderer to exact V2 observations and V4 closed batches.
-  Atom labels now replay only their typed mask/text/decorations and declared core run, verify Telex
+  Atom labels now replay only their typed mask/text/decorations and declared core run, verify molecule-label
   full/core ink bounds and coordinate-space receipts, and preserve issued paint/layer order; compact
   groups and bonds consume their own typed operations without generic semantic scans.
 - Unified attached compact-group pose admission with final normal-single bond clipping. The public
@@ -238,7 +338,7 @@ and [CHANGELOG-2026-08h.md](CHANGELOG-2026-08h.md).
   ordered operations, isotope core-run semantics, and target-specific third-label refusal without
   coordinates, computed bounds, or pixel snapshots.
 - Published each atom label's validated positive `bond_ink_clearance` in the V4/V2 PyO3 transport.
-  The artifact-dependent installed Qt consumer now expands exact full Telex ink by that issued gap
+  The artifact-dependent installed Qt consumer now expands exact full molecule-label ink by that issued gap
   and proves final bond ink remains disjoint. The shared consumer and real-window attached-ring
   gesture moved from deterministic pytest into the registered E2E lane, with a bounded Open wait;
   focused Qt pytest retains one behavioral projection check instead of private paint snapshots.

@@ -41,7 +41,9 @@ pub enum TypedDocumentError {
     #[error("document-object identity allocation exhausted at {location:?}")]
     DocumentObjectIdAllocationExhausted { location: DocumentLocationV1 },
     /// A direct Text or Plus requested a font outside the bundled closed face set.
-    #[error("unsupported_text_face for {root_id}: {family:?}; use Telex Regular (bundled)")]
+    #[error(
+        "unsupported_text_face for {root_id}: {family:?}; use Atkinson Hyperlegible Next Regular (bundled)"
+    )]
     UnsupportedTextFace {
         /// Authored direct-root identifier, or a stable fallback when absent.
         root_id: String,

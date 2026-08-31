@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PresentationFontFaceV1 {
-    /// The verified bundled Telex Regular resource.
-    TelexRegularV1,
+    /// The verified bundled Atkinson Hyperlegible Next Regular resource.
+    MoleculeLabel,
 }
 
 impl PresentationFontFaceV1 {
@@ -15,7 +15,7 @@ impl PresentationFontFaceV1 {
     #[must_use]
     pub const fn id(self) -> &'static str {
         match self {
-            Self::TelexRegularV1 => "telex_regular_v1",
+            Self::MoleculeLabel => "molecule_label",
         }
     }
 
@@ -23,23 +23,19 @@ impl PresentationFontFaceV1 {
     #[must_use]
     pub const fn cdml_family(self) -> &'static str {
         match self {
-            Self::TelexRegularV1 => "Telex",
+            Self::MoleculeLabel => "Atkinson Hyperlegible Next",
         }
     }
 
     /// Parse the stable public identity without accepting system-family names.
     #[must_use]
     pub fn from_id(value: &str) -> Option<Self> {
-        (value == Self::TelexRegularV1.id()).then_some(Self::TelexRegularV1)
+        (value == Self::MoleculeLabel.id()).then_some(Self::MoleculeLabel)
     }
 
-    /// Normalize the finite approved CDML aliases.
+    /// Parse the sole canonical CDML family spelling.
     #[must_use]
     pub fn from_cdml_family(value: &str) -> Option<Self> {
-        matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "telex" | "telex regular" | "ferrum-telex-regular-v1"
-        )
-        .then_some(Self::TelexRegularV1)
+        (value == Self::MoleculeLabel.cdml_family()).then_some(Self::MoleculeLabel)
     }
 }

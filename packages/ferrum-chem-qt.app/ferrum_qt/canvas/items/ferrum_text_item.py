@@ -10,13 +10,12 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_presentation_target
-import ferrum_qt.canvas.ferrum_telex
-import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.canvas.molecule_label_font
+import ferrum_qt.canvas.molecule_label_glyph_outline
 from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
 import ferrum_qt.themes.document_display_palette
 
 
-_FACE = "ferrum-telex-regular-v1"
 _PADDING = 1.0
 
 
@@ -27,10 +26,10 @@ class FerrumTextItemError(ValueError):
 
 class FerrumTextItem(
 		PySide6.QtWidgets.QGraphicsObject, DisplayPaletteRefreshable):
-	"""Selectable direct-root Text painted from backend-issued Telex glyph facts."""
+	"""Selectable direct-root Text painted from Rust-issued molecule-label glyph facts."""
 
 	#============================================
-	def __init__(self, text_render: object, telex_resource: object,
+	def __init__(self, text_render: object, font_resource: object,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Authenticate one extension-owned Text render and cache complete paths."""
@@ -40,15 +39,15 @@ class FerrumTextItem(
 			raise FerrumTextItemError(
 				"Text render must be engine.DocumentTextRenderV1",
 			)
-		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
-		self._initialize(text_render, extension, telex, palette)
+		molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
+		self._initialize(text_render, extension, molecule_label_font, palette)
 
 	#============================================
 	@classmethod
 	def _from_observation(cls, text_render: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> "FerrumTextItem":
-		"""Reuse a controller-authenticated Telex face for one exact runtime DTO."""
+		"""Reuse a controller-authenticated Atkinson Hyperlegible Next face for one exact runtime DTO."""
 		item = cls.__new__(cls)
 		PySide6.QtWidgets.QGraphicsObject.__init__(item)
 		extension = _ferrum_chem()
@@ -56,14 +55,14 @@ class FerrumTextItem(
 			raise FerrumTextItemError(
 				"Text render must be engine.DocumentTextRenderV1",
 			)
-		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
-			raise FerrumTextItemError("Text render requires verified Telex bytes")
-		item._initialize(text_render, extension, telex, palette)
+		if not isinstance(molecule_label_font, ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont):
+			raise FerrumTextItemError("Text render requires verified Atkinson Hyperlegible Next bytes")
+		item._initialize(text_render, extension, molecule_label_font, palette)
 		return item
 
 	#============================================
 	def _initialize(self, text_render: object, extension: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Copy a verified Text render into immutable Qt-local paths and paints."""
 		self._target = _target(text_render.target, extension)
@@ -71,7 +70,7 @@ class FerrumTextItem(
 		operation = text_render.operation
 		if type(operation) is not extension.PresentationTextOpV1:
 			raise FerrumTextItemError("Text render has the wrong operation DTO type")
-		if operation.face != _FACE or operation.z != 20:
+		if operation.face != molecule_label_font.resource_id or operation.z != 20:
 			raise FerrumTextItemError("Text render has an unsupported face or paint order")
 		if type(operation.runs) is not tuple or not operation.runs:
 			raise FerrumTextItemError("Text render requires frozen glyph runs")
@@ -82,14 +81,14 @@ class FerrumTextItem(
 				type(glyph) is not extension.GlyphPlacementV1 for glyph in run.glyphs
 			):
 				raise FerrumTextItemError("Text render has invalid frozen glyphs")
-		font = telex.raw_font(_positive(operation.size, "Text size"))
+		font = molecule_label_font.raw_font(_positive(operation.size, "Text size"))
 		try:
 			self._glyph_path = (
-				ferrum_qt.canvas.telex_glyph_outline.path_from_presentation_runs(
+				ferrum_qt.canvas.molecule_label_glyph_outline.path_from_presentation_runs(
 					operation.runs, font,
 				)
 			)
-		except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
+		except ferrum_qt.canvas.molecule_label_glyph_outline.MoleculeLabelGlyphOutlineError as exc:
 			raise FerrumTextItemError(str(exc)) from exc
 		self._foreground_paint = operation.paint
 		self._background_paint = text_render.background

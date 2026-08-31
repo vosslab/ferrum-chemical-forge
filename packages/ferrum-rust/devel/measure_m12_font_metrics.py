@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the closed M12 Telex corpus with Ferrum and Qt QRawFont."""
+"""Measure the closed M12 Atkinson Hyperlegible Next corpus with Ferrum and Qt QRawFont."""
 
 import hashlib
 import json
@@ -14,8 +14,8 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 
-EXPECTED_SHA256 = "eeaa2d17d105b6b46e5368ecd990f5b19c50131ff922dbf79bfb9bb45c249871"
-EXPECTED_BYTES = 38940
+EXPECTED_SHA256 = "88ed5c31a71584c7772963b02d04bef1eb7e3d2e9c8b9cb204339b1f82cf432c"
+EXPECTED_BYTES = 65068
 CORPUS = ("C", "Cl", "Br", "H2", "NH3+", "I")
 
 
@@ -48,6 +48,7 @@ def ferrum_rows(root: Path) -> list[dict]:
 		"ferrum-render",
 		"metric_receipt_rows_cover_the_complete_pre_tolerance_corpus",
 		"--",
+		"--ignored",
 		"--nocapture",
 	]
 	# This exact Cargo test is fixed local maintainer tooling, not external input.
@@ -214,10 +215,13 @@ def main() -> int:
 			"devel/measure_m12_font_metrics.py`"
 		)
 	root = Path(__file__).resolve().parent.parent
-	asset = root / "crates/render/assets/fonts/Telex-Regular.ttf"
+	asset = root / (
+		"crates/render/assets/fonts/atkinson_hyperlegible_next/ttf/"
+		"atkinson_hyperlegible_next_regular.ttf"
+	)
 	contents = asset.read_bytes()
 	if len(contents) != EXPECTED_BYTES or hashlib.sha256(contents).hexdigest() != EXPECTED_SHA256:
-		raise RuntimeError("the bundled Telex asset does not match the approved source digest")
+		raise RuntimeError("the bundled Atkinson Hyperlegible Next asset does not match the approved source digest")
 	# The receipt measures font data only, so an offscreen Qt platform avoids a GUI dependency.
 	if "QT_QPA_PLATFORM" not in os.environ:
 		os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -230,7 +234,7 @@ def main() -> int:
 		PySide6.QtGui.QFont.HintingPreference.PreferNoHinting,
 	)
 	if not font.isValid() or font.unitsPerEm() != 1000.0:
-		raise RuntimeError("Qt QRawFont did not open the pinned Telex design face")
+		raise RuntimeError("Qt QRawFont did not open the pinned Atkinson Hyperlegible Next design face")
 	rows = ferrum_rows(root)
 	comparisons = []
 	for row in rows:
@@ -269,8 +273,8 @@ def main() -> int:
 	qt_gui = Path(PySide6.QtGui.__file__).resolve()
 	qt_framework = qt_gui.parent / "Qt/lib/QtGui.framework/Versions/A/QtGui"
 	receipt = {
-		"schema": "ferrum-m12-qrawfont-design-metric-receipt-v1",
-		"scope": "one-time macOS receipt for the closed Telex V1 corpus; not a CI gate",
+		"schema": "ferrum-m12-qrawfont-design-metric-receipt",
+		"scope": "one-time macOS receipt for the closed molecule-label corpus; not a CI gate",
 		"comparison_status": "observations_only_no_tolerance_or_pass_claim",
 		"platform": {"system": platform.platform(), "architecture": platform.machine()},
 		"python": {"implementation": platform.python_implementation(), "version": sys.version},
@@ -278,7 +282,9 @@ def main() -> int:
 			"path": str(asset),
 			"bytes": len(contents),
 			"sha256": hashlib.sha256(contents).hexdigest(),
-			"license_path": str(root / "crates/render/assets/licenses/Telex-OFL-1.1.txt"),
+			"license_path": str(
+				root / "crates/render/assets/licenses/atkinson_hyperlegible_next_ofl_1_1.txt"
+			),
 		},
 		"ferrum": {
 			"git_revision": command_output(["git", "rev-parse", "HEAD"], root).strip(),
@@ -289,7 +295,7 @@ def main() -> int:
 				command_output(["git", "diff", "HEAD", "--binary"], root).encode()
 			).hexdigest(),
 			"cargo_lock_sha256": digest_file(root / "Cargo.lock"),
-			"metric_backend": "ttf-parser-design-v1",
+			"metric_backend": "ttf-parser-design",
 		},
 		"independent_reference": {
 			"name": "Qt QRawFont",
@@ -305,7 +311,7 @@ def main() -> int:
 				"hinting_preference": "PreferNoHinting",
 				"font_index": 0,
 				"application_platform": os.environ["QT_QPA_PLATFORM"],
-				"source": "pinned Telex bytes passed directly to QRawFont",
+				"source": "pinned Atkinson Hyperlegible Next bytes passed directly to QRawFont",
 			},
 			"units_per_em": font.unitsPerEm(),
 		},

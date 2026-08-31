@@ -556,9 +556,9 @@ fn normalize_angles_uses_authored_order_and_preserves_non_coordinate_content() {
     let source = concat!(
         "<cdml xmlns=\"urn:ferrum:cdml\" xmlns:v=\"urn:vendor\"><molecule id=\"m\" retained=\"yes\">",
         "<atom id=\"root\" name=\"C\"><point x=\"0\" y=\"0\"/></atom>",
-        "<atom id=\"z_first\" name=\"N\"><point x=\"10\" y=\"1\" z=\"8\"/>",
+        "<atom id=\"z_first\" name=\"N\"><point x=\"40\" y=\"4\" z=\"8\"/>",
         "<v:note>keep</v:note></atom>",
-        "<atom id=\"a_second\" name=\"O\"><point x=\"10\" y=\"2\"/></atom>",
+        "<atom id=\"a_second\" name=\"O\"><point x=\"40\" y=\"8\"/></atom>",
         "<bond id=\"z_first_bond\" start=\"root\" end=\"z_first\" type=\"n1\"/>",
         "<bond id=\"a_second_bond\" start=\"root\" end=\"a_second\" type=\"n1\"/>",
         "</molecule></cdml>",
@@ -578,8 +578,8 @@ fn normalize_angles_uses_authored_order_and_preserves_non_coordinate_content() {
         .iter()
         .map(|atom| (atom.source_id().unwrap().to_owned(), atom.position()))
         .collect::<std::collections::HashMap<_, _>>();
-    let first_distance = 10.0_f64.hypot(1.0);
-    let second_distance = 10.0_f64.hypot(2.0);
+    let first_distance = 40.0_f64.hypot(4.0);
+    let second_distance = 40.0_f64.hypot(8.0);
     assert!((atoms["z_first"].x() - first_distance).abs() <= HALF_AUTHORED_UNIT_POINTS);
     assert!(atoms["z_first"].y().abs() <= HALF_AUTHORED_UNIT_POINTS);
     assert_eq!(atoms["z_first"].z(), 8.0);

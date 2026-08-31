@@ -67,7 +67,7 @@ the detailed commands, fixtures, measurements, and review findings.
   `3.645723512257204e-18` maximum coordinate delta and zero rotation delta; it is
   evidence, not a permanent CI threshold. See
   [geometry straighten parity](geometry_straighten_parity.md).
-- **M12/M13:** Rust issues declarative checked render operations and Telex design
+- **M12/M13:** Rust issues declarative checked render operations and verified molecule-label
   metrics; Qt copies supplied paths/glyph facts rather than reshaping labels. The
   render crate lowers supported plans through one checked draw stream to SVG, pure
   Rust PNG, and vector PDF. It rejects invalid/non-finite/over-limit output before

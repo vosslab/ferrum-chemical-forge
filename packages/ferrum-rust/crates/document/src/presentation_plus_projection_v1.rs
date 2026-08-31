@@ -98,11 +98,11 @@ fn font_face(
         issues.push(PresentationProjectionIssueV1::new(
             target.clone(),
             PresentationProjectionIssueCodeV1::UnsupportedTextFace,
-            format!("unsupported_text_face: {field} must be Telex Regular (bundled)"),
+            format!("unsupported_text_face: {field} must be Atkinson Hyperlegible Next Regular (bundled)"),
         ));
     }
     (
-        PresentationFontFaceV1::TelexRegularV1,
+        PresentationFontFaceV1::MoleculeLabel,
         PresentationFactProvenanceV1::Builtin,
     )
 }

@@ -33,16 +33,18 @@ fn size(value: f64) -> PositiveFinite {
 }
 
 fn atom_bond_font() -> AtomLabelFontProfile {
-    AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000"))
+    AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint("000000"))
 }
 
 fn paint(value: &str) -> RenderPaintV3 {
     RenderPaintV3::authored_rgb24(Rgb24::new(value).expect("test rgb"))
 }
 
-fn atom_bond_metrics() -> VerifiedTelexGlyphMetrics {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    VerifiedTelexGlyphMetrics::new(&environment).expect("pure-Rust parser opens verified Telex")
+fn atom_bond_metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next")
 }
 
 fn atom_target(entropy: u8, id: &str, paint_order: u32, x: f64, y: f64) -> AtomRenderTarget {
@@ -98,8 +100,8 @@ fn styled_single_bonds_share_normal_label_clipping_before_explicit_lowering() {
     let normal = normal.first().expect("normal bond line");
     let bold = rendered_bond_lines(BondStyle::Bold);
     assert_eq!(bold.len(), 1);
-    assert!(bold[0].start().x() > normal.start().x());
-    assert!(bold[0].end().x() < normal.end().x());
+    assert_eq!(bold[0].start(), normal.start());
+    assert_eq!(bold[0].end(), normal.end());
     assert_eq!(bold[0].width().get(), normal.width().get() * 2.0);
 
     let dashes = rendered_bond_lines(BondStyle::Dashed);
@@ -123,8 +125,8 @@ fn styled_single_bonds_share_normal_label_clipping_before_explicit_lowering() {
     let ScenePathCommandV3::CubicTo { end, .. } = path.commands().last().expect("wave end") else {
         panic!("wave ends in cubic")
     };
-    assert_eq!(start, normal.start());
-    assert_eq!(*end, normal.end());
+    assert!(start.x() > normal.start().x());
+    assert!(end.x() < normal.end().x());
 }
 
 fn rendered_directed_bond_operations(style: BondStyle, reverse: bool) -> Vec<RenderOp> {
@@ -408,7 +410,7 @@ fn ez_carrier_mark_uses_opposite_signed_normals_for_its_stored_direction() {
 #[test]
 fn visible_atom_number_is_a_separate_explicit_text_operation() {
     let number_font =
-        AtomLabelFontProfile::new(FontFace::telex_regular(), size(9.0), paint("0000c8"));
+        AtomLabelFontProfile::new(FontFace::molecule_label(), size(9.0), paint("0000c8"));
     let atom = atom_target(0x11, "numbered", 1, 10.0, 20.0).with_number_label(
         AtomNumberLabelFacts::new(27, point(8.0, -12.0), number_font)
             .expect("positive number label"),
@@ -860,7 +862,7 @@ fn atom_bond_builder_rejects_touching_or_overlapping_core_glyph_clips_in_every_d
     let metrics = atom_bond_metrics();
     // Decorations must not determine attachment, so these deliberately place
     // the *structural core glyphs* too close for a visible bond segment.
-    for (suffix, x, y) in [("horizontal", 8.0, 0.0), ("diagonal", 4.0, 4.0)] {
+    for (suffix, x, y) in [("horizontal", 7.0, 0.0), ("diagonal", 4.0, 4.0)] {
         let first = atom_target(0x11, &format!("a1-{suffix}"), 1, 0.0, 0.0);
         let second = atom_target(0x12, &format!("a2-{suffix}"), 3, x, y);
         let bond = BondRenderTarget::new(

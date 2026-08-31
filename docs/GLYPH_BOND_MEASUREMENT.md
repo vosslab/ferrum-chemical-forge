@@ -12,7 +12,7 @@ There are two independent outcomes:
 - A green measurement instrument means the manifest contract, pixel metrics,
   diagnostic images, and known-bad synthetic cases work correctly.
 - Green alignment means every real Rust and Qt fixture satisfies the strict
-  policy. Ferrum is not there yet: the current strict evidence is red.
+  policy. Ferrum's 2026-08-31 V2 evidence is green in both real lanes.
 
 Rust owns the geometry to correct. Qt only replays the issued render plan and
 is captured as a real consumer; it must not add a visual correction.
@@ -33,6 +33,10 @@ The fixed capture profile prevents a current drawing from improving its own
 score merely by zooming, cropping, or changing the viewport. The V2 reader
 also validates manifest shape, file paths, layer dimensions, and hashes before
 measuring pixels.
+
+The V2 suffix versions this serialized corpus contract. Capture-profile and
+fixture IDs are unversioned present-tense identities; changing an internal
+rectangle replaces its definition rather than retaining parallel generations.
 
 ## How the measurements work
 
@@ -60,20 +64,21 @@ source source_me.sh && python3 -m measure_stack.runner \
 ```
 
 Run the native Rust producer to capture the renderer's test-only 8x final-ink
-layers. This is strict and currently exits nonzero after publishing diagnostics:
+layers. This strict gate publishes diagnostics and exits nonzero for any
+violation:
 
 ```bash
 devel/run_measure_stack_rust.sh
 ```
 
-Build, then capture the real Qt consumer at normal display scale. Baseline mode
-passes only when capture succeeds and the frozen known-red classification stays
-stable. Strict mode passes only when bond-glyph alignment is actually good.
+Build, then capture the real Qt consumer at normal display scale. Strict mode is
+the default and passes only when bond-glyph alignment is good. Optional baseline
+mode additionally freezes the accepted zero-finding classification.
 
 ```bash
 ./build.sh
-devel/run_measure_stack_qt.sh --baseline
 devel/run_measure_stack_qt.sh --strict
+devel/run_measure_stack_qt.sh --baseline
 ```
 
 All lanes write ignored output directories containing V2 manifests, JSON
@@ -111,7 +116,8 @@ without accepting a collision with an isotope or charge decoration.
 | --- | --- | --- |
 | `occupancy_fraction` | Fraction of the fixed capture image containing composite foreground ink. | 0.015 to 0.33 for presentation captures. |
 | `minimum_margin_fraction` | Smallest blank border around visible composite ink. | At least 0.025. |
-| `maximum_margin_fraction` | Largest blank border around visible composite ink. | No more than 0.45. |
+| `axis_occupancy_fraction` | Visible bounding-box share on the horizontal and vertical axes. | Reported independently so elongated chemistry is not mistaken for a tiny scene. |
+| `dominant_axis_occupancy_fraction` | Larger of the two axis occupancies. | At least 0.10 for presentation captures. |
 | `unexplained_foreground_fraction` | Composite ink absent from every declared glyph or bond layer. | At most 0.005. |
 | `missing_declared_fraction` | Declared glyph or bond pixels absent from the composite. | At most 0.005. |
 | `orphaned_atom_cores` | Connected atoms whose target-core glyph is not connected as expected. | None. |
@@ -124,10 +130,10 @@ can prove every artistic quality of every path.
 
 ## Reading current results
 
-`--baseline` green means only that the real Qt capture is healthy and its known
-red receipt has not changed. It does not mean the drawing looks good. A strict
-receipt with any violation means: **the measurements work, and bond-glyph
-alignment is bad.**
+Strict green means that every real fixture satisfies the pixel policy. Baseline
+green means that capture is healthy and its frozen accepted-zero receipt has not
+changed. A strict receipt with any violation means: **the measurements work,
+and bond-glyph alignment is outside the accepted specification.**
 
 Use the failed category to select the Rust owner:
 
@@ -146,6 +152,11 @@ This is a developer and E2E evidence lane, not a permanent fast pytest suite or
 a product API. It covers Ferrum's fixed corpus and supported bond styles; it
 does not establish SVG, PDF, or PNG backend parity, infer arbitrary chemistry
 from text, or substitute for every broader desktop usability evaluation.
+
+V2 measures Ferrum's byte-verified Atkinson Hyperlegible Next Regular
+molecule-label face. Rust owns its tight curve bounds, placement, and clipping;
+a future role change requires fresh native and Qt evidence under the same
+pixel-only policy.
 
 For contract details and current evidence, see
 [`active_plans/active/glyph_bond_visual_quality_goal.md`](active_plans/active/glyph_bond_visual_quality_goal.md)

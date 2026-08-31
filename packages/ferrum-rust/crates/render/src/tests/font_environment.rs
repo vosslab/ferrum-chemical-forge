@@ -1,14 +1,14 @@
 use crate::glyph_metrics::GlyphMetrics;
 use crate::{
-    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironmentV1, FontFace, PositiveFinite,
-    RenderPaintV3, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
+    AtomLabelFacts, AtomLabelFontProfile, FerrumFontEnvironment, FontFace, PositiveFinite,
+    RenderPaintV3, Rgb24, TextScript, VerifiedMoleculeLabelGlyphMetrics,
 };
-use ferrum_render_contract::{TELEX_REGULAR_RESOURCE_ID_V1, TELEX_REGULAR_SHA256_V1};
+use ferrum_render_contract::{MOLECULE_LABEL_RESOURCE_ID, MOLECULE_LABEL_SHA256};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn paint() -> RenderPaintV3 {
     RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("test rgb"))
 }
-use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
@@ -17,33 +17,36 @@ fn size(value: f64) -> PositiveFinite {
 }
 
 #[test]
-fn bundled_telex_asset_matches_its_closed_resource_contract() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let asset = environment.descriptor(crate::FerrumFontId::TelexRegular);
-    assert_eq!(asset.id().resource_id(), TELEX_REGULAR_RESOURCE_ID_V1);
-    assert_eq!(asset.bytes(), 38_940);
-    assert_eq!(asset.sha256(), TELEX_REGULAR_SHA256_V1);
-    assert_eq!(asset.family(), "Telex");
-    assert_eq!(asset.postscript_name(), "Telex-Regular");
+fn bundled_molecule_label_asset_matches_its_closed_resource_contract() {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let asset = environment.molecule_label();
+    assert_eq!(asset.resource_id(), MOLECULE_LABEL_RESOURCE_ID);
+    assert_eq!(asset.bytes(), 65_068);
+    assert_eq!(asset.sha256(), MOLECULE_LABEL_SHA256);
+    assert_eq!(asset.family(), "Atkinson Hyperlegible Next");
+    assert_eq!(asset.postscript_name(), "AtkinsonHyperlegibleNext-Regular");
 }
 
 #[test]
-fn bundled_telex_font_matches_the_shared_scalar_capability_table() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("bundled Telex must satisfy every shared scalar capability");
+fn bundled_molecule_label_font_matches_the_shared_scalar_capability_table() {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("bundled Atkinson Hyperlegible Next must satisfy every shared scalar capability");
 }
 
 #[test]
 fn verified_metrics_lay_out_the_verified_font_without_a_family_lookup() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
     let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     let layout = metrics
         .layout_atom_label(&label, &font)
-        .expect("verified Telex lays out the label");
+        .expect("verified Atkinson Hyperlegible Next lays out the label");
     assert_eq!(layout.runs().len(), 4);
     assert!(layout.bounds().min_x() < 0.0);
     assert!(layout.bounds().max_x() > 0.0);
@@ -51,14 +54,15 @@ fn verified_metrics_lay_out_the_verified_font_without_a_family_lookup() {
 
 #[test]
 fn verified_metrics_center_the_closed_plus_glyph_without_frontend_advances() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
     let layout = metrics
         .layout_centered_plus(size(18.0), paint())
-        .expect("verified Telex lays out the fixed plus content");
+        .expect("verified Atkinson Hyperlegible Next lays out the fixed plus content");
     let operation = layout.operation();
-    assert_eq!(operation.face(), &FontFace::telex_regular());
+    assert_eq!(operation.face(), &FontFace::molecule_label());
     let [run] = operation.runs() else {
         panic!("fixed plus layout has one exact run");
     };
@@ -66,8 +70,8 @@ fn verified_metrics_center_the_closed_plus_glyph_without_frontend_advances() {
     assert_eq!(run.glyphs().len(), 1);
     assert_ne!(run.glyphs()[0].glyph_index(), 0);
     let bounds = layout.bounds();
-    // Telex + has positive x bearing and ink below its baseline.  Centering the
-    // true outline (90..557 x -71..542 design units) must not include the
+    // Atkinson Hyperlegible Next + has positive x bearing and ink below its baseline. Centering the
+    // true outline (55..551 x -248..248 design units) must not include the
     // operation origin in the rectangle.
     assert_eq!(
         (
@@ -79,27 +83,28 @@ fn verified_metrics_center_the_closed_plus_glyph_without_frontend_advances() {
             bounds.max_y(),
         ),
         (
-            -5.8229999999999995,
-            5.517,
-            -4.202999999999999,
-            -4.239,
-            4.203,
-            4.239,
+            -5.454,
+            4.4639999999999995,
+            -4.4639999999999995,
+            -4.4639999999999995,
+            4.4639999999999995,
+            4.4639999999999995,
         )
     );
 }
 
 #[test]
 fn true_ink_metrics_and_atom_label_clipping_envelope_have_distinct_contracts() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
 
     let ink = metrics
         .measure_text_run("I", font.size(), size(1.0))
-        .expect("Telex I is measurable");
-    // The exact design outline is x=88..183 at 12 scene units per em.
+        .expect("Atkinson Hyperlegible Next I is measurable");
+    // The exact design outline is x=55..337 at 12 scene units per em.
     assert_eq!(
         (
             ink.x_bearing(),
@@ -108,7 +113,7 @@ fn true_ink_metrics_and_atom_label_clipping_envelope_have_distinct_contracts() {
             ink.height(),
             ink.x_advance()
         ),
-        (1.056, -8.532, 1.1400000000000001, 8.532, 3.2520000000000002)
+        (0.66, -8.016, 3.3840000000000003, 8.016, 4.704000000000001)
     );
 
     let label = metrics
@@ -126,15 +131,15 @@ fn true_ink_metrics_and_atom_label_clipping_envelope_have_distinct_contracts() {
             label.bounds().max_x(),
             label.bounds().max_y(),
         ),
-        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266)
+        (-1.6920000000000002, -4.008, 1.6920000000000002, 4.008)
     );
 }
 
 #[test]
 fn wrong_file_cannot_pass_the_asset_verifier() {
-    let wrong = std::env::temp_dir().join("ferrum-not-telex.ttf");
+    let wrong = std::env::temp_dir().join("ferrum-not-molecule_label_font.ttf");
     std::fs::write(&wrong, b"not a font").expect("write isolated invalid font fixture");
-    let result = FerrumFontEnvironmentV1::load_for_test(&wrong);
+    let result = FerrumFontEnvironment::load_for_test(&wrong);
     std::fs::remove_file(&wrong).expect("remove isolated invalid font fixture");
     assert!(result.is_err());
 }
@@ -144,21 +149,26 @@ fn wrong_file_cannot_pass_the_asset_verifier() {
 fn symlinked_asset_component_cannot_pass_the_resource_verifier() {
     use std::os::unix::fs::symlink;
 
-    let root = fixture_root().join(format!("ferrum-telex-symlink-{}", std::process::id()));
+    let root = fixture_root().join(format!(
+        "ferrum-molecule_label_font-symlink-{}",
+        std::process::id()
+    ));
     let target = root.join("target");
     let linked = root.join("linked");
     std::fs::create_dir_all(&target).expect("create isolated target directory");
     std::fs::copy(
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/assets/fonts/Telex-Regular.ttf"
+            "/assets/fonts/atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_regular.ttf"
         ),
-        target.join("Telex-Regular.ttf"),
+        target.join("atkinson_hyperlegible_next_regular.ttf"),
     )
-    .expect("copy verified Telex fixture");
+    .expect("copy verified Atkinson Hyperlegible Next fixture");
     symlink(&target, &linked).expect("create isolated symlink component");
 
-    let result = FerrumFontEnvironmentV1::load_for_test(&linked.join("Telex-Regular.ttf"));
+    let result = FerrumFontEnvironment::load_for_test(
+        &linked.join("atkinson_hyperlegible_next_regular.ttf"),
+    );
     std::fs::remove_dir_all(&root).expect("remove isolated symlink fixture");
     assert!(result.is_err());
 }
@@ -168,12 +178,12 @@ fn symlinked_asset_component_cannot_pass_the_resource_verifier() {
 fn final_symlink_replacement_between_parent_and_final_open_is_rejected() {
     use std::os::unix::fs::symlink;
 
-    let fixture = TreeFixture::telex();
+    let fixture = TreeFixture::molecule_label_font();
     let font = fixture.font_path();
     let replacement = fixture.root().join("replacement.ttf");
     std::fs::write(&replacement, b"replacement bytes").expect("write replacement fixture");
     let font_for_hook = font.to_owned();
-    let result = FerrumFontEnvironmentV1::load_for_test_with_after_parent_open(font, move || {
+    let result = FerrumFontEnvironment::load_for_test_with_after_parent_open(font, move || {
         std::fs::remove_file(&font_for_hook).expect("remove final fixture before open");
         symlink(&replacement, &font_for_hook).expect("replace final fixture with symlink");
     });
@@ -185,15 +195,18 @@ fn final_symlink_replacement_between_parent_and_final_open_is_rejected() {
 fn parent_replacement_after_descriptor_open_cannot_redirect_final_open() {
     use std::os::unix::fs::symlink;
 
-    let fixture = TreeFixture::telex();
+    let fixture = TreeFixture::molecule_label_font();
     let font = fixture.font_path();
     let parent = font.parent().expect("font has fixture parent").to_owned();
     let moved_parent = fixture.root().join("fonts-retained");
     let redirect = fixture.root().join("redirect");
     std::fs::create_dir(&redirect).expect("create isolated redirect directory");
-    std::fs::write(redirect.join("Telex-Regular.ttf"), b"replacement bytes")
-        .expect("write isolated redirect font");
-    let result = FerrumFontEnvironmentV1::load_for_test_with_after_parent_open(font, move || {
+    std::fs::write(
+        redirect.join("atkinson_hyperlegible_next_regular.ttf"),
+        b"replacement bytes",
+    )
+    .expect("write isolated redirect font");
+    let result = FerrumFontEnvironment::load_for_test_with_after_parent_open(font, move || {
         std::fs::rename(&parent, &moved_parent).expect("move visible parent after descriptor open");
         symlink(&redirect, &parent).expect("replace visible parent with a symlink");
     });
@@ -202,50 +215,51 @@ fn parent_replacement_after_descriptor_open_cannot_redirect_final_open() {
 
 #[test]
 fn final_replacement_after_descriptor_open_cannot_change_same_handle_verification() {
-    let fixture = TreeFixture::telex();
+    let fixture = TreeFixture::molecule_label_font();
     let font = fixture.font_path();
     let replacement = fixture.root().join("replacement.ttf");
     std::fs::write(&replacement, b"replacement bytes").expect("write replacement fixture");
     let font_for_hook = font.to_owned();
-    let environment =
-        FerrumFontEnvironmentV1::load_for_test_with_after_final_open(font, move || {
-            std::fs::rename(&replacement, &font_for_hook)
-                .expect("replace visible final entry after descriptor open");
-        })
-        .expect("the retained final descriptor still reads and verifies the original Telex bytes");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
+    let environment = FerrumFontEnvironment::load_for_test_with_after_final_open(font, move || {
+        std::fs::rename(&replacement, &font_for_hook)
+            .expect("replace visible final entry after descriptor open");
+    })
+    .expect("the retained final descriptor still reads and verifies the original Atkinson Hyperlegible Next bytes");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
         .expect("pure-Rust parser consumes immutable verified bytes");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
     let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     assert!(metrics.layout_atom_label(&label, &font).is_ok());
 }
 
 #[test]
 fn verified_metrics_use_memory_after_the_asset_path_is_replaced() {
-    let asset = PathFixture::telex_copy();
-    let environment = FerrumFontEnvironmentV1::load_for_test(asset.path())
-        .expect("copied Telex is verified into immutable resource bytes");
+    let asset = PathFixture::molecule_label_copy();
+    let environment = FerrumFontEnvironment::load_for_test(asset.path())
+        .expect("copied Atkinson Hyperlegible Next is verified into immutable resource bytes");
     std::fs::write(asset.path(), b"replacement bytes").expect("replace only the fixture pathname");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
         .expect("pure-Rust parser receives retained verified bytes rather than reopening the path");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
     let label = AtomLabelFacts::new("Cl", None, 1, 2).expect("chemical label is valid");
     assert!(metrics.layout_atom_label(&label, &font).is_ok());
 }
 
 #[test]
+#[ignore = "developer metric receipt; run through devel/measure_m12_font_metrics.py"]
 fn metric_receipt_rows_cover_the_complete_pre_tolerance_corpus() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
     let baseline = metrics
         .baseline_metrics(font.size())
-        .expect("Telex baseline metrics are finite");
+        .expect("Atkinson Hyperlegible Next baseline metrics are finite");
     for (label, facts) in receipt_corpus() {
         let layout = metrics
             .layout_atom_label(&facts, &font)
-            .expect("Telex lays out each receipt corpus label");
+            .expect("Atkinson Hyperlegible Next lays out each receipt corpus label");
         let runs: Vec<serde_json::Value> = layout
             .runs()
             .iter()
@@ -278,14 +292,14 @@ fn metric_receipt_rows_cover_the_complete_pre_tolerance_corpus() {
         println!(
             "M12_METRIC_JSONL:{}",
             serde_json::json!({
-                "schema": "ferrum-m12-truetype-design-metric-row-v1",
+                "schema": "ferrum-m12-truetype-design-metric-row",
                 "label": label,
                 "font": {
-                    "id": "ferrum-telex-regular-v1",
-                    "bytes": environment.descriptor(crate::FerrumFontId::TelexRegular).bytes(),
-                    "sha256": environment.descriptor(crate::FerrumFontId::TelexRegular).sha256(),
-                    "family": environment.descriptor(crate::FerrumFontId::TelexRegular).family(),
-                    "postscript_name": environment.descriptor(crate::FerrumFontId::TelexRegular).postscript_name(),
+                    "id": environment.molecule_label().resource_id(),
+                    "bytes": environment.molecule_label().bytes(),
+                    "sha256": environment.molecule_label().sha256(),
+                    "family": environment.molecule_label().family(),
+                    "postscript_name": environment.molecule_label().postscript_name(),
                     "load_flags": ["no_scale", "no_hinting", "no_bitmap"],
                     "units_per_em": 1000,
                     "kerning": false,
@@ -301,7 +315,7 @@ fn metric_receipt_rows_cover_the_complete_pre_tolerance_corpus() {
                 },
                 "runs": runs,
                 "native_libraries": {
-                    "metric_backend": "ttf-parser-design-v1",
+                    "metric_backend": "ttf-parser-design",
                 },
             })
         );
@@ -309,117 +323,75 @@ fn metric_receipt_rows_cover_the_complete_pre_tolerance_corpus() {
 }
 
 #[test]
-fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint());
+fn truetype_design_metrics_define_the_canonical_corpus_receipt_exactly() {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint());
     let baseline = metrics
         .baseline_metrics(font.size())
-        .expect("Telex baseline is measurable");
+        .expect("Atkinson Hyperlegible Next baseline is measurable");
     assert_eq!(
         (baseline.ascent(), baseline.descent(), baseline.height()),
-        (11.34, 3.12, 14.46)
+        (11.808, 3.792, 15.600000000000001)
     );
 
     assert_receipt_label(
         &metrics,
         &font,
         AtomLabelFacts::new("C", None, 0, 0).expect("valid corpus label"),
-        (-3.2760000000000007, -4.35, 3.2760000000000007, 4.35),
-        (-3.2760000000000007, -4.35, 3.2760000000000007, 4.35),
+        (-3.4080000000000004, -4.152, 3.4080000000000004, 4.152),
+        (-3.4080000000000004, -4.152, 3.4080000000000004, 4.152),
         &[ExpectedRun::baseline(
             "C",
-            -3.8760000000000003,
-            4.241999999999999,
+            -3.936,
+            4.008,
             13,
-            7.632,
-            6.552000000000001,
-            8.7,
+            7.74,
+            6.816000000000001,
+            8.304,
         )],
     );
     assert_receipt_label(
         &metrics,
         &font,
         AtomLabelFacts::new("Cl", None, 0, 0).expect("valid corpus label"),
-        (
-            -4.584,
-            -4.6080000000000005,
-            4.5840000000000005,
-            4.6080000000000005,
-        ),
-        (-4.584, -4.6080000000000005, 4.584, 4.6080000000000005),
-        &[ExpectedRun::baseline(
-            "Cl",
-            -5.184,
-            4.5,
-            13,
-            10.8,
-            9.168000000000001,
-            9.216000000000001,
-        )
-        .with_second_glyph(108, 7.632)],
+        (-5.058, -4.32, 5.058, 4.32),
+        (-5.058, -4.32, 5.058, 4.32),
+        &[
+            ExpectedRun::baseline("Cl", -5.586, 4.176, 13, 10.884, 10.116, 8.64)
+                .with_second_glyph(164, 7.74),
+        ],
     );
     assert_receipt_label(
         &metrics,
         &font,
         AtomLabelFacts::new("Br", None, 0, 0).expect("valid corpus label"),
-        (-5.442, -4.247999999999999, 5.442, 4.247999999999999),
-        (-5.442, -4.247999999999999, 5.442, 4.247999999999999),
-        &[ExpectedRun::baseline(
-            "Br",
-            -6.462,
-            4.247999999999999,
-            12,
-            12.084,
-            10.884,
-            8.495999999999999,
-        )
-        .with_second_glyph(126, 7.343999999999999)],
+        (-5.232, -4.008, 5.232, 4.008),
+        (-5.232, -4.008, 5.232, 4.008),
+        &[
+            ExpectedRun::baseline("Br", -6.168, 4.008, 12, 11.544, 10.464, 8.016)
+                .with_second_glyph(187, 7.356),
+        ],
     );
     assert_receipt_label(
         &metrics,
         &font,
         AtomLabelFacts::new("H", None, 0, 2).expect("valid corpus label"),
-        (
-            -3.3240000000000007,
-            -4.247999999999999,
-            17.142599999999995,
-            6.744,
-        ),
-        (
-            -3.3240000000000007,
-            -4.247999999999999,
-            3.3240000000000007,
-            4.247999999999999,
-        ),
+        (-3.2280000000000006, -4.008, 16.47, 7.0416),
+        (-3.228, -4.008, 3.228, 4.008),
         &[
-            ExpectedRun::baseline(
-                "H",
-                -4.344,
-                4.247999999999999,
-                24,
-                8.687999999999999,
-                6.6480000000000015,
-                8.495999999999999,
-            ),
-            ExpectedRun::baseline(
-                "H",
-                4.3439999999999985,
-                4.247999999999999,
-                24,
-                8.687999999999999,
-                6.6480000000000015,
-                8.495999999999999,
-            ),
+            ExpectedRun::baseline("H", -4.164000000000001, 4.008, 36, 8.328, 6.456, 8.016),
+            ExpectedRun::baseline("H", 4.163999999999999, 4.008, 36, 8.328, 6.456, 8.016),
             ExpectedRun::subscript(
                 "2",
-                13.031999999999996,
-                6.744,
-                156,
-                4.5786,
-                3.7205999999999997,
-                5.5847999999999995,
+                12.491999999999997,
+                7.0416,
+                367,
+                4.274400000000001,
+                3.7518000000000002,
+                5.304,
             ),
         ],
     );
@@ -428,53 +400,32 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
         &font,
         AtomLabelFacts::new("N", None, 1, 3).expect("valid corpus label"),
         (
-            -3.222000000000001,
-            -6.2166000000000015,
-            21.751199999999997,
-            6.822,
-        ),
-        (
             -3.2220000000000004,
-            -4.247999999999999,
-            3.2220000000000004,
-            4.247999999999999,
+            -6.355200000000001,
+            21.276599999999995,
+            7.1352,
         ),
+        (-3.222, -4.008, 3.222, 4.008),
         &[
-            ExpectedRun::baseline(
-                "N",
-                -4.218000000000001,
-                4.247999999999999,
-                39,
-                8.436,
-                6.444000000000001,
-                8.495999999999999,
-            ),
-            ExpectedRun::baseline(
-                "H",
-                4.217999999999999,
-                4.247999999999999,
-                24,
-                8.687999999999999,
-                6.6480000000000015,
-                8.495999999999999,
-            ),
+            ExpectedRun::baseline("N", -4.158, 4.008, 57, 8.315999999999999, 6.444, 8.016),
+            ExpectedRun::baseline("H", 4.157999999999999, 4.008, 36, 8.328, 6.456, 8.016),
             ExpectedRun::subscript(
                 "3",
-                12.905999999999999,
-                6.744,
-                157,
-                4.5005999999999995,
-                3.7128,
-                5.6628,
+                12.485999999999997,
+                7.0416,
+                368,
+                4.4928,
+                3.6972,
+                5.397600000000001,
             ),
             ExpectedRun::superscript(
                 "+",
-                17.406599999999997,
-                -1.9890000000000008,
-                217,
-                4.992,
-                3.6426000000000007,
-                3.6737999999999995,
+                16.978799999999996,
+                -2.4864000000000006,
+                298,
+                4.7268,
+                3.8688000000000002,
+                3.8688000000000002,
             ),
         ],
     );
@@ -482,28 +433,29 @@ fn truetype_design_metrics_define_the_canonical_v1_corpus_receipt_exactly() {
         &metrics,
         &font,
         AtomLabelFacts::new("I", None, 0, 0).expect("valid corpus label"),
-        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266),
-        (-0.5700000000000001, -4.266, 0.5700000000000001, 4.266),
+        (-1.6920000000000002, -4.008, 1.6920000000000002, 4.008),
+        (-1.6920000000000002, -4.008, 1.6920000000000002, 4.008),
         &[ExpectedRun::baseline(
             "I",
-            -1.6260000000000001,
-            4.266,
-            25,
-            3.2520000000000002,
-            1.1400000000000001,
-            8.532,
+            -2.3520000000000003,
+            4.008,
+            38,
+            4.704000000000001,
+            3.3840000000000003,
+            8.016,
         )],
     );
 }
 
 #[test]
 fn verified_metrics_reject_controls_and_missing_scalars_without_fallback() {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
-    let result = metrics.v1_glyphs_for_run("C\n", size(12.0), size(1.0));
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
+    let result = metrics.glyphs_for_run("C\n", size(12.0), size(1.0));
     assert!(result.is_err());
-    let result = metrics.v1_glyphs_for_run("\u{10ffff}", size(12.0), size(1.0));
+    let result = metrics.glyphs_for_run("\u{10ffff}", size(12.0), size(1.0));
     assert!(result.is_err());
 }
 
@@ -590,7 +542,7 @@ impl ExpectedRun {
 }
 
 fn assert_receipt_label(
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
     font: &AtomLabelFontProfile,
     label: AtomLabelFacts,
     expected_bounds: (f64, f64, f64, f64),
@@ -679,26 +631,24 @@ fn assert_receipt_label(
 
 fn expected_y_bearing(text: &str) -> f64 {
     match text {
-        "C" => -8.591999999999999,
-        "Cl" => -9.108,
-        "Br" | "H" | "N" => -8.495999999999999,
-        "2" | "3" => -5.5847999999999995,
-        "+" => -4.227600000000001,
-        "I" => -8.532,
-        _ => panic!("unexpected V1 receipt run"),
+        "C" => -8.16,
+        "Cl" => -8.496,
+        "Br" | "H" | "N" | "I" => -8.016,
+        "2" | "3" => -5.304,
+        "+" => -3.8688000000000002,
+        _ => panic!("unexpected receipt run"),
     }
 }
 
 fn expected_x_bearing(text: &str) -> f64 {
     match text {
-        "C" | "Cl" => 0.6000000000000001,
-        "Br" | "H" => 1.02,
-        "N" => 0.996,
-        "2" => 0.39000000000000007,
-        "3" => 0.3276,
-        "+" => 0.7020000000000001,
-        "I" => 1.056,
-        _ => panic!("unexpected V1 receipt run"),
+        "C" | "Cl" => 0.528,
+        "Br" | "H" | "N" => 0.936,
+        "2" => 0.2262,
+        "3" => 0.3432,
+        "+" => 0.42900000000000005,
+        "I" => 0.66,
+        _ => panic!("unexpected receipt run"),
     }
 }
 
@@ -741,23 +691,23 @@ struct TreeFixture {
 }
 
 impl TreeFixture {
-    fn telex() -> Self {
+    fn molecule_label_font() -> Self {
         let root = fixture_root().join(format!(
-            "ferrum-telex-tree-{}-{}",
+            "ferrum-molecule_label_font-tree-{}-{}",
             std::process::id(),
             NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));
         let fonts = root.join("package/fonts");
-        std::fs::create_dir_all(&fonts).expect("create isolated Telex tree");
-        let font = fonts.join("Telex-Regular.ttf");
+        std::fs::create_dir_all(&fonts).expect("create isolated Atkinson Hyperlegible Next tree");
+        let font = fonts.join("atkinson_hyperlegible_next_regular.ttf");
         std::fs::copy(
             concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/assets/fonts/Telex-Regular.ttf"
+                "/assets/fonts/atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_regular.ttf"
             ),
             &font,
         )
-        .expect("copy verified Telex fixture");
+        .expect("copy verified Atkinson Hyperlegible Next fixture");
         Self { root, font }
     }
 
@@ -777,20 +727,20 @@ impl Drop for TreeFixture {
 }
 
 impl PathFixture {
-    fn telex_copy() -> Self {
+    fn molecule_label_copy() -> Self {
         let path = fixture_root().join(format!(
-            "ferrum-telex-copy-{}-{}.ttf",
+            "ferrum-molecule_label_font-copy-{}-{}.ttf",
             std::process::id(),
             NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::copy(
             concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/assets/fonts/Telex-Regular.ttf"
+                "/assets/fonts/atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_regular.ttf"
             ),
             &path,
         )
-        .expect("copy verified Telex fixture");
+        .expect("copy verified Atkinson Hyperlegible Next fixture");
         Self { path }
     }
 

@@ -2,11 +2,13 @@
 
 ## What is Ferrum?
 
-Ferrum is a pre-production chemical-document application. Its Rust backend is
-the sole owner of chemistry, document state, history, rendering, admission,
-file-format decisions, and typed refusals. Ferrum Qt is the PySide6 desktop
-client: it presents Rust-issued facts and sends bounded user intent; it does
-not own a second chemistry or document model. See
+Ferrum is a pre-alpha chemical-document application. Rust is the sole owner of
+chemistry, document state, history, rendering, admission, file-format
+decisions, and typed refusals. PyO3 carries frozen Rust-issued facts across the
+native boundary; it is not a second chemistry, document, renderer, or format
+implementation. Ferrum Qt is the PySide6 desktop client: it owns interaction,
+presentation, and accessibility while sending bounded user intent and never
+maintaining a shadow document model. See
 [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) for the ownership boundary.
 
 ## How does Ferrum use historical migration evidence?
@@ -42,6 +44,16 @@ declared simple-molecule profile are refused. See
 [FILE_FORMATS.md](FILE_FORMATS.md) for exact profiles, limits, losses, and
 publication rules.
 
+## Why does the repository include Atkinson Hyperlegible Mono?
+
+Ferrum vendors the official Atkinson Hyperlegible Next and Mono families with
+their provenance and license records. The current molecule-label role is not
+Mono: Rust selects the vendored proportional Atkinson Hyperlegible Next Regular
+resource by exact bytes, and Qt replays that issued choice without system-font
+discovery or substitution. The Mono files are vendored assets, not a desktop
+preference or an alternative molecule-label default. See
+[PROVENANCE.md](PROVENANCE.md) for the selected resource and font catalog.
+
 ## How are Wavy, Bold, and Dashed CDXML bonds imported?
 
 The bounded CDXML importer accepts `Display="Wavy"`, `Display="Bold"`, and
@@ -70,9 +82,9 @@ source of truth for work that remains.
 
 ## Is Ferrum ready for production work?
 
-No. Ferrum is a local-checkout, pre-production build. Automated Rust, Python,
-and end-to-end evidence covers bounded behavior, but human desktop/accessibility
-review, remote CI, release validation, and complete migration parity remain
-open. The supported local route is macOS arm64 with Rust 1.97.1 or newer and
-Python 3.12; [INSTALL.md](INSTALL.md) defines the exact build and runtime
-environment.
+No. Ferrum is a local-checkout, pre-alpha build, not a released desktop
+distribution. Local automated Rust, PyO3, Qt, and end-to-end evidence covers
+bounded behavior, but full migration parity, human desktop/accessibility
+acceptance, remote CI, and release-artifact validation remain open. The
+supported local route is macOS arm64 with Rust 1.97.1 or newer and Python 3.12;
+[INSTALL.md](INSTALL.md) defines the exact build and runtime environment.

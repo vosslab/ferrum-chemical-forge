@@ -99,7 +99,7 @@ def dialog_model_from_projection(text: object) -> FerrumNativeTextDialogModel:
 	import ferrum_qt.ferrum.engine as engine
 	if type(text) is not engine.TextProjectionV1:
 		raise TypeError("Ferrum Text properties require an exact Ferrum Text projection")
-	if text.font.font_face_id != "telex_regular_v1":
+	if text.font.font_face_id != "molecule_label":
 		raise ValueError("selected Text has an unsupported_text_face")
 	size = text.font.size
 	if type(size) is not float or not size.is_integer() or not 4 <= size <= 144:
@@ -204,7 +204,7 @@ def _on_edit_text_properties(window: object) -> None:
 		italic=False,
 		font_family=False,
 		disabled_reason=(
-			"The verified Ferrum renderer currently uses its regular Telex face only."
+			"The verified Ferrum renderer currently uses its regular Atkinson Hyperlegible Next face only."
 		),
 	)
 	dialog = ferrum_qt.dialogs.rich_text_dialog.RichTextDialog(

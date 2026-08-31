@@ -27,14 +27,31 @@ The two components have deliberately different licenses:
   the algorithm over Ferrum's `Point2` and records differential evidence against a
   separately launched local RDKit process. This attribution records the source,
   purpose, and license context; it is not legal advice.
-- Ferrum's molecule-label face is the byte-verified Telex Regular font copied from
-  RDKit `Release_2026_03_4/Data/Fonts/Telex-Regular.ttf`: 38,940 bytes and SHA-256
-  `eeaa2d17d105b6b46e5368ecd990f5b19c50131ff922dbf79bfb9bb45c249871`.
-  Ferrum distributes it at `crates/render/assets/fonts/Telex-Regular.ttf` with the
-  upstream SIL Open Font License 1.1 notice at
-  `crates/render/assets/licenses/Telex-OFL-1.1.txt`. The observed FreeType metadata
-  is family `Telex` and PostScript name `Telex-Regular`. This is an exact-face
-  resource for Ferrum rendering, not a system-family lookup.
+- Ferrum vendors all 46 official Atkinson Hyperlegible Next version 2.001 font
+  outputs from upstream revision `7925f50f649b3813257faf2f4c0b381011f434f1`
+  and all 46 official Atkinson Hyperlegible Mono version 2.001 outputs from
+  revision `154d50362016cc3e873eb21d242cd0772384c8f9`. Each family contributes
+  14 static OTF, 14 static TTF, two variable TTF, 14 static WOFF2, and two
+  variable WOFF2 files and is distributed under SIL Open Font License 1.1.
+  Upstream repository URLs, exact revisions and paths, local filenames,
+  lengths, SHA-256 digests, license paths, and license hashes are closed in
+  `crates/render/assets/fonts/catalog.json` (ASVS V3.6.1, V11.4.1, V11.4.3,
+  V15.1.2, and V15.2.4).
+  The explicit developer checker rejects duplicate catalog fields, path escapes,
+  missing or extra binaries, incomplete distribution forms, and byte or digest
+  mismatches:
+
+  ```bash
+  source source_me.sh && python3 \
+    packages/ferrum-rust/devel/verify_vendored_font_catalog.py
+  ```
+- Ferrum selects
+  `atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_regular.ttf` for the current
+  molecule-label role: 65,068 bytes, SHA-256
+  `88ed5c31a71584c7772963b02d04bef1eb7e3d2e9c8b9cb204339b1f82cf432c`,
+  family `Atkinson Hyperlegible Next`, and PostScript name
+  `AtkinsonHyperlegibleNext-Regular`. Rust loads this exact resource by bytes;
+  Qt has no system-family discovery or font substitution route.
 - M13's in-memory PNG and PDF sinks use locked pure-Rust source dependencies:
   [`tiny-skia` 0.12.0](https://crates.io/crates/tiny-skia/0.12.0) and its
   [`tiny-skia-path` 0.12.0](https://crates.io/crates/tiny-skia-path/0.12.0)

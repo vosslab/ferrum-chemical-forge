@@ -107,9 +107,9 @@ pub enum SvgRenderError {
     InvalidViewport,
     #[error("SVG geometry could not be represented as finite numeric text")]
     NonFiniteGeometry,
-    #[error("could not parse verified Telex outline face: {0}")]
+    #[error("could not parse verified Atkinson Hyperlegible Next outline face: {0}")]
     Font(String),
-    #[error("required Telex glyph {glyph_index} has no usable outline")]
+    #[error("required Atkinson Hyperlegible Next glyph {glyph_index} has no usable outline")]
     MissingGlyphOutline { glyph_index: u32 },
     #[error("generated SVG did not parse structurally: {0}")]
     Xml(#[from] xot::ParseError),

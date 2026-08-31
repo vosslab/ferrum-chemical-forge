@@ -169,7 +169,7 @@ class FerrumNativeDocumentTab(
 			if type(cdml) is not str or type(title) is not str:
 				raise TypeError("Ferrum document tab requires CDML and title strings")
 			session = engine.DocumentSession.load(cdml)
-			resource = engine.verified_telex_regular()
+			resource = engine.molecule_label_font()
 			if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
 				raise TypeError("Ferrum document tab requires a document display palette")
 			view = ferrum_qt.ferrum.graphics_view.FerrumNativeGraphicsView(palette, self)

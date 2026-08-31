@@ -62,7 +62,7 @@ fn plus(observation: &crate::SessionDocumentObservationV1) -> &crate::PlusProjec
 #[test]
 fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
     let changes = vec![
-        PlusPropertyChangeV1::FontFace(PresentationFontFaceV1::TelexRegularV1),
+        PlusPropertyChangeV1::FontFace(PresentationFontFaceV1::MoleculeLabel),
         PlusPropertyChangeV1::FontSize(18),
         PlusPropertyChangeV1::Color(Rgb24V1::new("#AbC").unwrap()),
         PlusPropertyChangeV1::BackgroundColor(None),
@@ -73,7 +73,7 @@ fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
         .expect("patch must commit");
     let projected = plus(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert_eq!(projected.font().font_face().id(), "telex_regular_v1");
+    assert_eq!(projected.font().font_face().id(), "molecule_label");
     assert_eq!(projected.font().size().value(), 18.0);
     assert_eq!(projected.font().color().as_str(), "#aabbcc");
     assert_eq!(
@@ -113,12 +113,12 @@ fn plus_properties_commit_once_preserve_extensions_and_follow_history() {
     let undone = session.undo(1).expect("one patch must undo once");
     assert_eq!(
         plus(undone.observation()).font().font_face().id(),
-        "telex_regular_v1"
+        "molecule_label"
     );
     let redone = session.redo(2).expect("one patch must redo once");
     assert_eq!(
         plus(redone.observation()).font().font_face().id(),
-        "telex_regular_v1"
+        "molecule_label"
     );
 }
 
@@ -203,7 +203,7 @@ fn plus_properties_reject_invalid_intent_and_targets_without_mutation() {
             patch(
                 &ambiguous,
                 vec![PlusPropertyChangeV1::FontFace(
-                    PresentationFontFaceV1::TelexRegularV1
+                    PresentationFontFaceV1::MoleculeLabel
                 )]
             )
         ),

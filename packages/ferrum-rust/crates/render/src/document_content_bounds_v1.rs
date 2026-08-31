@@ -96,7 +96,7 @@ pub enum DocumentContentBoundsErrorV1 {
     /// Private lowering could not reserve or represent its geometry.
     #[error("document content measurement could not reserve finite geometry")]
     Measurement,
-    /// The verified Telex face could not be loaded or parsed.
+    /// The verified Atkinson Hyperlegible Next face could not be loaded or parsed.
     #[error("document content measurement could not load the verified font: {0}")]
     Font(String),
     /// A required verified glyph had no usable outline.
@@ -438,7 +438,7 @@ mod tests {
                             ),
                             AtomLabelFacts::new("N", None, 0, 0).expect("label facts"),
                             AtomLabelFontProfile::new(
-                                FontFace::telex_regular(),
+                                FontFace::molecule_label(),
                                 size(12.0),
                                 paint("000000"),
                             ),

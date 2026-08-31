@@ -23,7 +23,7 @@ dependencies:
 
 ```bash
 brew bundle
-python3 -m pip install -r pip_requirements.txt -r pip_requirements-dev.txt
+python3.12 -m pip install -r pip_requirements.txt -r pip_requirements-dev.txt
 ```
 
 Do not source `source_me.sh` before the first build: it deliberately refuses

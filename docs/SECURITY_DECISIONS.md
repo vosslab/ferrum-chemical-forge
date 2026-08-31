@@ -43,5 +43,5 @@ Production CDML parsing and admission remain Rust/`xot` responsibilities rather
 than a Python parser boundary.
 
 **Owner.** [CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md),
-[test_fixture_corpus_v2.py](../measure_stack/tests/test_fixture_corpus_v2.py),
+[e2e_atom_label_bond_alignment.py](../tests/e2e/e2e_atom_label_bond_alignment.py),
 and [pip_requirements-dev.txt](../pip_requirements-dev.txt).

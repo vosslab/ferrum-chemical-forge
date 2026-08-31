@@ -193,7 +193,7 @@ fn compact_materialization_uses_the_shared_response_budget_refusal() {
     let document = COMPACT_CDML.replace(
         "</cdml>",
         &format!(
-            "<text id=\"payload\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000005\"><point x=\"1\" y=\"2\"/><font family=\"Telex\"/><ftext>{oversized_text}</ftext></text></cdml>"
+            "<text id=\"payload\" object:id=\"ferrum-document-object-v1/00000000000000000000000000000005\"><point x=\"1\" y=\"2\"/><font family=\"Atkinson Hyperlegible Next\"/><ftext>{oversized_text}</ftext></text></cdml>"
         ),
     );
     let (molecule_id, compact_group_id) = compact_target_ids(&document);

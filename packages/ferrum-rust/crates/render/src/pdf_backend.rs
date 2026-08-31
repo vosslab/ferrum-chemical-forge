@@ -1,6 +1,6 @@
 //! In-memory, one-page vector PDF serialization for the private V1 draw stream.
 //!
-//! PDF V1 applies one page-level scene-down to PDF-up transform. Telex is lowered
+//! PDF V1 applies one page-level scene-down to PDF-up transform. Atkinson Hyperlegible Next is lowered
 //! through the verified outline stream, so this backend never emits PDF text or
 //! font resources. `PdfOutputBudgetV1` is an accepted completed-artifact cap:
 //! `pdf-writer` owns intermediate `Vec` allocations, and this module refuses to
@@ -15,11 +15,11 @@ use crate::draw_stream_v1::{
     DrawEllipseV1, DrawPathCommandV1, DrawPathV1, DrawRectV1, DrawSinkV1, DrawStreamErrorV1,
     DrawStyleV1, lower_document_plan_to_sink_v1,
 };
-use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyph;
+use crate::verified_molecule_label_glyph_metrics::is_verified_outlineless_whitespace_glyph;
 use crate::{
     DocumentRenderArtifactV1, DocumentRenderContentV1, DocumentRenderOutcomeV1,
     DocumentRenderPlanV1, DocumentRenderReportV1, DocumentTextLayoutV1, DocumentVectorOpV1,
-    FerrumFontEnvironmentV1, FerrumFontId, RenderOp, RenderPaintV3, RenderPoint, RenderViewportV1,
+    FerrumFontEnvironment, RenderOp, RenderPaintV3, RenderPoint, RenderViewportV1,
 };
 
 const CATALOG_REFERENCE: i32 = 1;
@@ -67,7 +67,7 @@ pub struct PdfPlanComplexityBudgetV1 {
     /// Maximum counted direct outcomes, batches, render operations, text runs,
     /// glyph placements, and document-vector operations.
     pub max_plan_items: usize,
-    /// Maximum PDF path commands after line, ellipse, and Telex-outline lowering.
+    /// Maximum PDF path commands after line, ellipse, and Atkinson Hyperlegible Next-outline lowering.
     pub max_draw_path_commands: usize,
     /// Maximum UTF-8 bytes cloned into the completed exclusion report.
     pub max_exclusion_report_bytes: usize,
@@ -174,9 +174,9 @@ pub enum PdfRenderError {
     },
     #[error("PDF geometry is not finite or cannot be represented as finite f32")]
     NonFiniteGeometry,
-    #[error("could not parse verified Telex outline face: {0}")]
+    #[error("could not parse verified Atkinson Hyperlegible Next outline face: {0}")]
     Font(String),
-    #[error("required Telex glyph {glyph_index} has no usable outline")]
+    #[error("required Atkinson Hyperlegible Next glyph {glyph_index} has no usable outline")]
     MissingGlyphOutline { glyph_index: u32 },
     #[error("a PDF path command required a current point")]
     InvalidPath,
@@ -249,8 +249,8 @@ fn measure_document_plan_complexity_v1(
     budget: PdfPlanComplexityBudgetV1,
 ) -> Result<PdfRenderComplexityObservationV1, PdfRenderError> {
     let environment =
-        FerrumFontEnvironmentV1::load().map_err(|error| PdfRenderError::Font(error.to_string()))?;
-    let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
+        FerrumFontEnvironment::load().map_err(|error| PdfRenderError::Font(error.to_string()))?;
+    let descriptor = environment.molecule_label();
     let face = Face::parse(descriptor.data(), 0)
         .map_err(|error| PdfRenderError::Font(error.to_string()))?;
     let mut counter = PdfComplexityCounterV1::new(budget);

@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn placement_commits_one_canonical_text_and_replays_never_mutate() {
         let mut session = DocumentSession::load(
-            "<cdml xmlns=\"urn:ferrum:cdml\" version='26.07'><standard font_family=\"Telex\"/></cdml>",
+            "<cdml xmlns=\"urn:ferrum:cdml\" version='26.07'><standard font_family=\"Atkinson Hyperlegible Next\"/></cdml>",
         )
         .expect("canonical bundled face remains renderable");
         let snapshot = session.snapshot().expect("snapshot");

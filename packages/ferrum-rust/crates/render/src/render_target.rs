@@ -96,7 +96,7 @@ mod tests {
             None,
             AtomLabelFacts::new("C", None, 0, 0).expect("label facts"),
             AtomLabelFontProfile::new(
-                FontFace::telex_regular(),
+                FontFace::molecule_label(),
                 size(12.0),
                 RenderPaintV3::authored_rgb24(Rgb24::new("000000").expect("paint")),
             ),

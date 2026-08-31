@@ -20,8 +20,27 @@ fn point(x: f64, y: f64) -> serde_json::Value {
     serde_json::json!({ "x": x, "y": y })
 }
 
-fn run(document: &str, authoring: serde_json::Value) -> serde_json::Value {
-    run_with_fence(document, 0, &digest(document), authoring)
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProtocolProcessOutcome {
+    Success,
+    Refusal,
+}
+
+impl ProtocolProcessOutcome {
+    const fn exit_code(self) -> i32 {
+        match self {
+            Self::Success => 0,
+            Self::Refusal => 1,
+        }
+    }
+}
+
+fn run(
+    document: &str,
+    authoring: serde_json::Value,
+    expected_outcome: ProtocolProcessOutcome,
+) -> serde_json::Value {
+    run_with_fence(document, 0, &digest(document), authoring, expected_outcome)
 }
 
 fn run_with_fence(
@@ -29,6 +48,7 @@ fn run_with_fence(
     expected_revision: u64,
     expected_digest_hex: &str,
     authoring: serde_json::Value,
+    expected_outcome: ProtocolProcessOutcome,
 ) -> serde_json::Value {
     let request = serde_json::json!({
         "schema": "ferrum-operation-request-v1",
@@ -57,12 +77,30 @@ fn run_with_fence(
     let output = child
         .wait_with_output()
         .expect("ferrum protocol command completes");
-    assert!(
-        output.status.success(),
-        "protocol stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+    assert_eq!(
+        output.status.code(),
+        Some(expected_outcome.exit_code()),
+        "protocol outcome mismatch; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
     );
-    serde_json::from_slice(&output.stdout).expect("protocol emits one JSON envelope")
+    assert!(
+        output.stderr.is_empty(),
+        "protocol JSON CLI wrote stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let envelope: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("protocol emits one JSON envelope");
+    match expected_outcome {
+        ProtocolProcessOutcome::Success => {
+            assert!(envelope.get("outcome").is_some());
+            assert!(envelope.get("error").is_none());
+        }
+        ProtocolProcessOutcome::Refusal => {
+            assert!(envelope.get("error").is_some());
+            assert!(envelope.get("outcome").is_none());
+        }
+    }
+    envelope
 }
 
 #[test]
@@ -102,7 +140,7 @@ fn protocol_cli_executes_every_closed_presentation_authoring_variant() {
         }),
     ];
     for authoring in variants {
-        let response = run(EMPTY, authoring);
+        let response = run(EMPTY, authoring, ProtocolProcessOutcome::Success);
         assert_eq!(response["schema"], "ferrum-operation-response-v1");
         assert_eq!(response["outcome"]["kind"], "presentation.author.v1");
         assert_eq!(response["outcome"]["committed_revision"], 1);
@@ -122,6 +160,7 @@ fn protocol_cli_accepts_an_authoring_result_as_the_next_request_document() {
             "kind": "vector", "vector_kind": "line", "start": point(0.0, 0.0),
             "end": point(40.0, 0.0), "appearance_policy": "effective_drawing_standard"
         }),
+        ProtocolProcessOutcome::Success,
     );
     let document = first["outcome"]["document"]
         .as_str()
@@ -141,6 +180,7 @@ fn protocol_cli_accepts_an_authoring_result_as_the_next_request_document() {
             "kind": "curved_terminal_arrow", "terminal_kind": "normal",
             "start": point(0.0, 20.0), "control": point(20.0, 40.0), "end": point(40.0, 20.0)
         }),
+        ProtocolProcessOutcome::Success,
     );
     assert_eq!(second["schema"], "ferrum-operation-response-v1");
     assert_eq!(second["outcome"]["kind"], "presentation.author.v1");
@@ -165,6 +205,7 @@ fn protocol_cli_returns_a_typed_direct_bond_refusal_without_a_document_outcome()
             "new_atom_element": "C",
             "snap": { "hex_grid": false, "angle_increment_degrees": null, "fixed_length_pt": null }
         }),
+        ProtocolProcessOutcome::Refusal,
     );
     assert_eq!(response["schema"], "ferrum-operation-error-v1");
     assert!(response.get("outcome").is_none());

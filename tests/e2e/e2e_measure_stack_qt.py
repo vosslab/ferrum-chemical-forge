@@ -52,7 +52,7 @@ import PySide6.QtWidgets
 
 # Local modules
 import e2e_atom_label_bond_alignment as alignment
-import ferrum_qt.canvas.ferrum_telex
+import ferrum_qt.canvas.molecule_label_font
 from measure_stack.contracts import CaptureProfile, load_raster_manifest_v2
 from measure_stack.diagnostics import write_diagnostics
 from measure_stack.measure import MeasurementPolicy, measure_scene, violations
@@ -61,14 +61,11 @@ from measure_stack.qt_scene_capture import capture_scene
 
 _V2_FIXTURE_PATH = _REPO_ROOT / "measure_stack" / "fixtures" / "v2" / "fixtures.json"
 _V2_FIXTURE_SCHEMA = "ferrum-measure-stack-fixtures-v2"
-# Frozen only after a baseline capture has demonstrated that every V2 fixture
-# reaches the real Qt consumer.  The explicit values make a renderer regression
-# or an accidental relaxed predicate fail the baseline lane rather than bless
-# its own current output.
-_FROZEN_BASELINE_FAILURE_CATEGORIES = {
-	"detached_endpoint": 8,
-	"target_label_overlap": 7,
-}
+# Frozen after every V2 fixture reached the real Qt consumer with zero strict
+# findings. The explicit accepted-zero value makes a renderer regression or an
+# accidentally relaxed predicate fail the baseline lane rather than bless its
+# own current output.
+_FROZEN_BASELINE_FAILURE_CATEGORIES: dict[str, int] = {}
 _FROZEN_EXPECTED_TYPED_REFUSALS: dict[str, str] = {}
 _FROZEN_V2_CAPTURE_FIXTURE_COUNT = 12
 _STYLE_BY_V2_STYLE = {
@@ -185,12 +182,12 @@ def _failure_category(message: str) -> str:
 
 #============================================
 #============================================
-def _core_item(content: object, telex: object) -> PySide6.QtWidgets.QGraphicsPathItem:
+def _core_item(content: object, molecule_label_font: object) -> PySide6.QtWidgets.QGraphicsPathItem:
 	"""Create a hidden test-only Qt core glyph path from the issued text run identity."""
 	label = content.label
 	core_run = label.text.runs[label.core_element_run_index]
-	verified_telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex)
-	path = alignment._label_path(content, verified_telex, (core_run,))
+	verified_molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(molecule_label_font)
+	path = alignment._label_path(content, verified_molecule_label_font, (core_run,))
 	item = PySide6.QtWidgets.QGraphicsPathItem(path)
 	item.setPen(PySide6.QtCore.Qt.PenStyle.NoPen)
 	item.setBrush(PySide6.QtGui.QBrush(PySide6.QtGui.QColor("black")))
@@ -200,7 +197,7 @@ def _core_item(content: object, telex: object) -> PySide6.QtWidgets.QGraphicsPat
 
 #============================================
 def _fixture_layers(case: dict[str, object], observation: object,
-		projection: object, telex: object) -> tuple[
+		projection: object, molecule_label_font: object) -> tuple[
 		dict[str, tuple[str, object, object]], dict[str, tuple[str, str, str, object]],
 		list[PySide6.QtWidgets.QGraphicsPathItem],
 	]:
@@ -221,7 +218,7 @@ def _fixture_layers(case: dict[str, object], observation: object,
 		core = label.text.runs[label.core_element_run_index]
 		if core.text != expected_core:
 			raise ValueError("fixture core glyph identity differs from issued Qt label")
-		core_item = _core_item(batch.content, telex)
+		core_item = _core_item(batch.content, molecule_label_font)
 		projection.scene.addItem(core_item)
 		temporary_cores.append(core_item)
 		try:
@@ -263,10 +260,10 @@ def _fixture_layers(case: dict[str, object], observation: object,
 def _measure_renderable_case(case: dict[str, object], capture_profile: CaptureProfile,
 		output_root: pathlib.Path) -> list[str]:
 	"""Capture and independently measure one real installed Qt render projection."""
-	observation, projection, telex = alignment._projection_for(case)
+	observation, projection, molecule_label_font = alignment._projection_for(case)
 	temporary_cores: list[PySide6.QtWidgets.QGraphicsPathItem] = []
 	try:
-		atoms, bonds, temporary_cores = _fixture_layers(case, observation, projection, telex)
+		atoms, bonds, temporary_cores = _fixture_layers(case, observation, projection, molecule_label_font)
 		manifest = capture_scene(
 			projection.scene, capture_profile, case["name"], case["cdml"],
 			projection.molecule_roots, atoms, bonds, case["expected_relations"],
@@ -336,11 +333,11 @@ def main() -> int:
 	mode = parser.add_mutually_exclusive_group()
 	mode.add_argument(
 		"--baseline", action="store_true",
-		help="exit zero only when Qt capture is healthy and frozen expected renderer failures match",
+		help="exit zero only when Qt capture is healthy and the frozen accepted-zero receipt matches",
 	)
 	mode.add_argument(
 		"--fail-on-violation", action="store_true",
-		help="strict-red: exit nonzero for every visual-quality violation",
+		help="strict: exit nonzero for every visual-quality violation",
 	)
 	arguments = parser.parse_args()
 	app = PySide6.QtWidgets.QApplication.instance() or PySide6.QtWidgets.QApplication([])

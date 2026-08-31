@@ -14,14 +14,14 @@ use crate::authored_direct_glycosidic_haworth::{
 };
 use crate::direct_glycosidic_haworth::DirectGlycosidicHaworthPathCommandV1;
 use crate::draw_stream_molecule_v1::{lower_molecule_batch, lower_molecule_plan};
-use crate::verified_telex_glyph_metrics::is_verified_outlineless_whitespace_glyph;
+use crate::verified_molecule_label_glyph_metrics::is_verified_outlineless_whitespace_glyph;
 use crate::{
     BatchSpace, DocumentRenderContentV1, DocumentRenderOutcomeV1, DocumentRenderPlanV1,
     DocumentTextLayoutV1, DocumentTextOpV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, FerrumFontId, GlyphPlacement, MoleculeRenderPlanV4, PathCommandV1,
-    PositiveFinite, PresentationGlyphRun, PresentationTextOp, RenderPaintV3, RenderPoint,
-    RenderTarget, RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1,
-    VectorStrokeLineCapV1, VectorStrokeLineJoinV1,
+    FerrumFontEnvironment, GlyphPlacement, MoleculeRenderPlanV4, PathCommandV1, PositiveFinite,
+    PresentationGlyphRun, PresentationTextOp, RenderPaintV3, RenderPoint, RenderTarget,
+    RenderViewportV1, StrokeV1, TextOp, TextRun, VectorFillRuleV1, VectorStrokeLineCapV1,
+    VectorStrokeLineJoinV1,
 };
 
 /// A private streaming backend for one already validated render plan.
@@ -205,9 +205,9 @@ pub(crate) enum DrawStreamErrorV1<E> {
     ResourceExhausted,
     #[error("derived render geometry is not finite")]
     NonFiniteGeometry,
-    #[error("could not parse verified Telex outline face: {0}")]
+    #[error("could not parse verified Atkinson Hyperlegible Next outline face: {0}")]
     Font(String),
-    #[error("required Telex glyph {glyph_index} has no usable outline")]
+    #[error("required Atkinson Hyperlegible Next glyph {glyph_index} has no usable outline")]
     MissingGlyphOutline { glyph_index: u32 },
     #[error("checked composite no longer matches its retained document plan")]
     #[cfg_attr(not(test), allow(dead_code))]
@@ -221,9 +221,9 @@ pub(crate) fn lower_document_plan_to_sink_v1<S: DrawSinkV1>(
     plan: &DocumentRenderPlanV1,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    let environment = FerrumFontEnvironmentV1::load()
+    let environment = FerrumFontEnvironment::load()
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
-    let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
+    let descriptor = environment.molecule_label();
     let face = Face::parse(descriptor.data(), 0)
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
     sink.begin_page(plan.page())
@@ -254,9 +254,9 @@ pub(crate) fn lower_molecule_plan_to_sink_v1<S: DrawSinkV1>(
     page: RenderViewportV1,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    let environment = FerrumFontEnvironmentV1::load()
+    let environment = FerrumFontEnvironment::load()
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
-    let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
+    let descriptor = environment.molecule_label();
     let face = Face::parse(descriptor.data(), 0)
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
     sink.begin_page(page).map_err(DrawStreamErrorV1::Sink)?;
@@ -273,9 +273,9 @@ pub(crate) fn lower_document_render_composite_to_sink_v1<S: DrawSinkV1>(
     composite: &DocumentRenderCompositeV1,
     sink: &mut S,
 ) -> Result<(), DrawStreamErrorV1<S::Error>> {
-    let environment = FerrumFontEnvironmentV1::load()
+    let environment = FerrumFontEnvironment::load()
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
-    let descriptor = environment.descriptor(FerrumFontId::TelexRegular);
+    let descriptor = environment.molecule_label();
     let face = Face::parse(descriptor.data(), 0)
         .map_err(|error| DrawStreamErrorV1::Font(error.to_string()))?;
     let established = composite.established();
@@ -664,7 +664,7 @@ fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
     let units_per_em = f64::from(face.units_per_em());
     if !units_per_em.is_finite() || units_per_em <= 0.0 {
         return Err(DrawStreamErrorV1::Font(
-            "Telex units-per-em is invalid".to_owned(),
+            "Atkinson Hyperlegible Next units-per-em is invalid".to_owned(),
         ));
     }
     sink.begin_text_operation(z, paint)
@@ -713,7 +713,7 @@ fn lower_text_runs<S: DrawSinkV1, R: TextRunV1>(
 }
 
 /// Lower only the structural element run from one atom label through the same
-/// verified Telex outline path used by ordinary molecule replay.
+/// verified Atkinson Hyperlegible Next outline path used by ordinary molecule replay.
 ///
 /// This test-only diagnostic helper deliberately receives the typed atom
 /// label, rather than reproducing its run selection from bounds or text.
@@ -753,7 +753,7 @@ fn lower_presentation_text_runs<S: DrawSinkV1>(
     let units_per_em = f64::from(face.units_per_em());
     if !units_per_em.is_finite() || units_per_em <= 0.0 {
         return Err(DrawStreamErrorV1::Font(
-            "Telex units-per-em is invalid".to_owned(),
+            "Atkinson Hyperlegible Next units-per-em is invalid".to_owned(),
         ));
     }
     sink.begin_text_operation(z, paint)

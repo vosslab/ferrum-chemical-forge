@@ -502,7 +502,7 @@ mod tests {
 
     fn renderer_excluded_live_session() -> DocumentSession {
         DocumentSession::load(
-            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="o" name="O"><point x="0" y="0" z="0"/></atom></molecule><text id="t"><point x="1" y="2"/><font family="Telex"/><ftext><b>x</b></ftext></text></cdml>"#,
+            r#"<cdml xmlns="urn:ferrum:cdml"><molecule id="m"><atom id="o" name="O"><point x="0" y="0" z="0"/></atom></molecule><text id="t"><point x="1" y="2"/><font family="Atkinson Hyperlegible Next"/><ftext><b>x</b></ftext></text></cdml>"#,
         )
         .expect("ordinary source document")
     }

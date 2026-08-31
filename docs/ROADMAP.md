@@ -34,9 +34,10 @@ That is substantial progress, not a feature-parity or release-complete claim.
   rather than reconstructing label geometry or chemistry.
 - One schema-closed twelve-case corpus covers ordinary, decorated, isotope,
   bond-style, Haworth, near-miss, coincident, and third-label-refusal cases at
-  the Rust document-to-observation seam and the installed Qt consumer. This is
-  durable semantic evidence for the alignment contract, not a pixel-baseline
-  substitute for the pending fresh native visual and accessibility review.
+  the Rust document-to-observation seam and the installed Qt consumer. The
+  independent native and actual-Qt pixel lanes accept all twelve renderable
+  cases with zero violations under the unchanged V2 policy. Broader desktop
+  usability and accessibility acceptance remains a separate maintainer gate.
 - The Rust-first direct drawing, selected-root, regular-ring, presentation,
   compact-group, SMARTS, bounded oxidation, command-palette, and semantic-theme
   slices have focused evidence. The bounded CDXML profile now also imports
@@ -49,22 +50,29 @@ That is substantial progress, not a feature-parity or release-complete claim.
 
 ## Resume order
 
-### 1. Carry the renderer alignment contract through visual acceptance
+### 1. Preserve the accepted renderer alignment contract
 
 The label/bond repair is deliberately a renderer contract, not a Qt placement
-tweak. Rust is the sole owner of Telex label metrics, exact core-run placement,
+tweak. Rust is the sole owner of molecule-label metrics, exact core-run placement,
 full-ink exclusion, final bond-ink collision admission, and paint order. The
 closed V4 plan and V2 observation now give PyO3 and Qt the exact facts required
 to replay that result without independent geometry. The canonical semantic
 corpus must remain the permanent guardrail as more label decorations, bond
 styles, fonts, and chemistry grammars are added.
 
-Next, rebuild the installed application, run the Rust and installed-Python/Qt
-corpus lanes, and recapture the GUI tour. A maintainer must then review native
-letter-to-bond alignment, contrast, focus, and accessibility in a real window.
-Those acceptance steps validate the product presentation; they do not alter or
-replace the Rust-owned alignment model. This work strengthens M1/M3/M6 evidence
-but does not close any parent milestone or full parity.
+The current Atkinson Hyperlegible Next Regular cutover is complete at this
+contract boundary. The synthetic oracle accepts 19 fixtures; native final ink
+and actual Qt each accept all 12 renderable fixtures with zero violations; the
+15 permanent measurement tests, 14-case installed alignment E2E, Rust gate,
+and aggregate repository gate are green.
+
+For every later font, label-decoration, bond-style, or capture-profile change,
+the Rust-render owner updates the exact font resource/metrics or geometry and
+the Qt owner preserves replay-only behavior. Success is zero violations in the
+unchanged native and actual-Qt V2 lanes. Validation is `./build.sh`, both strict
+measurement scripts, `./check_rust.sh`, and `./all_test.sh`. Broader M6 native
+visual and accessibility acceptance may judge legibility and interaction, but
+does not replace or reopen this pixel-geometry contract without new evidence.
 
 ### 2. Carry M4b SMARTS Patch 3 through external acceptance
 

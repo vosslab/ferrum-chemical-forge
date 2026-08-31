@@ -16,7 +16,7 @@ def create_text_placement_overlay(tab: object, overlay: object) -> PySide6.QtWid
 	if scene is None:
 		raise RuntimeError("Ferrum Text preview requires an installed scene")
 	item = ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem(
-		overlay, tab._controller._telex_resource, tab.document_display_palette,
+		overlay, tab._controller._font_resource, tab.document_display_palette,
 	)
 	item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 	item.setFlag(PySide6.QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)

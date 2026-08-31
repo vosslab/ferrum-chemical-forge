@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use ferrum_render_contract::MOLECULE_LABEL_RESOURCE_ID;
+
 use crate::{RenderError, RenderPaintV3};
 
 const SCHEMA_V4: &str = "ferrum-render-plan-v4";
@@ -66,8 +68,8 @@ impl<'de> Deserialize<'de> for RenderRevision {
 /// Exact document identity shared by every plan produced from one observation.
 ///
 /// A revision alone cannot identify document content after independent sessions
-/// evolve. V1 therefore carries the authoritative structural digest beside it
-/// through construction and the strict wire grammar.
+/// evolve. The render grammar therefore carries the authoritative structural
+/// digest beside it through construction and the strict wire grammar.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenderProvenance {
@@ -187,25 +189,25 @@ impl<'de> Deserialize<'de> for PositiveFinite {
     }
 }
 
-/// The immutable identifier of the only face accepted by the V1 render grammar.
+/// The immutable identifier of the face selected by the current render grammar.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct FontFace(String);
 
 impl FontFace {
-    /// Create the verified bundled Telex Regular face identifier.
+    /// Create the verified bundled Atkinson Hyperlegible Next Regular face identifier.
     #[must_use]
-    pub fn telex_regular() -> Self {
-        Self("ferrum-telex-regular-v1".to_owned())
+    pub fn molecule_label() -> Self {
+        Self(MOLECULE_LABEL_RESOURCE_ID.to_owned())
     }
 
-    /// Validate the immutable Telex resource identifier without a fallback.
+    /// Validate the immutable Atkinson Hyperlegible Next resource identifier without a fallback.
     pub fn new(value: impl Into<String>) -> Result<Self, RenderError> {
         let value = value.into();
-        if value != "ferrum-telex-regular-v1" {
-            return Err(RenderError::InvalidRequest(
-                "V1 requires the ferrum-telex-regular-v1 font resource".to_owned(),
-            ));
+        if value != MOLECULE_LABEL_RESOURCE_ID {
+            return Err(RenderError::InvalidRequest(format!(
+                "the current render grammar requires the {MOLECULE_LABEL_RESOURCE_ID} font resource"
+            )));
         }
         Ok(Self(value))
     }
@@ -285,7 +287,7 @@ impl TextRun {
     pub const fn origin(&self) -> RenderPoint {
         self.origin
     }
-    /// Return exact Telex glyph IDs and run-local origins in scalar order.
+    /// Return exact Atkinson Hyperlegible Next glyph IDs and run-local origins in scalar order.
     ///
     /// A consumer must neither shape nor advance this sequence.  It draws each
     /// supplied glyph ID at `TextOp.origin + TextRun.origin + glyph.origin`.
@@ -300,7 +302,7 @@ impl TextRun {
     }
 }
 
-/// Return whether text can be represented safely and deliberately by V1.
+/// Return whether text can be represented safely by the current render grammar.
 ///
 /// The initial grammar has no multiline or invisible-text layout semantics, so
 /// NUL, every Unicode control character, and whitespace-only placeholders are
@@ -336,10 +338,10 @@ impl TextOp {
                 "text operation requires at least one run".to_owned(),
             ));
         }
-        let environment = crate::FerrumFontEnvironmentV1::load()?;
-        let metrics = crate::VerifiedTelexGlyphMetrics::new(&environment)?;
+        let environment = crate::FerrumFontEnvironment::load()?;
+        let metrics = crate::VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
         for run in &runs {
-            metrics.validate_v1_run(run.text(), run.script(), size, run.scale(), run.glyphs())?;
+            metrics.validate_run(run.text(), run.script(), size, run.scale(), run.glyphs())?;
         }
         Ok(Self {
             origin,

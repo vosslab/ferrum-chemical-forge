@@ -30,7 +30,7 @@ ferrum-api / local CLI / PyO3 / Qt
 ```
 
 `ferrum-document-projection` owns immutable render-facing DTOs.
-`ferrum-render` owns complete-plan construction, Telex verification, geometry,
+`ferrum-render` owns complete-plan construction, molecule-label resource verification, geometry,
 clipping, bounds, and closed rendering refusals. `ferrum-document` owns
 retained CDML traversal, session fences, history, generated IDs, prepared
 transition state, and atomic mutation. Its private admitted-transition state binds

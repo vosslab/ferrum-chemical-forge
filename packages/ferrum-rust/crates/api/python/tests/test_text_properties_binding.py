@@ -7,7 +7,7 @@ import ferrum_chem
 
 SOURCE = (
 	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><text id="label" background-color="#fff" keep="yes">'
-	'<point x="10" y="20"/><font family="Telex" size="12" color="#000" '
+	'<point x="10" y="20"/><font family="Atkinson Hyperlegible Next" size="12" color="#000" '
 	'v:keep="yes"><v:font-child/></font><v:between/>'
 	'<ftext>old</ftext></text><v:root/></cdml>'
 )
@@ -31,7 +31,7 @@ def test_text_properties_are_one_frozen_atomic_edit_with_history() -> None:
 	)
 	changes = (
 		change_type.runs(runs),
-		change_type.font_face_id("telex_regular_v1"),
+		change_type.font_face_id("molecule_label"),
 		change_type.font_size(18),
 		change_type.color("#AbC"),
 		change_type.background_color(None),
@@ -45,7 +45,7 @@ def test_text_properties_are_one_frozen_atomic_edit_with_history() -> None:
 
 	assert changed.snapshot.revision == 1
 	assert (text.font.font_face_id, text.font.size, text.font.color) == (
-		"telex_regular_v1", 18.0, "#aabbcc",
+		"molecule_label", 18.0, "#aabbcc",
 	)
 	assert [(run.text, run.styles) for run in text.runs] == [
 		("H", ()), ("2", ("subscript",)), ("O <&>", ()),

@@ -12,8 +12,9 @@ acceptance.
 
 ## Current metric and attachment boundary
 
-- Rust reads the hash-verified embedded Telex Regular bytes through `ttf-parser`
-  design units and converts them to scene `f64` values with no extra rounding.
+- Rust reads the hash-verified embedded Atkinson Hyperlegible Next Regular bytes
+  through `ttf-parser`, derives tight extrema from the actual outline curves,
+  and converts design units to scene `f64` values with no extra rounding.
 - `GlyphBounds` is the exact finite visible-ink rectangle for positioned runs.
   It is not widened merely to contain an atom origin.
 - The typed element run determines unversioned `AtomLabelAttachmentGeometry`.
@@ -38,7 +39,7 @@ acceptance.
 
 ## Superseded metric evidence
 
-`devel/measure_m12_font_metrics.py` opened the exact embedded Telex bytes in
+`devel/measure_m12_font_metrics.py` opened the exact embedded molecule-label bytes in
 Qt `QRawFont` 6.11.1 at 1000 px with `PreferNoHinting`, on macOS 26.6.1 arm64
 under CPython 3.12.14. It recorded the asset and Qt module/binary hashes, then
 compared the closed corpus `C`, `Cl`, `Br`, `H2`, `NH3+`, and `I`.
@@ -54,23 +55,29 @@ Those measurements established the font asset and former Rust-to-Qt glyph replay
 boundary, but they predate the core-centered atom-label contract. They are not
 evidence that final bond ink clears the current labels. That former evidence gap
 is now closed by `RenderObservationV2` and `RenderPlanV4`: their typed atom payload
-publishes the core run, exact core/full Telex ink bounds, and positive bond-ink
+publishes the core run, exact core/full molecule-label ink bounds, and positive bond-ink
 clearance, while their typed bond payload publishes the final operations that Qt
 must replay.
 
 ## Current automated evidence and remaining acceptance
 
-The renderer's deterministic Telex corpus now checks exact core centering,
+The renderer's deterministic molecule-label corpus now checks exact core centering,
 full-ink containment, y-down script placement, and style-aware final-footprint
 clearance, including the Haworth front axial extension. The focused local render
-lane passes 158 tests with formatting and strict Clippy clean. A shared 12-row
-corpus has both a Rust consumer and an installed Rust-to-Qt E2E consumer; each
-requires final bond ink to remain disjoint from full label ink expanded by the
-issued clearance. The post-change `./all_test.sh` gate passes 8,297 hygiene tests,
-all registered CLI/Qt E2Es, 299 installed PyO3 tests, and 437 Qt tests.
+lane passes 164 permanent tests with one ignored developer receipt;
+`./check_rust.sh` also passes formatting, workspace
+check, strict Clippy, all workspace and doc tests, and Rustdoc. The permanent
+measurement suite passes 15 tests. A shared 12-row corpus has both a Rust
+consumer and an installed 14-case Rust-to-Qt E2E consumer; each requires final
+bond ink to remain disjoint from full label ink expanded by the issued
+clearance. The independent native and actual-Qt pixel lanes each accept all 12
+renderable fixtures with zero violations. The post-change `./all_test.sh` gate
+passes 8,473 hygiene tests, all registered CLI/Qt E2Es, 283 installed PyO3
+tests, and 444 Qt tests.
 
 The rebuilt 13-scene screenshot set has independent image-review acceptance.
-Human real-window/accessibility acceptance, remote CI, release artifacts,
+Fixed-corpus glyph/bond rendering is accepted; broader human
+real-window/accessibility acceptance, remote CI, release artifacts,
 cross-platform font evidence, and full parity remain open. SVG, PDF, and PNG
-consume the same Rust plan, but their automated operation checks are not a
-substitute for visual acceptance.
+consume the same Rust plan, but their automated operation checks do not replace
+those broader acceptance boundaries.

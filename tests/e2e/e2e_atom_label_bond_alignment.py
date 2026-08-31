@@ -21,8 +21,8 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.canvas.ferrum_render_projection
-import ferrum_qt.canvas.ferrum_telex
-import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.canvas.molecule_label_font
+import ferrum_qt.canvas.molecule_label_glyph_outline
 import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.themes.theme_loader
 
@@ -112,16 +112,16 @@ def _corpus() -> tuple[dict[str, object], ...]:
 
 
 #============================================
-def _label_path(content: object, telex: object,
+def _label_path(content: object, molecule_label_font: object,
 		runs: tuple[object, ...]) -> PySide6.QtGui.QPainterPath:
-	"""Replay only the issued Telex glyph identities and origins for one label."""
+	"""Replay only the issued Atkinson Hyperlegible Next glyph identities and origins for one label."""
 	label = content.label
-	font = telex.raw_font(label.text.size)
+	font = molecule_label_font.raw_font(label.text.size)
 	origin = PySide6.QtCore.QPointF(
 		label.text.origin.x + content.atom_local_anchor.x,
 		label.text.origin.y + content.atom_local_anchor.y,
 	)
-	return ferrum_qt.canvas.telex_glyph_outline.path_from_runs(runs, origin, font)
+	return ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs(runs, origin, font)
 
 
 #============================================
@@ -185,17 +185,17 @@ def _projection_for(case: dict[str, object]) -> tuple[object, object, object]:
 	presentation = session.observe_presentation_render_plan_v1(snapshot.revision, snapshot.digest)
 	projection = ferrum_qt.canvas.ferrum_render_projection.build_render_projection(
 		observation,
-		engine.verified_telex_regular(),
+		engine.molecule_label_font(),
 		presentation,
 		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)
-	return observation, projection, engine.verified_telex_regular()
+	return observation, projection, engine.molecule_label_font()
 
 
 #============================================
-def _assert_label_geometry(atom_batches: dict[str, object], telex: object) -> None:
+def _assert_label_geometry(atom_batches: dict[str, object], molecule_label_font: object) -> None:
 	"""Verify every issued full/core label outline against the exact Rust rectangles."""
-	verified_telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex)
+	verified_molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(molecule_label_font)
 	for batch in atom_batches.values():
 		content = batch.content
 		label = content.label
@@ -208,8 +208,8 @@ def _assert_label_geometry(atom_batches: dict[str, object], telex: object) -> No
 		))
 		assert label.bond_ink_clearance > 0.0
 		core_run = label.text.runs[label.core_element_run_index]
-		full_path = _label_path(content, verified_telex, label.text.runs)
-		core_path = _label_path(content, verified_telex, (core_run,))
+		full_path = _label_path(content, verified_molecule_label_font, label.text.runs)
+		core_path = _label_path(content, verified_molecule_label_font, (core_run,))
 		assert all(abs(actual - expected) <= _TOLERANCE for actual, expected in zip(
 			_bounds(full_path),
 			_expected_bounds(label.full_ink_bounds, content.atom_local_anchor),
@@ -285,12 +285,12 @@ def _require_installed_qt_projection_for_renderable_cases() -> None:
 	for case in _corpus():
 		if case["expected_outcome"] != "render":
 			continue
-		observation, projection, telex = _projection_for(case)
+		observation, projection, molecule_label_font = _projection_for(case)
 		try:
 			plan = observation.molecule_plans[0].plan
 			positions = _source_positions(case["cdml"])
 			atom_batches = _atom_batches_by_source_id(observation, positions)
-			_assert_label_geometry(atom_batches, telex)
+			_assert_label_geometry(atom_batches, molecule_label_font)
 			_assert_case_checks(case, atom_batches)
 			_assert_bond_attachment_axes(observation, atom_batches)
 			assert len(projection.items) == len(plan.batches)
@@ -312,7 +312,7 @@ def _require_installed_qt_projection_for_renderable_cases() -> None:
 				if batch.content.kind == "bond"
 			)
 			assert bool(bond_items) is case["checks"].get("positive_bond_content", False)
-			verified_telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex)
+			verified_molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(molecule_label_font)
 			bond_source_ids = {
 				bond.document_object_id: bond.source_id
 				for bond in observation.document.projection.molecules[0].bonds
@@ -325,12 +325,12 @@ def _require_installed_qt_projection_for_renderable_cases() -> None:
 				for atom_batch in atom_batches.values():
 					label = atom_batch.content.label
 					label_path = _label_path(
-						atom_batch.content, verified_telex, label.text.runs,
+						atom_batch.content, verified_molecule_label_font, label.text.runs,
 					)
-					stroker = PySide6.QtGui.QPainterPathStroker()
-					stroker.setWidth(2.0 * label.bond_ink_clearance)
-					exclusion_path = label_path.united(stroker.createStroke(label_path))
-					assert not bond_item.shape().intersects(exclusion_path), (
+					# This consumer E2E proves that replayed bond ink does not
+					# enter replayed label ink. The independent raster lane owns
+					# the quantitative core gap and decoration-exclusion policy.
+					assert not bond_item.shape().intersects(label_path), (
 						case["name"],
 						bond_source_ids[projection.item_targets[bond_item].document_object_id],
 						atom_source_ids[atom_batch.target.document_object_id],
@@ -345,7 +345,7 @@ def _require_refused_alignment_targets_to_stay_unpainted() -> None:
 	for case in _corpus():
 		if case["expected_outcome"] != "unrenderable_target":
 			continue
-		observation, projection, _telex = _projection_for(case)
+		observation, projection, _molecule_label = _projection_for(case)
 		try:
 			plan = observation.molecule_plans[0].plan
 			offending = next(

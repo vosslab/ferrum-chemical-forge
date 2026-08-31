@@ -2,7 +2,7 @@
 
 use crate::{
     PositiveFinite, PresentationTextOp, PresentationTextSourceRun, RenderError, RenderPaintV3,
-    RenderPoint, Rgb24, TextScript, VerifiedTelexGlyphMetrics,
+    RenderPoint, Rgb24, TextScript, VerifiedMoleculeLabelGlyphMetrics,
 };
 use ferrum_document_projection::{
     PresentationFactProvenanceV1, PresentationFontFaceV1, PresentationRecordKindV1,
@@ -12,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::PresentationTextBoundsV1;
 
-/// One direct-root Text label with exact verified Telex layout.
+/// One direct-root Text label with exact verified Atkinson Hyperlegible Next layout.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DocumentTextRenderV1 {
     target: PresentationTargetV1,
@@ -44,10 +44,10 @@ impl<'de> Deserialize<'de> for DocumentTextRenderV1 {
 impl DocumentTextRenderV1 {
     pub(crate) fn from_projection(
         text: &TextProjectionV1,
-        metrics: &VerifiedTelexGlyphMetrics,
+        metrics: &VerifiedMoleculeLabelGlyphMetrics,
     ) -> Result<Self, RenderError> {
         match text.font().font_face() {
-            PresentationFontFaceV1::TelexRegularV1 => {}
+            PresentationFontFaceV1::MoleculeLabel => {}
         }
         let source_runs = source_runs(text)?;
         let foreground = paint(text.font().color(), text.font().color_provenance())?;
@@ -82,17 +82,22 @@ impl DocumentTextRenderV1 {
             return Err("Text render target has the wrong persistent kind".to_owned());
         }
         let environment =
-            crate::FerrumFontEnvironmentV1::load().map_err(|error| error.to_string())?;
-        let metrics =
-            VerifiedTelexGlyphMetrics::new(&environment).map_err(|error| error.to_string())?;
+            crate::FerrumFontEnvironment::load().map_err(|error| error.to_string())?;
+        let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+            .map_err(|error| error.to_string())?;
         let expected = metrics
             .layout_presentation_text(&source_runs, operation.size(), operation.paint().clone())
             .map_err(|error| error.to_string())?;
         if expected.operation() != &operation {
-            return Err("Text operation does not match verified Telex layout".to_owned());
+            return Err(
+                "Text operation does not match verified Atkinson Hyperlegible Next layout"
+                    .to_owned(),
+            );
         }
         if PresentationTextBoundsV1::from_glyph_bounds(expected.bounds()) != bounds {
-            return Err("Text bounds do not match verified Telex layout".to_owned());
+            return Err(
+                "Text bounds do not match verified Atkinson Hyperlegible Next layout".to_owned(),
+            );
         }
         Ok(Self {
             target,
@@ -122,7 +127,7 @@ impl DocumentTextRenderV1 {
         &self.source_runs
     }
 
-    /// Return exact positioned Telex glyph runs.
+    /// Return exact positioned Atkinson Hyperlegible Next glyph runs.
     #[must_use]
     pub const fn operation(&self) -> &PresentationTextOp {
         &self.operation

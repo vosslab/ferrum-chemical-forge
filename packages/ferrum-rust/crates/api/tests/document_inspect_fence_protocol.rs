@@ -77,7 +77,26 @@ fn run_inspect(document: &str, json_output: bool) -> Output {
     child.wait_with_output().expect("inspect CLI completes")
 }
 
-fn run_protocol_request(arguments: &[&str], operation: Value) -> Value {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProtocolProcessOutcome {
+    Success,
+    Refusal,
+}
+
+impl ProtocolProcessOutcome {
+    const fn exit_code(self) -> i32 {
+        match self {
+            Self::Success => 0,
+            Self::Refusal => 1,
+        }
+    }
+}
+
+fn run_protocol_request(
+    arguments: &[&str],
+    operation: Value,
+    expected_outcome: ProtocolProcessOutcome,
+) -> Value {
     let request = json!({
         "schema": "ferrum-operation-request-v1",
         "request_id": "document-inspect-fence-cli-test",
@@ -97,12 +116,30 @@ fn run_protocol_request(arguments: &[&str], operation: Value) -> Value {
         .write_all(request.to_string().as_bytes())
         .expect("protocol CLI request writes");
     let output = child.wait_with_output().expect("protocol CLI completes");
-    assert!(
-        output.status.success(),
-        "protocol CLI stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+    assert_eq!(
+        output.status.code(),
+        Some(expected_outcome.exit_code()),
+        "protocol CLI outcome mismatch; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
     );
-    serde_json::from_slice(&output.stdout).expect("protocol CLI emits one JSON envelope")
+    assert!(
+        output.stderr.is_empty(),
+        "protocol JSON CLI wrote stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let envelope: Value =
+        serde_json::from_slice(&output.stdout).expect("protocol CLI emits one JSON envelope");
+    match expected_outcome {
+        ProtocolProcessOutcome::Success => {
+            assert!(envelope.get("outcome").is_some());
+            assert!(envelope.get("error").is_none());
+        }
+        ProtocolProcessOutcome::Refusal => {
+            assert!(envelope.get("error").is_some());
+            assert!(envelope.get("outcome").is_none());
+        }
+    }
+    envelope
 }
 
 fn find_named_schema<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
@@ -210,6 +247,7 @@ fn named_catalog_insert_cli_chains_the_returned_document_fence_without_reinspect
     let inspected = run_protocol_request(
         &["protocol", "run", "-"],
         json!({"kind": "document.inspect", "document": EMPTY}),
+        ProtocolProcessOutcome::Success,
     );
     let initial_fence = inspected["outcome"]["document_fence"].clone();
     let first = run_protocol_request(
@@ -223,6 +261,7 @@ fn named_catalog_insert_cli_chains_the_returned_document_fence_without_reinspect
             "anchor_x": 100.0,
             "anchor_y": 50.0,
         }),
+        ProtocolProcessOutcome::Success,
     );
     let document = first["outcome"]["document"]
         .as_str()
@@ -247,6 +286,7 @@ fn named_catalog_insert_cli_chains_the_returned_document_fence_without_reinspect
             "anchor_x": 200.0,
             "anchor_y": 50.0,
         }),
+        ProtocolProcessOutcome::Success,
     );
     assert_eq!(chained["outcome"]["kind"], "catalog.insert.v1");
     assert_eq!(chained["outcome"]["committed_revision"], 1);
@@ -262,6 +302,7 @@ fn named_catalog_insert_cli_chains_the_returned_document_fence_without_reinspect
             "anchor_x": 100.0,
             "anchor_y": 50.0,
         }),
+        ProtocolProcessOutcome::Refusal,
     );
     assert_eq!(
         stale["error"]["catalog_placement_refusal"]["category"],

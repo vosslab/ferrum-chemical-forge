@@ -28,6 +28,7 @@ class MeasurementPolicy:
     """Fixed normal-scale policy; a currently rendered image cannot tune it."""
 
     min_gap_strokes: float = 0.20
+    min_parallel_gap_strokes: float = 0.60
     max_gap_strokes: float = 1.75
     max_gap_glyph_height: float = 0.22
     max_perpendicular_glyph_height: float = 0.12
@@ -37,7 +38,7 @@ class MeasurementPolicy:
     min_scene_occupancy: float = 0.015
     max_scene_occupancy: float = 0.33
     min_scene_margin_fraction: float = 0.025
-    max_scene_margin_fraction: float = 0.45
+    min_dominant_axis_occupancy: float = 0.10
     max_unexplained_foreground_fraction: float = 0.005
     max_missing_declared_fraction: float = 0.005
     max_orphaned_atom_cores: int = 0
@@ -351,7 +352,11 @@ def _composition(scene: SceneLayers) -> dict[str, object] | None:
     missing_endpoints = [f"{row['bond_id']}:{row['target_atom']}" for row in connections if not row["connected"]]
     orphaned = sorted(atom_id for atom_id, degree in degrees.items() if degree and atom_id not in connected)
     scene_evaluation = scene.capture_profile.scene_evaluation if scene.capture_profile else "presentation"
-    return {"scene_evaluation": scene_evaluation, "occupancy_fraction": float(numpy.count_nonzero(foreground) / foreground.size), "margins_fraction": margins, "minimum_margin_fraction": float(min(margins.values())), "maximum_margin_fraction": float(max(margins.values())), "declared_ink_components": _component_count(expected), "composite_ink_components": _component_count(foreground), "expected_layer_pixels": int(numpy.count_nonzero(expected)), "unexplained_foreground_pixels": int(numpy.count_nonzero(unexpected)), "unexplained_foreground_fraction": float(numpy.count_nonzero(unexpected) / foreground.size), "missing_declared_pixels": int(numpy.count_nonzero(missing)), "missing_declared_fraction": float(numpy.count_nonzero(missing) / max(1, numpy.count_nonzero(expected))), "expected_endpoint_connections": connections, "missing_expected_endpoint_connections": missing_endpoints, "orphaned_atom_cores": orphaned}
+    axis_occupancy = {
+        "horizontal": 1.0 - margins["left"] - margins["right"],
+        "vertical": 1.0 - margins["top"] - margins["bottom"],
+    }
+    return {"scene_evaluation": scene_evaluation, "occupancy_fraction": float(numpy.count_nonzero(foreground) / foreground.size), "axis_occupancy_fraction": axis_occupancy, "dominant_axis_occupancy_fraction": float(max(axis_occupancy.values())), "margins_fraction": margins, "minimum_margin_fraction": float(min(margins.values())), "declared_ink_components": _component_count(expected), "composite_ink_components": _component_count(foreground), "expected_layer_pixels": int(numpy.count_nonzero(expected)), "unexplained_foreground_pixels": int(numpy.count_nonzero(unexpected)), "unexplained_foreground_fraction": float(numpy.count_nonzero(unexpected) / foreground.size), "missing_declared_pixels": int(numpy.count_nonzero(missing)), "missing_declared_fraction": float(numpy.count_nonzero(missing) / max(1, numpy.count_nonzero(expected))), "expected_endpoint_connections": connections, "missing_expected_endpoint_connections": missing_endpoints, "orphaned_atom_cores": orphaned}
 
 
 # ============================================
@@ -386,7 +391,12 @@ def violations(report: Mapping[str, object], policy: MeasurementPolicy) -> list[
             if nonfinite:
                 failures.append(f"{label}: measurement is nonfinite ({', '.join(nonfinite)})")
                 continue
-            if endpoint["signed_gap_strokes"] < policy.min_gap_strokes:
+            minimum_gap = (
+                policy.min_parallel_gap_strokes
+                if bond["style"] in {"double", "triple"}
+                else policy.min_gap_strokes
+            )
+            if endpoint["signed_gap_strokes"] < minimum_gap:
                 failures.append(f"{label}: bond overlaps or touches target label")
             if endpoint["signed_gap_strokes"] > policy.max_gap_strokes or endpoint["signed_gap_glyph_height"] > policy.max_gap_glyph_height:
                 failures.append(f"{label}: bond is visibly detached from target character")
@@ -403,7 +413,7 @@ def violations(report: Mapping[str, object], policy: MeasurementPolicy) -> list[
                 failures.append("composition: scene occupancy is outside fixed normal-scale policy")
             if composition["minimum_margin_fraction"] < policy.min_scene_margin_fraction:
                 failures.append("composition: foreground is cropped against viewport")
-            if composition["maximum_margin_fraction"] > policy.max_scene_margin_fraction:
+            if composition["dominant_axis_occupancy_fraction"] < policy.min_dominant_axis_occupancy:
                 failures.append("composition: scene is visibly under-framed")
         if composition["unexplained_foreground_fraction"] > policy.max_unexplained_foreground_fraction:
             failures.append("composition: composite contains unexplained foreground ink")

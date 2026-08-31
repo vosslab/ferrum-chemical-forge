@@ -1,8 +1,8 @@
 //! Closed Ferrum-owned depiction policy applied to immutable document projections.
 
 use crate::{
-    AtomBondRenderRequest, CompactGroupRenderPrimitiveV1, FerrumFontEnvironmentV1, PositiveFinite,
-    RenderPaintV3, RenderProvenance, RenderRevision, VerifiedTelexGlyphMetrics,
+    AtomBondRenderRequest, CompactGroupRenderPrimitiveV1, FerrumFontEnvironment, PositiveFinite,
+    RenderPaintV3, RenderProvenance, RenderRevision, VerifiedMoleculeLabelGlyphMetrics,
 };
 use ferrum_document_projection::{
     DocumentObjectIdV1, DocumentProjectionV1, MoleculeProjectionV1, PresentationRootProjectionV1,
@@ -98,12 +98,12 @@ pub fn resolve_attached_compact_group_pose_v2(
         .map_err(|issue| crate::AttachedCompactGroupPoseErrorV2::Depiction {
             detail: issue.detail().to_owned(),
         })?;
-    let environment = FerrumFontEnvironmentV1::load().map_err(|error| {
+    let environment = FerrumFontEnvironment::load().map_err(|error| {
         crate::AttachedCompactGroupPoseErrorV2::FontResource {
             detail: error.to_string(),
         }
     })?;
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment).map_err(|error| {
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment).map_err(|error| {
         crate::AttachedCompactGroupPoseErrorV2::FontResource {
             detail: error.to_string(),
         }
@@ -310,16 +310,16 @@ pub fn render_document_projection_v1(
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
 ) -> Result<DepictionResolutionV1, DepictionError> {
-    let environment = FerrumFontEnvironmentV1::load()?;
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
-    render_with_verified_telex_metrics(projection, profile, &metrics)
+    let environment = FerrumFontEnvironment::load()?;
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
+    render_with_verified_molecule_label_metrics(projection, profile, &metrics)
 }
 
 /// Lower with explicit metrics for deterministic crate-local behavior tests only.
-fn render_with_verified_telex_metrics(
+fn render_with_verified_molecule_label_metrics(
     projection: &DocumentProjectionV1,
     profile: &DepictionProfileV1,
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<DepictionResolutionV1, DepictionError> {
     let mut plans = Vec::new();
     let mut plus_renders = Vec::new();
@@ -589,13 +589,13 @@ impl DepictionResolutionV1 {
     pub fn plans(&self) -> &[DocumentMoleculeRenderPlanV4] {
         &self.plans
     }
-    /// Return exact verified-Telex layouts for supported direct-root plus signs.
+    /// Return exact verified-Atkinson Hyperlegible Next layouts for supported direct-root plus signs.
     #[must_use]
     pub fn plus_renders(&self) -> &[DocumentPlusRenderV1] {
         &self.plus_renders
     }
 
-    /// Return verified-Telex direct-root Text layouts in source order.
+    /// Return verified-Atkinson Hyperlegible Next direct-root Text layouts in source order.
     #[must_use]
     pub fn text_renders(&self) -> &[DocumentTextRenderV1] {
         &self.text_renders

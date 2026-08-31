@@ -26,7 +26,7 @@ def test_plus_properties_are_atomic_frozen_and_revision_bound() -> None:
 	session = ferrum_chem.DocumentSession.load(source)
 	change_type = ferrum_chem.DocumentPlusPropertyChangeV1
 	changes = (
-		change_type.font_face_id("telex_regular_v1"),
+		change_type.font_face_id("molecule_label"),
 		change_type.font_size(18),
 		change_type.color("#AbC"),
 		change_type.background_color(None),
@@ -36,15 +36,15 @@ def test_plus_properties_are_atomic_frozen_and_revision_bound() -> None:
 	plus = _plus(changed)
 	assert changed.snapshot.revision == 1
 	assert (plus.font.font_face_id, plus.font.size, plus.font.color) == (
-		"telex_regular_v1", 18.0, "#aabbcc",
+		"molecule_label", 18.0, "#aabbcc",
 	)
 	assert plus.background.color is None
 	assert 'keep="yes"' in changed.snapshot.cdml
 	assert "opaque" in changed.snapshot.cdml
 	with pytest.raises(AttributeError):
 		changes[0].value = "other"
-	assert _plus(session.undo(1).observation).font.font_face_id == "telex_regular_v1"
-	assert _plus(session.redo(2).observation).font.font_face_id == "telex_regular_v1"
+	assert _plus(session.undo(1).observation).font.font_face_id == "molecule_label"
+	assert _plus(session.redo(2).observation).font.font_face_id == "molecule_label"
 
 
 def test_plus_properties_reject_hostile_shapes_without_mutation() -> None:

@@ -33,14 +33,14 @@ source source_me.sh && python3 -m pytest
 `measure_stack/` is a maintainer-quality, independent pixel measurement lane;
 it is not a product command or the normal pytest suite. The Rust producer and
 the real Qt consumer write ignored JSON reports, annotated overlays, and
-contact sheets. The current renderer-quality gates are intentionally red while
-Rust geometry is being corrected; the Qt baseline instead proves that the
-known-red receipt remains stable.
+contact sheets. Rust owns all geometry corrections. The current Rust and Qt
+strict receipts are green, and the optional Qt baseline freezes the
+accepted-zero classification.
 
 ```bash
 devel/run_measure_stack_rust.sh
 ./build.sh
-devel/run_measure_stack_qt.sh --baseline
+devel/run_measure_stack_qt.sh --strict
 ```
 
 For the closed contract's synthetic pixel-oracle check, run:
@@ -51,8 +51,17 @@ source source_me.sh && python3 -m measure_stack.runner \
 ```
 
 The checkout includes a maintainer glyph-bond measurement guide with the layer
-model, statistics, result interpretation, policy, corpus, and current
-strict-red evidence.
+model, statistics, result interpretation, policy, corpus, and current strict
+evidence. The selected product face is Atkinson Hyperlegible Next Regular,
+owned by Rust's `molecule_label()` role.
+
+After changing the vendored font families or their catalog, verify every font,
+license, distribution form, byte length, and digest explicitly:
+
+```bash
+source source_me.sh && python3 \
+  packages/ferrum-rust/devel/verify_vendored_font_catalog.py
+```
 
 ## CLI discovery
 

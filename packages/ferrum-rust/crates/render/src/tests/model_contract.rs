@@ -25,7 +25,7 @@ fn label() -> AtomLabelRenderV1 {
     RenderBatchV4::test_atom_label_from_facts(
         None,
         AtomLabelFacts::new("N", None, 1, 2).expect("label facts"),
-        AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint("000000")),
+        AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint("000000")),
         2,
     )
     .expect("verified atom label")
@@ -312,19 +312,20 @@ fn deserialization_rejects_invalid_geometry_unknown_tags_and_defaults() {
 }
 
 #[test]
-fn inbound_text_runs_reject_forged_or_non_scalar_telex_layouts() {
+fn inbound_text_runs_reject_forged_or_non_scalar_molecule_label_layouts() {
     let original = plan().to_canonical_json().expect("serialize");
     for text in ["e\u{301}", "\u{1F600}"] {
         let mut wire: serde_json::Value = serde_json::from_str(&original).expect("value");
         wire["batches"][0]["content"]["content"]["label"]["text"]["runs"][0]["text"] = json!(text);
         assert!(MoleculeRenderPlanV4::from_json(&wire.to_string()).is_err());
     }
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)
-        .expect("pure-Rust parser opens verified Telex");
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("pure-Rust parser opens verified Atkinson Hyperlegible Next");
     let fi_glyphs = metrics
-        .v1_glyphs_for_run("fi", size(12.0), size(1.0))
-        .expect("Telex has scalar glyphs for the adversary text");
+        .glyphs_for_run("fi", size(12.0), size(1.0))
+        .expect("Atkinson Hyperlegible Next has scalar glyphs for the adversary text");
     let mut semantic_adversary: serde_json::Value = serde_json::from_str(&original).expect("value");
     semantic_adversary["batches"][0]["content"]["content"]["label"]["text"]["runs"][0]["text"] =
         json!("fi");
@@ -348,7 +349,7 @@ fn coordinate_space_target_and_operation_grammar_is_closed() {
             RenderBatchV4::test_atom_label_from_facts(
                 None,
                 AtomLabelFacts::new("N", None, 1, 2).expect("label facts"),
-                AtomLabelFontProfile::new(FontFace::telex_regular(), size(12.0), paint("000000"),),
+                AtomLabelFontProfile::new(FontFace::molecule_label(), size(12.0), paint("000000"),),
                 0,
             )
             .expect("verified atom label"),
@@ -556,7 +557,7 @@ fn wire_float_zeroes_are_normalized_and_text_controls_are_rejected() {
             .is_err()
         );
     }
-    assert!(FontFace::new("ferrum-telex-regular-v1").is_ok());
+    assert!(FontFace::new("ferrum-atkinson-hyperlegible-next-regular-2.001").is_ok());
     assert!(
         TextRun::new(
             "Cl-",

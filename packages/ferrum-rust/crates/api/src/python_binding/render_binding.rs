@@ -1,7 +1,7 @@
 //! API-owned render observation entry points and Python module registration.
 
 use ferrum_document::DocumentRenderObservationErrorV1;
-use ferrum_render::verified_telex_regular_v1;
+use ferrum_render::verified_molecule_label_font;
 use pyo3::create_exception;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -21,9 +21,9 @@ create_exception!(ferrum_chem, RenderObservationError, FerrumError);
 create_exception!(ferrum_chem, RenderDepictionError, RenderObservationError);
 create_exception!(ferrum_chem, RenderProvenanceError, RenderObservationError);
 
-#[pyclass(frozen, name = "VerifiedTelexRegularV1", skip_from_py_object)]
+#[pyclass(frozen, name = "VerifiedMoleculeLabelFont", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PyVerifiedTelexRegularV1 {
+pub(crate) struct PyVerifiedMoleculeLabelFont {
     #[pyo3(get)]
     resource_id: String,
     data: Vec<u8>,
@@ -38,7 +38,7 @@ pub(crate) struct PyVerifiedTelexRegularV1 {
 }
 
 #[pymethods]
-impl PyVerifiedTelexRegularV1 {
+impl PyVerifiedMoleculeLabelFont {
     #[getter]
     fn data(&self, py: Python<'_>) -> Py<PyBytes> {
         PyBytes::new(py, &self.data).unbind()
@@ -46,10 +46,10 @@ impl PyVerifiedTelexRegularV1 {
 }
 
 #[pyfunction]
-pub(crate) fn verified_telex_regular() -> PyResult<PyVerifiedTelexRegularV1> {
-    let resource = verified_telex_regular_v1()
+pub(crate) fn molecule_label_font() -> PyResult<PyVerifiedMoleculeLabelFont> {
+    let resource = verified_molecule_label_font()
         .map_err(|error| RenderDepictionError::new_err(error.to_string()))?;
-    Ok(PyVerifiedTelexRegularV1 {
+    Ok(PyVerifiedMoleculeLabelFont {
         resource_id: resource.resource_id().to_owned(),
         data: resource.bytes().to_vec(),
         byte_length: resource.byte_length(),
@@ -99,9 +99,9 @@ pub(crate) fn initialize(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "RenderProvenanceError",
         module.py().get_type::<RenderProvenanceError>(),
     )?;
-    module.add_function(wrap_pyfunction!(verified_telex_regular, module)?)?;
+    module.add_function(wrap_pyfunction!(molecule_label_font, module)?)?;
     super::render_primitive_binding::register(module)?;
     super::render_plan_binding::register(module)?;
     super::presentation_text_render_binding::register(module)?;
-    module.add_class::<PyVerifiedTelexRegularV1>()
+    module.add_class::<PyVerifiedMoleculeLabelFont>()
 }

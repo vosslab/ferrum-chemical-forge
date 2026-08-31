@@ -179,7 +179,7 @@ fn standard_plus(anchor: RenderPoint) -> PlusProjectionV1 {
         PresentationRecordKindV1::Plus,
     );
     let font = PresentationFontV1::try_new(
-        PresentationFontFaceV1::TelexRegularV1,
+        PresentationFontFaceV1::MoleculeLabel,
         PresentationFactProvenanceV1::Builtin,
         PositiveFiniteV1::new(14.0).expect("built-in Plus font size"),
         PresentationFactProvenanceV1::Builtin,

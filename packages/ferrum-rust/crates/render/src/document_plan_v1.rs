@@ -2,7 +2,7 @@
 //!
 //! This model deliberately has no CDML, session, Qt, or wire-decoding knowledge.
 //! Its caller has already authenticated the page, provenance, root identity, and
-//! exact Telex layout from one document observation.
+//! exact Atkinson Hyperlegible Next layout from one document observation.
 
 use std::collections::HashSet;
 use std::ops::Deref;
@@ -101,7 +101,7 @@ impl RenderViewportV1 {
     }
 }
 
-/// One already-positioned verified Telex operation at a direct-root anchor.
+/// One already-positioned verified Atkinson Hyperlegible Next operation at a direct-root anchor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentTextOpV1 {
     anchor: RenderPoint,
@@ -174,7 +174,7 @@ impl DocumentTextOpV1 {
     pub const fn anchor(&self) -> RenderPoint {
         self.anchor
     }
-    /// Return the already verified Telex layout without reshaping it.
+    /// Return the already verified Atkinson Hyperlegible Next layout without reshaping it.
     #[must_use]
     pub fn operation(&self) -> &DocumentTextLayoutV1 {
         &self.operation
@@ -191,7 +191,7 @@ impl DocumentTextOpV1 {
     }
 }
 
-/// A preserved verified Telex layout for one direct-root text item.
+/// A preserved verified Atkinson Hyperlegible Next layout for one direct-root text item.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DocumentTextLayoutV1 {
     /// One fixed-content operation, currently used by a plus sign.

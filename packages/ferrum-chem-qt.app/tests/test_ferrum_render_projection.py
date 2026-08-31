@@ -32,7 +32,7 @@ def test_qt_replays_painted_batches_around_a_rust_issued_exclusion(
 	)
 	projection = ferrum_qt.canvas.ferrum_render_projection.build_render_projection(
 		observation,
-		engine.verified_telex_regular(),
+		engine.molecule_label_font(),
 		presentation,
 		ferrum_qt.themes.theme_loader.get_document_display_palette("light"),
 	)

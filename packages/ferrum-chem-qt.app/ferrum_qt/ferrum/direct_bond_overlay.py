@@ -9,14 +9,13 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_telex
-import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.canvas.molecule_label_font
+import ferrum_qt.canvas.molecule_label_glyph_outline
 import ferrum_qt.ferrum.document_display_refresh
 import ferrum_qt.themes.document_display_palette
 
 
 _LAYERS = {"ordinary", "haworth_front_stroke", "haworth_front_wedge"}
-_FACE = "ferrum-telex-regular-v1"
 
 
 #============================================
@@ -35,15 +34,15 @@ def create_overlay(tab: object, overlay: object) -> PySide6.QtWidgets.QGraphicsI
 	scene = tab.view.scene()
 	if scene is None:
 		raise DirectBondOverlayError("direct-bond preview requires an installed scene")
-	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(
-		tab._controller._telex_resource,
+	molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(
+		tab._controller._font_resource,
 	)
 	palette = _display_palette(tab)
 	group = PySide6.QtWidgets.QGraphicsItemGroup()
 	retained_primitives: list[tuple[PySide6.QtWidgets.QGraphicsPathItem, object]] = []
 	try:
 		for index, primitive in enumerate(overlay.primitives):
-			item = _primitive_item(primitive, engine, telex, palette)
+			item = _primitive_item(primitive, engine, molecule_label_font, palette)
 			item.setZValue(float(index))
 			item.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 			group.addToGroup(item)
@@ -54,7 +53,7 @@ def create_overlay(tab: object, overlay: object) -> PySide6.QtWidgets.QGraphicsI
 	scene.addItem(group)
 	group.setAcceptedMouseButtons(PySide6.QtCore.Qt.MouseButton.NoButton)
 	group.setZValue(1_000_000.0)
-	refreshable = _DirectBondOverlayRefreshable(tuple(retained_primitives), engine, telex)
+	refreshable = _DirectBondOverlayRefreshable(tuple(retained_primitives), engine, molecule_label_font)
 	ferrum_qt.ferrum.document_display_refresh.register_attached_document_display_refreshable(
 		tab, group, refreshable,
 	)
@@ -68,12 +67,12 @@ class _DirectBondOverlayRefreshable(
 
 	def __init__(self,
 			primitives: tuple[tuple[PySide6.QtWidgets.QGraphicsPathItem, object], ...],
-			engine: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			engine: object, molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			) -> None:
 		"""Retain exact item/primitive pairs for one attached precommit overlay."""
 		self._primitives = primitives
 		self._engine = engine
-		self._telex = telex
+		self._molecule_label = molecule_label_font
 
 	#============================================
 	def refresh_document_display_palette(
@@ -82,14 +81,14 @@ class _DirectBondOverlayRefreshable(
 			) -> None:
 		"""Replace only the Qt material derived from retained tagged primitive facts."""
 		for item, primitive in self._primitives:
-			pen, brush = _primitive_material(primitive, self._engine, self._telex, palette)
+			pen, brush = _primitive_material(primitive, self._engine, self._molecule_label, palette)
 			item.setPen(pen)
 			item.setBrush(brush)
 
 
 #============================================
 def _primitive_item(primitive: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> PySide6.QtWidgets.QGraphicsPathItem:
 	"""Build one noninteractive Qt item from one closed renderer paint primitive."""
@@ -111,7 +110,7 @@ def _primitive_item(primitive: object, engine: object,
 	elif space.kind == "atom_local" and operation.kind == "mask":
 		path, pen, brush = _mask_operation(operation.operation, engine, palette)
 	elif space.kind == "atom_local" and operation.kind == "text":
-		path, pen, brush = _text_operation(operation.operation, engine, telex, palette)
+		path, pen, brush = _text_operation(operation.operation, engine, molecule_label_font, palette)
 	else:
 		raise DirectBondOverlayError("direct-bond preview operation does not match its coordinate space")
 	item = PySide6.QtWidgets.QGraphicsPathItem(path)
@@ -123,7 +122,7 @@ def _primitive_item(primitive: object, engine: object,
 
 #============================================
 def _primitive_material(primitive: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[PySide6.QtGui.QPen, PySide6.QtGui.QBrush]:
 	"""Resolve primitive material while retaining its already-issued Qt geometry."""
@@ -143,7 +142,7 @@ def _primitive_material(primitive: object, engine: object,
 	if operation.kind == "mask":
 		return _mask_material(operation.operation, engine, palette)
 	if operation.kind == "text":
-		return _text_material(operation.operation, engine, telex, palette)
+		return _text_material(operation.operation, engine, molecule_label_font, palette)
 	raise DirectBondOverlayError("direct-bond preview has an unknown render operation")
 
 
@@ -307,21 +306,21 @@ def _mask_material(value: object, engine: object,
 
 #============================================
 def _text_operation(value: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[PySide6.QtGui.QPainterPath, PySide6.QtGui.QPen, PySide6.QtGui.QBrush]:
-	"""Replay prepositioned Telex glyph outlines without frontend shaping."""
+	"""Replay prepositioned Atkinson Hyperlegible Next glyph outlines without frontend shaping."""
 	if type(value) is not engine.TextOpV1:
 		raise DirectBondOverlayError("direct-bond text operation has the wrong DTO type")
-	if value.face != _FACE:
+	if value.face != molecule_label_font.resource_id:
 		raise DirectBondOverlayError("direct-bond text has an unknown font face")
 	origin = _point(value.origin, engine, "text origin")
 	try:
-		font = telex.raw_font(_positive(value.size, "text size"))
-		path = ferrum_qt.canvas.telex_glyph_outline.path_from_runs(value.runs, origin, font)
+		font = molecule_label_font.raw_font(_positive(value.size, "text size"))
+		path = ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs(value.runs, origin, font)
 	except (
-		ferrum_qt.canvas.ferrum_telex.FerrumTelexError,
-		ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError,
+		ferrum_qt.canvas.molecule_label_font.MoleculeLabelFontError,
+		ferrum_qt.canvas.molecule_label_glyph_outline.MoleculeLabelGlyphOutlineError,
 	) as exc:
 		raise DirectBondOverlayError(str(exc)) from exc
 	return (
@@ -333,13 +332,13 @@ def _text_operation(value: object, engine: object,
 
 #============================================
 def _text_material(value: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[PySide6.QtGui.QPen, PySide6.QtGui.QBrush]:
 	"""Resolve text material while preserving the prepositioned glyph outline."""
 	if type(value) is not engine.TextOpV1:
 		raise DirectBondOverlayError("direct-bond text operation has the wrong DTO type")
-	if value.face != _FACE:
+	if value.face != molecule_label_font.resource_id:
 		raise DirectBondOverlayError("direct-bond text has an unknown font face")
 	return (
 		PySide6.QtGui.QPen(PySide6.QtCore.Qt.PenStyle.NoPen),

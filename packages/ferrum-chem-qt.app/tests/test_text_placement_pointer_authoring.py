@@ -321,7 +321,7 @@ def test_text_dialog_tab_order_and_enter_save_are_accessible(
 	try:
 		dialog.show()
 		qapp.processEvents()
-		assert dialog._font_face.text() == "Telex Regular (bundled)"
+		assert dialog._font_face.text() == "Atkinson Hyperlegible Next Regular (bundled)"
 		assert dialog._font_face.focusPolicy() == PySide6.QtCore.Qt.FocusPolicy.NoFocus
 		assert "font_family" not in dialog.font_values()
 		metadata = ferrum_qt.dialogs.accessibility.DIALOG_ACCESSIBILITY_METADATA[

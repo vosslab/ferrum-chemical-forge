@@ -11,13 +11,12 @@ import PySide6.QtWidgets
 
 # local repo modules
 from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
-import ferrum_qt.canvas.ferrum_telex
-import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.canvas.molecule_label_font
+import ferrum_qt.canvas.molecule_label_glyph_outline
 import ferrum_qt.themes.document_display_palette
 
 
 _SCHEMA = "ferrum-render-plan-v4"
-_FACE = "ferrum-telex-regular-v1"
 _PADDING = 1.0
 _SELECTION_WIDTH = 1.5
 _HOVER_WIDTH = 1.0
@@ -88,7 +87,7 @@ class FerrumPlanItem(
 	"""
 
 	#============================================
-	def __init__(self, plan: object, batch_index: int, telex_resource: object,
+	def __init__(self, plan: object, batch_index: int, font_resource: object,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Validate one frozen batch and cache all Qt-local geometry.
@@ -98,31 +97,31 @@ class FerrumPlanItem(
 		"""
 		super().__init__(parent)
 		validated_plan = _runtime_plan(plan)
-		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
-		self._initialize(validated_plan, batch_index, telex, palette)
+		molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
+		self._initialize(validated_plan, batch_index, molecule_label_font, palette)
 
 	#============================================
 	@classmethod
 	def _from_fixture(cls, plan: object, batch_index: int,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> "FerrumPlanItem":
 		"""Build an isolated item from test-only frozen fixtures, never app code."""
-		item = _FixtureFerrumPlanItem(plan, batch_index, telex, palette, parent)
+		item = _FixtureFerrumPlanItem(plan, batch_index, molecule_label_font, palette, parent)
 		return item
 
 	#============================================
 	def _initialize(self, plan: object, batch_index: int,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Initialize an already-authenticated runtime or fixture input boundary."""
 		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
 			raise FerrumPlanError("Ferrum plan item requires a document display palette")
 		self._plan = plan
 		self._batch_index = batch_index
-		self._telex = telex
+		self._molecule_label = molecule_label_font
 		self._palette = palette
-		self._target, self._commands = _copy_batch(plan, batch_index, telex, palette)
+		self._target, self._commands = _copy_batch(plan, batch_index, molecule_label_font, palette)
 		self._content_path = _content_path(self._commands)
 		self._shape_path = _shape_for(self._commands, self._content_path)
 		self._bounds = self._shape_path.boundingRect().adjusted(
@@ -223,14 +222,14 @@ class _FixtureFerrumPlanItem(FerrumPlanItem):
 
 	#============================================
 	def __init__(self, plan: object, batch_index: int,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Initialize the base Qt object without exposing fixture validation publicly."""
 		PySide6.QtWidgets.QGraphicsObject.__init__(self, parent)
-		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
-			raise FerrumPlanError("Ferrum fixture item requires verified Telex bytes")
-		self._initialize(plan, batch_index, telex, palette)
+		if not isinstance(molecule_label_font, ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont):
+			raise FerrumPlanError("Ferrum fixture item requires verified Atkinson Hyperlegible Next bytes")
+		self._initialize(plan, batch_index, molecule_label_font, palette)
 
 
 #============================================
@@ -257,7 +256,7 @@ def _runtime_plan(value: object) -> object:
 
 #============================================
 def _copy_batch(plan: object, batch_index: int,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[_Target, tuple[_Line | _Fill | _Shape, ...]]:
 	"""Copy one indexed plan-owned batch without dict, XML, defaults, or shaping."""
@@ -269,7 +268,7 @@ def _copy_batch(plan: object, batch_index: int,
 	target = _target(batch.target)
 	content = batch.content
 	_validate_coordinate_space(batch.coordinate_space, content)
-	commands = _copy_typed_content(content, telex, palette)
+	commands = _copy_typed_content(content, molecule_label_font, palette)
 	if not commands:
 		raise FerrumPlanError("Ferrum render batch must contain an operation")
 	return target, tuple(commands)
@@ -300,7 +299,7 @@ def _validate_coordinate_space(space: object, content: object) -> None:
 
 #============================================
 def _copy_typed_content(content: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> list[_Line | _Fill | _Shape]:
 	"""Replay one closed V4 content DTO without consulting generic operations."""
@@ -310,17 +309,17 @@ def _copy_typed_content(content: object,
 		raise FerrumPlanError("Ferrum render content requires the installed ferrum_chem extension") from error
 	kind = getattr(content, "kind", None)
 	if kind == "atom" and type(content) is engine.AtomRenderBatchV1:
-		return _copy_atom_content(content, engine, telex, palette)
+		return _copy_atom_content(content, engine, molecule_label_font, palette)
 	if kind == "compact_group" and type(content) is engine.CompactGroupRenderBatchV1:
-		return _copy_compact_group_content(content, engine, telex, palette)
+		return _copy_compact_group_content(content, engine, molecule_label_font, palette)
 	if kind == "bond" and type(content) is engine.BondRenderBatchV1:
-		return _copy_bond_content(content, engine, telex, palette)
+		return _copy_bond_content(content, engine, molecule_label_font, palette)
 	raise FerrumPlanError("Ferrum render batch has an unknown or mismatched typed content")
 
 
 #============================================
 def _copy_atom_content(content: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> list[_Line | _Fill | _Shape]:
 	"""Replay atom label/mask/decorations from the atom-only payload authority."""
@@ -349,12 +348,12 @@ def _copy_atom_content(content: object, engine: object,
 	if label.mask is not None:
 		if type(label.mask) is not engine.MaskOpV1:
 			raise FerrumPlanError("Ferrum atom label mask has the wrong DTO type")
-		commands.append(_copy_operation("mask", label.mask, anchor, telex, palette)[0])
-	text_command, _text_z = _copy_operation("text", label.text, anchor, telex, palette)
+		commands.append(_copy_operation("mask", label.mask, anchor, molecule_label_font, palette)[0])
+	text_command, _text_z = _copy_operation("text", label.text, anchor, molecule_label_font, palette)
 	if not isinstance(text_command, _Fill):
 		raise FerrumPlanError("Ferrum atom label did not produce a fill command")
 	commands.append(text_command)
-	_validate_label_outlines(label.text, core_run, anchor, telex, full_bounds, core_bounds)
+	_validate_label_outlines(label.text, core_run, anchor, molecule_label_font, full_bounds, core_bounds)
 	decorations = content.decorations
 	if not isinstance(decorations, tuple):
 		raise FerrumPlanError("Ferrum atom decorations must be a frozen tuple")
@@ -362,7 +361,7 @@ def _copy_atom_content(content: object, engine: object,
 		if type(decoration) is not engine.AtomDecorationRenderOpV1:
 			raise FerrumPlanError("Ferrum atom decoration has the wrong DTO type")
 		commands.append(_copy_closed_operation(
-			decoration, {"text", "line", "ellipse"}, anchor, telex, palette,
+			decoration, {"text", "line", "ellipse"}, anchor, molecule_label_font, palette,
 		))
 	_validate_strict_z(commands)
 	return commands
@@ -370,7 +369,7 @@ def _copy_atom_content(content: object, engine: object,
 
 #============================================
 def _copy_compact_group_content(content: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> list[_Line | _Fill | _Shape]:
 	"""Replay a compact-group payload only through its closed typed operations."""
@@ -383,7 +382,7 @@ def _copy_compact_group_content(content: object, engine: object,
 		if type(operation) is not engine.CompactGroupRenderOpV1:
 			raise FerrumPlanError("Ferrum compact-group operation has the wrong DTO type")
 		commands.append(_copy_closed_operation(
-			operation, {"text", "line", "ellipse"}, anchor, telex, palette,
+			operation, {"text", "line", "ellipse"}, anchor, molecule_label_font, palette,
 		))
 	_validate_strict_z(commands)
 	return commands
@@ -391,7 +390,7 @@ def _copy_compact_group_content(content: object, engine: object,
 
 #============================================
 def _copy_bond_content(content: object, engine: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> list[_Line | _Fill | _Shape]:
 	"""Validate structural attachment, then replay only the clipped bond ink."""
@@ -411,7 +410,7 @@ def _copy_bond_content(content: object, engine: object,
 			raise FerrumPlanError("Ferrum bond operation has the wrong DTO type")
 		commands.append(_copy_closed_operation(
 			operation, {"line", "path", "double_bond_carrier_mark"},
-			_Point(0.0, 0.0), telex, palette,
+			_Point(0.0, 0.0), molecule_label_font, palette,
 		))
 	_validate_strict_z(commands)
 	return commands
@@ -419,7 +418,7 @@ def _copy_bond_content(content: object, engine: object,
 
 #============================================
 def _copy_closed_operation(operation: object, allowed: set[str], anchor: _Point,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> _Line | _Fill | _Shape:
 	"""Copy one typed variant after its owner selected the permitted grammar."""
@@ -439,22 +438,22 @@ def _copy_closed_operation(operation: object, allowed: set[str], anchor: _Point,
 	}
 	if type(operation.operation) is not expected_types[kind]:
 		raise FerrumPlanError("Ferrum typed render operation payload has the wrong DTO type")
-	command, _z_value = _copy_operation(kind, operation.operation, anchor, telex, palette)
+	command, _z_value = _copy_operation(kind, operation.operation, anchor, molecule_label_font, palette)
 	return command
 
 
 #============================================
 def _validate_label_outlines(text: object, core_run: object, anchor: _Point,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex, full_bounds: object,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont, full_bounds: object,
 		core_bounds: object) -> None:
-	"""Compare Telex outlines with Rust-issued label bounds without remeasuring text."""
-	font = telex.raw_font(_positive(text.size, "text size"))
+	"""Compare Atkinson Hyperlegible Next outlines with Rust-issued label bounds without remeasuring text."""
+	font = molecule_label_font.raw_font(_positive(text.size, "text size"))
 	origin = _translated_point(text.origin, anchor, "text origin")
 	point = PySide6.QtCore.QPointF(origin.x, origin.y)
 	try:
-		full_path = ferrum_qt.canvas.telex_glyph_outline.path_from_runs(text.runs, point, font)
-		core_path = ferrum_qt.canvas.telex_glyph_outline.path_from_runs((core_run,), point, font)
-	except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
+		full_path = ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs(text.runs, point, font)
+		core_path = ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs((core_run,), point, font)
+	except ferrum_qt.canvas.molecule_label_glyph_outline.MoleculeLabelGlyphOutlineError as exc:
 		raise FerrumPlanError(str(exc)) from exc
 	_validate_outline_bounds(full_path.boundingRect(), full_bounds, anchor, "full atom label")
 	_validate_outline_bounds(core_path.boundingRect(), core_bounds, anchor, "core atom label")
@@ -463,13 +462,13 @@ def _validate_label_outlines(text: object, core_run: object, anchor: _Point,
 #============================================
 def _validate_outline_bounds(rect: PySide6.QtCore.QRectF, bounds: object, anchor: _Point,
 		label: str) -> None:
-	"""Require Telex outline bounds to agree with Rust geometry within numeric noise."""
+	"""Require Atkinson Hyperlegible Next outline bounds to agree with Rust geometry within numeric noise."""
 	expected = (bounds.min_x + anchor.x, bounds.min_y + anchor.y,
 		bounds.max_x + anchor.x, bounds.max_y + anchor.y)
 	actual = (rect.left(), rect.top(), rect.right(), rect.bottom())
 	if any(abs(actual_value - expected_value) > _INK_BOUNDS_TOLERANCE
 			for actual_value, expected_value in zip(actual, expected, strict=True)):
-		raise FerrumPlanError(f"Ferrum Telex {label} outline differs from Rust ink bounds")
+		raise FerrumPlanError(f"Ferrum Atkinson Hyperlegible Next {label} outline differs from Rust ink bounds")
 
 
 #============================================
@@ -484,7 +483,7 @@ def _validate_strict_z(commands: list[_Line | _Fill | _Shape]) -> None:
 
 #============================================
 def _copy_operation(kind: str, payload: object, anchor: _Point,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[_Line | _Fill | _Shape, int]:
 	"""Detach one exact wire enum operation and construct its cached paint command."""
@@ -512,15 +511,15 @@ def _copy_operation(kind: str, payload: object, anchor: _Point,
 		z = _z(payload.z)
 		return _Fill(path, PySide6.QtGui.QBrush(_paint(palette, payload.paint)), z, payload.paint), z
 	if kind == "text":
-		if payload.face != _FACE:
+		if payload.face != molecule_label_font.resource_id:
 			raise FerrumPlanError("Ferrum render text requested an unknown font face")
 		origin = _translated_point(payload.origin, anchor, "text origin")
-		font = telex.raw_font(_positive(payload.size, "text size"))
+		font = molecule_label_font.raw_font(_positive(payload.size, "text size"))
 		try:
-			path = ferrum_qt.canvas.telex_glyph_outline.path_from_runs(
+			path = ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs(
 				payload.runs, PySide6.QtCore.QPointF(origin.x, origin.y), font,
 			)
-		except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
+		except ferrum_qt.canvas.molecule_label_glyph_outline.MoleculeLabelGlyphOutlineError as exc:
 			raise FerrumPlanError(str(exc)) from exc
 		z = _z(payload.z)
 		return _Fill(path, PySide6.QtGui.QBrush(_paint(palette, payload.paint)), z, payload.paint), z

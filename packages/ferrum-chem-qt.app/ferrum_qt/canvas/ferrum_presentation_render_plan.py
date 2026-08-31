@@ -11,7 +11,7 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_telex
+import ferrum_qt.canvas.molecule_label_font
 import ferrum_qt.canvas.ferrum_presentation_target
 import ferrum_qt.canvas.graphics_disposal
 from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
@@ -23,7 +23,6 @@ from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
 
 _SCHEMA = "ferrum-presentation-render-plan-v1"
 _PREVIEW_SCHEMA = "ferrum-presentation-preview-render-plan-v1"
-_TELEX_FACE = "ferrum-telex-regular-v1"
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -274,23 +273,30 @@ class RendererPreviewPlusItem(
 
 	#============================================
 	def __init__(self, plus: object, bounds: PySide6.QtCore.QRectF,
-			extension: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			extension: object, molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Authenticate and paint the sole preview-plus grammar without a target."""
 		super().__init__()
 		if type(plus) is not extension.PresentationPreviewPlusV1:
 			raise PresentationRenderPlanError("preview Plus has the wrong DTO type")
-		if plus.text != "+" or plus.face != _TELEX_FACE or type(plus.z) is not int or plus.z != 20:
+		if (
+			plus.text != "+"
+			or plus.face != molecule_label_font.resource_id
+			or type(plus.z) is not int
+			or plus.z != 20
+		):
 			raise PresentationRenderPlanError("preview Plus has invalid fixed text semantics")
 		anchor = _point(plus.anchor, extension, "preview Plus anchor")
 		origin = _point(plus.operation_origin, extension, "preview Plus text origin")
-		font = telex.raw_font(_positive(plus.size, "preview Plus text size"))
+		font = molecule_label_font.raw_font(_positive(plus.size, "preview Plus text size"))
 		glyph_indexes = font.glyphIndexesForString(plus.text)
 		if len(glyph_indexes) != 1 or type(glyph_indexes[0]) is not int or glyph_indexes[0] <= 0:
-			raise PresentationRenderPlanError("preview Plus has no verified Telex glyph")
+			raise PresentationRenderPlanError(
+				"preview Plus has no verified molecule-label glyph"
+			)
 		glyph_path = font.pathForGlyph(glyph_indexes[0])
 		if glyph_path.isEmpty():
-			raise PresentationRenderPlanError("preview Plus Telex glyph has no outline")
+			raise PresentationRenderPlanError("preview Plus Atkinson Hyperlegible Next glyph has no outline")
 		transform = PySide6.QtGui.QTransform()
 		transform.translate(anchor.x() + origin.x(), anchor.y() + origin.y())
 		self._glyph_path = transform.map(glyph_path)
@@ -351,7 +357,7 @@ class RendererPreviewPlusItem(
 
 
 #============================================
-def build_presentation_render_plan(plan: object, telex_resource: object,
+def build_presentation_render_plan(plan: object, font_resource: object,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> FerrumPresentationScene:
 	"""Build detached Qt roots from one exact fenced renderer plan."""
 	extension = _ferrum_chem()
@@ -367,7 +373,7 @@ def build_presentation_render_plan(plan: object, telex_resource: object,
 	digest = _digest(plan.digest)
 	if type(plan.roots) is not tuple:
 		raise PresentationRenderPlanError("presentation render-plan roots must be frozen")
-	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
+	molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
 	roots: list[DisplayPaletteRefreshable] = []
 	durable_items: dict[tuple[str, str], DisplayPaletteRefreshable] = {}
 	local_items: dict[RenderTargetKey, DisplayPaletteRefreshable] = {}
@@ -375,7 +381,7 @@ def build_presentation_render_plan(plan: object, telex_resource: object,
 		for root in plan.roots:
 			target = _target(root.target, extension)
 			bounds = _bounds(root.bounds, extension)
-			item = _root_item(root, target, bounds, extension, telex, palette)
+			item = _root_item(root, target, bounds, extension, molecule_label_font, palette)
 			if target in local_items:
 				raise PresentationRenderPlanError("duplicate presentation target")
 			durable_key = target.durable_selection_key()
@@ -397,7 +403,7 @@ def build_presentation_render_plan(plan: object, telex_resource: object,
 
 #============================================
 def build_presentation_preview_render_plan(
-		plan: object, telex_resource: object,
+		plan: object, font_resource: object,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> FerrumPresentationPreviewScene:
 	"""Build detached noninteractive roots from one exact preview-only plan."""
@@ -412,14 +418,14 @@ def build_presentation_preview_render_plan(
 		raise PresentationRenderPlanError("unknown presentation preview render-plan schema")
 	if type(plan.roots) is not tuple:
 		raise PresentationRenderPlanError("presentation preview render-plan roots must be frozen")
-	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
+	molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
 	roots: list[DisplayPaletteRefreshable] = []
 	try:
 		for root in plan.roots:
 			if type(root) is not extension.PresentationPreviewRenderRootV1:
 				raise PresentationRenderPlanError("preview render root has the wrong DTO type")
 			bounds = _bounds(root.bounds, extension)
-			roots.append(_preview_root_item(root, bounds, extension, telex, palette))
+			roots.append(_preview_root_item(root, bounds, extension, molecule_label_font, palette))
 	except (AttributeError, TypeError, ValueError, PresentationRenderPlanError) as exc:
 		for item in roots:
 			item.dispose()
@@ -431,7 +437,7 @@ def build_presentation_preview_render_plan(
 
 #============================================
 def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRectF,
-		extension: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		extension: object, molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> DisplayPaletteRefreshable:
 	"""Validate one discriminated root and build only its documented variant."""
@@ -449,14 +455,14 @@ def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRe
 		if root.plus is None or root.text is not None or root.vector_operations != ():
 			raise PresentationRenderPlanError("plus render root has mixed variants")
 		item = ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem._from_observation(
-			root.plus, telex, palette,
+			root.plus, molecule_label_font, palette,
 		)
 		return _require_matching_item_target(item, target)
 	if kind == "text":
 		if root.text is None or root.plus is not None or root.vector_operations != ():
 			raise PresentationRenderPlanError("text render root has mixed variants")
 		item = ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem._from_observation(
-			root.text, telex, palette,
+			root.text, molecule_label_font, palette,
 		)
 		return _require_matching_item_target(item, target)
 	raise PresentationRenderPlanError("unknown presentation render-root kind")
@@ -464,7 +470,7 @@ def _root_item(root: object, target: RenderTargetKey, bounds: PySide6.QtCore.QRe
 
 #============================================
 def _preview_root_item(root: object, bounds: PySide6.QtCore.QRectF, extension: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> DisplayPaletteRefreshable:
 	"""Validate one identifier-free root and build its documented preview variant."""
@@ -481,7 +487,7 @@ def _preview_root_item(root: object, bounds: PySide6.QtCore.QRectF, extension: o
 		if root.plus is None or root.vector_operations != ():
 			raise PresentationRenderPlanError("preview Plus render root has mixed variants")
 		return require_display_palette_refreshable(
-			RendererPreviewPlusItem(root.plus, bounds, extension, telex, palette),
+			RendererPreviewPlusItem(root.plus, bounds, extension, molecule_label_font, palette),
 			"preview Plus render root",
 		)
 	raise PresentationRenderPlanError("unknown presentation preview render-root kind")

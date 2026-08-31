@@ -10,14 +10,15 @@ mod final_ink_collision;
 use std::collections::{HashMap, HashSet};
 
 use ferrum_core::RecordKind;
-use ferrum_geometry::Point2;
+use ferrum_geometry::{Point2, Vector2};
 
 use crate::glyph_metrics::GlyphBounds;
+use crate::glyph_outline_support::GlyphOutlineSupport;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     CompactGroupBondEndpointV1, MoleculeRenderPlanV4, PositiveFinite, RenderBatchV4, RenderError,
     RenderIssue, RenderIssueKind, RenderPaintV3, RenderPoint, RenderProvenance,
-    VerifiedTelexGlyphMetrics,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 
 pub use atom::{
@@ -198,7 +199,7 @@ impl AtomBondRenderRequest {
 /// Build the total ordered batch-or-issue partition for this render slice.
 pub(crate) fn build_atom_bond_plan(
     request: &AtomBondRenderRequest,
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<MoleculeRenderPlanV4, RenderError> {
     let mut batches = Vec::new();
     let mut issues = Vec::new();
@@ -213,13 +214,21 @@ pub(crate) fn build_atom_bond_plan(
                     atom,
                     atom.font.as_ref().unwrap_or(&request.font),
                     request.normal_single_clip_policy.clearance().gap(),
+                    sole_visible_bond_direction(atom, &request.atoms, &request.bonds)?,
                     metrics,
                 )
             },
             |kind| Ok(Err(kind)),
         );
         match outcome? {
-            Ok((batch, bounds, attachment, non_core_run_ink_bounds)) => {
+            Ok((
+                batch,
+                bounds,
+                attachment,
+                core_outline_support,
+                label_mask_ink_bounds,
+                non_core_run_ink_bounds,
+            )) => {
                 let center = attachment.core_element_ink_center();
                 let position = render_point_to_geometry(atom.position)?
                     .offset(
@@ -240,13 +249,12 @@ pub(crate) fn build_atom_bond_plan(
                     RenderEndpointGeometry {
                         kind: RecordKind::Atom,
                         position,
-                        // Bonds attach to the structural element glyph, never
-                        // to an isotope, hydrogen, or charge decoration.  The
-                        // complete full-label envelope remains below for
-                        // third-label admission; it is deliberately not used
-                        // as this endpoint's optical attachment target.
+                        // The structural glyph owns optical attachment while
+                        // every painted mask and non-core run remains an
+                        // explicit final-ink exclusion.
                         clipping: EndpointClipGeometry::AtomLabelInk {
-                            core: attachment.core_element_ink_bounds(),
+                            core_outline_support,
+                            label_mask_ink_bounds,
                             non_core_run_ink_bounds,
                         },
                     },
@@ -347,6 +355,46 @@ pub(crate) fn build_atom_bond_plan(
     issues.sort_by_key(RenderIssue::paint_order);
     MoleculeRenderPlanV4::new(request.provenance, batches, issues)
 }
+
+fn sole_visible_bond_direction(
+    atom: &AtomRenderTarget,
+    atoms: &[AtomRenderTarget],
+    bonds: &[BondRenderTarget],
+) -> Result<Option<Vector2>, RenderError> {
+    let atom_id = atom.context.record_id();
+    let mut neighbor = None;
+    for bond in bonds {
+        if !matches!(&bond.visibility, TargetVisibility::Visible) {
+            continue;
+        }
+        let other_id = if bond.first_endpoint() == atom_id {
+            bond.second_endpoint()
+        } else if bond.second_endpoint() == atom_id {
+            bond.first_endpoint()
+        } else {
+            continue;
+        };
+        if neighbor.is_some() {
+            return Ok(None);
+        }
+        neighbor = atoms
+            .iter()
+            .find(|candidate| candidate.context.record_id() == other_id)
+            .map(|candidate| candidate.position);
+        if neighbor.is_none() {
+            return Ok(None);
+        }
+    }
+    let Some(neighbor) = neighbor else {
+        return Ok(None);
+    };
+    Ok(Vector2::new(
+        neighbor.x() - atom.position.x(),
+        neighbor.y() - atom.position.y(),
+    )
+    .and_then(Vector2::normalized)
+    .ok())
+}
 struct RenderEndpointGeometry {
     kind: RecordKind,
     position: Point2,
@@ -357,10 +405,11 @@ struct RenderEndpointGeometry {
 enum EndpointClipGeometry {
     /// Exact visible ink of the structural element run at an atom endpoint.
     ///
-    /// Decorations contribute to the separate full-label collision envelope,
-    /// but do not move the bond attachment away from its target glyph.
+    /// The exact core outline owns attachment. Painted mask and decoration
+    /// rectangles remain exclusions rather than substitute attachment targets.
     AtomLabelInk {
-        core: GlyphBounds,
+        core_outline_support: GlyphOutlineSupport,
+        label_mask_ink_bounds: Option<GlyphBounds>,
         non_core_run_ink_bounds: Vec<GlyphBounds>,
     },
     FixedConnectionPoint {

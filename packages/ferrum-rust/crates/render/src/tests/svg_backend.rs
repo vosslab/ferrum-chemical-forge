@@ -40,9 +40,11 @@ fn context(
     )
 }
 
-fn metrics() -> VerifiedTelexGlyphMetrics {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
+fn metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("verified Atkinson Hyperlegible Next opens")
 }
 
 fn mixed_plan() -> MoleculeRenderPlanV4 {
@@ -88,7 +90,7 @@ fn mixed_plan() -> MoleculeRenderPlanV4 {
         TargetVisibility::Visible,
     )
     .expect("neighbor target");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000"))
+    let font = AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint("000000"))
         .with_label_mask(paint("ffffff"));
     let request = AtomBondRenderRequest::new(
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [13; 32]),
@@ -179,7 +181,7 @@ fn styled_single_bond_plan(style: BondStyle) -> MoleculeRenderPlanV4 {
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x31; 32]),
             vec![first, second],
             vec![bond],
-            AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000")),
+            AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint("000000")),
             size(1.0),
             size(6.0),
             BondInkClearance::new(size(1.25)),
@@ -406,7 +408,8 @@ fn svg_backend_accepts_finite_extreme_text_geometry() {
         TargetVisibility::Visible,
     )
     .expect("atom target");
-    let font = AtomLabelFontProfile::new(FontFace::telex_regular(), size(1.0e307), paint("000000"));
+    let font =
+        AtomLabelFontProfile::new(FontFace::molecule_label(), size(1.0e307), paint("000000"));
     let request = AtomBondRenderRequest::new(
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [14; 32]),
         vec![atom],

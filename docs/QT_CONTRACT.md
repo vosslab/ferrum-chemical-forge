@@ -187,7 +187,7 @@ disposal, and neither paints nor handles selection. Its z order comes from the
 matching backend-issued direct-root order. Each batch has a durable
 `RenderTargetV1` keyed by opaque `DocumentObjectIdV1`, plus a declared
 coordinate space and exactly one closed atom, compact-group, or bond content
-payload. Atom content carries the renderer-issued Telex runs, structural core
+payload. Atom content carries renderer-issued molecule-label runs, structural core
 run, exact full/core ink bounds, and positive bond-ink clearance. Ordered typed
 operations contain the established line, mask, text, ellipse, and path leaves.
 A path is a finite validated stream of
@@ -237,7 +237,7 @@ facts with typed presentation issues; Qt does not substitute normal-arrow art.
 A fixed-content plus root carries a finite scene anchor and resolved source
 appearance in `SessionDocumentObservationV1`, but that source projection does
 not perform font layout. The API resolves the supported family to the verified
-vendored Telex resource and publishes one centered glyph identifier, its exact
+vendored Atkinson Hyperlegible Next Regular resource and publishes one centered glyph identifier, its exact
 origins, explicit foreground and optional background paint, and finite ink
 bounds. Qt calls `QRawFont.pathForGlyph` for that supplied identifier and caches
 the resulting outline. It does not shape the `+` string, calculate an advance,
@@ -293,19 +293,18 @@ Plan paint never resolves a palette role at paint time. Qt-local hover and
 selection decoration may use the current UI palette because it is not document
 depiction or render-plan content.
 
-### Telex bytes
+### Molecule-label bytes
 
-Ferrum plans use face `ferrum-telex-regular-v1`. The Python extension supplies
-the packaged Telex Regular bytes that Rust verified by file type, byte length,
-SHA-256, family, and PostScript name. The Qt painter verifies those bytes and
-loads them with `QRawFont.loadFromData`.
+Ferrum plans use face
+`ferrum-atkinson-hyperlegible-next-regular-2.001`. The Python extension supplies
+the packaged Atkinson Hyperlegible Next Regular bytes after Rust verifies file
+type, byte length, SHA-256, family, and PostScript name. The Qt painter repeats
+those checks and loads the bytes directly with `QRawFont.loadFromData`.
 
-Qt uses the loaded `QRawFont` only for glyph outlines. Rust has already chosen
-all run positions and scales, so Qt must not measure, advance, relayout, select
-a system family, or substitute a missing glyph. `QFont("Telex")`,
-`QFontDatabase`, `QFontMetrics`, and a font path reopen are outside this
-contract. Invalid bytes, font identity, or glyph resolution raises a render
-error and preserves the previous projection.
+Qt uses the loaded `QRawFont` only to resolve the supplied glyph IDs into
+outlines at Rust-issued positions and scales. Rust owns measurement, advance,
+layout, family selection, and glyph admission. Invalid bytes, font identity, or
+glyph resolution raises a render error and preserves the previous projection.
 
 ## Selection and interaction
 
@@ -862,7 +861,7 @@ one-time implementation evidence, not permanent fast-suite gates.
 
 Before accepting a slice that claims those capabilities, prove its actual user
 path: open or create a document, obtain the required revision-bound Ferrum
-observation, paint its plan with verified Telex bytes, select durable IDs,
+observation, paint its plan with verified molecule-label bytes, select durable IDs,
 submit its supported operation, replace the projection, and save/reopen through
 Rust without losing CDML order, IDs, or opaque content. A bounded slice proves
 only the operations and document classes named by its receipt.

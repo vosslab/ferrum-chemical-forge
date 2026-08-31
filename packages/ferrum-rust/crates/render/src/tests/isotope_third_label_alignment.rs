@@ -37,12 +37,14 @@ fn paint() -> RenderPaintV3 {
 }
 
 fn font() -> AtomLabelFontProfile {
-    AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint())
+    AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint())
 }
 
-fn metrics() -> VerifiedTelexGlyphMetrics {
-    VerifiedTelexGlyphMetrics::new(&FerrumFontEnvironmentV1::load().expect("Telex"))
-        .expect("metrics")
+fn metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+    VerifiedMoleculeLabelGlyphMetrics::new(
+        &FerrumFontEnvironment::load().expect("Atkinson Hyperlegible Next"),
+    )
+    .expect("metrics")
 }
 
 fn atom(

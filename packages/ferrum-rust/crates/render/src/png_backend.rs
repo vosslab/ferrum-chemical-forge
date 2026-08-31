@@ -97,9 +97,9 @@ pub enum PngRenderError {
     Encoder(String),
     #[error("render geometry cannot be represented as a finite f32")]
     NonFiniteGeometry,
-    #[error("could not parse verified Telex outline face: {0}")]
+    #[error("could not parse verified Atkinson Hyperlegible Next outline face: {0}")]
     Font(String),
-    #[error("required Telex glyph {glyph_index} has no usable outline")]
+    #[error("required Atkinson Hyperlegible Next glyph {glyph_index} has no usable outline")]
     MissingGlyphOutline { glyph_index: u32 },
 }
 

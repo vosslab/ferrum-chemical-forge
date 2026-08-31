@@ -14,7 +14,7 @@ const SOURCE: &str = concat!(
     "<c:cdml xmlns:c=\"urn:ferrum:cdml\" ",
     "xmlns:v=\"urn:vendor\"><c:text id=\"t\" background-color=\"#fff\" keep=\"yes\">",
     "<c:point x=\"10\" y=\"20\"/><v:between retained=\"yes\"/>",
-    "<c:font family=\"Telex\" size=\"12\" color=\"#000\" v:font-keep=\"yes\">",
+    "<c:font family=\"Atkinson Hyperlegible Next\" size=\"12\" color=\"#000\" v:font-keep=\"yes\">",
     "<v:font-child/></c:font><c:ftext>old</c:ftext></c:text><v:root/></c:cdml>",
 );
 
@@ -72,7 +72,7 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
     ];
     let changes = vec![
         TextPropertyChangeV1::Runs(runs),
-        TextPropertyChangeV1::FontFace(PresentationFontFaceV1::TelexRegularV1),
+        TextPropertyChangeV1::FontFace(PresentationFontFaceV1::MoleculeLabel),
         TextPropertyChangeV1::FontSize(18),
         TextPropertyChangeV1::Color(Rgb24V1::new("#AbC").unwrap()),
         TextPropertyChangeV1::BackgroundColor(None),
@@ -83,7 +83,7 @@ fn text_properties_commit_semantic_runs_preserve_extensions_and_follow_history()
         .expect("patch must commit");
     let projected = text(changed.observation());
     assert_eq!(changed.observation().snapshot().revision(), 1);
-    assert_eq!(projected.font().font_face().id(), "telex_regular_v1");
+    assert_eq!(projected.font().font_face().id(), "molecule_label");
     assert_eq!(projected.font().size().value(), 18.0);
     assert_eq!(projected.font().color().as_str(), "#aabbcc");
     assert_eq!(projected.background().color(), None);
@@ -212,18 +212,16 @@ fn text_properties_reject_invalid_intent_and_targets_without_mutation() {
 }
 
 #[test]
-fn typed_text_face_alias_is_canonicalized_before_session_state_exists() {
-    let session = DocumentSession::load(
-        "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"t\"><point x=\"0\" y=\"0\"/><font family=\"Telex Regular\"/><ftext>x</ftext></text></cdml>",
-    )
-    .expect("approved Telex alias must load");
-    assert!(
-        session
-            .snapshot()
-            .expect("snapshot")
-            .cdml()
-            .contains("family=\"Telex\"")
+fn noncanonical_text_face_is_rejected_before_session_state_exists() {
+    let result = DocumentSession::load(
+        "<cdml xmlns=\"urn:ferrum:cdml\"><text id=\"t\"><point x=\"0\" y=\"0\"/><font family=\"Atkinson Hyperlegible Next Regular\"/><ftext>x</ftext></text></cdml>",
     );
+    assert!(matches!(
+        result,
+        Err(DocumentSessionError::Load(
+            TypedDocumentError::UnsupportedTextFace { .. }
+        ))
+    ));
 }
 
 #[test]

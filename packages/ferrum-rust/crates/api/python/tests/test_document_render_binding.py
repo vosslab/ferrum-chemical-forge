@@ -242,14 +242,14 @@ def test_render_observation_keeps_compact_group_and_bond_operations_closed() -> 
     )
 
 
-def test_render_observation_preserves_typed_stale_and_closed_telex_contracts() -> None:
+def test_render_observation_preserves_typed_stale_and_closed_molecule_label_contracts() -> None:
     session = ferrum_chem.DocumentSession.load(SOURCE)
-    resource = ferrum_chem.verified_telex_regular()
+    resource = ferrum_chem.molecule_label_font()
     assert isinstance(resource.data, bytes)
     assert (resource.resource_id, resource.byte_length, resource.family) == (
-        "ferrum-telex-regular-v1",
+        "ferrum-atkinson-hyperlegible-next-regular-2.001",
         len(resource.data),
-        "Telex",
+        "Atkinson Hyperlegible Next",
     )
     with pytest.raises(ferrum_chem.RevisionConflictError):
         session.observe_render(1)
@@ -285,4 +285,3 @@ def test_direct_text_projection_and_render_keep_closed_runs_and_exact_glyphs() -
     )
     with pytest.raises(AttributeError):
         render.operation.paint.export_rgb = "000000"
-

@@ -15,6 +15,7 @@ use ferrum_document_projection::{
     DoubleBondCarrierMarkProjectionV1, DoubleBondCarrierMarkV1, PresentationFontFaceV1,
     Rgb24V1 as DocumentRgb24V1, TransparentOrRgb24V1, VisibilityV1,
 };
+use ferrum_render_contract::MOLECULE_LABEL_RESOURCE_ID;
 
 const BUILTIN_BOND_LANE_SPACING: f64 = 6.0;
 const BUILTIN_ATOM_NUMBER_FONT_SIZE: f64 = 9.0;
@@ -536,7 +537,7 @@ pub(super) fn resolved_font(
         return Err(issue(
             DepictionIssueCodeV1::UnsupportedAuthoredFontFamily,
             "document",
-            "V1 has only the verified ferrum-telex-regular-v1 resource",
+            format!("V1 has only the verified {MOLECULE_LABEL_RESOURCE_ID} resource"),
         ));
     }
     let size = local
@@ -557,7 +558,7 @@ pub(super) fn resolved_font(
         })
         .map(rgb_paint)
         .unwrap_or_else(RenderPaintV3::document_foreground);
-    let mut font = AtomLabelFontProfile::new(FontFace::telex_regular(), positive(size)?, paint);
+    let mut font = AtomLabelFontProfile::new(FontFace::molecule_label(), positive(size)?, paint);
     if let Some(TransparentOrRgb24V1::Rgb24(mask)) = label_mask {
         font = font.with_label_mask(rgb_paint(mask));
     }

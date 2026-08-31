@@ -53,6 +53,26 @@ orphaned declared ink. Reports contain JSON metrics, annotated overlays, and a
 contact sheet. A threshold may only be changed against this fixed corpus, never
 against a newly generated output.
 
+## Permanent tests versus rebuild evidence
+
+`source source_me.sh && python3 -m pytest measure_stack/tests -q` is the
+permanent 15-test lane. It uses inline/generated arrays and `tmp_path`, stays
+offline, completes in under one second, and tests manifest rejection, content
+hashing, pure metric behavior, style classification, framing behavior, and
+nonfinite JSON refusal. It does not assert the exact fixture inventory, render
+Qt scenes, or publish contact sheets.
+
+The synthetic runner, native Rust raster command, actual Qt capture, baseline,
+contact sheets, upstream font/catalog census, and before/after comparisons are
+explicit rebuild/developer evidence. Run them when their owned source changes;
+keep their exact counts, images, and receipts out of permanent pytest.
+Verify the complete local font catalog with:
+
+```bash
+source source_me.sh && python3 \
+  packages/ferrum-rust/devel/verify_vendored_font_catalog.py
+```
+
 ## Run the lanes
 
 Run the native synthetic contract baseline into an empty ignored output
@@ -65,29 +85,27 @@ source source_me.sh && python3 -m measure_stack.runner \
 ```
 
 Run the actual Rust final-ink handoff. Its fixed output is
-`output_glyph_alignment/v2/`. This is a strict gate, and it currently exits
-nonzero because it records real renderer geometry defects; it still publishes
-diagnostics for every emitted manifest and one `run_summary.json` with the
-fixture-level violation inventory.
+`output_glyph_alignment/v2/`. This strict gate publishes diagnostics for every
+emitted manifest and one `run_summary.json` with the fixture-level violation
+inventory. It exits nonzero for any finding.
 
 ```bash
 devel/run_measure_stack_rust.sh
 ```
 
-After `./build.sh`, run the real offscreen Qt consumer baseline. It captures the
-same 12 authoritative V2 fixtures and exits zero only when capture is healthy
-and the frozen known-red failure classification is unchanged.
-
-```bash
-devel/run_measure_stack_qt.sh --baseline
-```
-
-Run strict-red explicitly when working on Rust geometry. It deliberately exits
-nonzero until all visual-quality violations are eliminated; do not add it to a
-normal aggregate while the frozen baseline remains red.
+After `./build.sh`, run the real offscreen Qt consumer strict gate. It captures
+the same 12 authoritative V2 fixtures and exits zero only when every fixture
+satisfies the policy. Strict mode is the default.
 
 ```bash
 devel/run_measure_stack_qt.sh --strict
+```
+
+Optional baseline mode proves capture health, fixture provenance, and the
+frozen accepted-zero failure classification.
+
+```bash
+devel/run_measure_stack_qt.sh --baseline
 ```
 
 The Qt commands write immutable manifests, reports, overlays, contact sheets,
@@ -102,11 +120,17 @@ chosen from the immutable fixture graph's intended normal-scale extent and
 never fitted from current rendered ink. This makes viewport composition a real
 consumer-visible criterion while allowing compact, ring, and directional
 fixtures to use their own declared normal framing. The
-real-renderer lanes are intentionally distinct: current Rust/Qt geometry is
-expected red, and the frozen Qt baseline preserves that evidence rather than
-mistaking it for acceptance. The next renderer change belongs in Rust glyph
+real-renderer lanes are intentionally distinct: current Rust and Qt strict
+receipts both contain zero violations, and the optional Qt baseline freezes
+that accepted-zero state. A future renderer change belongs in Rust glyph
 anchors, endpoint clipping/style lowering, or complete-plan admission according
 to the failed metric. Qt must not add a visual correction.
+
+The V2 corpus measures Ferrum's selected byte-verified Atkinson Hyperlegible
+Next Regular molecule-label face. Rust owns that role, exact tight outline
+bounds, placement, and clipping; Qt only replays the issued glyphs. A future
+role change updates the one selection before fresh native and Qt corpus
+evidence is accepted.
 
 ## Limits
 

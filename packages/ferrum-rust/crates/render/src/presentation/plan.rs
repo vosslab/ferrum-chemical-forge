@@ -6,8 +6,8 @@
 
 use crate::{
     DocumentPlusRenderV1, DocumentTextRenderV1, DocumentVectorOpV1, DocumentVectorRootV1,
-    FerrumFontEnvironmentV1, PathCommandV1, RenderError, RenderPaintV3, RenderPoint, TextOp,
-    VerifiedTelexGlyphMetrics,
+    FerrumFontEnvironment, PathCommandV1, RenderError, RenderPaintV3, RenderPoint, TextOp,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 use ferrum_document_projection::{
     PresentationArrowPreviewRequestV1, PresentationRootProjectionV1, PresentationStackProjectionV1,
@@ -82,12 +82,12 @@ pub enum PresentationRenderRootV1 {
         vector: DocumentVectorRootV1,
         bounds: PresentationRenderBoundsV1,
     },
-    /// Verified Telex operations for one plus root.
+    /// Verified Atkinson Hyperlegible Next operations for one plus root.
     Plus {
         render: DocumentPlusRenderV1,
         bounds: PresentationRenderBoundsV1,
     },
-    /// Verified Telex operations for one Text root.
+    /// Verified Atkinson Hyperlegible Next operations for one Text root.
     Text {
         render: DocumentTextRenderV1,
         bounds: PresentationRenderBoundsV1,
@@ -141,7 +141,7 @@ pub enum PresentationPreviewRenderRootV1 {
         vector: DocumentVectorRootV1,
         bounds: PresentationRenderBoundsV1,
     },
-    /// Verified Telex operations for a preview-only standard Plus sign.
+    /// Verified Atkinson Hyperlegible Next operations for a preview-only standard Plus sign.
     Plus {
         anchor: RenderPoint,
         operation: TextOp,
@@ -254,8 +254,8 @@ impl PresentationRenderPlanV1 {
 pub fn render_presentation_stack_v1(
     stack: &PresentationStackProjectionV1,
 ) -> Result<PresentationRenderPlanV1, RenderError> {
-    let environment = FerrumFontEnvironmentV1::load()?;
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
+    let environment = FerrumFontEnvironment::load()?;
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
     let mut roots = Vec::new();
     roots
         .try_reserve(stack.entries().len())
@@ -287,15 +287,15 @@ pub fn lower_arrow_preview_v1(
 }
 
 /// Lower one identifier-free standard Plus preview through the ordinary
-/// verified-Telex presentation path.
+/// verified-Atkinson Hyperlegible Next presentation path.
 ///
 /// The returned value has no document, source, or projection identifier and
 /// carries no session, mutation, or transition authority.
 pub fn lower_standard_plus_preview_v1(
     anchor: RenderPoint,
 ) -> Result<PresentationPreviewRenderPlanV1, RenderError> {
-    let environment = FerrumFontEnvironmentV1::load()?;
-    let metrics = VerifiedTelexGlyphMetrics::new(&environment)?;
+    let environment = FerrumFontEnvironment::load()?;
+    let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
     let (operation, preview_text_bounds) = super::plus::lower_standard_plus_preview_v1(&metrics)?;
     let bounds = text_bounds(anchor, preview_text_bounds)?;
     Ok(PresentationPreviewRenderPlanV1::new(vec![
@@ -310,7 +310,7 @@ pub fn lower_standard_plus_preview_v1(
 
 fn render_root(
     root: &PresentationRootProjectionV1,
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<PresentationRenderRootV1, RenderError> {
     match root {
         PresentationRootProjectionV1::Plus { plus } => {

@@ -111,6 +111,27 @@ rustup component add clippy
 Then rerun `./check_rust.sh`. This Rust gate does not build the local Python
 extension or run Qt tests; use `./build.sh` and `./all_test.sh` for that route.
 
+### Atkinson molecule-label font verification fails
+
+Messages containing `verified Atkinson Hyperlegible Next asset` or `Atkinson
+Hyperlegible Next admission contract mismatch` come from the Rust-owned bundled
+molecule-label resource. They do not mean that macOS is missing a system font:
+the selected face is compiled into the local `ferrum_chem` extension and verified
+before rendering uses it.
+
+Run the Rust gate, then rebuild and test the sealed local program:
+
+```bash
+./check_rust.sh
+./build.sh
+./all_test.sh
+```
+
+Do not substitute a system-installed font, add a font directory to a launch
+environment, or copy a font into `build/runtime`. If the Rust gate reports the
+verification failure, retain its exact output and repair the repository-owned
+font resource or its admission contract before attempting another GUI capture.
+
 ## Run Qt tests without a display
 
 ### Qt tests need a headless platform
@@ -166,6 +187,28 @@ use `--backend qt` or configure the window-capture tool to capture only Ferrum's
 application surface, then rerun the full tour. Review the regenerated images
 manually; screenshot capture is documentation evidence, not a permanent
 pixel-equivalence test.
+
+### A screenshot scene or surface check is refused
+
+The capture tour verifies more than PNG creation. A refusal such as `Ferrum
+capture requires the visible authoring ribbon`, `Ferrum capture requires the
+visible status bar`, or `capture output is not a usable window PNG` means that
+the requested scene is not documentation-ready. A full run stages all scenes
+before publishing, so a failed full tour leaves the existing published tour in
+place.
+
+Use the named-scene route to isolate the reported workflow without replacing the
+other images:
+
+```bash
+./capture_gui_screenshots.sh --scene template_catalog --backend qt
+```
+
+If the focused capture succeeds after the underlying application repair, run
+`./capture_gui_screenshots.sh --backend qt` to refresh the complete tour from
+one local build. If the focused scene still reports a missing command, control,
+or completed document state, treat that error as a failed GUI capability rather
+than publishing a partial or manually cropped replacement.
 
 ### Refresh one screenshot while diagnosing a scene
 

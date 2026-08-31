@@ -18,7 +18,7 @@ import ferrum_qt.canvas.graphics_disposal
 import ferrum_qt.canvas.ferrum_presentation_render_plan
 import ferrum_qt.canvas.ferrum_presentation_target
 from ferrum_qt.canvas.ferrum_render_target import RenderTargetKey
-import ferrum_qt.canvas.ferrum_telex
+import ferrum_qt.canvas.molecule_label_font
 import ferrum_qt.canvas.items.ferrum_molecule_root_item
 import ferrum_qt.canvas.items.ferrum_plan_item
 import ferrum_qt.canvas.items.ferrum_paper_item
@@ -149,24 +149,24 @@ class FerrumRenderProjectionController:
 
 	#============================================
 	def __init__(self, view: PySide6.QtWidgets.QGraphicsView,
-			telex_resource: object,
+			font_resource: object,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Bind to one UI-thread view without taking document/session ownership."""
-		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
+		molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
 		self._initialize(
-			view, telex_resource, telex, _require_pyo3_observation,
+			view, font_resource, molecule_label_font, _require_pyo3_observation,
 			ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 			ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
 			ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
 			lambda plan, display_palette: _build_presentation_scene(
-				plan, telex_resource, display_palette,
+				plan, font_resource, display_palette,
 			),
 			palette,
 		)
 
 	#============================================
 	def _initialize(self, view: PySide6.QtWidgets.QGraphicsView,
-			telex_resource: object, telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			font_resource: object, molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			validator: ObservationValidator, item_factory: PlanItemFactory,
 			molecule_root_factory: MoleculeRootItemFactory,
 			paper_factory: PaperItemFactory,
@@ -175,13 +175,13 @@ class FerrumRenderProjectionController:
 		"""Initialize the production controller or the private fixture seam."""
 		if not isinstance(view, PySide6.QtWidgets.QGraphicsView):
 			raise TypeError("Ferrum render projection controller requires a graphics view")
-		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
-			raise TypeError("Ferrum render projection controller requires verified Telex")
+		if not isinstance(molecule_label_font, ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont):
+			raise TypeError("Ferrum render projection controller requires verified Atkinson Hyperlegible Next")
 		if type(palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
 			raise TypeError("Ferrum render projection controller requires a document display palette")
 		self._view = view
-		self._telex_resource = telex_resource
-		self._telex = telex
+		self._font_resource = font_resource
+		self._molecule_label = molecule_label_font
 		self._validator = validator
 		self._item_factory = item_factory
 		self._molecule_root_factory = molecule_root_factory
@@ -212,7 +212,7 @@ class FerrumRenderProjectionController:
 			return False
 		try:
 			prepared = _build_render_projection(
-				observation, self._telex_resource, self._telex, self._validator,
+				observation, self._font_resource, self._molecule_label, self._validator,
 				self._item_factory, self._molecule_root_factory, self._paper_factory,
 				self._presentation_factory,
 				presentation_plan, self._palette,
@@ -294,12 +294,12 @@ class FerrumRenderProjectionController:
 
 #============================================
 def _build_fixture_controller(view: PySide6.QtWidgets.QGraphicsView,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		validator: ObservationValidator) -> FerrumRenderProjectionController:
 	"""Construct a controller for focused DTO fixtures outside production routing."""
 	controller = object.__new__(FerrumRenderProjectionController)
 	controller._initialize(
-		view, telex, telex, validator,
+		view, molecule_label_font, molecule_label_font, validator,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture, None,
@@ -309,31 +309,31 @@ def _build_fixture_controller(view: PySide6.QtWidgets.QGraphicsView,
 
 
 #============================================
-def build_render_projection(observation: object, telex_resource: object,
+def build_render_projection(observation: object, font_resource: object,
 		presentation_plan: object,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> FerrumRenderProjection:
 	"""Validate one whole observation and return a fully populated detached scene."""
-	telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
+	molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
 	return _build_render_projection(
-		observation, telex_resource, telex, _require_pyo3_observation,
+		observation, font_resource, molecule_label_font, _require_pyo3_observation,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem,
 		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem,
-		lambda plan, palette: _build_presentation_scene(plan, telex_resource, palette),
+		lambda plan, palette: _build_presentation_scene(plan, font_resource, palette),
 		presentation_plan, palette,
 	)
 
 
 #============================================
 def _build_fixture_render_projection(observation: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		validator: ObservationValidator,
 		presentation_factory: PresentationSceneFactory | None = None,
 		) -> FerrumRenderProjection:
 	"""Build fixture DTOs only through an explicitly private test seam."""
 	return _build_render_projection(
-		observation, telex, telex, validator,
+		observation, molecule_label_font, molecule_label_font, validator,
 		ferrum_qt.canvas.items.ferrum_plan_item.FerrumPlanItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_molecule_root_item.FerrumMoleculeRootItem._from_fixture,
 		ferrum_qt.canvas.items.ferrum_paper_item.FerrumPaperItem._from_fixture,
@@ -343,8 +343,8 @@ def _build_fixture_render_projection(observation: object,
 
 
 #============================================
-def _build_render_projection(observation: object, telex_resource: object,
-		telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+def _build_render_projection(observation: object, font_resource: object,
+		molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 		validator: ObservationValidator, item_factory: PlanItemFactory,
 		molecule_root_factory: MoleculeRootItemFactory,
 		paper_factory: PaperItemFactory,
@@ -352,8 +352,8 @@ def _build_render_projection(observation: object, telex_resource: object,
 		presentation_plan: object | None = None,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1 | None = None) -> FerrumRenderProjection:
 	"""Build a validated observation after its caller selected the entry contract."""
-	if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
-		raise FerrumRenderProjectionError("render projection requires verified Telex")
+	if not isinstance(molecule_label_font, ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont):
+		raise FerrumRenderProjectionError("render projection requires verified Atkinson Hyperlegible Next")
 	revision, digest, paper_layout, direct_root_orders, plans, plus_renders, text_renders = (
 		_validate_observation(
 			observation, validator,
@@ -403,7 +403,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 			if molecule_object_id in seen_molecule_roots:
 				raise FerrumRenderProjectionError("duplicate molecule render root")
 			root, _plan_items, plan_issues = _build_plan(
-				plan_entry, molecule, revision, digest, telex_resource, item_factory,
+				plan_entry, molecule, revision, digest, font_resource, item_factory,
 				molecule_root_factory, display_palette,
 			)
 			root.setZValue(float(_direct_root_order(
@@ -468,7 +468,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 				items.append(root)
 		for plus in plus_renders:
 			item = ferrum_qt.canvas.items.ferrum_plus_item.FerrumPlusItem._from_observation(
-				plus, telex, display_palette,
+				plus, molecule_label_font, display_palette,
 			)
 			ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
 				item, "Plus render item",
@@ -494,7 +494,7 @@ def _build_render_projection(observation: object, telex_resource: object,
 			roots.append(item)
 		for text_render in text_renders:
 			item = ferrum_qt.canvas.items.ferrum_text_item.FerrumTextItem._from_observation(
-				text_render, telex, display_palette,
+				text_render, molecule_label_font, display_palette,
 			)
 			ferrum_qt.canvas.ferrum_presentation_render_plan.require_display_palette_refreshable(
 				item, "Text render item",
@@ -608,7 +608,7 @@ def _validate_observation(observation: object,
 #============================================
 def _build_plan(
 		plan_entry: object, molecule: object,
-		revision: int, digest: str, telex_resource: object, item_factory: PlanItemFactory,
+		revision: int, digest: str, font_resource: object, item_factory: PlanItemFactory,
 		molecule_root_factory: MoleculeRootItemFactory,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> tuple[
@@ -652,7 +652,7 @@ def _build_plan(
 		if target in seen_targets:
 			raise FerrumRenderProjectionError("render plan has duplicate target")
 		seen_targets.add(target)
-		item = item_factory(plan, batch_index, telex_resource, palette, root)
+		item = item_factory(plan, batch_index, font_resource, palette, root)
 		layer = getattr(batch, "display_layer", None)
 		if layer not in {"ordinary", "haworth_front_stroke", "haworth_front_wedge"}:
 			raise FerrumRenderProjectionError("render batch has an unknown display layer")
@@ -839,12 +839,12 @@ def _dispose_failed_projection(
 
 #============================================
 def _build_presentation_scene(
-		presentation_plan: object, telex_resource: object,
+		presentation_plan: object, font_resource: object,
 		palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 		) -> ferrum_qt.canvas.ferrum_presentation_render_plan.FerrumPresentationScene:
 	"""Build presentation roots solely from the renderer-issued immutable plan."""
 	return ferrum_qt.canvas.ferrum_presentation_render_plan.build_presentation_render_plan(
-		presentation_plan, telex_resource, palette,
+		presentation_plan, font_resource, palette,
 	)
 
 

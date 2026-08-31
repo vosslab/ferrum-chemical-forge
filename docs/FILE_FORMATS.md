@@ -136,6 +136,24 @@ preserves document facts, namespace URIs and local names, ordered children,
 comments, processing instructions, mixed content, and opaque XML content. It
 does not promise byte-for-byte serialization identity.
 
+### CDML font-family resolution
+
+CDML retains the authored `standard@font_family` and object `font@family`
+attributes as document source. For direct-root Text and Plus presentation that
+Ferrum renders, the only supported family spelling is
+`Atkinson Hyperlegible Next`. An absent family resolves to the same
+Rust-owned molecule-label role. The role uses Ferrum's verified bundled
+Atkinson Hyperlegible Next Regular resource; Qt receives the issued layout and
+does not select a system font or substitute another family. A present,
+unsupported family remains source content but produces an
+`unsupported_text_face` presentation diagnostic rather than a substituted
+family.
+
+The CDML grammar and preservation rules, including the standard and per-object
+font attributes, are defined in [CDML_FORMAT_SPEC.md](CDML_FORMAT_SPEC.md).
+This file records the current renderer admission boundary rather than creating
+a second font schema.
+
 A local `.svg` route is CD-SVG only when a UTF-8 SVG-namespace wrapper contains
 exactly one canonical embedded CDML descendant. The wrapper and selected,
 normalized payload each receive the full native CDML resource envelope. Ferrum

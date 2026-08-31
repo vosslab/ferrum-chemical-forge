@@ -3,7 +3,7 @@
 use crate::glyph_metrics::GlyphBounds;
 use crate::{
     PositiveFinite, RenderError, RenderPaintV3, RenderPoint, Rgb24, TextOp,
-    VerifiedTelexGlyphMetrics,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 use ferrum_document_projection::{
     PlusProjectionV1, PresentationFactProvenanceV1, PresentationFontFaceV1,
@@ -77,7 +77,7 @@ impl PresentationTextBoundsV1 {
     }
 }
 
-/// One document-root plus with exact verified Telex layout.
+/// One document-root plus with exact verified Atkinson Hyperlegible Next layout.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DocumentPlusRenderV1 {
     target: PresentationTargetV1,
@@ -107,10 +107,10 @@ impl<'de> Deserialize<'de> for DocumentPlusRenderV1 {
 impl DocumentPlusRenderV1 {
     pub(crate) fn from_projection(
         plus: &PlusProjectionV1,
-        metrics: &VerifiedTelexGlyphMetrics,
+        metrics: &VerifiedMoleculeLabelGlyphMetrics,
     ) -> Result<Self, RenderError> {
         match plus.font().font_face() {
-            PresentationFontFaceV1::TelexRegularV1 => {}
+            PresentationFontFaceV1::MoleculeLabel => {}
         }
         let foreground = paint(plus.font().color(), plus.font().color_provenance())?;
         let layout = metrics
@@ -139,16 +139,19 @@ impl DocumentPlusRenderV1 {
             return Err("plus render target has the wrong persistent kind".to_owned());
         }
         let environment =
-            crate::FerrumFontEnvironmentV1::load().map_err(|error| error.to_string())?;
-        let metrics =
-            VerifiedTelexGlyphMetrics::new(&environment).map_err(|error| error.to_string())?;
+            crate::FerrumFontEnvironment::load().map_err(|error| error.to_string())?;
+        let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+            .map_err(|error| error.to_string())?;
         let expected = metrics
             .layout_centered_plus(operation.size(), operation.paint().clone())
             .map_err(|error| error.to_string())?;
         if expected.operation() != &operation
             || PresentationTextBoundsV1::from_glyph_bounds(expected.bounds()) != bounds
         {
-            return Err("plus operation or bounds do not match verified Telex layout".to_owned());
+            return Err(
+                "plus operation or bounds do not match verified Atkinson Hyperlegible Next layout"
+                    .to_owned(),
+            );
         }
         Ok(Self {
             target,
@@ -187,7 +190,7 @@ impl DocumentPlusRenderV1 {
 
 /// Lower the fixed standard Plus appearance for an identifier-free preview.
 pub(crate) fn lower_standard_plus_preview_v1(
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<(TextOp, PresentationTextBoundsV1), RenderError> {
     let layout = metrics.layout_centered_plus(
         PositiveFinite::new(14.0)?,

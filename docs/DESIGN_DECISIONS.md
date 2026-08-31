@@ -27,12 +27,13 @@ authoritative code or contract document, rather than a person.
 ### Core-element anchors and full-ink bond clearance
 
 **Decision.** Atom-label layout derives unversioned
-`AtomLabelAttachmentGeometry` from the typed structural element run. Its exact
-ink center is the local atom origin. `LaidOutAtomLabel` separately retains the
-complete visible-ink bounds of the element, hydrogens, isotopes, and charge
-annotations. Every atom-bond render request supplies an explicit positive
-`BondInkClearance`; lowering clips against full label ink expanded by that
-clearance and the final style-specific painted footprint.
+`AtomLabelAttachmentGeometry` and exact directional outline support from the
+typed structural element run. Its exact ink center is the local atom origin.
+`LaidOutAtomLabel` separately retains the complete visible-ink bounds of the
+element, masks, hydrogens, isotopes, and charge annotations. Every atom-bond
+render request supplies an explicit positive `BondInkClearance`; lowering clips
+the style-specific final footprint against structural outline support and every
+painted decoration that lies on its approach ray.
 
 **Why.** Centering a whole decorated label or attaching an axis to its text
 baseline makes bond placement depend on incidental hydrogen and charge text.
@@ -42,15 +43,15 @@ font measurements are already Rust-owned facts, so the renderer can establish
 one geometry contract before Qt, SVG, PDF, or PNG consume its plan.
 
 **Consequence.** The renderer uses one y-down script-baseline calculation,
-centers the core-element ink for every admitted label, and treats full visible
-ink as exclusion geometry. It reserves the resolved gap plus each style's
-transverse radius and any axial overhang, refusing an unrenderable target rather
-than emitting intersecting or partial ink. Qt replays the issued glyph and bond
-operations without choosing a text anchor, recomputing glyph bounds, or relaxing
-clearance. The closed `RenderObservationV2`/`RenderPlanV4` boundary publishes
-the exact core/full ink bounds and positive clearance. The installed Qt E2E
-replays the same Rust-owned corpus and proves that the expanded exclusion does
-not intersect issued bond ink.
+centers the core-element ink for every admitted label, and treats masks plus
+non-core visible ink as exclusion geometry. It reserves an optical gap and each
+style's actual cap, transverse width, axial overhang, or axial retreat, refusing
+an unrenderable target rather than emitting intersecting or partial ink. Qt
+replays the issued glyph and bond operations without choosing a text anchor,
+recomputing glyph bounds, or relaxing clearance. The closed
+`RenderObservationV2`/`RenderPlanV4` boundary publishes the exact core/full ink
+bounds and positive clearance. The installed Qt E2E replays the same Rust-owned
+corpus and proves that issued bond ink remains disjoint from label ink.
 
 `BondAttachmentAxisV1` is the accompanying frozen semantic fact on every bond
 batch. Its endpoints are the uncut structural connection points: an atom uses
@@ -60,9 +61,42 @@ the only paint geometry. PyO3 transports the axis unchanged and Qt validates
 but neither paints nor hit-tests it. Thus a bond has a durable center-to-center
 attachment truth while visible ink still respects full-glyph clearance.
 
-**Owner.** `packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
-`packages/ferrum-rust/crates/render/src/verified_telex_glyph_metrics.rs`, and
+**Owner.** `packages/ferrum-rust/crates/render/src/glyph_outline_support.rs`,
+`packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
+`packages/ferrum-rust/crates/render/src/verified_molecule_label_glyph_metrics.rs`, and
 `packages/ferrum-rust/crates/render/src/atom_bond/`.
+
+### Molecule-label font selection belongs to one Rust role
+
+**Decision.** Ferrum vendors all 92 official version 2.001 outputs in the
+Atkinson Hyperlegible Next and Atkinson Hyperlegible Mono families. Each family
+has 14 static OTF faces, 14 static TTF faces, two variable TTF faces, 14 static
+WOFF2 faces, and two variable WOFF2 faces. The unversioned `FerrumFontEnvironment`
+selects proportional Atkinson Hyperlegible Next Regular for the
+`molecule_label()` role. PyO3 exposes that role as `molecule_label_font()` and
+transports immutable resource facts in the unversioned
+`VerifiedMoleculeLabelFont` value.
+
+**Why.** Atom labels such as `Cl`, `Br`, and `13C` are compact chemical tokens,
+not tabular data. At 1000 units per em, proportional Regular measures `Cl` at
+907 units, `Br` at 962, and `13C` at 1628; Mono measures the same strings at
+1264, 1264, and 1896. Proportional Regular therefore preserves readable glyph
+distinction without imposing unrelated fixed-width spacing. Vendoring both
+complete families keeps later UI, code, and accessibility roles available
+without coupling those choices to the molecule renderer.
+
+**Consequence.** `assets/fonts/catalog.json` is the inventory and integrity
+authority for every face, both exact upstream revisions, both OFL-1.1 notices,
+and every byte length and SHA-256 digest. Rust embeds and verifies only the
+selected Regular face for current molecule rendering. Qt receives that exact
+resource from Rust and only replays Rust-issued glyph IDs and origins. A future
+role selection changes one owner and must regenerate native and Qt evidence;
+there are no font-generation aliases or compatibility schemas.
+
+**Owner.** `packages/ferrum-rust/crates/render/src/font_environment.rs`,
+`packages/ferrum-rust/crates/render/src/font/molecule_label.rs`,
+`packages/ferrum-rust/crates/render/assets/fonts/catalog.json`, and
+`packages/ferrum-rust/crates/api/src/python_binding/render_binding.rs`.
 
 ### One selected-root export owns all singular text representations
 

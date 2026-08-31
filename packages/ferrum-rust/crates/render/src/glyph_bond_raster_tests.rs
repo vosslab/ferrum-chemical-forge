@@ -15,10 +15,10 @@ use crate::glyph_bond_raster::{
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomRenderTarget,
-    BondInkClearance, BondRenderTarget, BondStyle, FerrumFontEnvironmentV1, FontFace,
+    BondInkClearance, BondRenderTarget, BondStyle, FerrumFontEnvironment, FontFace,
     MoleculeRenderPlanV4, PositiveFinite, RenderBatchContentV4, RenderPaintV3, RenderPoint,
     RenderProvenance, RenderRevision, RenderTarget, RenderViewportV1, Rgb24, TargetVisibility,
-    VerifiedTelexGlyphMetrics,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 
 fn point(x: f64, y: f64) -> RenderPoint {
@@ -55,9 +55,11 @@ fn context(
     )
 }
 
-fn metrics() -> VerifiedTelexGlyphMetrics {
-    let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-    VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
+fn metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+    let environment =
+        FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+    VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+        .expect("verified Atkinson Hyperlegible Next opens")
 }
 
 fn two_label_plan() -> MoleculeRenderPlanV4 {
@@ -87,7 +89,7 @@ fn two_label_plan() -> MoleculeRenderPlanV4 {
         RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x35; 32]),
         vec![first, second],
         vec![bond],
-        AtomLabelFontProfile::new(FontFace::telex_regular(), size(10.0), paint("000000"))
+        AtomLabelFontProfile::new(FontFace::molecule_label(), size(10.0), paint("000000"))
             .with_label_mask(paint("ffffff")),
         size(1.0),
         size(8.0),

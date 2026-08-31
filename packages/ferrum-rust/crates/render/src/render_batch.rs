@@ -137,20 +137,22 @@ impl AtomLabelRenderV1 {
                 "atom-label core bounds must lie within full label bounds".to_owned(),
             ));
         }
-        let environment = crate::FerrumFontEnvironmentV1::load()?;
-        let metrics = crate::VerifiedTelexGlyphMetrics::new(&environment)?;
-        if InkBoundsV1::from_glyph_bounds(metrics.v1_atom_label_ink_bounds(&text, index)?)
+        let environment = crate::FerrumFontEnvironment::load()?;
+        let metrics = crate::VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
+        if InkBoundsV1::from_glyph_bounds(metrics.atom_label_ink_bounds(&text, index)?)
             != full_ink_bounds
         {
             return Err(RenderError::InvalidRequest(
-                "atom-label full bounds must equal exact Telex label ink".to_owned(),
+                "atom-label full bounds must equal exact Atkinson Hyperlegible Next label ink"
+                    .to_owned(),
             ));
         }
-        if InkBoundsV1::from_glyph_bounds(metrics.v1_centered_core_run_ink_bounds(&text, index)?)
+        if InkBoundsV1::from_glyph_bounds(metrics.centered_core_run_ink_bounds(&text, index)?)
             != core_element_ink_bounds
         {
             return Err(RenderError::InvalidRequest(
-                "atom-label core bounds must equal indexed Telex run ink".to_owned(),
+                "atom-label core bounds must equal indexed Atkinson Hyperlegible Next run ink"
+                    .to_owned(),
             ));
         }
         let center = core_element_ink_bounds.center()?;
@@ -609,8 +611,8 @@ impl RenderBatchV4 {
         font: crate::AtomLabelFontProfile,
         z: i32,
     ) -> Result<AtomLabelRenderV1, RenderError> {
-        let environment = crate::FerrumFontEnvironmentV1::load()?;
-        let metrics = crate::VerifiedTelexGlyphMetrics::new(&environment)?;
+        let environment = crate::FerrumFontEnvironment::load()?;
+        let metrics = crate::VerifiedMoleculeLabelGlyphMetrics::new(&environment)?;
         let layout =
             crate::glyph_metrics::GlyphMetrics::layout_atom_label(&metrics, &facts, &font)?;
         let normalized = TextOp::new(
@@ -623,10 +625,10 @@ impl RenderBatchV4 {
         )?;
         let core_index = layout.core_element_run_index();
         let core = InkBoundsV1::from_glyph_bounds(
-            metrics.v1_centered_core_run_ink_bounds(&normalized, core_index as usize)?,
+            metrics.centered_core_run_ink_bounds(&normalized, core_index as usize)?,
         );
         let full = InkBoundsV1::from_glyph_bounds(
-            metrics.v1_atom_label_ink_bounds(&normalized, core_index as usize)?,
+            metrics.atom_label_ink_bounds(&normalized, core_index as usize)?,
         );
         let bond_ink_clearance =
             crate::atom_bond::bond::NormalBondEndpointClipPolicy::label_clearance_for_font(

@@ -7,7 +7,7 @@ import ferrum_chem
 
 SOURCE = (
 	'<cdml xmlns="urn:ferrum:cdml" xmlns:v="urn:vendor"><standard line_width="1" '
-	'font_size="12" font_family="Telex" line_color="#000" '
+	'font_size="12" font_family="Atkinson Hyperlegible Next" line_color="#000" '
 	'area_color="" v:keep="yes"><bond width="6" wedge-width="5" '
 	'double-ratio="0.75"><v:keep/></bond><atom show_hydrogens="0"/>'
 	'</standard><molecule id="m"><atom id="a" name="C">'
@@ -40,7 +40,7 @@ def test_private_standard_binding_commits_history_and_reopens_exact_facts() -> N
 	assert before.projection.drawing_standard.line_width == 1.0
 	assert standard.line_width == 2.5
 	assert standard.font_size == 18.0
-	assert standard.font_family == "Telex"
+	assert standard.font_family == "Atkinson Hyperlegible Next"
 	assert standard.line_color == "#aabbcc"
 	assert standard.area_color == "#123456"
 	assert standard.bond_width == 7.5

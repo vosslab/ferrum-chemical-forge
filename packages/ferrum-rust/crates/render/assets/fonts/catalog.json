@@ -1,0 +1,863 @@
+{
+  "schema": "ferrum-vendored-font-catalog",
+  "default_roles": {
+    "molecule_label": "atkinson_hyperlegible_next_ttf_regular"
+  },
+  "asset_count": 92,
+  "families": [
+    {
+      "id": "atkinson_hyperlegible_next",
+      "display_name": "Atkinson Hyperlegible Next",
+      "version": "2.001",
+      "source": "https://github.com/googlefonts/atkinson-hyperlegible-next",
+      "revision": "7925f50f649b3813257faf2f4c0b381011f434f1",
+      "license": "OFL-1.1",
+      "license_file": "../licenses/atkinson_hyperlegible_next_ofl_1_1.txt",
+      "license_sha256": "aca6a428580965d2297d1b718042dd427c2a9443ece3b0d02d758e161e0c4030",
+      "asset_count": 46,
+      "assets": [
+        {
+          "id": "atkinson_hyperlegible_next_otf_bold",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-Bold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 42032,
+          "sha256": "d74e11da52d35d9bff3786c04bbfde172a36674ef876b18660f39bf6410b9aab"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_bold_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-BoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 46672,
+          "sha256": "640a604f2ce2225bafcd237ca16825ff08e2372672367c110fc9c3825a6137da"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_extra_bold",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_extra_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-ExtraBold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 39572,
+          "sha256": "9b1a0aecfd13f001ee143079dd8433fc42b640b9e8d39e55780bb094cbb2e6bc"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_extra_bold_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_extra_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-ExtraBoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 43776,
+          "sha256": "dcf6114da62e086978be78674efef90d6767d9b01b7a2d913522336debbfaf84"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_extra_light",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_extra_light.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-ExtraLight.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 37548,
+          "sha256": "9a0ea051c0cd3b04c1bd4f9f36ffb72f1d106e9afed33ac47dcb5419c54feab0"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_extra_light_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_extra_light_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-ExtraLightItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 41872,
+          "sha256": "69a5a72fb58872fb75b134cb7404630c71a95979b912b205cd76ceccfd485ee9"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-Italic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 43612,
+          "sha256": "1166726f941f3de4b163dc5e455c2988a1b47734265704766e126cac3f0590f9"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_light",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_light.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-Light.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 41152,
+          "sha256": "3a144fa97acd26a7edbea32ec8163d06f279a44b0b1e7be48e9d316721b22c93"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_light_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_light_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-LightItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 46504,
+          "sha256": "4de056c091d7ab872ddc03895de363404d8b4ec273a4f7bc100271af6d991890"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_medium",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_medium.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-Medium.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 41304,
+          "sha256": "9354e8161ac1f18cd5c45bf7266127e92561b3686a9ffd342112acafe0f7b339"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_medium_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_medium_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-MediumItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 45976,
+          "sha256": "5d982bc76ec3c9ad47af38c4512305747afb5b5ea6210e6e9f9eff366b40952b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_regular",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_regular.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-Regular.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 38232,
+          "sha256": "64fbbff682bdb28e7cd0e237b23c13a6e5d8d2aeb88d06fb0c80635fcefce0bc"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_semi_bold",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_semi_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-SemiBold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 42180,
+          "sha256": "3538b4251b554113c4f54f7f195f91661b3199049076c9d9ee6fa52adc55462b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_otf_semi_bold_italic",
+          "file": "atkinson_hyperlegible_next/otf/atkinson_hyperlegible_next_semi_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleNext-SemiBoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 46456,
+          "sha256": "64d871696803cebf767c03ffcd6ae2327eefebf66512c27ea76ecd2b8a768103"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_bold",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-Bold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 66792,
+          "sha256": "994414047df66bb4998d01c1cb1eeb4a2ddc4622d1aa56bbb8adbeca7645b041"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_bold_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-BoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 71456,
+          "sha256": "c2d3c596b54d1565ca20d383cdfb127b50b18b500b85a774fd07d4d976cd018b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_extra_bold",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_extra_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-ExtraBold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 68860,
+          "sha256": "445281bbc922d68229fe17d6b57f94d9b6ef66cf65017d0b1e14c3cfe5db4794"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_extra_bold_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_extra_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-ExtraBoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 73604,
+          "sha256": "8a3c783f25e4048b6591071b5f68135939f6faedd9cdd87394a74d0b13392cc5"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_extra_light",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_extra_light.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-ExtraLight.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 63504,
+          "sha256": "53fd931dfc1b481a32771ad4cb831c36c31b0fa7c73c971e53de986ceabd3ca2"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_extra_light_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_extra_light_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-ExtraLightItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 67344,
+          "sha256": "613ad3d7fb669faecfd1610e4826a243e858a80099f18c7bae821bc74d62897e"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-Italic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 69812,
+          "sha256": "b7f8f03ceb28ebadb2de2332b2e869a00e8dbfb5c8e00fdbb06385770c8227e7"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_light",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_light.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-Light.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 63644,
+          "sha256": "17fc9907fa40cb0401cede44b07b1983af0d6f7fa4ab2c6a30560c35b0f376a1"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_light_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_light_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-LightItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 69032,
+          "sha256": "9d4c938e506129a79570f573d2237d8ba13dd4c5fbc01b9f0a2c9b0eb5011ec0"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_medium",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_medium.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-Medium.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 67080,
+          "sha256": "dd50b08b3c560846097d23baaaf6a97ffa20dd077115d23c59df68083b9ea05e"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_medium_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_medium_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-MediumItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 70888,
+          "sha256": "e68a22dafd267c496152af38f0387beaa8db357cbd20448c86bcea6856f81672"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_regular",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_regular.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-Regular.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 65068,
+          "sha256": "88ed5c31a71584c7772963b02d04bef1eb7e3d2e9c8b9cb204339b1f82cf432c"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_semi_bold",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_semi_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-SemiBold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 66680,
+          "sha256": "8e2fff779f35ac25239656bb0f3b2bd35959a2009e3dd21a12141c3b9030362b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_semi_bold_italic",
+          "file": "atkinson_hyperlegible_next/ttf/atkinson_hyperlegible_next_semi_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleNext-SemiBoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 71200,
+          "sha256": "81255b975707232b59b1f673e36b8c83e34b64b01d90025b89420e1c6506d7a9"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_italic_variable",
+          "file": "atkinson_hyperlegible_next/variable/atkinson_hyperlegible_next_italic_variable.ttf",
+          "upstream_file": "fonts/variable/AtkinsonHyperlegibleNext-Italic[wght].ttf",
+          "container": "ttf",
+          "kind": "variable",
+          "bytes": 123916,
+          "sha256": "ce9cffed32742ad2d9238c561a93220385e5934cdc02b8eb4097a50efa957dc6"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_ttf_variable",
+          "file": "atkinson_hyperlegible_next/variable/atkinson_hyperlegible_next_variable.ttf",
+          "upstream_file": "fonts/variable/AtkinsonHyperlegibleNext[wght].ttf",
+          "container": "ttf",
+          "kind": "variable",
+          "bytes": 114552,
+          "sha256": "5a455d1cfa099b601ab70751bb9673e8fe1854dc4500c80e1a220d0d75e31745"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_bold",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Bold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 25928,
+          "sha256": "dda449f0f556a595cffd0a9ce479bb1210beba286cb4c2f5aeca6975f9c85a3b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_bold_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-BoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 28116,
+          "sha256": "d73949a5c24b5f91e64185034ea0af96902f27ce84b3b413aab30be5d0cb371e"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_extra_bold",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_extra_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-ExtraBold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 26444,
+          "sha256": "481011eca4d42aef1f9d0d48c5c0eb42a6c11d1282e31d1f69a4f525c4a0eeec"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_extra_bold_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_extra_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-ExtraBoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 28212,
+          "sha256": "ccb7dbe9501eb55f2c0dce52342d9ff1043b350999d2f95476f740025b3c499f"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_extra_light",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_extra_light.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-ExtraLight.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 25072,
+          "sha256": "92c9ab90aafa96391ea15661f47b9edfe4e4a850f110300b85fdc3c271bc91d2"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_extra_light_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_extra_light_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-ExtraLightItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 26588,
+          "sha256": "ea406693edeeb4534585ba8b3353bc287134ca62d4ab9c5936384acc07928fea"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Italic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 27504,
+          "sha256": "97f9cffe4912f3ceaa41583dca26ae4874b4847243a826c87203071d8ad601ad"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_italic_variable",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_italic_variable.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Italic[wght].woff2",
+          "container": "woff2",
+          "kind": "variable",
+          "bytes": 52692,
+          "sha256": "34491c5a87f711d314637962f69267d28c7df3ed498082c990cdfbbc02ebf3f2"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_light",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_light.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Light.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 25352,
+          "sha256": "129a2785af5bc3657b70b0fa6b3fe30c8afda836abd1f29b2b613bb2204cd909"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_light_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_light_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-LightItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 27600,
+          "sha256": "f07bf8f91308dfdb96c3aa2ac7b3dbd0974bb42c203b3f9d6219a2b1331f2dd7"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_medium",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_medium.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Medium.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 25828,
+          "sha256": "bfc725eb446c7f1fb5671e42ee95f2ca7380e81edefcbf0ae725f9287c96613b"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_medium_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_medium_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-MediumItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 28060,
+          "sha256": "7db00dccf865d7d09b85bd117d4b970c160610da87fa11a8c71034f14eefe3f0"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_regular",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_regular.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-Regular.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 24896,
+          "sha256": "378aea0f5c1d179f4e0b5382c06bfc87571b98cfcc4fd1352bc979e2e2259c54"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_semi_bold",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_semi_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-SemiBold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 25736,
+          "sha256": "4ab00275cc496a478fce7baafe89ed44af875acf57655dfd1183ff22bd23829a"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_semi_bold_italic",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_semi_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext-SemiBoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 28184,
+          "sha256": "2521a831827b75281c6619f3f3472b4ecee9b5a9fddf8aa40d475c64524641cf"
+        },
+        {
+          "id": "atkinson_hyperlegible_next_woff2_variable",
+          "file": "atkinson_hyperlegible_next/webfonts/atkinson_hyperlegible_next_variable.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleNext[wght].woff2",
+          "container": "woff2",
+          "kind": "variable",
+          "bytes": 48188,
+          "sha256": "abde1ad5cf78b9ac575ef90d991f2e9101eb0b3b6668bde9a00e2e1e27d99afd"
+        }
+      ]
+    },
+    {
+      "id": "atkinson_hyperlegible_mono",
+      "display_name": "Atkinson Hyperlegible Mono",
+      "version": "2.001",
+      "source": "https://github.com/googlefonts/atkinson-hyperlegible-next-mono",
+      "revision": "154d50362016cc3e873eb21d242cd0772384c8f9",
+      "license": "OFL-1.1",
+      "license_file": "../licenses/atkinson_hyperlegible_mono_ofl_1_1.txt",
+      "license_sha256": "1ebb31cf7393164f20d10c1d48406cddb5314feff8465531cf1e4ba37e9dd740",
+      "asset_count": 46,
+      "assets": [
+        {
+          "id": "atkinson_hyperlegible_mono_otf_bold",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-Bold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 27772,
+          "sha256": "d0894a3a708a3801973095ea053ae50b801a363427248675ff4649c3b58156c2"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_bold_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-BoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 29380,
+          "sha256": "b1ff75de8ea5df83fb3c2a47a961678519b56bfb91fa7f0ed57b2b56aeb7cf67"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_extra_bold",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_extra_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-ExtraBold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 25992,
+          "sha256": "d727d0398f2f732ffe3e63c450b2874e3a898afe53bee9b09e833256ab8fe3a2"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_extra_bold_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_extra_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-ExtraBoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 26768,
+          "sha256": "155edacfa9e48289c8347cabe45bcae34789d5eedcf6315ad7117f2144b5cf1e"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_extra_light",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_extra_light.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-ExtraLight.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 25308,
+          "sha256": "ff2ff0df2a53281e546dd24bcfa7f922c3953d56d234e785bc26bef6c73e84b6"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_extra_light_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_extra_light_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-ExtraLightItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 26392,
+          "sha256": "c9bb6a1cc4f657c6969fcd407a56073018bece123b4a37d6156a3bca3354c8a6"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-Italic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 29068,
+          "sha256": "eded5f500d41322cb3151075bbd2bbbb07e93df973bf2474bbc5ad1e5e17a977"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_light",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_light.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-Light.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 27612,
+          "sha256": "785eed7718f9cf7dc9710a0720e14cf4b41fe78b61325338c5e6a4b575484e52"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_light_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_light_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-LightItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 29632,
+          "sha256": "047648e35d41bf6b365049c09754faf949b4674375ff5d26cbf130391034d114"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_medium",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_medium.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-Medium.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 26504,
+          "sha256": "9f873fb6575e61d5e5986a5f1c75290026e26d830d15e782c31fa24bf7137130"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_medium_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_medium_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-MediumItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 28148,
+          "sha256": "e31092ea28604cfe2bdbb6407e1acb05d2dab90fc39b269b1ad8d394ed8d5f33"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_regular",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_regular.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-Regular.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 27556,
+          "sha256": "ccc9c3d7cd20a327f982cc26136681e5065d10bcfdaf80deff97d9c41dee998d"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_semi_bold",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_semi_bold.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-SemiBold.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 27856,
+          "sha256": "ef4714120e270d54208205c2bcf166378d4e784bd284a8fbe59db0867b0482fa"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_otf_semi_bold_italic",
+          "file": "atkinson_hyperlegible_mono/otf/atkinson_hyperlegible_mono_semi_bold_italic.otf",
+          "upstream_file": "fonts/otf/AtkinsonHyperlegibleMono-SemiBoldItalic.otf",
+          "container": "otf",
+          "kind": "static",
+          "bytes": 29580,
+          "sha256": "87f01ba2e08e20fc7c1e2c68738a6d70c5d77795a07ab3008d4fd834a6428521"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_bold",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-Bold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 53544,
+          "sha256": "51ad68fafd7ec68051f64983c9c23182a7084268b5cdb0a154dbd53ade079da6"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_bold_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-BoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 55616,
+          "sha256": "1286feda7848b1078576f2293201dff9428dad309c63220ed0825b771994a9a6"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_extra_bold",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_extra_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-ExtraBold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 56232,
+          "sha256": "db56053740a74500ca6d345dfb193df7a9851bac6d9232313b126f762d0e077c"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_extra_bold_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_extra_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-ExtraBoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 58284,
+          "sha256": "26601db2f31514622cd729648616389af7e657f64a3941870a482e25853c87fb"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_extra_light",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_extra_light.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-ExtraLight.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 51748,
+          "sha256": "fa0d3fb365b432b956c56185864510e44465c6f27b175f43362ad55ca5b9a45f"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_extra_light_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_extra_light_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-ExtraLightItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 53280,
+          "sha256": "03397c25615a886b19eb9ee97b508e5164183cdf2b3a3de836e606bc72da0bf3"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-Italic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 54248,
+          "sha256": "356060ab70ae62e4460dd824ec1b734af24e5c3355a8302700151d35d1382dd4"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_light",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_light.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-Light.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 52052,
+          "sha256": "d8f0c55c56e2138922b8b11ccbf42bdccad2fbb527c02c3f2c1a31f841c45c1c"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_light_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_light_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-LightItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 53644,
+          "sha256": "c71b4c23f8ee5d1e422eeb0b19f5504d9d7ccf5e6c5a254d6dfe549b35f9467b"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_medium",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_medium.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-Medium.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 53332,
+          "sha256": "43ee765e4c582789a77a032e0e8fb7ca119684ce99402df5f044f20afe84fb06"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_medium_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_medium_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-MediumItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 55384,
+          "sha256": "3e00c71968c49e40674bb306b5b9e45aeacdace14e020d3163fd96bcdb79bb68"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_regular",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_regular.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-Regular.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 52020,
+          "sha256": "2c9a7b9fabebd5c746a808d8a1ef2f52e618850caad6ec4fd9f5c48f56e1c1af"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_semi_bold",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_semi_bold.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-SemiBold.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 53600,
+          "sha256": "6dafae0d4cd636b5ed1b91bde38e46308ff3a2299665f7c32a67f35925c2177d"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_semi_bold_italic",
+          "file": "atkinson_hyperlegible_mono/ttf/atkinson_hyperlegible_mono_semi_bold_italic.ttf",
+          "upstream_file": "fonts/ttf/AtkinsonHyperlegibleMono-SemiBoldItalic.ttf",
+          "container": "ttf",
+          "kind": "static",
+          "bytes": 55636,
+          "sha256": "51f17404d04f91cdada0a41263472294b2073e495755baf00514292b50f7af08"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_italic_variable",
+          "file": "atkinson_hyperlegible_mono/variable/atkinson_hyperlegible_mono_italic_variable.ttf",
+          "upstream_file": "fonts/variable/AtkinsonHyperlegibleMono-Italic[wght].ttf",
+          "container": "ttf",
+          "kind": "variable",
+          "bytes": 56364,
+          "sha256": "e18f523877530e4abe229df6a36d394326254da488a7f5abb9b7b5ea8f780cd4"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_ttf_variable",
+          "file": "atkinson_hyperlegible_mono/variable/atkinson_hyperlegible_mono_variable.ttf",
+          "upstream_file": "fonts/variable/AtkinsonHyperlegibleMono[wght].ttf",
+          "container": "ttf",
+          "kind": "variable",
+          "bytes": 53960,
+          "sha256": "5ce8b1698d1ded7dff2178c1a3ad159470085a58ea239e8b2cb88f4fb4a6f646"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_bold",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Bold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 22656,
+          "sha256": "039936edaa268366426a7f0ca8014da637b8bf8da24859afbd85a5b313e9315e"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_bold_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-BoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 23996,
+          "sha256": "9b78044aa42ec51b2e9e036a3bc301874e9407d0ba0e35ece18c252eb6b8a763"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_extra_bold",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_extra_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-ExtraBold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 23264,
+          "sha256": "a50497ab3da495ec08bb20bbd978e0ecc4bc01d95d1b0c31dc55408b26f68c78"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_extra_bold_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_extra_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-ExtraBoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 24240,
+          "sha256": "77b44c5beba2503866e4c42a6689fc69cc2291352d700b260b149ca3e2049c2c"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_extra_light",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_extra_light.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-ExtraLight.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 21916,
+          "sha256": "7723ebb1728529cce83e5b2d11d797b520fb00cd0d008d177d5551ae19339459"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_extra_light_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_extra_light_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-ExtraLightItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 23016,
+          "sha256": "d8e89ab4c85a6fcf598e6755f8a01cf4aa6346e8a3be1e872d8763f8b497f3a7"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Italic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 23868,
+          "sha256": "298a41e6e49f031f28d5e256db8cd3ab57e66048619744189e972f56fe612883"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_italic_variable",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_italic_variable.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Italic[wght].woff2",
+          "container": "woff2",
+          "kind": "variable",
+          "bytes": 27552,
+          "sha256": "6cc3d58e20a4126f837f96ad2ff750628cae6112b8b915794b5c82712b3c1550"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_light",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_light.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Light.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 22372,
+          "sha256": "cc7c303842e6b0ead68e3729509a6e86987d85cc96d5846e554234f6dca737a3"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_light_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_light_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-LightItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 23624,
+          "sha256": "c23377a0385108598a32249afb478bcc0261053043af8d3cc0260e1cdda8134d"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_medium",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_medium.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Medium.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 22712,
+          "sha256": "a9572b3a95d6e20bfdf08c4e351069416c0f07880435ef0822819e4f0410b459"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_medium_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_medium_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-MediumItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 24084,
+          "sha256": "0c112bce5e6a7900ed95e6086bb3c4288fcf03f6394b7d5037c5acd9d2fc38fc"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_regular",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_regular.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-Regular.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 22328,
+          "sha256": "3b916de5c5247c5fa9736aad6c2673f1b0b0381ab306dcddfcee4a184a842a51"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_semi_bold",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_semi_bold.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-SemiBold.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 22624,
+          "sha256": "3dc357c4eebc3e46c865be3eb0a443f84d30ef9a2ff968122196e0eb2fbbbee6"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_semi_bold_italic",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_semi_bold_italic.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono-SemiBoldItalic.woff2",
+          "container": "woff2",
+          "kind": "static",
+          "bytes": 24008,
+          "sha256": "5fd166312ac3ad85a8095571e25eaa46ac6be715124c32899daf51c9be14a297"
+        },
+        {
+          "id": "atkinson_hyperlegible_mono_woff2_variable",
+          "file": "atkinson_hyperlegible_mono/webfonts/atkinson_hyperlegible_mono_variable.woff2",
+          "upstream_file": "fonts/webfonts/AtkinsonHyperlegibleMono[wght].woff2",
+          "container": "woff2",
+          "kind": "variable",
+          "bytes": 25600,
+          "sha256": "4cf41c5cacdb2e98311929f3a482e95b2299ca34e6f389e8968a9075e355d58a"
+        }
+      ]
+    }
+  ]
+}

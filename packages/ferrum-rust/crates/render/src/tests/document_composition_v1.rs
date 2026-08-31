@@ -132,7 +132,7 @@ fn molecule(id: DocumentObjectIdV1) -> MoleculeProjectionV1 {
 fn standard_plus(id: DocumentObjectIdV1) -> ferrum_document_projection::PlusProjectionV1 {
     let target = presentation_target(id, PresentationRecordKindV1::Plus);
     let font = ferrum_document_projection::PresentationFontV1::try_new(
-        ferrum_document_projection::PresentationFontFaceV1::TelexRegularV1,
+        ferrum_document_projection::PresentationFontFaceV1::MoleculeLabel,
         PresentationFactProvenanceV1::Builtin,
         PositiveFiniteV1::new(14.0).expect("built-in font size"),
         PresentationFactProvenanceV1::Builtin,

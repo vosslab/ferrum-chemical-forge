@@ -3,8 +3,8 @@
 This module never recreates a chemical drawing. Its composite and full-label
 layers are painted by the existing ``FerrumRenderProjection.scene``. A core
 glyph path is a deliberately isolated test-only source map: it is derived from
-the same issued Telex run as its actual full-label item, then rendered through
-that same scene only while the core mask is captured.
+the same issued Atkinson Hyperlegible Next run as its actual full-label item,
+then rendered through that same scene only while the core mask is captured.
 """
 
 # Standard Library
@@ -99,12 +99,21 @@ def _render(scene: object, profile: CaptureProfile) -> object:
 	# target rectangle so a 2x profile does not silently crop the right/bottom.
 	target_width = profile.pixel_width / profile.device_pixel_ratio
 	target_height = profile.pixel_height / profile.device_pixel_ratio
+	scale = min(target_width / source.width(), target_height / source.height())
+	paint_width = source.width() * scale
+	paint_height = source.height() * scale
+	target = QRectF(
+		(target_width - paint_width) / 2.0,
+		(target_height - paint_height) / 2.0,
+		paint_width,
+		paint_height,
+	)
 	painter = QPainter(image)
 	try:
 		painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 		scene.render(
 			painter,
-			QRectF(0.0, 0.0, target_width, target_height),
+			target,
 			source,
 			Qt.AspectRatioMode.IgnoreAspectRatio,
 		)

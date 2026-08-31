@@ -8,7 +8,7 @@ use crate::compact_group::{GROUP_LABEL_SIZE_PT_V1, compact_group_marker_back_dis
 use crate::glyph_metrics::GlyphMetrics;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, PositiveFinite, RenderPaintV3, RenderPoint,
-    VerifiedTelexGlyphMetrics,
+    VerifiedMoleculeLabelGlyphMetrics,
 };
 
 /// Renderer facts resolved from one projection/profile pair.
@@ -44,7 +44,7 @@ pub(crate) fn resolve_attached_compact_group_pose(
     facts: &AttachedCompactGroupAnchorRenderFacts,
     catalog_key: CompactGroupCatalogKeyV1,
     raw_release: RenderPoint,
-    metrics: &VerifiedTelexGlyphMetrics,
+    metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<ResolvedAttachedCompactGroupPoseV1, AttachedCompactGroupPoseErrorV2> {
     let delta_x = raw_release.x() - facts.anchor.x();
     let delta_y = raw_release.y() - facts.anchor.y();
@@ -166,8 +166,10 @@ pub enum AttachedCompactGroupPoseErrorV2 {
     /// The projection/profile could not issue required depiction facts.
     #[error("attached compact-group depiction facts could not be resolved: {detail}")]
     Depiction { detail: String },
-    /// The verified Ferrum Telex resource could not be opened.
-    #[error("attached compact-group Telex resource could not be resolved: {detail}")]
+    /// The verified Ferrum Atkinson Hyperlegible Next resource could not be opened.
+    #[error(
+        "attached compact-group Atkinson Hyperlegible Next resource could not be resolved: {detail}"
+    )]
     FontResource { detail: String },
     /// The raw release cannot identify a finite, nonzero placement ray.
     #[error("attached compact-group release requires a finite nonzero direction")]
@@ -215,11 +217,13 @@ fn minimum_distinct_scene_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FerrumFontEnvironmentV1, FontFace};
+    use crate::{FerrumFontEnvironment, FontFace};
 
-    fn metrics() -> VerifiedTelexGlyphMetrics {
-        let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-        VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
+    fn metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+        let environment =
+            FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+        VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+            .expect("verified Atkinson Hyperlegible Next opens")
     }
 
     fn facts(anchor: RenderPoint) -> AttachedCompactGroupAnchorRenderFacts {
@@ -227,7 +231,7 @@ mod tests {
             anchor,
             AtomLabelFacts::new("Cl", None, 0, 0).expect("valid atom label"),
             AtomLabelFontProfile::new(
-                FontFace::telex_regular(),
+                FontFace::molecule_label(),
                 PositiveFinite::new(12.0).expect("positive font size"),
                 RenderPaintV3::document_foreground(),
             ),

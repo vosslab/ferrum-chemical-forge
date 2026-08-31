@@ -9,14 +9,13 @@ import PySide6.QtGui
 import PySide6.QtWidgets
 
 # local repo modules
-import ferrum_qt.canvas.ferrum_telex
+import ferrum_qt.canvas.molecule_label_font
 import ferrum_qt.canvas.ferrum_presentation_target
-import ferrum_qt.canvas.telex_glyph_outline
+import ferrum_qt.canvas.molecule_label_glyph_outline
 from ferrum_qt.canvas.display_palette_refreshable import DisplayPaletteRefreshable
 import ferrum_qt.themes.document_display_palette
 
 
-_FACE = "ferrum-telex-regular-v1"
 _PADDING = 1.0
 
 
@@ -30,7 +29,7 @@ class FerrumPlusItem(
 	"""Selectable plus using only verified glyph IDs, origins, bounds, and paints."""
 
 	#============================================
-	def __init__(self, plus: object, telex_resource: object,
+	def __init__(self, plus: object, font_resource: object,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1,
 			parent: PySide6.QtWidgets.QGraphicsItem | None = None) -> None:
 		"""Authenticate one extension-owned plus render and cache its complete paths."""
@@ -38,35 +37,35 @@ class FerrumPlusItem(
 		extension = _ferrum_chem()
 		if type(plus) is not extension.DocumentPlusRenderV1:
 			raise FerrumPlusItemError("plus render must be engine.DocumentPlusRenderV1")
-		telex = ferrum_qt.canvas.ferrum_telex.from_verified_resource(telex_resource)
-		self._initialize(plus, extension, telex, palette)
+		molecule_label_font = ferrum_qt.canvas.molecule_label_font.from_verified_resource(font_resource)
+		self._initialize(plus, extension, molecule_label_font, palette)
 
 	#============================================
 	@classmethod
 	def _from_observation(cls, plus: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> "FerrumPlusItem":
-		"""Reuse a controller-authenticated Telex face for one exact runtime DTO."""
+		"""Reuse a controller-authenticated Atkinson Hyperlegible Next face for one exact runtime DTO."""
 		item = cls.__new__(cls)
 		PySide6.QtWidgets.QGraphicsObject.__init__(item)
 		extension = _ferrum_chem()
 		if type(plus) is not extension.DocumentPlusRenderV1:
 			raise FerrumPlusItemError("plus render must be engine.DocumentPlusRenderV1")
-		if not isinstance(telex, ferrum_qt.canvas.ferrum_telex.FerrumTelex):
-			raise FerrumPlusItemError("plus render requires verified Telex bytes")
-		item._initialize(plus, extension, telex, palette)
+		if not isinstance(molecule_label_font, ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont):
+			raise FerrumPlusItemError("plus render requires verified Atkinson Hyperlegible Next bytes")
+		item._initialize(plus, extension, molecule_label_font, palette)
 		return item
 
 	#============================================
 	def _initialize(self, plus: object, extension: object,
-			telex: ferrum_qt.canvas.ferrum_telex.FerrumTelex,
+			molecule_label_font: ferrum_qt.canvas.molecule_label_font.MoleculeLabelFont,
 			palette: ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1) -> None:
 		"""Copy a verified plus into immutable Qt-local paths and paint values."""
 		self._target = _target(plus.target, extension)
 		anchor = _point(plus.anchor, extension, "plus anchor")
 		operation = plus.operation
-		if type(operation) is not extension.TextOpV1 or operation.face != _FACE:
-			raise FerrumPlusItemError("plus render requires the verified Telex text operation")
+		if type(operation) is not extension.TextOpV1 or operation.face != molecule_label_font.resource_id:
+			raise FerrumPlusItemError("plus render requires the verified molecule-label text operation")
 		if operation.z != 20 or operation.paint is None:
 			raise FerrumPlusItemError("plus render text operation has invalid paint order")
 		if type(operation.runs) is not tuple or len(operation.runs) != 1:
@@ -78,12 +77,12 @@ class FerrumPlusItem(
 			raise FerrumPlusItemError("plus render requires one frozen glyph")
 		if type(run.glyphs[0]) is not extension.GlyphPlacementV1:
 			raise FerrumPlusItemError("plus glyph has the wrong DTO type")
-		font = telex.raw_font(_positive(operation.size, "plus text size"))
+		font = molecule_label_font.raw_font(_positive(operation.size, "plus text size"))
 		try:
-			self._glyph_path = ferrum_qt.canvas.telex_glyph_outline.path_from_runs(
+			self._glyph_path = ferrum_qt.canvas.molecule_label_glyph_outline.path_from_runs(
 				operation.runs, _point(operation.origin, extension, "plus text origin"), font,
 			)
-		except ferrum_qt.canvas.telex_glyph_outline.TelexGlyphOutlineError as exc:
+		except ferrum_qt.canvas.molecule_label_glyph_outline.MoleculeLabelGlyphOutlineError as exc:
 			raise FerrumPlusItemError(str(exc)) from exc
 		self._foreground_paint = operation.paint
 		self._background_paint = plus.background

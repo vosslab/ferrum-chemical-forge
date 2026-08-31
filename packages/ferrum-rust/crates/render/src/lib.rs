@@ -54,10 +54,12 @@ mod font_environment;
 #[doc(hidden)]
 pub mod glyph_bond_raster;
 mod glyph_metrics;
+mod glyph_outline_support;
 mod glyph_placement;
 mod haworth;
 mod haworth_front_bond;
 mod model;
+mod molecule_label_font_verification;
 mod pdf_backend;
 mod png_backend;
 mod presentation_path_v1;
@@ -68,7 +70,7 @@ mod scene_path_v3;
 mod shape_ops;
 mod standalone_text;
 mod svg_backend;
-mod verified_telex_glyph_metrics;
+mod verified_molecule_label_glyph_metrics;
 mod document {
     pub(crate) mod depiction_profile;
     pub(crate) mod depiction_profile_resolution;
@@ -76,7 +78,7 @@ mod document {
     pub(crate) mod plan;
 }
 mod font {
-    pub(crate) mod telex;
+    pub(crate) mod molecule_label;
 }
 mod presentation {
     pub(crate) mod path;
@@ -171,12 +173,12 @@ pub use document_vector_v1::{
 pub use double_bond_carrier_mark::{DoubleBondCarrierMarkDirectionV1, DoubleBondCarrierMarkOp};
 /// Rendering errors and explicit target diagnostics.
 pub use error::{RenderError, RenderIssue, RenderIssueKind};
-pub use font::telex::{VerifiedTelexRegularV1, verified_telex_regular_v1};
-/// Verified immutable Telex font asset environment.
-pub use font_environment::{FerrumFontEnvironmentV1, FerrumFontId, FontAssetDescriptor};
+pub use font::molecule_label::{VerifiedMoleculeLabelFont, verified_molecule_label_font};
+/// Verified immutable font resources selected for renderer roles.
+pub use font_environment::{FerrumFontEnvironment, FontAssetDescriptor};
 /// Exact finite visible-ink bounds shared by compact-group render consumers.
 pub use glyph_metrics::GlyphBounds;
-/// Closed Telex glyph identifiers, positions, and script roles.
+/// Closed Atkinson Hyperlegible Next glyph identifiers, positions, and script roles.
 pub use glyph_placement::{GlyphPlacement, TextScript};
 /// Haworth fragment lowering into the closed V1 render-plan grammar.
 pub use haworth::{HaworthRenderRequest, lower_haworth_fragment};
@@ -234,7 +236,7 @@ pub use render_target::RenderTarget;
 /// Neutral V3 path facts shared by molecule render-plan consumers.
 pub use scene_path_v3::{PathOpV3, ScenePathCommandV3, ScenePathStrokeV3};
 pub use shape_ops::EllipseOp;
-/// Exact fixed-content text layout issued by the verified Telex renderer.
+/// Exact fixed-content text layout issued by the verified Atkinson Hyperlegible Next renderer.
 pub use standalone_text::{
     CenteredTextLayout, PresentationGlyphRun, PresentationTextLayout, PresentationTextOp,
     PresentationTextSourceRun,
@@ -245,9 +247,9 @@ pub use svg_backend::{
     render_direct_glycosidic_haworth_to_svg_v1, render_document_plan_to_svg_v1,
     render_document_plan_to_svg_with_budget_v1, render_plan_to_svg_v1,
 };
-/// Pure-Rust TrueType design metrics using the verified Telex face.
-pub use verified_telex_glyph_metrics::{
-    FontBaselineMetrics, GlyphRunMetrics, VerifiedTelexGlyphMetrics,
+/// Pure-Rust TrueType design metrics using the verified Atkinson Hyperlegible Next face.
+pub use verified_molecule_label_glyph_metrics::{
+    FontBaselineMetrics, GlyphRunMetrics, VerifiedMoleculeLabelGlyphMetrics,
 };
 
 /// Maximum completed SVG bytes returned by the first local render profile.

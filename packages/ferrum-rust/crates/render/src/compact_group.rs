@@ -8,7 +8,7 @@ use crate::glyph_metrics::GlyphBounds;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
     CompactGroupRenderBatchV1, CompactGroupRenderOpV1, LineOp, PositiveFinite, RenderBatchV4,
-    RenderError, RenderPaintV3, RenderPoint, RenderTarget, VerifiedTelexGlyphMetrics,
+    RenderError, RenderPaintV3, RenderPoint, RenderTarget, VerifiedMoleculeLabelGlyphMetrics,
 };
 
 pub(crate) const GROUP_LABEL_SIZE_PT_V1: f64 = 14.0;
@@ -137,7 +137,7 @@ impl CompactGroupRenderPrimitiveV1 {
     pub fn from_projection(
         group: &CompactGroupProjectionV1,
         owner_molecule_object_id: &DocumentObjectIdV1,
-        metrics: &VerifiedTelexGlyphMetrics,
+        metrics: &VerifiedMoleculeLabelGlyphMetrics,
         paint: RenderPaintV3,
     ) -> Result<Self, RenderError> {
         let identifier = group.id().as_str().to_owned();
@@ -367,7 +367,7 @@ mod tests {
     use crate::{
         AtomBondRenderRequest, AtomLabelFacts, AtomLabelFontProfile, AtomRenderTarget,
         AttachedCompactGroupPlacementDispositionV1, BondInkClearance, BondRenderTarget, BondStyle,
-        FerrumFontEnvironmentV1, FontFace, RenderOp, RenderProvenance, RenderRevision, Rgb24,
+        FerrumFontEnvironment, FontFace, RenderOp, RenderProvenance, RenderRevision, Rgb24,
         TargetVisibility,
     };
 
@@ -409,9 +409,11 @@ mod tests {
         )
     }
 
-    fn metrics() -> VerifiedTelexGlyphMetrics {
-        let environment = FerrumFontEnvironmentV1::load().expect("bundled Telex is verified");
-        VerifiedTelexGlyphMetrics::new(&environment).expect("verified Telex opens")
+    fn metrics() -> VerifiedMoleculeLabelGlyphMetrics {
+        let environment =
+            FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+        VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+            .expect("verified Atkinson Hyperlegible Next opens")
     }
 
     fn compact_group_projection(orientation_degrees: f64) -> CompactGroupProjectionV1 {
@@ -431,7 +433,7 @@ mod tests {
         AttachedCompactGroupAnchorRenderFacts::new(
             anchor,
             AtomLabelFacts::new("C", None, 0, 0).expect("atom label facts"),
-            AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
+            AtomLabelFontProfile::new(FontFace::molecule_label(), positive(10.0), paint()),
             paint(),
             NormalBondEndpointClipPolicy::from_test_facts(
                 positive(1.0),
@@ -496,7 +498,7 @@ mod tests {
             RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x22; 32]),
             vec![atom],
             vec![exterior_bond],
-            AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
+            AtomLabelFontProfile::new(FontFace::molecule_label(), positive(10.0), paint()),
             positive(1.0),
             positive(6.0),
             BondInkClearance::new(positive(1.25)),
@@ -568,7 +570,7 @@ mod tests {
                 RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x22; 32]),
                 vec![atom],
                 vec![exterior_bond],
-                AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
+                AtomLabelFontProfile::new(FontFace::molecule_label(), positive(10.0), paint()),
                 positive(1.0),
                 positive(6.0),
                 BondInkClearance::new(positive(1.25)),
@@ -671,7 +673,7 @@ mod tests {
                 RenderProvenance::new(RenderRevision::new(1).expect("revision"), [0x22; 32]),
                 vec![atom.clone()],
                 vec![bond],
-                AtomLabelFontProfile::new(FontFace::telex_regular(), positive(10.0), paint()),
+                AtomLabelFontProfile::new(FontFace::molecule_label(), positive(10.0), paint()),
                 positive(1.0),
                 positive(6.0),
                 BondInkClearance::new(positive(1.25)),

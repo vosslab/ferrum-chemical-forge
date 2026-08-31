@@ -44,10 +44,15 @@ product dependency. The current parity ledger is
   typed `RenderIssue`, never both. Atom, compact-group, and bond batches have
   distinct typed content. Batch and issue paint orders are globally ordered
   renderer facts, so consumers never invent an ordering rule.
-- The renderer's [verified_telex_glyph_metrics.rs](../packages/ferrum-rust/crates/render/src/verified_telex_glyph_metrics.rs)
-  validates the bundled Telex face and issues exact glyph runs, visible-ink
-  bounds, and the structural core-element run. Qt replays those issued glyph
-  facts; it does not substitute a system font or remeasure labels.
+- The unversioned renderer `FerrumFontEnvironment` owns the one
+  `molecule_label()` selection and its exact byte/digest verification. The
+  molecule-label metric adapter derives tight ink bounds from the actual
+  TrueType outline curves and issues exact glyph runs plus the structural
+  core-element run. Qt receives the selected Atkinson Hyperlegible Next Regular
+  resource from Rust and replays those issued glyph facts without selecting a
+  system face or remeasuring labels. The `assets/fonts/catalog.json` catalog
+  separately records the 92 official Next and Mono font binaries and their
+  provenance.
 - The renderer's private `packages/ferrum-rust/crates/render/src/atom_bond/final_ink_collision.rs`
   admits a bond only after its complete lowered ink is disjoint from every
   non-endpoint atom-label envelope. It works from closed bond operations,
@@ -100,7 +105,7 @@ The normal molecule display route is:
 ```text
 Rust document session
   -> immutable document projection
-  -> verified-Telex renderer and final-ink bond admission
+  -> Rust-selected molecule-label font and final-ink bond admission
   -> RenderObservationV2 containing V4 molecule plans
   -> frozen ferrum_chem PyO3 DTOs
   -> Qt exact-schema validation
@@ -165,7 +170,7 @@ shortcut, availability, and action identity.
   Its Rust consumer, `packages/ferrum-rust/crates/document/tests/atom_label_bond_alignment_corpus.rs`,
   proves the semantic document-to-V4 boundary.
 - `tests/e2e/e2e_atom_label_bond_alignment.py` consumes the same rows through
-  the installed PyO3 DTOs and production Qt projection. It checks exact Telex
+  the installed PyO3 DTOs and production Qt projection. It checks exact selected-font
   replay, ordered operations, strictly positive issued clearance around full
   label ink, and the target-specific third-label refusal without duplicating a
   fixture table in Python. It is an explicit artifact-dependent E2E lane, not a
@@ -174,9 +179,9 @@ shortcut, availability, and action identity.
   library. It validates closed raster-layer manifests and writes diagnostic
   reports without consuming Rust-issued geometry. Rust's test-only raster sink
   produces native layers; `tests/e2e/e2e_measure_stack_qt.py` captures the Qt
-  consumer. The two developer gates preserve expected-red evidence while Rust
-  geometry is still being corrected; they are not product APIs or a normal
-  pytest lane.
+  consumer. The native and Qt strict gates accept the fixed corpus with zero
+  violations, while the optional Qt baseline records the accepted receipt.
+  These developer gates are not product APIs or a normal pytest lane.
 - `packages/ferrum-chem-qt.app/tests/test_ferrum_render_projection.py`
   retains one small behavioral projection check. Rust crate tests own renderer
   and document invariants; `tests/e2e/e2e_attached_cyclohexane_renderer_admission.py`

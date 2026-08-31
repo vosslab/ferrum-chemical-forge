@@ -65,7 +65,9 @@ See [LOCAL_BUILD.md](LOCAL_BUILD.md) for build ownership, leases, and cleanup.
 ## Choose the validation lane
 
 Run the narrowest lane that proves the edited contract while iterating, then run
-the applicable front door before handoff.
+the applicable front door before handoff. The lanes below have different
+durability and acceptance boundaries; a green result in one does not imply the
+others.
 
 | Change or question | Command | What it proves |
 | --- | --- | --- |
@@ -83,10 +85,38 @@ Use an explicit Cargo target only when qualifying a platform or changing
 target-sensitive native code. Rust and boundary rules are in
 [RUST_STYLE.md](RUST_STYLE.md) and [RUST_PYO3_STYLE.md](RUST_PYO3_STYLE.md).
 
-Keep permanent pytest deterministic, offline, fast, and behavioral. A workflow
-with real subprocesses, multiple boundaries, visual review, or timing belongs
-in the explicit E2E or one-time evidence lane described by
-[PYTEST_STYLE.md](PYTEST_STYLE.md) and [FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md).
+### Permanent automated tests
+
+`tests/test_*.py` is the fast, deterministic pytest lane. It covers durable
+unit, integration, and repository-hygiene contracts; it has no network,
+sleeps, real subprocess round trips, or file I/O outside `tmp_path`. Run it
+with the sourced Python environment after a build.
+
+`tests/e2e/` is a separate permanent E2E lane, excluded from `pytest tests/`.
+Only registered scripts in [tests/e2e/run_all.sh](../tests/e2e/run_all.sh) are
+part of the normal local product suite. They may cross the staged CLI, PyO3,
+and offscreen Qt boundaries when they protect a supported, recurring,
+deterministic, offline user workflow. Run the focused E2E runner while changing
+that workflow, then `./all_test.sh` for its aggregate integration lane.
+
+Do not add a permanent pytest or E2E merely to retain an implementation probe.
+Use [PYTEST_STYLE.md](PYTEST_STYLE.md) and
+[FERRUM_E2E_TESTS.md](FERRUM_E2E_TESTS.md) to decide whether a check has a
+stable behavioral contract and the appropriate execution model.
+
+### Developer and acceptance evidence
+
+Use explicit developer evidence for checks that are useful but unsuitable as
+permanent tests: a clean staged build, `./check_rust.sh`, the isolated wheel
+gate, a focused unregistered E2E, measurement corpus runs, and real-window
+inspection. These checks can use real processes, native dependencies, a display,
+or broader workloads; record their command, result, and scope with the change.
+
+The screenshot harness is documentation evidence, not a visual-regression
+suite. A successful capture proves its staged scene conditions and full-window
+framing, but it does not prove native accessibility, focus behavior, human
+visual acceptance, or release readiness. Keep manual desktop review and any
+machine-specific measurement outside permanent pytest and E2E gates.
 
 ## Change bounded CDXML bond presentation
 
@@ -129,6 +159,31 @@ empty document. It proves packaging independently of the staged local runtime.
 The optional `tests/e2e/reference/` environment contains Python RDKit only for
 one-time maintainer measurements. Keep it out of product and routine developer
 dependencies.
+
+## Prepare a release
+
+Release preparation starts from a stable committed `HEAD`; local builds and
+tests establish development evidence but do not publish a release. After the
+applicable build, Rust, pytest, E2E, wheel, documentation, and human acceptance
+gates have been recorded separately, preview the source snapshot with reviewed
+release notes:
+
+```bash
+source source_me.sh && python3 -B devel/make_release.py --dry-run --notes-file path/to/release_notes.md
+```
+
+The default and `--dry-run` modes write nothing. With `--notes-file`, the
+script checks the version/tag and committed license contract, warns when tracked
+changes would be absent from the `HEAD` snapshot, and prints the planned archive
+and release-document work. Omitting `--notes-file` prints a release-notes draft
+prompt instead of validating or building a snapshot.
+
+Use `--write` only when the release notes and committed snapshot are ready. It
+creates and verifies source archives below `output_release/` and prepends
+`RELEASE_HISTORY.md` and `NEWS.md`; it never creates a tag or calls GitHub.
+The printed tag and `gh release create` commands remain human-owned publishing
+steps. See [RELEASE_HISTORY.md](RELEASE_HISTORY.md) and
+[NEWS.md](NEWS.md) for the published-record formats.
 
 ## Change the native render contract
 

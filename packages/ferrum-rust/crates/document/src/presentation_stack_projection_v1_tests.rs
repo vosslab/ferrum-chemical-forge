@@ -285,7 +285,7 @@ fn plus_projects_anchor_and_resolved_appearance_without_font_layout() {
         PresentationRecordKindV1::Plus,
     );
     assert_eq!((plus.anchor().x(), plus.anchor().y()), (72.0 / 2.54, 2.0));
-    assert_eq!(plus.font().font_face().id(), "telex_regular_v1");
+    assert_eq!(plus.font().font_face().id(), "molecule_label");
     assert_eq!(
         plus.font().font_face_provenance(),
         PresentationFactProvenanceV1::Builtin
