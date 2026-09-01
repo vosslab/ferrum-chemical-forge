@@ -365,6 +365,112 @@
       "synthetic_kind": "connected"
     },
     {
+      "fixture_id": "phosphorus_decorated_leftward_double",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"p\" name=\"P\" isotope=\"31\" charge=\"1\" valency=\"5\" explicit_hydrogens=\"4\" hydrogens=\"on\"><point x=\"40\" y=\"0\"/></atom><atom id=\"i\" name=\"I\"><point x=\"0\" y=\"0\"/></atom><bond id=\"double\" start=\"p\" end=\"i\" type=\"n2\"/></molecule></cdml>",
+      "capture_profile_id": "compact_horizontal",
+      "graph": {
+        "atoms": [
+          {
+            "atom_id": "p",
+            "element": "P"
+          },
+          {
+            "atom_id": "i",
+            "element": "I"
+          }
+        ],
+        "bonds": [
+          {
+            "bond_id": "double",
+            "start_atom_id": "p",
+            "end_atom_id": "i",
+            "style": "double"
+          }
+        ]
+      },
+      "expected_relations": [
+        {
+          "relation": "scene",
+          "subject_id": "scene",
+          "object_id": "scene",
+          "expectation": "normal_scale_connected"
+        },
+        {
+          "relation": "bond_endpoint",
+          "subject_id": "double",
+          "object_id": "p",
+          "expectation": "small_positive_bounded_gap"
+        },
+        {
+          "relation": "bond_endpoint",
+          "subject_id": "double",
+          "object_id": "i",
+          "expectation": "centerline_aligned"
+        },
+        {
+          "relation": "bond_style",
+          "subject_id": "double",
+          "object_id": "double",
+          "expectation": "style_topology_valid"
+        }
+      ],
+      "negative_cases": [],
+      "synthetic_kind": "connected"
+    },
+    {
+      "fixture_id": "carbon_decorated_rightward_triple",
+      "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"carbon\" name=\"C\" isotope=\"13\" charge=\"1\" valency=\"4\" explicit_hydrogens=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"triple\" start=\"carbon\" end=\"o\" type=\"n3\"/></molecule></cdml>",
+      "capture_profile_id": "compact_horizontal",
+      "graph": {
+        "atoms": [
+          {
+            "atom_id": "carbon",
+            "element": "C"
+          },
+          {
+            "atom_id": "o",
+            "element": "O"
+          }
+        ],
+        "bonds": [
+          {
+            "bond_id": "triple",
+            "start_atom_id": "carbon",
+            "end_atom_id": "o",
+            "style": "triple"
+          }
+        ]
+      },
+      "expected_relations": [
+        {
+          "relation": "scene",
+          "subject_id": "scene",
+          "object_id": "scene",
+          "expectation": "normal_scale_connected"
+        },
+        {
+          "relation": "bond_endpoint",
+          "subject_id": "triple",
+          "object_id": "carbon",
+          "expectation": "small_positive_bounded_gap"
+        },
+        {
+          "relation": "bond_endpoint",
+          "subject_id": "triple",
+          "object_id": "o",
+          "expectation": "centerline_aligned"
+        },
+        {
+          "relation": "bond_style",
+          "subject_id": "triple",
+          "object_id": "triple",
+          "expectation": "style_topology_valid"
+        }
+      ],
+      "negative_cases": [],
+      "synthetic_kind": "connected"
+    },
+    {
       "fixture_id": "opposed_solid_and_hashed_wedges",
       "fixture_cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"left\" name=\"Cl\"><point x=\"-35\" y=\"18\"/></atom><atom id=\"right\" name=\"Br\"><point x=\"35\" y=\"18\"/></atom><bond id=\"solid\" start=\"center\" end=\"left\" type=\"w1\"/><bond id=\"hashed\" start=\"center\" end=\"right\" type=\"h1\"/></molecule></cdml>",
       "capture_profile_id": "opposed_wedges",

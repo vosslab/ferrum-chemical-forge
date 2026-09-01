@@ -23,6 +23,23 @@ const WAVE_LENGTH_FACTOR: f64 = 12.0;
 const WAVE_AMPLITUDE_FACTOR: f64 = 2.0;
 const MAX_PRIMITIVES: usize = 4096;
 
+/// Return the conservative full transverse half-width of a lowered wavy bond.
+///
+/// The sine centerline reaches `2w` and its round stroke adds another `0.5w`.
+/// Atom-label placement uses this before the final clipped axis length is
+/// known; shorter waves can only occupy less transverse space.
+pub(crate) fn wavy_transverse_half_width(
+    stroke_width: PositiveFinite,
+) -> Result<f64, RenderIssueKind> {
+    let half_width = (WAVE_AMPLITUDE_FACTOR + 0.5) * stroke_width.get();
+    if !half_width.is_finite() {
+        return Err(unrenderable(
+            "wavy bond transverse extent is not representable",
+        ));
+    }
+    Ok(half_width)
+}
+
 /// Expand an already clipped axis into its bold presentation.
 pub(crate) fn bold(axis: LineOp) -> Result<Vec<RenderOp>, RenderIssueKind> {
     let doubled_width = PositiveFinite::new(axis.width().get() * 2.0)

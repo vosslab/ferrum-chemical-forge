@@ -42,6 +42,22 @@
       "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true}
     },
     {
+      "name": "phosphorus_decorated_leftward_double",
+      "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"p\" name=\"P\" isotope=\"31\" charge=\"1\" valency=\"5\" explicit_hydrogens=\"4\" hydrogens=\"on\"><point x=\"40\" y=\"0\"/></atom><atom id=\"i\" name=\"I\"><point x=\"0\" y=\"0\"/></atom><bond id=\"double\" start=\"p\" end=\"i\" type=\"n2\"/></molecule></cdml>",
+      "atoms": [{"source_id": "p", "core_run": "P"}, {"source_id": "i", "core_run": "I"}],
+      "bonds": [{"source_id": "double", "style": "n2", "display_layer": "ordinary", "operation_shape": "parallel_double_lines"}],
+      "expected_outcome": "render",
+      "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "core_run": {"text": "P", "index": 1}, "leading_superscript": "31"}
+    },
+    {
+      "name": "carbon_decorated_rightward_triple",
+      "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"carbon\" name=\"C\" isotope=\"13\" charge=\"1\" valency=\"4\" explicit_hydrogens=\"3\" hydrogens=\"on\"><point x=\"0\" y=\"0\"/></atom><atom id=\"o\" name=\"O\"><point x=\"40\" y=\"0\"/></atom><bond id=\"triple\" start=\"carbon\" end=\"o\" type=\"n3\"/></molecule></cdml>",
+      "atoms": [{"source_id": "carbon", "core_run": "C"}, {"source_id": "o", "core_run": "O"}],
+      "bonds": [{"source_id": "triple", "style": "n3", "display_layer": "ordinary", "operation_shape": "parallel_triple_lines"}],
+      "expected_outcome": "render",
+      "checks": {"finite_geometry": true, "ordered_operations": true, "positive_bond_content": true, "full_ink_clearance": true, "core_run": {"text": "C", "index": 1}, "leading_superscript": "13"}
+    },
+    {
       "name": "opposed_solid_and_hashed_wedges",
       "cdml": "<cdml xmlns=\"urn:ferrum:cdml\"><molecule id=\"m\"><atom id=\"center\" name=\"C\"><point x=\"0\" y=\"0\"/></atom><atom id=\"left\" name=\"Cl\"><point x=\"-35\" y=\"18\"/></atom><atom id=\"right\" name=\"Br\"><point x=\"35\" y=\"18\"/></atom><bond id=\"solid\" start=\"center\" end=\"left\" type=\"w1\"/><bond id=\"hashed\" start=\"center\" end=\"right\" type=\"h1\"/></molecule></cdml>",
       "atoms": [{"source_id": "center", "core_run": "C"}, {"source_id": "left", "core_run": "Cl"}, {"source_id": "right", "core_run": "Br"}],

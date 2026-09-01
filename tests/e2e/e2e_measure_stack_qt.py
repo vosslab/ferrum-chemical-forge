@@ -67,7 +67,7 @@ _V2_FIXTURE_SCHEMA = "ferrum-measure-stack-fixtures-v2"
 # own current output.
 _FROZEN_BASELINE_FAILURE_CATEGORIES: dict[str, int] = {}
 _FROZEN_EXPECTED_TYPED_REFUSALS: dict[str, str] = {}
-_FROZEN_V2_CAPTURE_FIXTURE_COUNT = 12
+_FROZEN_V2_CAPTURE_FIXTURE_COUNT = 14
 _STYLE_BY_V2_STYLE = {
 	"normal": "normal",
 	"double": "double",

@@ -10,7 +10,7 @@ use ferrum_geometry::{Point2, Vector2};
 use crate::bond_presentation_geometry;
 use crate::bond_style::BondStyle;
 use crate::directed_stereo_bond::directed_stereo_operations;
-use crate::glyph_metrics::GlyphBounds;
+use crate::glyph_metrics::{AtomLabelAttachmentCorridor, GlyphBounds};
 use crate::haworth_front_bond::{HaworthFrontBondInput, build_haworth_front_batch};
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
@@ -142,6 +142,14 @@ pub(super) struct BondLineAppearance {
     pub(super) wedge_width: PositiveFinite,
     pub(super) paint: RenderPaintV3,
 }
+
+#[derive(Clone)]
+pub(super) struct ResolvedBondLineAppearance {
+    pub(super) stroke_width: PositiveFinite,
+    pub(super) lane_spacing: PositiveFinite,
+    pub(super) wedge_width: PositiveFinite,
+    pub(super) paint: RenderPaintV3,
+}
 #[derive(Clone, Debug, PartialEq)]
 struct CarrierMarkRenderFact {
     shared_endpoint_is_start: bool,
@@ -155,6 +163,90 @@ impl BondRenderTarget {
 
     pub(super) const fn second_endpoint(&self) -> &RecordId {
         &self.second_endpoint
+    }
+
+    pub(super) fn resolved_appearance(
+        &self,
+        stroke_width: PositiveFinite,
+        lane_spacing: PositiveFinite,
+        wedge_width: PositiveFinite,
+        paint: &RenderPaintV3,
+    ) -> ResolvedBondLineAppearance {
+        self.appearance.as_ref().map_or_else(
+            || ResolvedBondLineAppearance {
+                stroke_width,
+                lane_spacing,
+                wedge_width,
+                paint: paint.clone(),
+            },
+            |appearance| ResolvedBondLineAppearance {
+                stroke_width: appearance.stroke_width,
+                lane_spacing: appearance.lane_spacing,
+                wedge_width: appearance.wedge_width,
+                paint: appearance.paint.clone(),
+            },
+        )
+    }
+
+    pub(super) fn attachment_corridor(
+        &self,
+        direction: Vector2,
+        endpoint_is_first: bool,
+        appearance: &ResolvedBondLineAppearance,
+        normal_single_policy: NormalBondEndpointClipPolicy,
+    ) -> Result<AtomLabelAttachmentCorridor, RenderError> {
+        let normal_single = matches!(self.style, BondStyle::NormalSingle);
+        let footprints = if normal_single {
+            EndpointBondInkFootprints::symmetric(normal_single_policy.footprint)
+        } else {
+            final_ink_footprints(&self.style, appearance.stroke_width, appearance.wedge_width)
+                .map_err(render_issue_as_invalid_request)?
+        };
+        let lane_offsets = bond_lane_offsets(&self.style, appearance.lane_spacing)
+            .map_err(render_issue_as_invalid_request)?;
+        let clearance = if lane_offsets.len() > 1 {
+            ParallelBondTerminalEnvelope::from_lanes(&lane_offsets, footprints)
+                .and_then(|terminal| terminal.optical_clearance(normal_single_policy.clearance()))
+                .map_err(render_issue_as_invalid_request)?
+        } else {
+            normal_single_policy.clearance()
+        };
+        let endpoint_footprint = if endpoint_is_first {
+            footprints.first
+        } else {
+            footprints.second
+        };
+        let mut maximum_style_half_width = footprints
+            .first
+            .terminal_half_width()
+            .max(footprints.second.terminal_half_width())
+            .max(endpoint_footprint.terminal_half_width());
+        if matches!(self.style, BondStyle::Wavy) {
+            maximum_style_half_width = maximum_style_half_width.max(
+                bond_presentation_geometry::wavy_transverse_half_width(appearance.stroke_width)
+                    .map_err(render_issue_as_invalid_request)?,
+            );
+        }
+        let (mut transverse_minimum, mut transverse_maximum) = lane_offsets.iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY),
+            |(minimum, maximum), offset| {
+                (
+                    minimum.min(*offset - maximum_style_half_width),
+                    maximum.max(*offset + maximum_style_half_width),
+                )
+            },
+        );
+        if !endpoint_is_first {
+            (transverse_minimum, transverse_maximum) = (-transverse_maximum, -transverse_minimum);
+        }
+        let separation = normal_single_policy.clearance().gap().get() * 0.25;
+        AtomLabelAttachmentCorridor::new(
+            direction,
+            transverse_minimum,
+            transverse_maximum,
+            clearance.gap(),
+            PositiveFinite::new(separation)?,
+        )
     }
 
     /// Construct a valid bond target for this render slice.
@@ -296,24 +388,6 @@ pub(super) fn build_bond_batch(
             reason: format!("bond direction is not representable: {error}"),
         }
     })?;
-    // Retain the established CDML depiction convention: `bond_width` is the
-    // centered double-lane separation, while triple outer lanes use 70% of it.
-    const TRIPLE_OUTER_LANE_FACTOR: f64 = 0.7;
-    let offsets: &[f64] = match &bond.style {
-        BondStyle::NormalSingle
-        | BondStyle::DoubleBondCarrierUp
-        | BondStyle::DoubleBondCarrierDown => &[0.0],
-        BondStyle::Double => &[-0.5, 0.5],
-        BondStyle::Triple => &[-TRIPLE_OUTER_LANE_FACTOR, 0.0, TRIPLE_OUTER_LANE_FACTOR],
-        BondStyle::SolidWedge
-        | BondStyle::HashedWedge
-        | BondStyle::HaworthFrontStroke
-        | BondStyle::HaworthFrontWedge
-        | BondStyle::Bold
-        | BondStyle::Dashed
-        | BondStyle::Wavy => &[],
-        _ => unreachable!("unsupported styles are excluded before bond geometry"),
-    };
     let perpendicular = direction.perpendicular_left();
     let line_context = BondLineContext {
         attachment_axis,
@@ -380,10 +454,7 @@ pub(super) fn build_bond_batch(
             reason: format!("styled bond batch is not renderable: {error}"),
         });
     }
-    let lane_offsets = offsets
-        .iter()
-        .map(|factor| lane_offset(lane_spacing, *factor))
-        .collect::<Result<Vec<_>, _>>()?;
+    let lane_offsets = bond_lane_offsets(&bond.style, lane_spacing)?;
     // A double or triple bond is one chemical connection with a multi-lane
     // final footprint.  Clip its complete lane envelope once at each label,
     // then lower every symmetric lane from those shared axial positions.
@@ -613,6 +684,38 @@ fn lane_offset(lane_spacing: PositiveFinite, factor: f64) -> Result<f64, RenderI
     }
 }
 
+fn bond_lane_offsets(
+    style: &BondStyle,
+    lane_spacing: PositiveFinite,
+) -> Result<Vec<f64>, RenderIssueKind> {
+    // CDML `bond_width` is the centered double-lane separation. Triple outer
+    // lanes use 70 percent of that separation.
+    const TRIPLE_OUTER_LANE_FACTOR: f64 = 0.7;
+    let factors: &[f64] = match style {
+        BondStyle::Double => &[-0.5, 0.5],
+        BondStyle::Triple => &[-TRIPLE_OUTER_LANE_FACTOR, 0.0, TRIPLE_OUTER_LANE_FACTOR],
+        BondStyle::NormalSingle
+        | BondStyle::DoubleBondCarrierUp
+        | BondStyle::DoubleBondCarrierDown
+        | BondStyle::SolidWedge
+        | BondStyle::HashedWedge
+        | BondStyle::HaworthFrontStroke
+        | BondStyle::HaworthFrontWedge
+        | BondStyle::Bold
+        | BondStyle::Dashed
+        | BondStyle::Wavy => &[0.0],
+        _ => unreachable!("unsupported styles are excluded before bond geometry"),
+    };
+    factors
+        .iter()
+        .map(|factor| lane_offset(lane_spacing, *factor))
+        .collect()
+}
+
+fn render_issue_as_invalid_request(issue: RenderIssueKind) -> RenderError {
+    RenderError::InvalidRequest(format!("bond attachment corridor is invalid: {issue:?}"))
+}
+
 /// Return whether a normal bond retains a strictly positive visible segment.
 fn normal_bond_has_positive_visible_segment(
     center_distance: f64,
@@ -691,32 +794,19 @@ fn endpoint_clip_distance_with_footprint(
         EndpointClipGeometry::AtomLabelInk {
             core_outline_support,
             label_mask_ink_bounds,
-            non_core_run_ink_bounds,
         } => {
-            // Masks and decorations are collision exclusions, not optical
-            // attachment targets. Their bounds reserve the emitted footprint
-            // plus a small cross-raster separation; the complete optical gap
-            // belongs solely to the core.
-            let exclusion_gap = clearance.gap().get() * 0.25;
-            let (x_inflation, y_inflation) =
-                footprint.glyph_bounds_inflation(exclusion_gap, direction)?;
+            // Only the structural core owns axial attachment. The complete
+            // emitted bond is checked against endpoint decorations after style
+            // lowering, so collision can produce a typed refusal rather than
+            // an artificially detached terminal.
             let core_distance = core_outline_support.directional_extent(direction)
                 - local_offset.dot(direction)
                 + footprint.axial_clip_reserve(clearance.gap().get())?;
             let mut distance = validate_clip_distance(core_distance)?;
             if let Some(mask) = label_mask_ink_bounds {
-                distance = distance.max(clip_glyph_distance(
-                    inflate_glyph_bounds(*mask, x_inflation, y_inflation)?,
-                    direction,
-                    local_offset,
-                )?);
-            }
-            for decoration in non_core_run_ink_bounds {
-                distance = distance.max(clip_glyph_distance(
-                    inflate_glyph_bounds(*decoration, x_inflation, y_inflation)?,
-                    direction,
-                    local_offset,
-                )?);
+                let mask_distance = clip_glyph_distance(*mask, direction, local_offset)?
+                    + footprint.axial_clip_reserve(clearance.gap().get())?;
+                distance = distance.max(validate_clip_distance(mask_distance)?);
             }
             Ok(distance)
         }
@@ -762,27 +852,6 @@ fn validate_clip_distance(distance: f64) -> Result<f64, RenderIssueKind> {
             reason: "bond endpoint clip distance is not representable".to_owned(),
         })
     }
-}
-
-fn inflate_glyph_bounds(
-    bounds: GlyphBounds,
-    x_amount: f64,
-    y_amount: f64,
-) -> Result<GlyphBounds, RenderIssueKind> {
-    if !x_amount.is_finite() || x_amount < 0.0 || !y_amount.is_finite() || y_amount < 0.0 {
-        return Err(RenderIssueKind::UnrenderableTarget {
-            reason: "bond ink clearance is not representable".to_owned(),
-        });
-    }
-    GlyphBounds::new(
-        bounds.min_x() - x_amount,
-        bounds.min_y() - y_amount,
-        bounds.max_x() + x_amount,
-        bounds.max_y() + y_amount,
-    )
-    .map_err(|error| RenderIssueKind::UnrenderableTarget {
-        reason: format!("inflated atom-label ink is not representable: {error}"),
-    })
 }
 
 fn clip_glyph_distance(

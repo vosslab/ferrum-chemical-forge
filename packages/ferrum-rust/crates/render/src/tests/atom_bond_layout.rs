@@ -80,7 +80,7 @@ fn rendered_bond_operations(style: BondStyle) -> Vec<RenderOp> {
     )
     .expect("request");
     let plan = build_atom_bond_plan(&request, &atom_bond_metrics()).expect("plan");
-    assert!(plan.issues().is_empty());
+    assert!(plan.issues().is_empty(), "{:?}", plan.issues());
     plan.batches()[1].operations().to_vec()
 }
 

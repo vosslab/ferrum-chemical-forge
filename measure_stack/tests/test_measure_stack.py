@@ -226,6 +226,25 @@ def test_v2_style_predicates_accept_good_and_reject_deliberately_bad_final_ink()
 
 
 # ============================================
+def test_dashed_topology_is_independent_of_fixed_cross_section_phase() -> None:
+    """Separated endpoint-spanning dashes remain valid when fixed samples hit gaps."""
+    scene = _style_scene("dashed", good=True)
+    footprint = numpy.zeros_like(scene.bonds[0].footprint_mask)
+    for left, right in ((26, 36), (46, 55), (65, 74), (84, 93), (103, 116), (126, 136)):
+        footprint[48:52, left:right] = True
+    altered = dataclasses.replace(
+        scene,
+        composite=scene.atoms["a"].full_label_mask
+        | scene.atoms["b"].full_label_mask
+        | footprint,
+        bonds=(dataclasses.replace(scene.bonds[0], footprint_mask=footprint),),
+    )
+    topology = measure_scene(altered)["bonds"][0]["style_topology"]
+    assert topology["midpoint_lane_count"] == 0
+    assert topology["style_topology_pass"]
+
+
+# ============================================
 def test_haworth_front_forms_reject_each_others_final_ink_topology() -> None:
     """q1 foreground strokes and w1 foreground wedges are independently classified."""
     stroke_scene = _style_scene("haworth-front-stroke", good=True)

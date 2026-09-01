@@ -7,6 +7,10 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Behavior or Interface Changes
 
+- Changed built-in double- and triple-bond lane separation from the inherited
+  absolute 6-unit distance to four resolved stroke widths. This preserves the
+  BKChem/OASA 6 px / 1.5 px proportion in Ferrum's point-space renderer while
+  leaving explicit CDML bond widths authoritative.
 - Recorded the pre-production design rule: choose one strong canonical schema,
   contract, abstraction, and ownership boundary in a coordinated cutover while
   no users or production data depend on an earlier design.
@@ -24,20 +28,29 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Fixes and Maintenance
 
-- Replaced rectangular core-glyph corner clipping with exact directional
-  outline support from the current byte-verified measurement font. Rust now separates
-  core optical clearance from painted mask/decoration exclusion and models
-  final endpoint caps, widths, overhang, and retreat per bond style.
+- Normalized the documentation carbonyl and styled-chain fixtures to Ferrum's
+  canonical 40-point chemistry spacing. Their former 200- and 220-point bonds
+  made atom labels look implausibly small in the published screenshots even
+  though native authoring already used the OASA-aligned 40-point scale.
+- Replaced box/baseline label handling with semantic run roles and
+  style-owned attachment corridors. Rust now centers the structural element,
+  places isotope, explicit hydrogen/count, and charge runs in conventional
+  registers, and solves the minimum translation that clears every incident
+  bond's complete terminal footprint.
 - Corrected double- and triple-bond optical attachment. Rust now treats the
   complete parallel terminal as one visual unit, derives a bounded group
   clearance from its occupied final-ink interval, and gives every lane the
   same axial clips. The envelope remains stable if future depiction support
-  places parallel lanes asymmetrically. The independent pixel policy now
-  requires at least 0.60 measured stroke widths for parallel bonds; actual Qt
-  double-bond clearance increased from 1.92-2.70 to 4.16-4.72 pixels.
-- Corrected decorated-label layout for a sole rightward bond: explicit hydrogen
-  and count ink move left of the structural glyph while isotope and charge keep
-  conventional corners. Exact run metrics recompute the full label bounds.
+  places parallel lanes asymmetrically. The renderer targets at most 1.5 stroke
+  widths so raster quantization remains inside the independent 1.75-stroke
+  ceiling.
+- Added exact post-lowering endpoint-decoration collision admission. Wavy
+  amplitude, caps, overhang, and true angle-derived miter extent now belong to
+  final-footprint geometry, while core outline support alone owns axial clips.
+- Strengthened dashed raster topology to require separated, elongated,
+  collinear, endpoint-spanning components. The synthetic runner now publishes
+  only declared negative oracle scenes, leaving positive renderer acceptance to
+  real native and Qt pixels.
 - Corrected Qt measurement capture to retain one isotropic scene scale with
   centered letterboxing. The fixture catalog now owns one unversioned ID per
   live presentation profile; three superseded rectangles were removed.
@@ -100,21 +113,33 @@ archive navigation continues chronologically back through 2026-08-11.
 - Used a focused square-in-square Qt capture check to prove isotropic scaling
   during the rebuild, then removed it because real raster capture is too slow
   for permanent pytest. The strict actual-Qt corpus remains the ongoing lane.
-- The strengthened V2 pixel policy now accepts the complete corpus: the synthetic
-  oracle reports 19 fixtures and zero violations, while native final-ink and
-  actual Qt strict lanes each report 12 fixtures and zero violations. Contact
-  sheets were inspected for ordinary, parallel, decorated, ring, wedge,
-  Haworth-front, and three-letter-label alignment.
+- The unchanged endpoint/collision thresholds accept the expanded corpus: all
+  seven synthetic negative scenes reach their named rejection category, while
+  native final-ink and actual Qt strict lanes each report 14 real fixtures and
+  zero violations. A one-time 10-style by 8-direction actual-Qt matrix reports
+  zero violations across 160 endpoints. Contact sheets were inspected for
+  ordinary, parallel, decorated, ring, wedge, Haworth-front, dashed, wavy, and
+  three-letter-label alignment.
+- After the chemistry-proportion correction, reran the native and actual-Qt
+  14-fixture pixel lanes with zero violations, rebuilt the promoted local
+  runtime, recaptured all 13 documentation scenes at 1440 by 900, and inspected
+  every screenshot. Twelve tracked PNGs changed; the command-palette scene was
+  byte-identical.
+- Ran the unmodified pre-rebuild `HEAD` measurement package against copies of
+  the rebuilt evidence. It accepts all 14 native and 14 Qt fixtures with zero
+  violations; on the 80-scene matrix it reports only two valid dashed bonds
+  whose fixed samples land in intentional gaps, with no glyph-gap, collision,
+  centerline, double-bond, or triple-bond failure.
 - Preserved the closed manifest safety boundary while adding the outline path:
   only the embedded hash-verified font is parsed, and V2 JSON continues to
   enforce closed fields, bounded paths and dimensions, content hashes, and
   related-item consistency (ASVS 1.5.2, 2.1.1-2.1.2, and 2.2.1-2.2.3).
-- Focused gates passed: 16 measurement-stack tests, 166 permanent
+- Focused gates passed: 17 measurement-stack tests, 169 passing
   `ferrum-render` tests with one ignored developer receipt, the two active Rust
-  alignment-corpus semantic checks, the 14-case
+  alignment-corpus semantic checks, the 16-case
   installed Rust-to-Qt alignment E2E, both Qt accepted-zero modes, and a clean
   staged runtime rebuild.
-- `./all_test.sh` exited zero: 8,624 repository-hygiene tests, every registered
+- `./all_test.sh` exited zero: 8,641 repository-hygiene tests, every registered
   CLI/Qt E2E, 283 installed PyO3 tests, and 444 Qt tests passed.
 - `./check_rust.sh` exited zero: workspace formatting, workspace check, strict
   Clippy, the complete Rust workspace test suite, doc tests, and workspace

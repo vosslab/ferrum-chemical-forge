@@ -1,7 +1,5 @@
 //! Final bond-ink footprints and parallel-terminal optical clearance.
 
-use ferrum_geometry::Vector2;
-
 use crate::bond_style::BondStyle;
 use crate::{PositiveFinite, RenderIssueKind};
 
@@ -31,29 +29,7 @@ impl BondInkFootprint {
         validate_clip_distance(reserve)
     }
 
-    pub(super) fn glyph_bounds_inflation(
-        self,
-        clearance: f64,
-        direction: Vector2,
-    ) -> Result<(f64, f64), RenderIssueKind> {
-        let perpendicular = direction.perpendicular_left();
-        let base = clearance + self.endpoint_radius;
-        let x = base
-            + self.axial_overhang * direction.x().abs()
-            + self.transverse_half_width * perpendicular.x().abs();
-        let y = base
-            + self.axial_overhang * direction.y().abs()
-            + self.transverse_half_width * perpendicular.y().abs();
-        if x.is_finite() && x >= 0.0 && y.is_finite() && y >= 0.0 {
-            Ok((x, y))
-        } else {
-            Err(RenderIssueKind::UnrenderableTarget {
-                reason: "bond ink clearance is not representable".to_owned(),
-            })
-        }
-    }
-
-    fn terminal_half_width(self) -> f64 {
+    pub(super) fn terminal_half_width(self) -> f64 {
         self.endpoint_radius.max(self.transverse_half_width)
     }
 }
@@ -108,7 +84,10 @@ impl ParallelBondTerminalEnvelope {
         base: BondInkClearance,
     ) -> Result<BondInkClearance, RenderIssueKind> {
         const TERMINAL_WIDTH_GAP_FACTOR: f64 = 0.25;
-        const MAXIMUM_BASE_CLEARANCE_FACTOR: f64 = 1.75;
+        // Stay materially inside the independent 1.75-stroke visual ceiling.
+        // A boundary-equal vector distance can grow by one device pixel when
+        // rasterized; 1.5 retains breathing room without backend dependence.
+        const MAXIMUM_BASE_CLEARANCE_FACTOR: f64 = 1.5;
 
         let base_clearance = base.gap().get();
         let width_clearance = self.width.get() * TERMINAL_WIDTH_GAP_FACTOR;
@@ -288,7 +267,7 @@ mod tests {
             .expect("triple-bond clearance")
             .gap()
             .get();
-        assert_eq!(double, base.gap().get() * 1.75);
+        assert_eq!(double, base.gap().get() * 1.5);
         assert_eq!(triple, double);
 
         let scaled_footprint = final_ink_footprint(

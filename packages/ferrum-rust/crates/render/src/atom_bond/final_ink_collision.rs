@@ -30,6 +30,16 @@ pub(super) struct LabelInkEnvelope {
     rectangle: Rectangle,
 }
 
+/// Exact non-core ink exclusions for one endpoint atom label.
+///
+/// The structural element is deliberately absent: its outline owns optical
+/// attachment, while this set proves that the final emitted bond footprint
+/// remains clear of isotope, hydrogen, charge, and optional mask ink.
+#[derive(Clone)]
+pub(super) struct EndpointLabelInkExclusions {
+    rectangles: Vec<Rectangle>,
+}
+
 impl LabelInkEnvelope {
     pub(super) fn from_local_bounds(
         bounds: GlyphBounds,
@@ -47,6 +57,28 @@ impl LabelInkEnvelope {
     }
 }
 
+impl EndpointLabelInkExclusions {
+    pub(super) fn from_local_bounds(
+        bounds: &[GlyphBounds],
+        anchor: RenderPoint,
+        clearance: PositiveFinite,
+    ) -> Result<Self, String> {
+        let amount = clearance.get();
+        let rectangles = bounds
+            .iter()
+            .map(|bounds| {
+                Rectangle::new(
+                    bounds.min_x() + anchor.x() - amount,
+                    bounds.min_y() + anchor.y() - amount,
+                    bounds.max_x() + anchor.x() + amount,
+                    bounds.max_y() + anchor.y() + amount,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { rectangles })
+    }
+}
+
 /// Return whether any complete painted primitive conflicts with another atom.
 pub(super) fn batch_intersects_non_endpoint_label(
     batch: &BondRenderBatchV1,
@@ -61,6 +93,28 @@ pub(super) fn batch_intersects_non_endpoint_label(
         for operation in batch.operations() {
             if operation_intersects_rectangle(operation, envelope.rectangle)? {
                 return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// Return whether final bond ink conflicts with either endpoint's non-core ink.
+pub(super) fn batch_intersects_endpoint_label_ink(
+    batch: &BondRenderBatchV1,
+    labels: &HashMap<RecordId, EndpointLabelInkExclusions>,
+    first_endpoint: &RecordId,
+    second_endpoint: &RecordId,
+) -> Result<bool, String> {
+    for endpoint in [first_endpoint, second_endpoint] {
+        let Some(exclusions) = labels.get(endpoint) else {
+            continue;
+        };
+        for &rectangle in &exclusions.rectangles {
+            for operation in batch.operations() {
+                if operation_intersects_rectangle(operation, rectangle)? {
+                    return Ok(true);
+                }
             }
         }
     }
@@ -129,21 +183,61 @@ fn stroked_polyline_intersects_rectangle(
         }
     }
     let endpoint_count = subpath.points.len() - usize::from(subpath.closed);
-    let joint_points = if subpath.closed {
-        &subpath.points[..endpoint_count]
+    let joint_range = if subpath.closed {
+        0..endpoint_count
     } else {
-        &subpath.points[1..endpoint_count - 1]
+        1..endpoint_count - 1
     };
-    if joint_points
-        .iter()
-        .any(|point| rectangle.distance_to_point(*point) <= radius * miter_limit)
-    {
-        return Ok(true);
+    for index in joint_range {
+        let prior = if index == 0 {
+            subpath.points[endpoint_count - 1]
+        } else {
+            subpath.points[index - 1]
+        };
+        let point = subpath.points[index];
+        let next = subpath.points[(index + 1) % endpoint_count];
+        let join_radius = miter_join_radius(prior, point, next, radius, miter_limit);
+        if rectangle.distance_to_point(point) <= join_radius {
+            return Ok(true);
+        }
     }
     Ok(!subpath.closed
         && round_caps
         && (rectangle.distance_to_point(subpath.points[0]) <= radius
             || rectangle.distance_to_point(subpath.points[endpoint_count - 1]) <= radius))
+}
+
+fn miter_join_radius(
+    prior: Point,
+    point: Point,
+    next: Point,
+    radius: f64,
+    miter_limit: f64,
+) -> f64 {
+    let incoming_x = point.x - prior.x;
+    let incoming_y = point.y - prior.y;
+    let outgoing_x = next.x - point.x;
+    let outgoing_y = next.y - point.y;
+    let incoming_length = incoming_x.hypot(incoming_y);
+    let outgoing_length = outgoing_x.hypot(outgoing_y);
+    let maximum = radius * miter_limit;
+    if !incoming_length.is_finite()
+        || !outgoing_length.is_finite()
+        || incoming_length == 0.0
+        || outgoing_length == 0.0
+        || !maximum.is_finite()
+    {
+        return maximum;
+    }
+    let cosine = ((incoming_x * outgoing_x + incoming_y * outgoing_y)
+        / (incoming_length * outgoing_length))
+        .clamp(-1.0, 1.0);
+    let half_angle_cosine = ((1.0 + cosine) / 2.0).sqrt();
+    if half_angle_cosine <= f64::EPSILON {
+        maximum
+    } else {
+        (radius / half_angle_cosine).min(maximum)
+    }
 }
 
 fn flatten_path(path: &PathOpV3) -> Result<Vec<FlattenedPath>, String> {
@@ -641,6 +735,29 @@ mod tests {
         )
         .expect("closed batch");
         assert_eq!(batch.operations().len(), 2);
+    }
+
+    #[test]
+    fn smooth_and_cornered_path_joins_use_their_actual_miter_extent() {
+        let radius = 0.5;
+        assert_eq!(
+            miter_join_radius(
+                Point::new(-1.0, 0.0),
+                Point::new(0.0, 0.0),
+                Point::new(1.0, 0.0),
+                radius,
+                4.0,
+            ),
+            radius,
+        );
+        let right_angle = miter_join_radius(
+            Point::new(-1.0, 0.0),
+            Point::new(0.0, 0.0),
+            Point::new(0.0, 1.0),
+            radius,
+            4.0,
+        );
+        assert!((right_angle - radius * 2.0_f64.sqrt()).abs() < 1.0e-12);
     }
 
     #[test]

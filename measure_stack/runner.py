@@ -232,8 +232,17 @@ def run_fixture_baseline(output_root: pathlib.Path) -> dict[str, object]:
 		output_root.mkdir(parents=True)
 	fixtures = _read_fixtures()
 	profiles = fixtures["capture_profiles"]
+	# Real renderer fixtures are assessed only from native and Qt pixels. This
+	# oracle publishes the deliberately synthetic negative scenes whose declared
+	# rejection categories it owns; it never fabricates acceptance evidence for
+	# a real CDML case.
+	oracle_fixtures = [
+		fixture for fixture in fixtures["fixtures"] if fixture["negative_cases"]
+	]
+	if not oracle_fixtures:
+		raise ValueError("fixture source has no synthetic negative oracle cases")
 	results = []
-	for fixture in fixtures["fixtures"]:
+	for fixture in oracle_fixtures:
 		manifest_path = _materialize_fixture(fixture, profiles, output_root)
 		scene = load_raster_manifest_v2(manifest_path)
 		report = measure_scene(scene)

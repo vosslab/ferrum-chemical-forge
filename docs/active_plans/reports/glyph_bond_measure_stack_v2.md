@@ -12,9 +12,9 @@ clipped endpoints, transforms, and calculated metrics.
 
 | Lane | Producer | Current result |
 | --- | --- | --- |
-| Synthetic metric oracle | `measure_stack.runner` | Green: 19 fixtures, zero violations; named bad scenes reach their declared failure category. |
-| Native final ink | `devel/run_measure_stack_rust.sh` | Green: 12 renderable V2 fixtures, zero violations. |
-| Qt strict geometry | `devel/run_measure_stack_qt.sh --strict` | Green: 12 actual-Qt fixtures, zero violations. |
+| Synthetic negative oracle | `measure_stack.runner` | Green: all seven deliberately negative scenes reach their declared failure category. |
+| Native final ink | `devel/run_measure_stack_rust.sh` | Green: 14 renderable V2 fixtures, zero violations. |
+| Qt strict geometry | `devel/run_measure_stack_qt.sh --strict` | Green: 14 actual-Qt fixtures, zero violations. |
 | Qt replay baseline | `devel/run_measure_stack_qt.sh --baseline` | Green capture/provenance receipt with frozen zero failure categories. |
 
 Each lane writes JSON, per-fixture reports, annotated overlays, contact sheets,
@@ -28,9 +28,20 @@ The measurement system is operational and non-circular. Human inspection of the
 documentation capture showed that the original 0.20-stroke lower bound admitted
 a double bond with only 0.44 stroke widths of Qt clearance. The current policy
 retains 0.20 for single-stroke styles and requires 0.60 for double/triple bonds.
-Rust now resolves parallel endpoints from one bounded terminal-envelope
-clearance. Native and actual-Qt evidence each report zero findings across the 12
-renderable fixtures, and the Qt baseline freezes that accepted-zero state.
+Rust now resolves semantic label runs against style-owned terminal corridors and
+validates exact final operations. Native and actual-Qt evidence each report zero
+findings across the 14 renderable fixtures, and the Qt baseline freezes that
+accepted-zero state. A separate one-time 10-style by 8-direction actual-Qt
+matrix reports zero violations across 160 endpoints.
+
+An explicit anti-circularity check ran the unmodified pre-rebuild `HEAD`
+measurement package against copies of the rebuilt captures. It accepted all 14
+native fixtures and all 14 Qt fixtures with zero violations. Across the broader
+80-scene matrix it rejected only two visually valid dashed bonds whose fixed
+samples landed in intentional dash gaps; it reported no glyph-gap, collision,
+centerline, double-bond, or triple-bond failure. The retained measurement change
+replaces that dashed phase sample with stricter whole-component evidence:
+separation, elongation, centerline agreement, and endpoint-spanning coverage.
 
 In the diagonal N=O/O&equiv;N fixture, native parallel gaps are 1.35-1.49 measured
 stroke widths. Actual Qt gaps are 0.90-1.08 strokes, or 3.95-4.72 pixels. The
@@ -47,7 +58,7 @@ decoration exclusion gaps in Rust; both real lanes validate it.
 
 ```bash
 source source_me.sh && python3 -m pytest measure_stack/tests -q
-# 16 passed
+# 17 passed
 
 # Produces native raster layers, reports, and a zero-violation strict receipt.
 ./devel/run_measure_stack_rust.sh
@@ -61,14 +72,14 @@ source source_me.sh && python3 tests/e2e/e2e_atom_label_bond_alignment.py
 
 source source_me.sh && python3 -m measure_stack.batch \
   --manifest-root output_glyph_alignment/v2
-# {"fixtures":12,"status":"ok","violations":0}
+# {"fixtures":14,"status":"ok","violations":0}
 
 ./all_test.sh
-# 8,624 hygiene, 283 installed PyO3, and 444 Qt tests passed;
+# 8,641 hygiene, 283 installed PyO3, and 444 Qt tests passed;
 # every registered CLI/Qt E2E passed.
 
 ./check_rust.sh
-# Formatting, workspace check, strict Clippy, 166 permanent ferrum-render tests,
+# Formatting, workspace check, strict Clippy, 169 passing ferrum-render tests,
 # one ignored developer receipt, complete workspace tests, doc tests, and Rustdoc passed.
 ```
 
@@ -76,7 +87,7 @@ This report records automated corpus acceptance for the selected Atkinson
 Hyperlegible Next Regular molecule-label face. It does not establish broad
 desktop usability acceptance beyond the fixed corpus.
 
-Permanent coverage is limited to the 16 deterministic measurement tests, the
+Permanent coverage is limited to the 17 deterministic measurement tests, the
 selected default resource/scalar contracts, Rust semantic and renderer tests,
 and installed consumer contracts. Upstream comparison of all 92 pinned font
 binaries and both licenses, catalog/file census, proportional-versus-monospace

@@ -32,10 +32,10 @@ That is substantial progress, not a feature-parity or release-complete claim.
   another atom label. The V4 plan/V2 observation boundary carries those
   renderer-issued facts unchanged; PyO3 and Qt consume the closed typed plan
   rather than reconstructing label geometry or chemistry.
-- One schema-closed twelve-case corpus covers ordinary, decorated, isotope,
+- One schema-closed 14-case corpus covers ordinary, decorated, isotope,
   bond-style, Haworth, near-miss, coincident, and third-label-refusal cases at
   the Rust document-to-observation seam and the installed Qt consumer. The
-  independent native and actual-Qt pixel lanes accept all twelve renderable
+  independent native and actual-Qt pixel lanes accept all 14 renderable
   cases with zero violations under the strengthened V2 policy. Broader desktop
   usability and accessibility acceptance remains a separate maintainer gate.
 - The Rust-first direct drawing, selected-root, regular-ring, presentation,
@@ -61,10 +61,11 @@ corpus must remain the permanent guardrail as more label decorations, bond
 styles, fonts, and chemistry grammars are added.
 
 The current Atkinson Hyperlegible Next Regular cutover is complete at this
-contract boundary. The synthetic oracle accepts 19 fixtures; native final ink
-and actual Qt each accept all 12 renderable fixtures with zero violations; the
-15 permanent measurement tests, 14-case installed alignment E2E, Rust gate,
-and aggregate repository gate are green.
+contract boundary. The synthetic oracle makes all seven deliberately negative
+scenes reach their named rejection category; native final ink and actual Qt
+each accept all 14 renderable fixtures with zero violations. The 17 permanent
+measurement tests and 16-case installed semantic alignment E2E are green;
+aggregate gate receipts are recorded after each renderer change.
 
 For every later font, label-decoration, bond-style, or capture-profile change,
 the Rust-render owner updates the exact font resource/metrics or geometry and

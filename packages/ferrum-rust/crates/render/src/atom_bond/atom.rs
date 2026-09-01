@@ -1,9 +1,8 @@
 //! Atom-local label, number, and mark lowering.
 
-use ferrum_core::RecordKind;
-use ferrum_geometry::Vector2;
-
-use crate::glyph_metrics::{AtomLabelAttachmentGeometry, GlyphBounds, GlyphMetrics};
+use crate::glyph_metrics::{
+    AtomLabelAttachmentCorridor, AtomLabelAttachmentGeometry, GlyphBounds, GlyphMetrics,
+};
 use crate::glyph_outline_support::GlyphOutlineSupport;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
@@ -12,9 +11,24 @@ use crate::{
     RenderPaintV3, RenderPoint, RenderTarget, TextOp, TextScript,
     VerifiedMoleculeLabelGlyphMetrics,
 };
+use ferrum_core::RecordKind;
 use ferrum_document_model::is_admitted_atom_symbol_v1;
 
 use super::TargetVisibility;
+
+/// Semantic role of one exact run in a structured atom label.
+///
+/// Layout keeps these roles explicit so isotope, hydrogen, and charge ink can
+/// be placed around admitted bond-attachment corridors without inferring
+/// chemistry from rendered text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AtomLabelRunRole {
+    Isotope,
+    CoreElement,
+    ExplicitHydrogen,
+    HydrogenCount,
+    FormalCharge,
+}
 
 type BuiltAtomBatch = (
     RenderBatchV4,
@@ -208,16 +222,32 @@ impl AtomLabelFacts {
     }
 
     /// Return ordered source text segments before a metric provider lays them out.
-    pub(crate) fn text_pieces(&self) -> Vec<(String, TextScript)> {
+    pub(crate) fn text_pieces(&self) -> Vec<(String, TextScript, AtomLabelRunRole)> {
         let mut runs = Vec::with_capacity(4);
         if let Some(isotope) = self.isotope_mass_number {
-            runs.push((isotope.to_string(), TextScript::Superscript));
+            runs.push((
+                isotope.to_string(),
+                TextScript::Superscript,
+                AtomLabelRunRole::Isotope,
+            ));
         }
-        runs.push((self.element.clone(), TextScript::Baseline));
+        runs.push((
+            self.element.clone(),
+            TextScript::Baseline,
+            AtomLabelRunRole::CoreElement,
+        ));
         if self.explicit_hydrogens > 0 {
-            runs.push(("H".to_owned(), TextScript::Baseline));
+            runs.push((
+                "H".to_owned(),
+                TextScript::Baseline,
+                AtomLabelRunRole::ExplicitHydrogen,
+            ));
             if self.explicit_hydrogens > 1 {
-                runs.push((self.explicit_hydrogens.to_string(), TextScript::Subscript));
+                runs.push((
+                    self.explicit_hydrogens.to_string(),
+                    TextScript::Subscript,
+                    AtomLabelRunRole::HydrogenCount,
+                ));
             }
         }
         if self.formal_charge != 0 {
@@ -228,7 +258,11 @@ impl AtomLabelFacts {
             } else {
                 format!("{magnitude}{sign}")
             };
-            runs.push((charge, TextScript::Superscript));
+            runs.push((
+                charge,
+                TextScript::Superscript,
+                AtomLabelRunRole::FormalCharge,
+            ));
         }
         runs
     }
@@ -304,7 +338,7 @@ pub(super) fn build_atom_batch(
     atom: &AtomRenderTarget,
     font: &AtomLabelFontProfile,
     bond_ink_clearance: PositiveFinite,
-    sole_bond_direction: Option<Vector2>,
+    attachment_corridors: &[AtomLabelAttachmentCorridor],
     metrics: &VerifiedMoleculeLabelGlyphMetrics,
 ) -> Result<Result<BuiltAtomBatch, RenderIssueKind>, RenderError> {
     let layout = match metrics.layout_atom_label(&atom.label, font) {
@@ -315,15 +349,22 @@ pub(super) fn build_atom_batch(
             }));
         }
     };
-    let layout = if let Some(direction) = sole_bond_direction {
-        layout.avoid_rightward_bond_with_explicit_hydrogen(
-            direction,
+    let layout = if attachment_corridors.is_empty() {
+        layout
+    } else {
+        match layout.place_decorations_around_attachment_corridors(
+            attachment_corridors,
             PositiveFinite::new(font.size.get() * 0.05)?,
             font.size,
             metrics,
-        )?
-    } else {
-        layout
+        ) {
+            Ok(layout) => layout,
+            Err(error) => {
+                return Ok(Err(RenderIssueKind::UnrenderableTarget {
+                    reason: format!("atom label has no admitted attachment layout: {error}"),
+                }));
+            }
+        }
     };
     let operation = TextOp::new(
         RenderPoint::new(0.0, 0.0)?,

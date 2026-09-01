@@ -333,7 +333,7 @@ def _direct_bond_scene(application: PySide6.QtWidgets.QApplication,
 	tab = _active_tab(window)
 	before = _document_revision(tab)
 	_activate_command(window, application, "Draw Bond")
-	_drag(_canvas(tab), _scene_point(tab, 300.0, 360.0), _scene_point(tab, 520.0, 360.0))
+	_drag(_canvas(tab), _scene_point(tab, 300.0, 360.0), _scene_point(tab, 340.0, 360.0))
 	application.processEvents()
 	if _document_revision(tab) <= before or "<bond" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Bond did not create a durable Rust bond")

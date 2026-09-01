@@ -113,17 +113,18 @@ the positive `bond_ink_clearance`; every bond also carries its frozen,
 unpainted, and unhit-tested `BondAttachmentAxisV1` from exact structural
 connection point to connection point. PyO3 transports those facts and Qt
 replays only clipped final ink without a second alignment model. The Rust-owned
-12-row alignment corpus
+14-row alignment corpus
 covers undecorated and decorated labels, isotopes, styled and cyclic geometry,
 strict near-misses, and whole-target refusal. Its Rust consumer and the explicit
 installed Rust-to-Qt E2E both expand full label ink by the issued clearance and
-require disjoint final bond ink. Current source evidence includes the 16-test
-measurement suite, the 14-case installed alignment E2E, and 166
-`ferrum-render` tests. The synthetic oracle reports 19 fixtures with zero
-violations; native final ink and actual Qt each report 12 fixtures with zero
+require disjoint final bond ink. Current source evidence includes the 17-test
+measurement suite, the 16-case installed semantic alignment E2E, and 169 passing
+`ferrum-render` tests plus one ignored developer receipt. The synthetic oracle
+makes all seven deliberately negative scenes reach their named rejection
+category; native final ink and actual Qt each report 14 fixtures with zero
 violations. `./check_rust.sh` passes formatting, workspace check, strict
 Clippy, workspace tests, doc tests, and Rustdoc. The post-change
-`./all_test.sh` aggregate passes 8,624 hygiene tests, every registered CLI/Qt
+`./all_test.sh` aggregate passes 8,641 hygiene tests, every registered CLI/Qt
 E2E, 283 installed PyO3 tests, and 444 Qt tests. The fixed-corpus renderer and
 transport acceptance is complete. Broader human desktop/accessibility review,
 remote CI/release evidence, and full parity remain open.

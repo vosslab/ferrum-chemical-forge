@@ -22,15 +22,15 @@ manifest directory and every layer must use the declared pixel dimensions.
 
 The V2 catalog at `fixtures/v2/fixtures.json` contains:
 
-- 12 authoritative, renderable CDML cases from the Rust alignment corpus.
+- 14 authoritative, renderable CDML cases from the Rust alignment corpus.
 - Seven synthetic adversarial cases for detached, overlap, centerline, style,
   crop, orphan, and third-label-collision rejection predicates.
 
-The real Qt lane captures only the 12 renderable cases through
-`QGraphicsScene.render`. The synthetic runner is a native measurement-contract
-test: it materializes deliberately controlled pixels to prove each predicate
-accepts the positive corpus and rejects its named failure mode. It is not a
-renderer-quality claim.
+The real Qt lane captures only the 14 renderable cases through
+`QGraphicsScene.render`. The synthetic runner materializes only the seven
+declared negative scenes and proves each reaches its named failure category.
+Positive renderer acceptance comes only from real native and Qt pixels; the
+runner does not fabricate acceptance evidence for renderable CDML.
 
 V2 is the sole accepted measurement artifact contract. The stack deliberately
 rejects V1 manifests rather than silently dropping full-label, fixed-profile,
@@ -56,7 +56,7 @@ against a newly generated output.
 ## Permanent tests versus rebuild evidence
 
 `source source_me.sh && python3 -m pytest measure_stack/tests -q` is the
-permanent 16-test lane. It uses inline/generated arrays and `tmp_path`, stays
+permanent 17-test lane. It uses inline/generated arrays and `tmp_path`, stays
 offline, completes in under one second, and tests manifest rejection, content
 hashing, pure metric behavior, parallel optical-clearance rejection, style
 classification, framing behavior, and nonfinite JSON refusal. It does not
@@ -95,7 +95,7 @@ devel/run_measure_stack_rust.sh
 ```
 
 After `./build.sh`, run the real offscreen Qt consumer strict gate. It captures
-the same 12 authoritative V2 fixtures and exits zero only when every fixture
+the same 14 authoritative V2 fixtures and exits zero only when every fixture
 satisfies the policy. Strict mode is the default.
 
 ```bash

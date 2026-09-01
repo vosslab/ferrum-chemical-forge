@@ -54,7 +54,7 @@ report remains historical regression evidence, not acceptance evidence.
 
 ## Frozen corpus
 
-The V2 catalog currently mirrors all 12 renderable rows in the authoritative
+The V2 catalog currently mirrors all 14 renderable rows in the authoritative
 Rust alignment corpus and adds seven schema-valid synthetic negative fixtures.
 It covers all eight endpoint directions; C, N, O, S, P, F, Cl, Br, and I;
 isotope, hydrogen, charge, and mask decorations; ordinary, double, triple,
@@ -63,7 +63,9 @@ Haworth-front wedge footprints; a crowded third-label near miss; and named
 detachment, target-overlap, centerline, style-topology, crop, orphan, and
 third-label-collision failures.
 
-The synthetic rows are measured by the deterministic pixel oracle. Qt replay
+The seven synthetic negative rows are measured by the deterministic pixel
+oracle. Positive renderer acceptance comes only from real native and Qt pixels;
+the oracle does not fabricate passing output for renderable CDML. Qt replay
 captures only renderable rows. Typed refusals, including non-endpoint-label
 admission, remain assertions in the existing Rust semantic corpus and contract
 checks rather than fabricated Qt pixel fixtures.
@@ -97,8 +99,7 @@ All required review is automated and artifact-backed; no interactive desktop,
 screenshot operator, or manual approval is a gate.
 
 ```bash
-# V2 metric/oracle lane: approved synthetic fixtures pass and every deliberate
-# bad fixture proves its named rejection.
+# V2 metric/oracle lane: every deliberate bad fixture proves its named rejection.
 source source_me.sh && python3 -m measure_stack.runner \
   --output-dir output_measure_stack_runner
 
@@ -138,25 +139,53 @@ synthetic-negative behavior. The synthetic runner's real manifest/image/contact
 sheet publication, native raster command, real CLI, actual Qt capture,
 before/after comparisons, and aggregate repository gates are explicit
 developer/E2E evidence for this rebuild rather than fragile permanent tests.
+The broader 10-style by 8-direction actual-Qt matrix is a one-time rebuild
+check: it exercises 80 scenes and 160 endpoints without becoming a permanent
+fixture-inventory assertion.
 
 ## Current truth and correction record
 
-Ferrum's 2026-08-31 V2 glyph-bond geometry is accepted by the unchanged pixel
-policy. The deterministic oracle reports 19 fixtures and zero violations; the
-native final-ink and actual Qt lanes each report 12 renderable fixtures and zero
-violations. The prior native and Qt receipts each contained 15 findings.
+Ferrum's 2026-08-31 V2 glyph-bond geometry is accepted by the pixel policy. The
+deterministic oracle reports that all seven deliberately negative scenes reach
+their named rejection category; the native final-ink and actual Qt lanes each
+report 14 renderable fixtures and zero violations. The one-time 80-scene
+actual-Qt rotation/style matrix also reports zero violations across 160
+endpoints. Before this rebuild, the same broad matrix exposed 30 findings,
+including detached, missing, orphaned, and topology failures.
 
-The correction remains Rust-owned. Exact quadratic/cubic outline support for
-the current verified reference face replaces rectangular corner clipping;
-core optical clearance is distinct from mask and decoration exclusion; and
-style lowering models actual endpoint caps, transverse widths, axial overhang,
-and axial retreat. Parallel terminals use the full occupied ink interval rather
-than distance from the attachment axis, preserving the same clearance contract
-for future asymmetric lane placement. A sole rightward bond relocates explicit
-hydrogen/count ink to the left while preserving isotope and charge conventions.
-The wide-endpoint gap floor is normalized to final endpoint width, so
-Haworth-front ink retains the same minimum visible separation as ordinary
-strokes.
+The unmodified pre-rebuild `HEAD` measurement package independently accepts all
+14 rebuilt native fixtures and all 14 rebuilt Qt fixtures. On the broader
+80-scene matrix it reports only two dashed-topology false negatives caused by
+fixed samples landing in intentional dash gaps; it reports no alignment,
+collision, double-bond, or triple-bond failure. The retained measurement change
+strengthens dashed classification to require separated, elongated, collinear,
+endpoint-spanning components. Renderer acceptance therefore does not depend on
+the measurement-library edit.
+
+Subsequent documentation review identified two broader proportional defects
+that the endpoint metrics did not judge: capture-only chemistry used 200- and
+220-point bonds instead of Ferrum's native 40-point scale, and Ferrum's 6-unit
+default lane spacing sat beside a 1-unit stroke. The capture fixtures now use
+40-point bonds. Rust derives built-in lane separation as four resolved stroke
+widths, matching the OASA 6 px / 1.5 px proportion while preserving every
+explicit authored CDML width.
+
+The post-correction native and actual-Qt 14-fixture lanes each report zero
+violations. The promoted local runtime validates, and the 13-scene Qt
+documentation workflow was recaptured at 1440 by 900 and inspected in full;
+12 tracked PNGs changed while the command-palette scene remained byte-identical.
+
+The correction remains Rust-owned. Atom label construction retains semantic run
+roles for the structural element, isotope, explicit hydrogen/count, and charge.
+Each resolved style supplies a complete final-footprint attachment corridor.
+The label solver selects the minimum conventional run translation that clears
+every incident corridor; core outline support alone owns axial clipping. Exact
+post-lowering collision admission validates the emitted stroke and path ink
+against endpoint decorations before a plan is admitted. Parallel terminals use
+the full occupied lane interval, wavy corridors include amplitude, and cubic
+stroke checks use true angle-derived miter extent. A 1.5-stroke parallel
+renderer target preserves raster quantization room below the independent
+1.75-stroke acceptance ceiling.
 
 The Qt evidence correction is capture-only: fixed-profile rendering now uses
 one isotropic scale and centered letterboxing instead of stretching the scene.
@@ -179,9 +208,10 @@ Qt-specific offset:
 | Failed evidence | Rust owner | Permitted correction |
 | --- | --- | --- |
 | Systematic target-axis drift | Private `GlyphMetrics` / `AtomLabelAttachmentGeometry` | Verified molecule-label font hash, tight outline bounds, and glyph-class optical-anchor calibration |
-| Gap, target overlap, or serving-lane error | `NormalBondEndpointClipPolicy` and style lowering | Clip-policy or final-footprint correction |
+| Decoration crowding or endpoint conflict | `LaidOutAtomLabel` semantic-register solver | Minimum conventional run translation that clears all incident final-footprint corridors |
+| Gap, target overlap, or serving-lane error | Bond-owned attachment corridor and style lowering | Corridor footprint, clip policy, or final-footprint correction |
 | Parallel-lane disagreement | `atom_bond/bond/ink.rs` parallel-terminal envelope | One combined lane-envelope clip, validated against full-label pixels before symmetric lane emission |
-| Third-label crossing or crowding | Complete-plan admission | Typed refusal or globally valid placement decision |
+| Endpoint- or third-label crossing | Exact final-operation admission | Typed refusal or globally valid placement decision |
 | Qt-only mismatch | Qt replay contract test | Consumer defect correction without visual offsets |
 | Crop/composition defect | Fixture capture profile | Fixed-profile correction, never molecule paint offsets |
 
@@ -218,6 +248,10 @@ This goal is complete only when:
    `./all_test.sh` pass, with any unrelated pre-existing failure documented
    separately.
 
-The 2026-08-31 evidence satisfies the instrument, native geometry, actual Qt,
-diagnostic-publication, selected-font recalibration, and accepted-zero baseline
-criteria. Aggregate gate receipts are recorded in the changelog.
+The 2026-08-31 evidence satisfies every automated completion criterion: 17
+permanent measurement tests, seven named negative oracle scenes, 14 native and
+14 actual-Qt fixtures, 80 one-time actual-Qt stress scenes, 169 passing render
+tests plus one ignored developer receipt, `./check_rust.sh`, and
+`./all_test.sh` are green. The untouched pre-rebuild measurement package also
+accepts every rebuilt native and Qt fixture. Aggregate receipts are recorded in
+the changelog; the completed plan is ready for its human-owned archive move.

@@ -31,9 +31,10 @@ with one Rust-governed chemical document. The currently implemented slice lets y
 ## Current renderer evidence
 
 Ferrum's molecule labels use the Rust-selected, byte-verified Atkinson Hyperlegible
-Next Regular resource. The fixed native and installed-Qt glyph-bond corpus currently
-passes its automated pixel policy; this is evidence for that bounded renderer contract,
-not a substitute for the remaining native-window human review. See
+Next Regular resource. All 14 fixed native and installed-Qt glyph-bond cases, plus a
+one-time 80-scene style/rotation matrix, pass the automated pixel policy; this is
+evidence for that bounded renderer contract, not a substitute for the remaining
+native-window human review. See
 [docs/GLYPH_BOND_MEASUREMENT.md](docs/GLYPH_BOND_MEASUREMENT.md) for the measurement
 boundary and [docs/ROADMAP.md](docs/ROADMAP.md) for the remaining release work.
 

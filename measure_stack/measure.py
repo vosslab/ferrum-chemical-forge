@@ -214,6 +214,52 @@ def _wavy_turns(mask: numpy.ndarray, start: numpy.ndarray, end: numpy.ndarray) -
 
 
 # ============================================
+def _dashed_component_receipt(mask: numpy.ndarray, start: numpy.ndarray,
+        end: numpy.ndarray, stroke: float) -> dict[str, object]:
+    """Classify separated, collinear, dash-shaped final-ink components."""
+    unit, axis_length = _axis(start, end)
+    normal = numpy.array((-unit[1], unit[0]))
+    count, labels = cv2.connectedComponents(mask.astype(numpy.uint8), connectivity=8)
+    axial_intervals = []
+    transverse_centers = []
+    elongations = []
+    for component in range(1, count):
+        rows, columns = numpy.where(labels == component)
+        points = numpy.column_stack((rows, columns)).astype(numpy.float64)
+        axial = (points - start) @ unit
+        transverse = (points - start) @ normal
+        axial_span = float(axial.max() - axial.min())
+        transverse_span = float(transverse.max() - transverse.min())
+        axial_intervals.append((float(axial.min()), float(axial.max())))
+        transverse_centers.append(float(abs(numpy.median(transverse))))
+        elongations.append(axial_span / max(1.0, transverse_span))
+    visible_fraction = (
+        (max(final for _, final in axial_intervals)
+        - min(first for first, _ in axial_intervals)) / axis_length
+        if axial_intervals else 0.0
+    )
+    distributed = bool(
+        axial_intervals
+        and min(first for first, _ in axial_intervals) < axis_length * 0.40
+        and max(final for _, final in axial_intervals) > axis_length * 0.60
+    )
+    passed = (
+        len(axial_intervals) >= 2
+        and distributed
+        and visible_fraction >= 0.50
+        and min(elongations, default=0.0) >= 1.25
+        and max(transverse_centers, default=math.inf) <= stroke
+    )
+    return {
+        "dashed_components_distributed": distributed,
+        "dashed_min_component_elongation": min(elongations, default=0.0),
+        "dashed_max_centerline_error_px": max(transverse_centers, default=math.inf),
+        "dashed_visible_axis_fraction": visible_fraction,
+        "dashed_component_topology_pass": passed,
+    }
+
+
+# ============================================
 def _style_topology(bond: BondLayer, start: numpy.ndarray, end: numpy.ndarray) -> dict[str, object]:
     """Apply explicit final-ink predicates for every supported bond style."""
     mask = bond.footprint_mask
@@ -232,6 +278,7 @@ def _style_topology(bond: BondLayer, start: numpy.ndarray, end: numpy.ndarray) -
     style = bond.style
     predicate = "unsupported_style"
     passed = False
+    style_receipt: dict[str, object] = {}
     if style in _LANE_STYLES:
         predicate = f"{style}_lane_count"
         # Parallel double/triple strokes are deliberately separate components;
@@ -242,14 +289,11 @@ def _style_topology(bond: BondLayer, start: numpy.ndarray, end: numpy.ndarray) -
             passed = passed and stroke >= 3.0
     elif style == "dashed":
         predicate = "dashed_separated_segments"
-        # A fixed cross-section may correctly land in an intentional dash gap.
-        # Separation and multiple nonempty sampled sections prove the visible
-        # dashed topology without assuming a renderer-selected phase.
-        sampled_lanes = [
-            _lane_count(_cross_section(mask, start, end, fraction))
-            for fraction in (0.20, 0.35, 0.50, 0.65, 0.80)
-        ]
-        passed = components >= 2 and any(count == 1 for count in sampled_lanes)
+        # Component geometry is independent of renderer-selected dash phase and
+        # device-pixel sampling. Each isolated final-ink component must be an
+        # elongated dash, share the atom centerline, and span both axis halves.
+        style_receipt = _dashed_component_receipt(mask, start, end, stroke)
+        passed = bool(style_receipt["dashed_component_topology_pass"])
     elif style == "wavy":
         predicate = "wavy_connected_lateral_turns"
         passed = components == 1 and _wavy_turns(mask, start, end) >= 2
@@ -285,6 +329,7 @@ def _style_topology(bond: BondLayer, start: numpy.ndarray, end: numpy.ndarray) -
         "taper_ratio": taper_ratio,
         "style_topology_pass": passed,
     }
+    result.update(style_receipt)
     return result
 
 

@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use ferrum_core::RecordKind;
 use ferrum_geometry::{Point2, Vector2};
 
-use crate::glyph_metrics::GlyphBounds;
+use crate::glyph_metrics::AtomLabelAttachmentCorridor;
 use crate::glyph_outline_support::GlyphOutlineSupport;
 use crate::render_target::RenderPlanEntryContextV1;
 use crate::{
@@ -21,6 +21,7 @@ use crate::{
     VerifiedMoleculeLabelGlyphMetrics,
 };
 
+pub(crate) use atom::AtomLabelRunRole;
 pub use atom::{
     AtomLabelFacts, AtomLabelFontProfile, AtomMarkRenderFacts, AtomMarkRenderKind,
     AtomNumberLabelFacts, AtomRenderTarget,
@@ -29,7 +30,10 @@ pub use bond::BondRenderTarget;
 
 use atom::build_atom_batch;
 use bond::{NormalBondEndpointClipPolicy, build_bond_batch};
-use final_ink_collision::{LabelInkEnvelope, batch_intersects_non_endpoint_label};
+use final_ink_collision::{
+    EndpointLabelInkExclusions, LabelInkEnvelope, batch_intersects_endpoint_label_ink,
+    batch_intersects_non_endpoint_label,
+};
 
 /// Explicit gap between final bond ink and visible atom-label ink.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -204,17 +208,19 @@ pub(crate) fn build_atom_bond_plan(
     let mut batches = Vec::new();
     let mut issues = Vec::new();
     let mut endpoints = HashMap::new();
+    let mut endpoint_label_exclusions = HashMap::new();
     let mut label_envelopes = HashMap::new();
 
     for atom in &request.atoms {
         let context = atom.context.clone();
+        let attachment_corridors = visible_atom_attachment_corridors(atom, request)?;
         let outcome = atom.visibility.issue("atom target").map_or_else(
             || {
                 build_atom_batch(
                     atom,
                     atom.font.as_ref().unwrap_or(&request.font),
                     request.normal_single_clip_policy.clearance().gap(),
-                    sole_visible_bond_direction(atom, &request.atoms, &request.bonds)?,
+                    &attachment_corridors,
                     metrics,
                 )
             },
@@ -255,10 +261,20 @@ pub(crate) fn build_atom_bond_plan(
                         clipping: EndpointClipGeometry::AtomLabelInk {
                             core_outline_support,
                             label_mask_ink_bounds,
-                            non_core_run_ink_bounds,
                         },
                     },
                 );
+                let endpoint_exclusion_bounds = non_core_run_ink_bounds;
+                let endpoint_exclusion_gap = PositiveFinite::new(
+                    request.normal_single_clip_policy.clearance().gap().get() * 0.25,
+                )?;
+                let endpoint_exclusions = EndpointLabelInkExclusions::from_local_bounds(
+                    &endpoint_exclusion_bounds,
+                    atom.position,
+                    endpoint_exclusion_gap,
+                )
+                .map_err(RenderError::InvalidRequest)?;
+                endpoint_label_exclusions.insert(context.record_id().clone(), endpoint_exclusions);
                 let envelope = LabelInkEnvelope::from_local_bounds(
                     bounds,
                     atom.position,
@@ -294,34 +310,21 @@ pub(crate) fn build_atom_bond_plan(
                 feature: style.to_owned(),
             })
         } else {
-            let (stroke_width, lane_spacing, wedge_width, paint) =
-                bond.appearance.as_ref().map_or_else(
-                    || {
-                        (
-                            request.line_width,
-                            request.bond_lane_spacing,
-                            request.bond_lane_spacing,
-                            request.line_paint.clone(),
-                        )
-                    },
-                    |appearance| {
-                        (
-                            appearance.stroke_width,
-                            appearance.lane_spacing,
-                            appearance.wedge_width,
-                            appearance.paint.clone(),
-                        )
-                    },
-                );
+            let appearance = bond.resolved_appearance(
+                request.line_width,
+                request.bond_lane_spacing,
+                request.bond_lane_spacing,
+                &request.line_paint,
+            );
             let (first_endpoint, second_endpoint) = bond.endpoints();
             build_bond_batch(
                 bond,
                 &endpoints,
-                stroke_width,
-                lane_spacing,
-                wedge_width,
+                appearance.stroke_width,
+                appearance.lane_spacing,
+                appearance.wedge_width,
                 request.normal_single_clip_policy,
-                paint,
+                appearance.paint,
             )
             .and_then(|batch| {
                 let crate::RenderBatchContentV4::Bond(content) = batch.content() else {
@@ -329,7 +332,19 @@ pub(crate) fn build_atom_bond_plan(
                         reason: "bond lowering did not produce closed bond content".to_owned(),
                     });
                 };
-                if batch_intersects_non_endpoint_label(
+                if batch_intersects_endpoint_label_ink(
+                    content,
+                    &endpoint_label_exclusions,
+                    first_endpoint,
+                    second_endpoint,
+                )
+                .map_err(|reason| RenderIssueKind::UnrenderableTarget { reason })?
+                {
+                    Err(RenderIssueKind::UnrenderableTarget {
+                        reason: "bond final ink intersects endpoint atom-label decoration"
+                            .to_owned(),
+                    })
+                } else if batch_intersects_non_endpoint_label(
                     content,
                     &label_envelopes,
                     first_endpoint,
@@ -356,44 +371,71 @@ pub(crate) fn build_atom_bond_plan(
     MoleculeRenderPlanV4::new(request.provenance, batches, issues)
 }
 
-fn sole_visible_bond_direction(
+fn visible_atom_attachment_corridors(
     atom: &AtomRenderTarget,
-    atoms: &[AtomRenderTarget],
-    bonds: &[BondRenderTarget],
-) -> Result<Option<Vector2>, RenderError> {
+    request: &AtomBondRenderRequest,
+) -> Result<Vec<AtomLabelAttachmentCorridor>, RenderError> {
     let atom_id = atom.context.record_id();
-    let mut neighbor = None;
-    for bond in bonds {
+    let mut corridors = Vec::new();
+    for bond in &request.bonds {
         if !matches!(&bond.visibility, TargetVisibility::Visible) {
             continue;
         }
-        let other_id = if bond.first_endpoint() == atom_id {
-            bond.second_endpoint()
+        if bond.style.unsupported_name().is_some() {
+            continue;
+        }
+        let (other_id, endpoint_is_first) = if bond.first_endpoint() == atom_id {
+            (bond.second_endpoint(), true)
         } else if bond.second_endpoint() == atom_id {
-            bond.first_endpoint()
+            (bond.first_endpoint(), false)
         } else {
             continue;
         };
-        if neighbor.is_some() {
-            return Ok(None);
-        }
-        neighbor = atoms
+        let Some(neighbor) = request
+            .atoms
             .iter()
             .find(|candidate| candidate.context.record_id() == other_id)
-            .map(|candidate| candidate.position);
-        if neighbor.is_none() {
-            return Ok(None);
+        else {
+            continue;
+        };
+        let delta_x = neighbor.position.x() - atom.position.x();
+        let delta_y = neighbor.position.y() - atom.position.y();
+        if !delta_x.is_finite() || !delta_y.is_finite() {
+            // The bond owner emits the target-scoped nonrepresentable issue.
+            // No finite attachment corridor exists for label placement.
+            continue;
         }
+        let vector = Vector2::new(delta_x, delta_y).map_err(|error| {
+            RenderError::InvalidRequest(format!(
+                "atom-label attachment direction is invalid: {error}"
+            ))
+        })?;
+        let length = vector.length();
+        if length == 0.0 {
+            // Coincident endpoints are rejected by the bond owner. They do not
+            // define a direction that can constrain otherwise valid label ink.
+            continue;
+        }
+        let direction =
+            Vector2::new(vector.x() / length, vector.y() / length).map_err(|error| {
+                RenderError::InvalidRequest(format!(
+                    "atom-label attachment direction is invalid: {error}"
+                ))
+            })?;
+        let appearance = bond.resolved_appearance(
+            request.line_width,
+            request.bond_lane_spacing,
+            request.bond_lane_spacing,
+            &request.line_paint,
+        );
+        corridors.push(bond.attachment_corridor(
+            direction,
+            endpoint_is_first,
+            &appearance,
+            request.normal_single_clip_policy,
+        )?);
     }
-    let Some(neighbor) = neighbor else {
-        return Ok(None);
-    };
-    Ok(Vector2::new(
-        neighbor.x() - atom.position.x(),
-        neighbor.y() - atom.position.y(),
-    )
-    .and_then(Vector2::normalized)
-    .ok())
+    Ok(corridors)
 }
 struct RenderEndpointGeometry {
     kind: RecordKind,
@@ -409,8 +451,7 @@ enum EndpointClipGeometry {
     /// rectangles remain exclusions rather than substitute attachment targets.
     AtomLabelInk {
         core_outline_support: GlyphOutlineSupport,
-        label_mask_ink_bounds: Option<GlyphBounds>,
-        non_core_run_ink_bounds: Vec<GlyphBounds>,
+        label_mask_ink_bounds: Option<crate::glyph_metrics::GlyphBounds>,
     },
     FixedConnectionPoint {
         label_ink_exclusion: crate::compact_group::CompactGroupLabelInkEnvelope,

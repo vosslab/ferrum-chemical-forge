@@ -47,9 +47,27 @@ has equal weight, so antialiasing cannot shift the answer toward a thicker lane.
 
 The library compares the recovered footprint with target-core and full-label
 pixels. It also checks the complete scene, declared layer coverage, connected
-components, and style-specific topology. The algorithms are in
+components, and style-specific topology. Dashed topology uses complete
+component geometry--separation, elongation, centerline, and visible axial
+span--rather than renderer-selected dash phase. The algorithms are in
 [`measure_stack/measure.py`](../measure_stack/measure.py); threshold values are
 the one `MeasurementPolicy` authority in that file.
+
+## Renderer design being checked
+
+Rust treats an atom label as semantic runs: structural element, isotope,
+explicit hydrogen/count, and charge. The structural element remains centered at
+the atom origin. Each resolved bond style supplies its complete terminal
+footprint as an attachment corridor, including approach direction, transverse
+extent, optical gap, and decoration clearance. The label solver selects the
+smallest conventional run translation that clears every incident corridor.
+
+Core glyph outline support determines axial clipping. Decorations constrain
+their own semantic placement. Final-operation admission then checks exact
+lowered strokes and paths against all endpoint decoration ink. This ownership
+keeps parallel lanes attached as one visual terminal while preserving isotope,
+hydrogen, and charge notation. Wavy amplitude and the actual angle-derived
+miter extent participate in the same final-footprint check.
 
 ## Run the lanes
 
@@ -85,6 +103,16 @@ All lanes write ignored output directories containing V2 manifests, JSON
 reports, per-case overlays, contact sheets, and `run_summary.json`. Use the
 contact sheet to locate a reported fixture, then use its JSON report to see the
 specific endpoint and metric that failed.
+
+The 2026-08-31 accepted receipts contain seven deliberately negative synthetic
+oracle scenes plus 14 real fixtures in each native and installed-Qt lane, all
+with their required result. The oracle scenes reach every declared rejection
+category; the real lanes have zero violations. A separate one-time rebuild
+matrix exercised all 10 supported bond styles in eight directions through
+actual Qt output: 80 scenes and 160 endpoints had zero violations or
+collisions. Its measured gaps span
+0.067-0.150 target-glyph heights and 0.221-1.500 stroke widths; maximum
+perpendicular error is 0.0375 glyph heights.
 
 ## Endpoint statistics
 
@@ -142,16 +170,21 @@ Use the failed category to select the Rust owner:
   lowering.
 - Third-label collision: complete-plan admission.
 
-Never resolve a failed metric by adding molecule-specific or Qt-specific visual
-offsets. The fixed corpus and strict policy remain unchanged while a proposed
-Rust correction is measured before and after.
+Keep geometry corrections in the Rust owner selected by the failed metric. Use
+the fixed corpus and strict policy unchanged for the before/after measurement.
 
 ## Scope and limits
 
-This is a developer and E2E evidence lane, not a permanent fast pytest suite or
-a product API. It covers Ferrum's fixed corpus and supported bond styles; it
+This is a developer and E2E evidence lane rather than a permanent fast pytest
+suite or product API. It covers Ferrum's fixed corpus and supported bond styles; it
 does not establish SVG, PDF, or PNG backend parity, infer arbitrary chemistry
 from text, or substitute for every broader desktop usability evaluation.
+
+Permanent measurement tests retain deterministic, inline behavioral cases for
+manifest validation, metrics, and demonstrated dashed raster-phase independence.
+The 80-scene actual-Qt stress matrix, contact-sheet review, native capture, and
+installed-Qt capture are one-time or developer/E2E evidence and remain outside
+permanent pytest.
 
 V2 measures Ferrum's byte-verified Atkinson Hyperlegible Next Regular
 molecule-label face. Rust owns its tight curve bounds, placement, and clipping;

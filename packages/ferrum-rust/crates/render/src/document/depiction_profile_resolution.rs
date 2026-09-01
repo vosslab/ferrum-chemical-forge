@@ -17,7 +17,10 @@ use ferrum_document_projection::{
 };
 use ferrum_render_contract::MOLECULE_LABEL_RESOURCE_ID;
 
-const BUILTIN_BOND_LANE_SPACING: f64 = 6.0;
+// BKChem/OASA's default 6 px lane separation accompanies a 1.5 px stroke.
+// Preserve that four-stroke proportion in Ferrum's point-space depiction
+// instead of carrying the absolute pixel distance across unit systems.
+const BUILTIN_BOND_LANE_STROKE_FACTOR: f64 = 4.0;
 const BUILTIN_ATOM_NUMBER_FONT_SIZE: f64 = 9.0;
 const BUILTIN_ATOM_NUMBER_OFFSET_X: f64 = 8.0;
 const BUILTIN_ATOM_NUMBER_OFFSET_Y: f64 = -12.0;
@@ -598,14 +601,16 @@ fn resolved_bond_width(
 }
 pub(super) fn resolved_default_bond_lane_spacing(
     projection: &DocumentProjectionV1,
-    _profile: &DepictionProfileV1,
+    profile: &DepictionProfileV1,
 ) -> Result<PositiveFinite, DepictionIssueV1> {
-    positive(
-        projection
-            .drawing_standard()
-            .and_then(|standard| standard.bond_width())
-            .map_or(BUILTIN_BOND_LANE_SPACING, |value| value.value()),
-    )
+    if let Some(value) = projection
+        .drawing_standard()
+        .and_then(|standard| standard.bond_width())
+    {
+        return positive(value.value());
+    }
+    let line_width = resolved_line_width(projection, profile)?;
+    positive(line_width.get() * BUILTIN_BOND_LANE_STROKE_FACTOR)
 }
 fn resolved_bond_lane_spacing(
     bond: &BondProjectionV1,

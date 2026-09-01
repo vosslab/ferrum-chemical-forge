@@ -24,39 +24,44 @@ authoritative code or contract document, rather than a person.
 
 ## Software design
 
-### Core-element anchors and full-ink bond clearance
+### Semantic label registers and bond-owned attachment corridors
 
-**Decision.** Atom-label layout derives unversioned
-`AtomLabelAttachmentGeometry` and exact directional outline support from the
-typed structural element run. Its exact ink center is the local atom origin.
-`LaidOutAtomLabel` separately retains the complete visible-ink bounds of the
-element, masks, hydrogens, isotopes, and charge annotations. Every atom-bond
-render request supplies an explicit positive `BondInkClearance`; lowering clips
-the style-specific final footprint against structural outline support and every
-painted decoration that lies on its approach ray.
+**Decision.** Rust classifies every atom-label run as structural element,
+isotope, explicit hydrogen/count, or charge before layout. The structural
+element's exact ink center is the atom origin. Each resolved bond style owns an
+`AtomLabelAttachmentCorridor` derived from its complete final terminal
+footprint: approach direction, occupied transverse interval, optical gap, and
+decoration clearance. The label solver chooses the minimum valid translation
+within conventional semantic registers, then final-operation admission checks
+the emitted painted geometry against every endpoint decoration.
 
-**Why.** Centering a whole decorated label or attaching an axis to its text
-baseline makes bond placement depend on incidental hydrogen and charge text.
-Clipping only an abstract axis leaves visible stroke caps, bold widths, waves,
-and Haworth extensions able to enter glyph ink. Structural element identity and
-font measurements are already Rust-owned facts, so the renderer can establish
-one geometry contract before Qt, SVG, PDF, or PNG consume its plan.
+**Why.** Atom labels are structured chemical notation rather than one text box.
+The [IUPAC graphical-representation recommendations](https://iupac.qmul.ac.uk/drawing/drawing.html)
+place isotope mass at upper left, hydrogen beside the element, charge at upper
+right when space permits, and bonds at the atom symbol without impinging on it.
+A baseline-only or bounding-box-only layout loses those roles. An abstract bond
+axis also omits the real width of parallel lanes, waves, wedges, caps, and miter
+joins. Rust already owns label meaning, verified font metrics, and final style
+lowering, so one constraint boundary can serve Qt, SVG, PDF, and PNG.
 
-**Consequence.** The renderer uses one y-down script-baseline calculation,
-centers the core-element ink for every admitted label, and treats masks plus
-non-core visible ink as exclusion geometry. It reserves an optical gap and each
-style's actual cap, transverse width, axial overhang, or axial retreat. Double
-and triple bonds resolve one additional bounded clearance from the complete
-parallel terminal envelope. That envelope measures the occupied final-ink
-interval, so its width remains stable when lanes are not centered on the
-attachment axis; every lane then shares the resulting axial clips.
-The renderer refuses an unrenderable target rather than emitting intersecting
-or partial ink. Qt
-replays the issued glyph and bond operations without choosing a text anchor,
-recomputing glyph bounds, or relaxing clearance. The closed
-`RenderObservationV2`/`RenderPlanV4` boundary publishes the exact core/full ink
-bounds and positive clearance. The installed Qt E2E replays the same Rust-owned
-corpus and proves that issued bond ink remains disjoint from label ink.
+**Consequence.** Isotope candidates remain in the upper-left sector;
+hydrogen/count candidates use left or right baseline registers; charge
+candidates use upper-right, above, below, or upper-left registers. Candidate
+translations are solved analytically from exact glyph ink and all incident
+bond corridors, then ordered by minimum movement. Core outline support owns
+axial endpoint clipping, while decoration ink constrains placement instead of
+detaching every parallel lane. Double and triple bonds use one combined
+terminal envelope and a 1.5-stroke renderer target inside the independent
+1.75-stroke raster ceiling. Wavy amplitude, terminal caps, axial overhang, and
+true angle-derived miter extent are part of final footprint geometry. The
+renderer emits a typed issue when no complete placement exists and performs an
+exact post-lowering collision check before admitting the plan.
+
+Qt replays issued glyph and bond operations without choosing registers or
+recomputing geometry. The closed `RenderObservationV2`/`RenderPlanV4` boundary
+publishes exact core/full ink bounds and positive clearance. The installed Qt
+E2E and independent pixel lane validate final output rather than the private
+solver's intermediate values.
 
 `BondAttachmentAxisV1` is the accompanying frozen semantic fact on every bond
 batch. Its endpoints are the uncut structural connection points: an atom uses
@@ -71,10 +76,11 @@ clearance for double and triple bonds, compared with 0.20 for single-stroke
 styles. This stronger parallel threshold makes the optical distinction
 executable without supplying renderer geometry to the measurement process.
 
-**Owner.** `packages/ferrum-rust/crates/render/src/glyph_outline_support.rs`,
-`packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
-`packages/ferrum-rust/crates/render/src/verified_molecule_label_glyph_metrics.rs`, and
-`packages/ferrum-rust/crates/render/src/atom_bond/`.
+**Owner.** `packages/ferrum-rust/crates/render/src/glyph_metrics.rs`,
+`packages/ferrum-rust/crates/render/src/verified_molecule_label_glyph_metrics.rs`,
+`packages/ferrum-rust/crates/render/src/atom_bond/atom.rs`,
+`packages/ferrum-rust/crates/render/src/atom_bond/bond.rs`, and
+`packages/ferrum-rust/crates/render/src/atom_bond/final_ink_collision.rs`.
 
 ### Molecule-label font selection belongs to one Rust role
 
@@ -200,6 +206,30 @@ through planning, metadata, validation, history, and save/reopen.
 
 **Owner.** `packages/ferrum-rust/crates/domain/src/linear_form/types.rs` and
 `packages/ferrum-rust/crates/document/src/typed_linear_form_metadata.rs`.
+
+### Native chemistry proportions use one point-space scale
+
+**Decision.** Ferrum's built-in chemistry presentation uses the same
+40-point bond and 12-point atom-label scale as the local BKChem/OASA Qt
+reference. Built-in double- and triple-bond lane separation is four times the
+resolved line width; an explicit CDML `bond width` remains authoritative.
+Documentation chemistry fixtures use the same 40-point bond length.
+
+**Why.** The OASA default lane spacing is 6 px with a 1.5 px stroke, a
+four-stroke proportion. Carrying 6 into Ferrum beside its 1-point stroke made
+parallel lanes six stroke widths apart. Documentation fixtures separately used
+200- and 220-point bonds, which made ordinary atom labels look implausibly
+small even though native Ferrum authoring already used 40-point spacing.
+
+**Consequence.** Default multiple bonds remain legible without a wide empty
+channel, native and captured chemistry share one bond-to-label scale, and
+authored imported widths remain unchanged. Qt continues to replay Rust-issued
+geometry without a visual correction.
+
+**Owner.**
+`packages/ferrum-rust/crates/render/src/document/depiction_profile_resolution.rs`,
+`packages/ferrum-rust/crates/domain/src/linear_form/types.rs`, and
+`packages/ferrum-chem-qt.app/ferrum_qt/documentation_capture_models.py`.
 
 ### Rust owns the local File/Open catalog
 

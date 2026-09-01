@@ -728,14 +728,14 @@ impl GlyphMetrics for VerifiedMoleculeLabelGlyphMetrics {
             )));
         }
         validate_molecule_label_text_segments(
-            label.text_pieces().iter().map(|(text, _)| text.as_str()),
+            label.text_pieces().iter().map(|(text, _, _)| text.as_str()),
         )
         .map_err(molecule_label_admission_error)?;
         let script_scale = PositiveFinite::new(0.65)?;
         let baseline = self.baseline_metrics(font.size())?;
         let pieces = label.text_pieces();
         let mut layouts = Vec::with_capacity(pieces.len());
-        for (text, script) in &pieces {
+        for (text, script, _) in &pieces {
             let scale = if *script == TextScript::Baseline {
                 PositiveFinite::new(1.0)?
             } else {
@@ -765,7 +765,8 @@ impl GlyphMetrics for VerifiedMoleculeLabelGlyphMetrics {
         let mut runs = Vec::with_capacity(pieces.len());
         let mut non_core_run_ink_bounds = Vec::new();
         let mut ink_bounds: Option<(f64, f64, f64, f64)> = None;
-        for (index, ((text, script), layout)) in pieces.into_iter().zip(layouts).enumerate() {
+        let mut run_roles = Vec::with_capacity(pieces.len());
+        for (index, ((text, script, role), layout)) in pieces.into_iter().zip(layouts).enumerate() {
             let scale = if script == TextScript::Baseline {
                 PositiveFinite::new(1.0)?
             } else {
@@ -807,6 +808,7 @@ impl GlyphMetrics for VerifiedMoleculeLabelGlyphMetrics {
                 layout.glyphs,
                 scale,
             )?);
+            run_roles.push(role);
             cursor = x + layout.advance;
         }
         let Some((min_x, min_y, max_x, max_y)) = ink_bounds else {
@@ -838,6 +840,7 @@ impl GlyphMetrics for VerifiedMoleculeLabelGlyphMetrics {
             AtomLabelAttachmentGeometry::new(core_bounds)?,
             core_outline_support,
             core_element_run_index,
+            run_roles,
             non_core_run_ink_bounds,
         )
     }

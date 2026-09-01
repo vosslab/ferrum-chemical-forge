@@ -21,7 +21,7 @@ CARBON_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 PAIR_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 <molecule id='demo-molecule' name='Carbonyl fragment'>
   <atom id='carbon' name='C'><point x='300' y='360'/></atom>
-  <atom id='oxygen' name='O'><point x='520' y='360'/></atom>
+  <atom id='oxygen' name='O'><point x='340' y='360'/></atom>
   <bond id='carbonyl' start='carbon' end='oxygen' type='n2'/>
 </molecule>
 </cdml>"""
@@ -30,9 +30,9 @@ CDXML = (
 	'<!DOCTYPE CDXML SYSTEM "https://static.chemistry.revvitycloud.com/cdxml/CDXML.dtd">'
 	'<CDXML CreationProgram="ChemDraw 23.0"><page HeightPages="1">'
 	'<fragment id="source-fragment"><n id="source-carbon" p="240 360"/>'
-	'<n id="source-oxygen" p="440 360" Element="8"/>'
-	'<n id="source-nitrogen" p="640 360" Element="7"/>'
-	'<n id="source-fluorine" p="840 360" Element="9"/>'
+	'<n id="source-oxygen" p="280 360" Element="8"/>'
+	'<n id="source-nitrogen" p="320 360" Element="7"/>'
+	'<n id="source-fluorine" p="360 360" Element="9"/>'
 	'<b id="source-wavy" B="source-carbon" E="source-oxygen" Display="Wavy"/>'
 	'<b id="source-bold" B="source-oxygen" E="source-nitrogen" Display="Bold"/>'
 	'<b id="source-dashed" B="source-nitrogen" E="source-fluorine" Display="Dash"/>'

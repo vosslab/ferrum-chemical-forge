@@ -18,11 +18,12 @@ acceptance.
 - `GlyphBounds` is the exact finite visible-ink rectangle for positioned runs.
   It is not widened merely to contain an atom origin.
 - The typed element run determines unversioned `AtomLabelAttachmentGeometry`.
-  Its exact ink center must equal local `(0, 0)`; the complete element,
-  hydrogen, isotope, and charge union remains the clipping exclusion geometry.
-- One shared y-down script-baseline calculation puts subscripts below and
-  superscripts above the centered core element. Decorations therefore cannot
-  move a bond attachment point.
+  Its exact ink center must equal local `(0, 0)`. Isotope, explicit
+  hydrogen/count, and charge remain semantic run roles placed in conventional
+  registers against every incident style-owned attachment corridor.
+- Core outline support owns axial clipping. Decoration ink constrains its own
+  placement, and exact post-lowering collision admission verifies the final
+  strokes and paths.
 - `BondInkClearance` is a required positive input. The clipped envelope expands
   complete label ink by the requested gap and the final painted footprint:
   half-width for ordinary and dashed lines, full base width for bold, amplitude
@@ -64,15 +65,16 @@ must replay.
 The renderer's deterministic molecule-label corpus now checks exact core centering,
 full-ink containment, y-down script placement, and style-aware final-footprint
 clearance, including the Haworth front axial extension. The focused local render
-lane passes 166 permanent tests with one ignored developer receipt;
+lane passes 169 tests with one ignored developer receipt;
 `./check_rust.sh` also passes formatting, workspace
 check, strict Clippy, all workspace and doc tests, and Rustdoc. The permanent
-measurement suite passes 16 tests. A shared 12-row corpus has both a Rust
-consumer and an installed 14-case Rust-to-Qt E2E consumer; each requires final
+measurement suite passes 17 tests. A shared 16-row semantic corpus has both a
+Rust consumer and an installed 16-case Rust-to-Qt E2E consumer; 14 rows render
+and two assert typed refusal. Each rendered row requires final
 bond ink to remain disjoint from full label ink expanded by the issued
-clearance. The independent native and actual-Qt pixel lanes each accept all 12
+clearance. The independent native and actual-Qt pixel lanes each accept all 14
 renderable fixtures with zero violations. The post-change `./all_test.sh` gate
-passes 8,624 hygiene tests, all registered CLI/Qt E2Es, 283 installed PyO3
+passes 8,641 hygiene tests, all registered CLI/Qt E2Es, 283 installed PyO3
 tests, and 444 Qt tests.
 
 The rebuilt 13-scene screenshot set has independent image-review acceptance.

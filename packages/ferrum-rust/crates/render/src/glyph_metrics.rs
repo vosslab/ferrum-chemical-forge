@@ -2,6 +2,7 @@
 
 use ferrum_geometry::Vector2;
 
+use crate::atom_bond::AtomLabelRunRole;
 use crate::glyph_outline_support::GlyphOutlineSupport;
 use crate::{
     AtomLabelFacts, AtomLabelFontProfile, PositiveFinite, RenderError, RenderPoint, TextRun,
@@ -116,6 +117,111 @@ impl AtomLabelAttachmentGeometry {
     }
 }
 
+/// Final bond-ink corridor that must remain clear of non-core label ink.
+///
+/// Coordinates are atom-local. The transverse interval contains the complete
+/// terminal footprint, while `decoration_clearance` expands label rectangles
+/// exactly as final admission does. The axial ray begins after the structural
+/// core outline and its optical gap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AtomLabelAttachmentCorridor {
+    direction: Vector2,
+    transverse_minimum: f64,
+    transverse_maximum: f64,
+    optical_gap: PositiveFinite,
+    decoration_clearance: PositiveFinite,
+}
+
+impl AtomLabelAttachmentCorridor {
+    pub(crate) fn new(
+        direction: Vector2,
+        transverse_minimum: f64,
+        transverse_maximum: f64,
+        optical_gap: PositiveFinite,
+        decoration_clearance: PositiveFinite,
+    ) -> Result<Self, RenderError> {
+        let length = direction.length();
+        if !length.is_finite()
+            || (length - 1.0).abs() > 1.0e-12
+            || !transverse_minimum.is_finite()
+            || !transverse_maximum.is_finite()
+            || transverse_minimum > transverse_maximum
+        {
+            return Err(RenderError::InvalidRequest(
+                "atom-label attachment corridor must be finite, normalized, and ordered".to_owned(),
+            ));
+        }
+        Ok(Self {
+            direction,
+            transverse_minimum,
+            transverse_maximum,
+            optical_gap,
+            decoration_clearance,
+        })
+    }
+
+    fn intersects(self, bounds: GlyphBounds, core_outline_support: &GlyphOutlineSupport) -> bool {
+        let (axial_minimum, axial_maximum) =
+            project_bounds_with_clearance(bounds, self.direction, self.decoration_clearance);
+        let perpendicular = self.direction.perpendicular_left();
+        let (transverse_minimum, transverse_maximum) =
+            project_bounds_with_clearance(bounds, perpendicular, self.decoration_clearance);
+        let axial_start =
+            core_outline_support.directional_extent(self.direction) + self.optical_gap.get();
+        axial_maximum >= axial_start
+            && axial_minimum.is_finite()
+            && transverse_maximum >= self.transverse_minimum
+            && transverse_minimum <= self.transverse_maximum
+    }
+
+    fn transverse_clearance_distance(
+        self,
+        bounds: GlyphBounds,
+        movement: Vector2,
+        separation: PositiveFinite,
+    ) -> Option<f64> {
+        let perpendicular = self.direction.perpendicular_left();
+        let coefficient = movement.dot(perpendicular);
+        if coefficient.abs() <= 1.0e-12 {
+            return None;
+        }
+        let (minimum, maximum) =
+            project_bounds_with_clearance(bounds, perpendicular, self.decoration_clearance);
+        let distance = if coefficient > 0.0 {
+            (self.transverse_maximum + separation.get() - minimum) / coefficient
+        } else {
+            (maximum - self.transverse_minimum + separation.get()) / -coefficient
+        };
+        distance.is_finite().then_some(distance.max(0.0))
+    }
+}
+
+fn project_bounds_with_clearance(
+    bounds: GlyphBounds,
+    axis: Vector2,
+    clearance: PositiveFinite,
+) -> (f64, f64) {
+    let (minimum, maximum) = project_bounds(bounds, axis);
+    let projected_clearance = clearance.get() * (axis.x().abs() + axis.y().abs());
+    (minimum - projected_clearance, maximum + projected_clearance)
+}
+
+fn project_bounds(bounds: GlyphBounds, axis: Vector2) -> (f64, f64) {
+    let corners = [
+        (bounds.min_x(), bounds.min_y()),
+        (bounds.max_x(), bounds.min_y()),
+        (bounds.max_x(), bounds.max_y()),
+        (bounds.min_x(), bounds.max_y()),
+    ];
+    corners.iter().fold(
+        (f64::INFINITY, f64::NEG_INFINITY),
+        |(minimum, maximum), (x, y)| {
+            let projection = x * axis.x() + y * axis.y();
+            (minimum.min(projection), maximum.max(projection))
+        },
+    )
+}
+
 /// Fully placed semantic runs and the bounds of those exact runs.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct LaidOutAtomLabel {
@@ -124,6 +230,7 @@ pub(crate) struct LaidOutAtomLabel {
     attachment: AtomLabelAttachmentGeometry,
     core_outline_support: GlyphOutlineSupport,
     core_element_run_index: u32,
+    run_roles: Vec<AtomLabelRunRole>,
     non_core_run_ink_bounds: Vec<GlyphBounds>,
 }
 
@@ -135,11 +242,17 @@ impl LaidOutAtomLabel {
         attachment: AtomLabelAttachmentGeometry,
         core_outline_support: GlyphOutlineSupport,
         core_element_run_index: u32,
+        run_roles: Vec<AtomLabelRunRole>,
         non_core_run_ink_bounds: Vec<GlyphBounds>,
     ) -> Result<Self, RenderError> {
         if runs.is_empty() {
             return Err(RenderError::InvalidRequest(
                 "laid-out atom label requires at least one run".to_owned(),
+            ));
+        }
+        if run_roles.len() != runs.len() {
+            return Err(RenderError::InvalidRequest(
+                "atom-label run roles must match the exact laid-out runs".to_owned(),
             ));
         }
         let center = attachment.core_element_ink_center();
@@ -172,12 +285,24 @@ impl LaidOutAtomLabel {
                 "atom-label core run must use baseline script".to_owned(),
             ));
         }
+        if run_roles[core_index] != AtomLabelRunRole::CoreElement
+            || run_roles
+                .iter()
+                .filter(|role| **role == AtomLabelRunRole::CoreElement)
+                .count()
+                != 1
+        {
+            return Err(RenderError::InvalidRequest(
+                "atom label requires exactly one role-identified structural run".to_owned(),
+            ));
+        }
         Ok(Self {
             runs,
             bounds,
             attachment,
             core_outline_support,
             core_element_run_index,
+            run_roles,
             non_core_run_ink_bounds,
         })
     }
@@ -218,31 +343,21 @@ impl LaidOutAtomLabel {
         &self.non_core_run_ink_bounds
     }
 
-    /// Move an explicit hydrogen group away from a sole rightward bond.
+    /// Choose the first conventional decoration layout that clears every bond corridor.
     ///
-    /// The isotope keeps its conventional upper-left placement, the hydrogen
-    /// and its count move to the left baseline, and a formal charge returns to
-    /// the core's upper-right instead of retaining advance reserved by the
-    /// moved hydrogen. The structural run and its outline support do not move.
-    pub(crate) fn avoid_rightward_bond_with_explicit_hydrogen(
+    /// The structural element stays invariant. Isotope placement remains in
+    /// the upper-left semantic register, explicit hydrogen may occupy either
+    /// baseline side, and formal charge prefers the upper-right before the
+    /// open space above, below, or upper-left of the core. These are semantic
+    /// placements, not molecule-specific pixel offsets.
+    pub(crate) fn place_decorations_around_attachment_corridors(
         self,
-        direction: Vector2,
+        corridors: &[AtomLabelAttachmentCorridor],
         spacing: PositiveFinite,
         size: PositiveFinite,
         metrics: &VerifiedMoleculeLabelGlyphMetrics,
     ) -> Result<Self, RenderError> {
-        if direction.x() <= 0.25 {
-            return Ok(self);
-        }
         let core_index = self.core_element_run_index as usize;
-        let hydrogen_index = core_index + 1;
-        let Some(hydrogen) = self.runs.get(hydrogen_index) else {
-            return Ok(self);
-        };
-        if hydrogen.text() != "H" || hydrogen.script() != TextScript::Baseline {
-            return Ok(self);
-        }
-
         let core_bounds = self.attachment.core_element_ink_bounds();
         let mut run_bounds = Vec::with_capacity(self.runs.len());
         let mut non_core_bounds = self.non_core_run_ink_bounds.iter().copied();
@@ -255,38 +370,80 @@ impl LaidOutAtomLabel {
                     .expect("laid-out non-core bounds match run identity")
             });
         }
-
-        let mut group_end = hydrogen_index;
-        if self
-            .runs
-            .get(hydrogen_index + 1)
-            .is_some_and(|run| run.script() == TextScript::Subscript)
-        {
-            group_end += 1;
-        }
-        let hydrogen_right = run_bounds[hydrogen_index..=group_end]
+        let hydrogen_index = self
+            .run_roles
             .iter()
-            .map(|bounds| bounds.max_x())
-            .fold(f64::NEG_INFINITY, f64::max);
-        let hydrogen_shift = core_bounds.min_x() - spacing.get() - hydrogen_right;
-
-        let mut runs = self.runs;
-        for index in hydrogen_index..=group_end {
-            runs[index] = translated_run(&runs[index], hydrogen_shift)?;
-            run_bounds[index] = translated_bounds(run_bounds[index], hydrogen_shift)?;
+            .position(|role| *role == AtomLabelRunRole::ExplicitHydrogen);
+        let hydrogen_end = hydrogen_index.map(|index| {
+            if self.run_roles.get(index + 1) == Some(&AtomLabelRunRole::HydrogenCount) {
+                index + 1
+            } else {
+                index
+            }
+        });
+        let hydrogen_candidates = hydrogen_translations(
+            hydrogen_index.zip(hydrogen_end),
+            &run_bounds,
+            core_bounds,
+            spacing,
+            corridors,
+        )?;
+        let isotope_index = self
+            .run_roles
+            .iter()
+            .position(|role| *role == AtomLabelRunRole::Isotope);
+        let isotope_candidates =
+            isotope_translations(isotope_index, &run_bounds, core_bounds, spacing, corridors)?;
+        let charge_index = self
+            .run_roles
+            .iter()
+            .position(|role| *role == AtomLabelRunRole::FormalCharge);
+        let charge_candidates =
+            charge_translations(charge_index, &run_bounds, core_bounds, spacing, corridors)?;
+        for isotope_translation in isotope_candidates {
+            for hydrogen_translation in &hydrogen_candidates {
+                for charge_translation in &charge_candidates {
+                    let mut translations = vec![RunTranslation::default(); self.runs.len()];
+                    if let Some(index) = isotope_index {
+                        translations[index] = isotope_translation;
+                    }
+                    if let Some((start, end)) = hydrogen_index.zip(hydrogen_end) {
+                        translations[start..=end].fill(*hydrogen_translation);
+                    }
+                    if let Some(index) = charge_index {
+                        translations[index] = *charge_translation;
+                    }
+                    if decoration_candidate_is_clear(
+                        &run_bounds,
+                        &self.run_roles,
+                        &translations,
+                        corridors,
+                        &self.core_outline_support,
+                    )? {
+                        return self.rebuild_with_translations(&translations, size, metrics);
+                    }
+                }
+            }
         }
+        Err(RenderError::InvalidRequest(
+            "atom-label decorations have no collision-free admitted bond corridor".to_owned(),
+        ))
+    }
 
-        let charge_index = runs.len() - 1;
-        if charge_index > group_end
-            && runs[charge_index].script() == TextScript::Superscript
-            && runs[charge_index].text().ends_with(['+', '-'])
-        {
-            let charge_shift =
-                core_bounds.max_x() + spacing.get() * 0.25 - run_bounds[charge_index].min_x();
-            runs[charge_index] = translated_run(&runs[charge_index], charge_shift)?;
-            run_bounds[charge_index] = translated_bounds(run_bounds[charge_index], charge_shift)?;
-        }
-
+    fn rebuild_with_translations(
+        self,
+        translations: &[RunTranslation],
+        size: PositiveFinite,
+        metrics: &VerifiedMoleculeLabelGlyphMetrics,
+    ) -> Result<Self, RenderError> {
+        let core_index = self.core_element_run_index as usize;
+        let core_bounds = self.attachment.core_element_ink_bounds();
+        let runs = self
+            .runs
+            .iter()
+            .zip(translations)
+            .map(|(run, translation)| translated_run(run, *translation))
+            .collect::<Result<Vec<_>, _>>()?;
         let text_origin = RenderPoint::new(0.0, 0.0)?;
         let mut bounds = None;
         let mut updated_non_core = Vec::with_capacity(self.non_core_run_ink_bounds.len());
@@ -310,27 +467,246 @@ impl LaidOutAtomLabel {
             self.attachment,
             self.core_outline_support,
             self.core_element_run_index,
+            self.run_roles,
             updated_non_core,
         )
     }
 }
 
-fn translated_run(run: &TextRun, x: f64) -> Result<TextRun, RenderError> {
+#[derive(Clone, Copy, Default, PartialEq)]
+struct RunTranslation {
+    x: f64,
+    y: f64,
+}
+
+fn isotope_translations(
+    index: Option<usize>,
+    run_bounds: &[GlyphBounds],
+    core_bounds: GlyphBounds,
+    spacing: PositiveFinite,
+    corridors: &[AtomLabelAttachmentCorridor],
+) -> Result<Vec<RunTranslation>, RenderError> {
+    let Some(index) = index else {
+        return Ok(vec![RunTranslation::default()]);
+    };
+    let isotope = run_bounds[index];
+    let left = core_bounds.min_x() - spacing.get() - isotope.max_x();
+    let above = core_bounds.min_y() - spacing.get() - isotope.max_y();
+    semantic_translations(
+        isotope,
+        &[
+            (RunTranslation::default(), movement(-1.0, -1.0)?),
+            (RunTranslation { x: 0.0, y: above }, movement(0.0, -1.0)?),
+            (RunTranslation { x: left, y: 0.0 }, movement(-1.0, 0.0)?),
+            (RunTranslation { x: left, y: above }, movement(-1.0, -1.0)?),
+        ],
+        corridors,
+        spacing,
+    )
+}
+
+fn hydrogen_translations(
+    group: Option<(usize, usize)>,
+    run_bounds: &[GlyphBounds],
+    core_bounds: GlyphBounds,
+    spacing: PositiveFinite,
+    corridors: &[AtomLabelAttachmentCorridor],
+) -> Result<Vec<RunTranslation>, RenderError> {
+    let Some((start, end)) = group else {
+        return Ok(vec![RunTranslation::default()]);
+    };
+    let group_bounds = run_bounds[start..=end]
+        .iter()
+        .copied()
+        .try_fold(None, |combined, bounds| {
+            Ok::<_, RenderError>(Some(match combined {
+                Some(combined) => union_bounds(combined, bounds)?,
+                None => bounds,
+            }))
+        })?
+        .expect("explicit hydrogen group has at least one run");
+    let group_right = run_bounds[start..=end]
+        .iter()
+        .map(|bounds| bounds.max_x())
+        .fold(f64::NEG_INFINITY, f64::max);
+    semantic_translations(
+        group_bounds,
+        &[
+            (RunTranslation::default(), movement(1.0, 0.0)?),
+            (
+                RunTranslation {
+                    x: core_bounds.min_x() - spacing.get() - group_right,
+                    y: 0.0,
+                },
+                movement(-1.0, 0.0)?,
+            ),
+        ],
+        corridors,
+        spacing,
+    )
+}
+
+fn charge_translations(
+    index: Option<usize>,
+    run_bounds: &[GlyphBounds],
+    core_bounds: GlyphBounds,
+    spacing: PositiveFinite,
+    corridors: &[AtomLabelAttachmentCorridor],
+) -> Result<Vec<RunTranslation>, RenderError> {
+    let Some(index) = index else {
+        return Ok(vec![RunTranslation::default()]);
+    };
+    let charge = run_bounds[index];
+    let charge_center_x = (charge.min_x() + charge.max_x()) / 2.0;
+    let preferred_gap = spacing.get() * 0.25;
+    semantic_translations(
+        charge,
+        &[
+            (
+                RunTranslation {
+                    x: core_bounds.max_x() + preferred_gap - charge.min_x(),
+                    y: 0.0,
+                },
+                movement(1.0, -1.0)?,
+            ),
+            (
+                RunTranslation {
+                    x: -charge_center_x,
+                    y: core_bounds.min_y() - spacing.get() - charge.max_y(),
+                },
+                movement(0.0, -1.0)?,
+            ),
+            (
+                RunTranslation {
+                    x: -charge_center_x,
+                    y: core_bounds.max_y() + spacing.get() - charge.min_y(),
+                },
+                movement(0.0, 1.0)?,
+            ),
+            (
+                RunTranslation {
+                    x: core_bounds.min_x() - preferred_gap - charge.max_x(),
+                    y: 0.0,
+                },
+                movement(-1.0, -1.0)?,
+            ),
+        ],
+        corridors,
+        spacing,
+    )
+}
+
+fn movement(x: f64, y: f64) -> Result<Vector2, RenderError> {
+    Vector2::new(x, y)
+        .and_then(Vector2::normalized)
+        .map_err(|error| RenderError::InvalidRequest(error.to_string()))
+}
+
+fn semantic_translations(
+    bounds: GlyphBounds,
+    bases: &[(RunTranslation, Vector2)],
+    corridors: &[AtomLabelAttachmentCorridor],
+    spacing: PositiveFinite,
+) -> Result<Vec<RunTranslation>, RenderError> {
+    let mut candidates = Vec::with_capacity(bases.len() * 2);
+    for (base, movement) in bases {
+        candidates.push(*base);
+        let translated = translated_bounds(bounds, *base)?;
+        let distance = corridors
+            .iter()
+            .filter_map(|corridor| {
+                corridor.transverse_clearance_distance(translated, *movement, spacing)
+            })
+            .fold(0.0_f64, f64::max);
+        if distance > 0.0 {
+            candidates.push(RunTranslation {
+                x: base.x + movement.x() * distance,
+                y: base.y + movement.y() * distance,
+            });
+        }
+    }
+    candidates.sort_by(|first, second| first.x.hypot(first.y).total_cmp(&second.x.hypot(second.y)));
+    candidates.dedup();
+    Ok(candidates)
+}
+
+fn decoration_candidate_is_clear(
+    run_bounds: &[GlyphBounds],
+    roles: &[AtomLabelRunRole],
+    translations: &[RunTranslation],
+    corridors: &[AtomLabelAttachmentCorridor],
+    core_outline_support: &GlyphOutlineSupport,
+) -> Result<bool, RenderError> {
+    let translated = run_bounds
+        .iter()
+        .zip(translations)
+        .map(|(bounds, translation)| translated_bounds(*bounds, *translation))
+        .collect::<Result<Vec<_>, _>>()?;
+    for (index, bounds) in translated.iter().enumerate() {
+        if roles[index] == AtomLabelRunRole::CoreElement {
+            continue;
+        }
+        if corridors
+            .iter()
+            .any(|corridor| corridor.intersects(*bounds, core_outline_support))
+        {
+            return Ok(false);
+        }
+    }
+    for first in 0..translated.len() {
+        for second in first + 1..translated.len() {
+            let first_group = semantic_group(roles[first]);
+            let second_group = semantic_group(roles[second]);
+            let isotope_hydrogen_pair = matches!((first_group, second_group), (1, 2) | (2, 1));
+            if first_group != second_group
+                && !isotope_hydrogen_pair
+                && bounds_overlap(translated[first], translated[second])
+            {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn semantic_group(role: AtomLabelRunRole) -> u8 {
+    match role {
+        AtomLabelRunRole::CoreElement => 0,
+        AtomLabelRunRole::Isotope => 1,
+        AtomLabelRunRole::ExplicitHydrogen | AtomLabelRunRole::HydrogenCount => 2,
+        AtomLabelRunRole::FormalCharge => 3,
+    }
+}
+
+fn bounds_overlap(first: GlyphBounds, second: GlyphBounds) -> bool {
+    first.min_x() < second.max_x()
+        && first.max_x() > second.min_x()
+        && first.min_y() < second.max_y()
+        && first.max_y() > second.min_y()
+}
+
+fn translated_run(run: &TextRun, translation: RunTranslation) -> Result<TextRun, RenderError> {
     TextRun::new(
         run.text(),
         run.script(),
-        RenderPoint::new(run.origin().x() + x, run.origin().y())?,
+        RenderPoint::new(
+            run.origin().x() + translation.x,
+            run.origin().y() + translation.y,
+        )?,
         run.glyphs().to_vec(),
         run.scale(),
     )
 }
 
-fn translated_bounds(bounds: GlyphBounds, x: f64) -> Result<GlyphBounds, RenderError> {
+fn translated_bounds(
+    bounds: GlyphBounds,
+    translation: RunTranslation,
+) -> Result<GlyphBounds, RenderError> {
     GlyphBounds::new(
-        bounds.min_x() + x,
-        bounds.min_y(),
-        bounds.max_x() + x,
-        bounds.max_y(),
+        bounds.min_x() + translation.x,
+        bounds.min_y() + translation.y,
+        bounds.max_x() + translation.x,
+        bounds.max_y() + translation.y,
     )
 }
 
@@ -459,7 +835,7 @@ mod tests {
     }
 
     #[test]
-    fn sole_rightward_bond_places_explicit_hydrogen_left_of_the_core() {
+    fn decorated_label_selects_a_clear_parallel_terminal_layout() {
         let environment =
             FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
         let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
@@ -468,34 +844,37 @@ mod tests {
         let canonical = metrics
             .layout_atom_label(&facts, &font())
             .expect("canonical decorated layout");
-        let unchanged = canonical
-            .clone()
-            .avoid_rightward_bond_with_explicit_hydrogen(
-                Vector2::new(-1.0, 0.0).expect("leftward direction"),
-                size(0.6),
-                size(12.0),
-                &metrics,
-            )
-            .expect("leftward bond keeps canonical layout");
-        assert_eq!(unchanged, canonical);
-
+        let corridor = AtomLabelAttachmentCorridor::new(
+            Vector2::new(1.0, 0.0).expect("rightward direction"),
+            -3.5,
+            3.5,
+            size(0.75),
+            size(0.375),
+        )
+        .expect("parallel terminal corridor");
         let placed = canonical
             .clone()
-            .avoid_rightward_bond_with_explicit_hydrogen(
-                Vector2::new(1.0, 0.0).expect("rightward direction"),
+            .place_decorations_around_attachment_corridors(
+                &[corridor],
                 size(0.6),
                 size(12.0),
                 &metrics,
             )
-            .expect("rightward bond relocates decorations");
+            .expect("decorated label has one admitted layout");
         assert_eq!(placed.runs()[0].origin(), canonical.runs()[0].origin());
         assert_eq!(placed.runs()[1].origin(), canonical.runs()[1].origin());
         assert!(placed.runs()[2].origin().x() < placed.runs()[1].origin().x());
         assert!(placed.runs()[3].origin().x() < placed.runs()[1].origin().x());
-        assert!(placed.runs()[4].origin().x() < canonical.runs()[4].origin().x());
+        assert!(placed.runs()[4].origin().y() < canonical.runs()[4].origin().y());
         assert_eq!(
             placed.core_outline_support(),
             canonical.core_outline_support()
+        );
+        assert!(
+            placed
+                .non_core_run_ink_bounds()
+                .iter()
+                .all(|bounds| !corridor.intersects(*bounds, placed.core_outline_support()))
         );
         let text = TextOp::new(
             RenderPoint::new(0.0, 0.0).expect("test origin"),
@@ -512,6 +891,63 @@ mod tests {
                 .atom_label_ink_bounds(&text, placed.core_element_run_index() as usize)
                 .expect("relocated runs retain exact Atkinson Hyperlegible Next bounds")
         );
+    }
+
+    #[test]
+    fn decorated_label_clears_parallel_terminals_in_eight_directions() {
+        let environment =
+            FerrumFontEnvironment::load().expect("bundled Atkinson Hyperlegible Next is verified");
+        let metrics = VerifiedMoleculeLabelGlyphMetrics::new(&environment)
+            .expect("Atkinson Hyperlegible Next metrics are available");
+        let facts = AtomLabelFacts::new("P", Some(31), 1, 4).expect("decorated phosphorus facts");
+        let canonical = metrics
+            .layout_atom_label(&facts, &font())
+            .expect("canonical decorated layout");
+        let diagonal = std::f64::consts::FRAC_1_SQRT_2;
+        for (x, y) in [
+            (1.0, 0.0),
+            (diagonal, diagonal),
+            (0.0, 1.0),
+            (-diagonal, diagonal),
+            (-1.0, 0.0),
+            (-diagonal, -diagonal),
+            (0.0, -1.0),
+            (diagonal, -diagonal),
+        ] {
+            let corridor = AtomLabelAttachmentCorridor::new(
+                Vector2::new(x, y).expect("test direction is normalized"),
+                -3.5,
+                3.5,
+                size(0.75),
+                size(0.375),
+            )
+            .expect("parallel terminal corridor");
+            let placed = canonical
+                .clone()
+                .place_decorations_around_attachment_corridors(
+                    &[corridor],
+                    size(0.6),
+                    size(12.0),
+                    &metrics,
+                )
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "decorated label has no admitted layout for direction ({x}, {y}): {error}"
+                    )
+                });
+            assert_eq!(
+                placed.attachment(),
+                canonical.attachment(),
+                "structural core changed for direction ({x}, {y})"
+            );
+            assert!(
+                placed
+                    .non_core_run_ink_bounds()
+                    .iter()
+                    .all(|bounds| !corridor.intersects(*bounds, placed.core_outline_support())),
+                "decoration entered the terminal corridor for direction ({x}, {y})"
+            );
+        }
     }
 
     #[test]
