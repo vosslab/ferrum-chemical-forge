@@ -28,6 +28,13 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Fixes and Maintenance
 
+- Reframed nine of the 14 documentation screenshots around biological chemistry:
+  editable stereochemical sucrose, a real native ANKLE pentapeptide import,
+  tricaprylin SDF ingress with six oxygen SMARTS matches, an adenine-thymine
+  pair with two noncovalent Watson-Crick hydrogen-bond guides, and the existing
+  glucose template. The capture driver now selects a content-aware zoom for
+  larger molecular graphs while retaining the focused direct-bond, ring,
+  selected-atom, CDXML, view-control, and command-discovery evidence.
 - Normalized the documentation carbonyl and styled-chain fixtures to Ferrum's
   canonical 40-point chemistry spacing. Their former 200- and 220-point bonds
   made atom labels look implausibly small in the published screenshots even
@@ -81,6 +88,17 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Developer Tests and Notes
 
+- Regenerated all 14 GUI-tour PNGs transactionally with the real Qt backend and
+  inspected the complete contact sheet plus the sucrose, peptide, triglyceride,
+  and base-pair frames at native resolution. All semantic postconditions and
+  1440 by 900 surface checks passed; the agent review found no clipping or
+  image-to-caption mismatch. Final human native-window acceptance remains open.
+- Ran `./all_test.sh` with a disposable alternate Git index containing only the
+  new capture source and pentapeptide PNG: 8,653 repository hygiene tests, the
+  full CLI/Qt E2E lane, 283 installed Ferrum-Chem Python tests, and 444 Ferrum Qt
+  tests passed. The real human-owned index remains unchanged; before those two
+  files are staged, the ordinary hygiene run reports their expected local-import
+  and Markdown-link tracking failures.
 - Reconciled the completed Atkinson glyph-bond acceptance across the active
   goal, measurement report, parity ledger, roadmap, and short dispatch queue.
   Added `native_visual_accessibility_acceptance.md` as the owner-facing receipt

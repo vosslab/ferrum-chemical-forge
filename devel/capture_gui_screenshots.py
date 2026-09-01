@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture thirteen real, completed Ferrum Qt documentation scenes outside the test suite."""
+"""Capture fourteen real, completed Ferrum Qt documentation scenes outside the test suite."""
 
 # Standard Library
 import argparse
@@ -19,12 +19,18 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.main_window
 import ferrum_qt.ferrum.close_decision
+import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.themes.theme_manager
 
+from documentation_biomolecule_sources import (
+	DNA_BASE_PAIR_CDML as _DNA_BASE_PAIR_CDML,
+	SUCROSE_CDML as _SUCROSE_CDML,
+	TRICAPRYLIN_SDF as _TRICAPRYLIN_SDF,
+)
 from ferrum_qt.documentation_capture_models import (
 	CATALOG_QUERY as _CATALOG_QUERY, CARBON_CDML as _CARBON_CDML,
 	CDXML as _CDXML, DOCUMENTATION_PROPERTY_DOCK_WIDTH as _DOCUMENTATION_PROPERTY_DOCK_WIDTH,
-	PAIR_CDML as _PAIR_CDML, Scene,
+	EMPTY_CDML as _EMPTY_CDML, PAIR_CDML as _PAIR_CDML, Scene,
 )
 from ferrum_qt.documentation_capture_surfaces import (
 	CaptureError, capture_with_qt as _capture_with_qt,
@@ -42,7 +48,6 @@ def _normalized_action_text(action: PySide6.QtGui.QAction) -> str:
 	"""Return the visible command label independent of mnemonic ampersands."""
 	return action.text().replace("&", "")
 
-
 #============================================
 def _find_action(window: PySide6.QtWidgets.QMainWindow, label: str) -> PySide6.QtGui.QAction:
 	"""Return one actual Ferrum command action by its visible label."""
@@ -50,7 +55,6 @@ def _find_action(window: PySide6.QtWidgets.QMainWindow, label: str) -> PySide6.Q
 		if _normalized_action_text(action) == label:
 			return action
 	raise CaptureError(f"Ferrum command is unavailable: {label}")
-
 
 #============================================
 def _activate_command(
@@ -63,7 +67,6 @@ def _activate_command(
 	action.trigger()
 	application.processEvents()
 
-
 #============================================
 def _active_tab(window: PySide6.QtWidgets.QMainWindow) -> object:
 	"""Return the visible active document tab through the public central widget."""
@@ -75,7 +78,6 @@ def _active_tab(window: PySide6.QtWidgets.QMainWindow) -> object:
 		raise CaptureError("Ferrum has no visible active document")
 	return tab
 
-
 #============================================
 def _canvas(tab: object) -> PySide6.QtWidgets.QGraphicsView:
 	"""Return Ferrum's visible canvas without synthesizing drawing state."""
@@ -83,7 +85,6 @@ def _canvas(tab: object) -> PySide6.QtWidgets.QGraphicsView:
 	if not isinstance(canvas, PySide6.QtWidgets.QGraphicsView) or not canvas.isVisible():
 		raise CaptureError("Ferrum drawing canvas is unavailable")
 	return canvas
-
 
 #============================================
 def _documentation_frame(tab: object) -> None:
@@ -108,9 +109,9 @@ def _documentation_frame(tab: object) -> None:
 	)
 	canvas.setBackgroundBrush(PySide6.QtGui.QColor("#f6f2e9"))
 	fit = getattr(canvas, "fit_display_bounds", None)
+	canvas.resetTransform()
 	if not callable(fit) or fit(frame) is not True:
 		raise CaptureError("Ferrum drawing canvas could not frame completed content")
-
 
 #============================================
 def _set_documentation_zoom(window: PySide6.QtWidgets.QMainWindow,
@@ -119,11 +120,12 @@ def _set_documentation_zoom(window: PySide6.QtWidgets.QMainWindow,
 	slider = _find_visible_widget(window, PySide6.QtWidgets.QSlider, "Zoom percentage slider")
 	if not isinstance(slider, PySide6.QtWidgets.QSlider) or not slider.isEnabled():
 		raise CaptureError("Ferrum documentation capture cannot reach the visible zoom client")
-	slider.setValue(230)
+	bounds = _active_tab(window).document_content_bounds()
+	target = 150 if bounds is not None and bounds.height() > 320.0 else 230
+	slider.setValue(target)
 	application.processEvents()
-	if slider.value() != 230:
+	if slider.value() != target:
 		raise CaptureError("Ferrum documentation capture did not retain the requested zoom")
-
 
 #============================================
 def _prepare_documentation_capture(window: PySide6.QtWidgets.QMainWindow,
@@ -140,7 +142,6 @@ def _prepare_documentation_capture(window: PySide6.QtWidgets.QMainWindow,
 	hide_keyboard_cursor()
 	_documentation_frame(tab)
 	application.processEvents()
-
 
 #============================================
 def _arrange_documentation_docks(window: PySide6.QtWidgets.QMainWindow,
@@ -170,20 +171,19 @@ def _arrange_documentation_docks(window: PySide6.QtWidgets.QMainWindow,
 			"Ferrum documentation Properties title is clipped in the fixed capture layout",
 		)
 
-
 #============================================
 def _scene_point(tab: object, x: float, y: float) -> PySide6.QtCore.QPoint:
 	"""Map an ordinary authored scene point onto the visible drawing viewport."""
 	return _canvas(tab).mapFromScene(PySide6.QtCore.QPointF(x, y))
 
-
 #============================================
 def _write_source(workspace: pathlib.Path, name: str, suffix: str, source: str) -> pathlib.Path:
 	"""Write one bounded local interchange source inside the scene workspace."""
+	# ASVS 5.3.2: names and suffixes come only from the closed scene registry;
+	# no user-controlled filename participates in capture path construction.
 	path = workspace / f"{name}.{suffix}"
 	path.write_text(source, encoding="utf-8")
 	return path
-
 
 #============================================
 def _wait_for_open(
@@ -211,7 +211,6 @@ def _wait_for_open(
 	if outcome != [True]:
 		raise CaptureError(f"Ferrum did not open the authored document: {path.name}")
 
-
 #============================================
 def _window(
 		application: PySide6.QtWidgets.QApplication,
@@ -236,18 +235,15 @@ def _window(
 		raise CaptureError("Ferrum window did not become visibly ready")
 	return window
 
-
 #============================================
 def _document_revision(tab: object) -> int:
 	"""Return the current public document revision for a completed-state check."""
 	return int(tab.current_snapshot.revision)
 
-
 #============================================
 def _atom_count(tab: object) -> int:
 	"""Count the current public projected atoms after an authored operation."""
 	return sum(len(molecule.atoms) for molecule in tab.current_document_observation().projection.molecules)
-
 
 #============================================
 def _drag(canvas: PySide6.QtWidgets.QGraphicsView, start: PySide6.QtCore.QPoint,
@@ -263,7 +259,6 @@ def _drag(canvas: PySide6.QtWidgets.QGraphicsView, start: PySide6.QtCore.QPoint,
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, end,
 	)
 
-
 #============================================
 def _click(canvas: PySide6.QtWidgets.QGraphicsView, point: PySide6.QtCore.QPoint) -> None:
 	"""Send one ordinary visible canvas click."""
@@ -272,17 +267,73 @@ def _click(canvas: PySide6.QtWidgets.QGraphicsView, point: PySide6.QtCore.QPoint
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier, point,
 	)
 
-
 #============================================
 def _workspace_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Show an editable ordinary Ferrum chemical-document workspace."""
-	window = _window(application, theme_manager, workspace, _PAIR_CDML)
-	if _atom_count(_active_tab(window)) != 2:
-		raise CaptureError("workspace scene did not render its two authored atoms")
+	"""Show an editable stereochemical sucrose drawing in the Ferrum workspace."""
+	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
+	if _atom_count(_active_tab(window)) != 23:
+		raise CaptureError("workspace scene did not render the complete sucrose drawing")
 	return window
 
+#============================================
+def _pentapeptide_scene(application: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
+	"""Import Ala-Asn-Lys-Leu-Glu through Ferrum's native peptide worker."""
+	window = _window(application, theme_manager, workspace, _EMPTY_CDML)
+	tab = _active_tab(window)
+	canvas = _canvas(tab)
+	canvas.fit_display_bounds(canvas.scene().sceneRect())
+	application.processEvents()
+	before_atoms = _atom_count(tab)
+	loop = PySide6.QtCore.QEventLoop()
+	timeout = PySide6.QtCore.QTimer()
+	timeout.setSingleShot(True)
+	receipts: list[object] = []
+
+	def finish(receipt: object | None = None) -> None:
+		"""Retain the semantic installation receipt and end the bounded wait."""
+		if receipt is not None:
+			receipts.append(receipt)
+		loop.quit()
+
+	window.document_installation_completed.connect(finish)
+	timeout.timeout.connect(finish)
+	timeout.start(10000)
+	if window.start_supported_peptide_import("ANKLE") is not True:
+		timeout.stop()
+		window.document_installation_completed.disconnect(finish)
+		raise CaptureError("Ferrum did not start the supported pentapeptide import")
+	loop.exec()
+	timeout.stop()
+	window.document_installation_completed.disconnect(finish)
+	if (
+		len(receipts) != 1
+		or getattr(receipts[0], "installation_kind", None) != "peptide_sequence_import"
+		or _atom_count(tab) <= before_atoms
+		or len(tab.current_document_observation().projection.molecules) != 1
+		):
+		raise CaptureError(
+			f"Ferrum did not install the complete ANKLE pentapeptide: "
+			f"receipts={len(receipts)} atoms={_atom_count(tab)} "
+			f"molecules={len(tab.current_document_observation().projection.molecules)}"
+		)
+	interaction = tab.observe_direct_root_interaction()
+	selection = tab.select_direct_roots(
+		interaction, None, engine.RenderInteractionQueryV1.root(
+			interaction.roots[0].document_object_id,
+		),
+	)
+	move = tab.translate_direct_root_selection_from_origin(
+		selection, -1670.0, -1080.0, engine.RenderInteractionSnapV1.free(),
+	)
+	application.processEvents()
+	if move.changed is not True:
+		raise CaptureError("Ferrum did not move the imported pentapeptide onto the visible page")
+	PySide6.QtTest.QTest.qWait(100)
+	return window
 
 #============================================
 def _cdxml_open_scene(application: PySide6.QtWidgets.QApplication,
@@ -306,23 +357,21 @@ def _cdxml_open_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("styled CDXML did not become an editable CDXML-origin document")
 	return window
 
-
 #============================================
 def _atom_authoring_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Create an atom through the command and visible canvas."""
-	window = _window(application, theme_manager, workspace, _PAIR_CDML)
+	"""Create an atom beside sucrose through the command and visible canvas."""
+	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
 	tab = _active_tab(window)
 	before = _document_revision(tab)
 	before_atoms = _atom_count(tab)
 	_activate_command(window, application, "Add Atom at Point")
-	_click(_canvas(tab), _scene_point(tab, 500.0, 470.0))
+	_click(_canvas(tab), _scene_point(tab, 575.0, 520.0))
 	application.processEvents()
 	if _document_revision(tab) <= before or _atom_count(tab) != before_atoms + 1:
 		raise CaptureError("Add Atom at Point did not create a durable atom")
 	return window
-
 
 #============================================
 def _direct_bond_scene(application: PySide6.QtWidgets.QApplication,
@@ -339,7 +388,6 @@ def _direct_bond_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("Draw Bond did not create a durable Rust bond")
 	return window
 
-
 #============================================
 def _inserted_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
@@ -354,7 +402,6 @@ def _inserted_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 	if _atom_count(tab) != before + 6:
 		raise CaptureError("Insert Cyclohexane Ring did not create six visible atoms")
 	return window
-
 
 #============================================
 def _attached_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
@@ -428,7 +475,6 @@ def _attached_cyclohexane_scene(application: PySide6.QtWidgets.QApplication,
 		raise CaptureError("Attach Cyclohexane Ring did not retain a complete rendered molecule")
 	return window
 
-
 #============================================
 def _accept_item_dialog(application: PySide6.QtWidgets.QApplication, value: str) -> None:
 	"""Choose one visible public Qt list-dialog value during an interaction action."""
@@ -468,11 +514,21 @@ def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
 	return window
 
 #============================================
+def _tricaprylin_scene(application: PySide6.QtWidgets.QApplication,
+		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
+		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
+	"""Open one PubChem-derived medium-chain triglyceride through SDF ingress."""
+	window = _window(application, theme_manager, workspace, _TRICAPRYLIN_SDF, "sdf")
+	if _atom_count(_active_tab(window)) != 33:
+		raise CaptureError("SDF ingress did not retain the complete tricaprylin graph")
+	return window
+
+#============================================
 def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Run a visible SMARTS query and retain its completed result status."""
-	window = _window(application, theme_manager, workspace, _PAIR_CDML)
+	"""Find all six oxygen atoms in an imported medium-chain triglyceride."""
+	window = _tricaprylin_scene(application, theme_manager, workspace)
 	_activate_command(window, application, "SMARTS Query...")
 	dock = window.findChild(PySide6.QtWidgets.QDockWidget, "smarts-query-dock")
 	if dock is None or not dock.isVisible():
@@ -482,11 +538,11 @@ def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 	status = dock.findChild(PySide6.QtWidgets.QLabel, "smarts-query-status")
 	if query is None or find is None or status is None:
 		raise CaptureError("SMARTS Query dock lacks its visible controls")
-	query.setText("[C]")
+	query.setText("[O]")
 	PySide6.QtTest.QTest.mouseClick(find, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	application.processEvents()
 	application.processEvents()
-	if "Found 1 matches" not in status.text():
+	if "Found 6 matches" not in status.text():
 		raise CaptureError("SMARTS Query did not produce its completed match status")
 	return window
 
@@ -494,28 +550,29 @@ def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Draw and commit a completed normal reaction arrow."""
-	window = _window(application, theme_manager, workspace)
+	"""Draw and commit a completed reaction arrow beside sucrose."""
+	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
 	tab = _active_tab(window)
 	_activate_command(window, application, "Draw Arrow")
-	_drag(_canvas(tab), _scene_point(tab, 350.0, 360.0), _scene_point(tab, 500.0, 360.0))
+	_drag(_canvas(tab), _scene_point(tab, 560.0, 420.0), _scene_point(tab, 700.0, 420.0))
 	application.processEvents()
 	if "<arrow" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Arrow did not create a durable reaction arrow")
 	return window
 
 #============================================
-def _presentation_vector_scene(application: PySide6.QtWidgets.QApplication,
+def _dna_base_pair_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Draw and commit a completed renderer-preflighted presentation vector."""
-	window = _window(application, theme_manager, workspace)
+	"""Show an A-T pair with two noncovalent presentation-line hydrogen bonds."""
+	window = _window(application, theme_manager, workspace, _DNA_BASE_PAIR_CDML)
 	tab = _active_tab(window)
-	_activate_command(window, application, "Draw Line")
-	_drag(_canvas(tab), _scene_point(tab, 150.0, 280.0), _scene_point(tab, 450.0, 280.0))
-	application.processEvents()
-	if "<polyline" not in tab.current_snapshot.cdml:
-		raise CaptureError("Draw Line did not create a durable presentation vector")
+	molecules = tab.current_document_observation().projection.molecules
+	if (
+		tuple(molecule.name for molecule in molecules) != ("Thymine", "Adenine")
+		or tab.current_snapshot.cdml.count("<polyline") != 8
+		):
+		raise CaptureError("A-T base pair lacks its molecules or hydrogen-bond guides")
 	return window
 #============================================
 def _capture_template_catalog_with_qt(window: PySide6.QtWidgets.QMainWindow,
@@ -572,7 +629,6 @@ def _capture_template_catalog_with_qt(window: PySide6.QtWidgets.QMainWindow,
 	if captured != [True]:
 		raise CaptureError("Ferrum did not capture the selected template catalog")
 
-
 #============================================
 def _rearm_atom_authoring(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
@@ -580,7 +636,6 @@ def _rearm_atom_authoring(window: PySide6.QtWidgets.QMainWindow,
 	_activate_command(window, application, "Add Atom at Point")
 	if not _find_action(window, "Add Atom at Point").isChecked():
 		raise CaptureError("Add Atom at Point did not visibly rearm after authoring")
-
 
 #============================================
 def _retire_presentation_selection(window: PySide6.QtWidgets.QMainWindow,
@@ -599,7 +654,6 @@ def _retire_presentation_selection(window: PySide6.QtWidgets.QMainWindow,
 		or canvas.scene().selectedItems()
 		):
 		raise CaptureError("Ferrum retained a visible presentation selection after blank-canvas selection")
-
 
 #============================================
 def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
@@ -642,7 +696,6 @@ def _verify_cdxml_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 			f"center={center.x()},{center.y()} visible={visible} bounds={bounds}"
 		)
 
-
 #============================================
 def _find_visible_widget(
 		window: PySide6.QtWidgets.QMainWindow, widget_type: type[PySide6.QtWidgets.QWidget],
@@ -653,7 +706,6 @@ def _find_visible_widget(
 		if widget.isVisible() and widget.accessibleName() == accessible_name:
 			return widget
 	raise CaptureError(f"Ferrum control is unavailable: {accessible_name}")
-
 
 #============================================
 def _view_controls_after_prepare(window: PySide6.QtWidgets.QMainWindow,
@@ -677,6 +729,9 @@ def _view_controls_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	if not slider.isEnabled() or slider.value() == 100:
 		raise CaptureError("Zoom to Content did not update the visible status-bar zoom value")
 	_set_documentation_zoom(window, application)
+	tab = _active_tab(window)
+	_canvas(tab).centerOn(tab.document_content_bounds().center())
+	application.processEvents()
 #============================================
 def _command_palette_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
@@ -699,7 +754,6 @@ def _command_palette_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	if not any(label.startswith("Reaction Inspector") for label in labels):
 		raise CaptureError("Command Palette did not discover the live Reaction Inspector command")
 
-
 #============================================
 def _capture_command_palette_with_qt(window: PySide6.QtWidgets.QMainWindow,
 		output: pathlib.Path) -> None:
@@ -714,9 +768,10 @@ def _capture_command_palette_with_qt(window: PySide6.QtWidgets.QMainWindow,
 
 
 SCENES = (
-	Scene("workspace", "Editable carbonyl workspace", _workspace_scene),
+	Scene("workspace", "Editable sucrose workspace", _workspace_scene),
+	Scene("pentapeptide_import", "Import ANKLE pentapeptide", _pentapeptide_scene),
 	Scene(
-		"atom_authoring", "Add atom at point", _atom_authoring_scene,
+		"atom_authoring", "Add atom beside sucrose", _atom_authoring_scene,
 		post_prepare=_rearm_atom_authoring,
 	),
 	Scene("direct_bond", "Draw direct bond", _direct_bond_scene),
@@ -727,13 +782,13 @@ SCENES = (
 		overlay_capture=_capture_template_catalog_with_qt,
 	),
 	Scene("selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene),
-	Scene("smarts_result", "Find carbon SMARTS match", _smarts_result_scene),
+	Scene("smarts_result", "Find triglyceride oxygen SMARTS matches", _smarts_result_scene),
 	Scene(
-		"reaction_arrow", "Draw durable reaction arrow", _reaction_arrow_scene,
+		"reaction_arrow", "Draw reaction arrow beside sucrose", _reaction_arrow_scene,
 		post_prepare=_retire_presentation_selection,
 	),
 	Scene(
-		"presentation_vector", "Draw durable presentation vector", _presentation_vector_scene,
+		"presentation_vector", "Show Watson-Crick A-T hydrogen bonds", _dna_base_pair_scene,
 		post_prepare=_retire_presentation_selection,
 	),
 	Scene(
@@ -741,7 +796,7 @@ SCENES = (
 		post_prepare=_verify_cdxml_after_prepare,
 	),
 	Scene(
-		"view_controls", "Fit document content with status-bar view controls", _workspace_scene,
+		"view_controls", "Fit tricaprylin with status-bar view controls", _tricaprylin_scene,
 		post_prepare=_view_controls_after_prepare,
 	),
 	Scene(
@@ -751,7 +806,6 @@ SCENES = (
 	),
 )
 SCENE_NAMES = tuple(scene.name for scene in SCENES)
-
 
 #============================================
 def _capture_with_easy_screenshot(window: PySide6.QtWidgets.QMainWindow,
@@ -766,7 +820,6 @@ def _capture_with_easy_screenshot(window: PySide6.QtWidgets.QMainWindow,
 		capture_output=True, text=True, check=False,
 	)
 	return result.returncode == 0 and output.is_file() and output.stat().st_size > 0
-
 
 #============================================
 def _verify_full_window_capture_surface(
@@ -795,7 +848,6 @@ def _verify_full_window_capture_surface(
 			"backend to capture only the Ferrum application surface."
 		)
 
-
 #============================================
 def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 		backend: str,
@@ -804,6 +856,12 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 		] | None = None,
 		) -> str:
 	"""Capture one completed full-window scene and verify its documented surface."""
+	if overlay_capture is None:
+		PySide6.QtWidgets.QApplication.processEvents()
+		tab = _active_tab(window)
+		_documentation_frame(tab)
+		_canvas(tab).centerOn(tab.document_content_bounds().center())
+		PySide6.QtWidgets.QApplication.processEvents()
 	if overlay_capture is not None:
 		overlay_capture(window, output)
 		used = "qt"
@@ -822,7 +880,6 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 	_verify_full_window_capture_surface(window, output)
 	return used
 
-
 #============================================
 def _close_window(window: PySide6.QtWidgets.QMainWindow,
 		application: PySide6.QtWidgets.QApplication) -> None:
@@ -837,7 +894,6 @@ def _close_window(window: PySide6.QtWidgets.QMainWindow,
 	window.deleteLater()
 	application.processEvents()
 
-
 #============================================
 def _publish(staged_directory: pathlib.Path, scene_names: tuple[str, ...]) -> None:
 	"""Publish verified screenshot names, preserving unaffected tour assets."""
@@ -846,7 +902,6 @@ def _publish(staged_directory: pathlib.Path, scene_names: tuple[str, ...]) -> No
 		staged = staged_directory / f"{name}.png"
 		destination = OUTPUT_DIRECTORY / staged.name
 		shutil.copyfile(staged, destination)
-
 
 #============================================
 def _parse_args() -> argparse.Namespace:
@@ -862,7 +917,6 @@ def _parse_args() -> argparse.Namespace:
 	)
 	parser.add_argument("--list", action="store_true", help="print scene names without launching Ferrum")
 	return parser.parse_args()
-
 
 #============================================
 def main() -> int:

@@ -18,9 +18,9 @@ The command uses `source_me.sh` and the promoted `build/current` program through
 stable `build/runtime/python` and `build/bin` links, then starts the PySide6 application.
 It applies the light document theme transiently
 for deterministic documentation contrast without changing the user's saved theme.
-Each scene receives a fresh temporary workspace,
-uses ordinary authored CDML input except for the bounded CDXML File/Open scene,
-and uses Ferrum's visible command and canvas workflows, checks an observable
+Each scene receives a fresh temporary workspace. The tour uses bounded authored CDML,
+the real SDF and CDXML File/Open routes, and Ferrum's native peptide importer. It then
+uses Ferrum's visible command and canvas workflows, checks an observable
 completed result, retires transient pointer previews, preserves meaningful selection
 highlights, frames the durable content on a high-contrast documentation canvas, hides the optional hex grid through its
 visible action, and captures one fixed 1440 by 900 application window. The target is the full
@@ -57,49 +57,56 @@ may write one path, but it does not publish or validate the complete tour.
 
 | File | Completed visible capability |
 | --- | --- |
-| `docs/screenshots/workspace.png` | Editable carbonyl document with two atoms and one double bond. |
-| `docs/screenshots/atom_authoring.png` | Carbonyl with an additional oxygen beneath it; Select Structure is the visible active mode. |
+| `docs/screenshots/workspace.png` | Editable sucrose with two rings, a glycosidic oxygen, and stereochemical wedge/hash bonds. |
+| `docs/screenshots/pentapeptide_import.png` | Native ANKLE pentapeptide import: one 40-atom, 39-bond molecule moved wholly onto the visible page through Ferrum's typed root operation. |
+| `docs/screenshots/atom_authoring.png` | Sucrose with one additional authored atom; Select Structure is the visible active mode. |
 | `docs/screenshots/direct_bond.png` | A committed C-O single bond remains selected. |
 | `docs/screenshots/inserted_cyclohexane.png` | Detached six-carbon cyclohexane beside the original carbon. |
 | `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
 | `docs/screenshots/selected_atom_edit.png` | Carbon changed to nitrogen through the selected-atom editing workflow. |
-| `docs/screenshots/smarts_result.png` | SMARTS Query dock showing `[C]` and one match in the carbonyl document. |
-| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed beside the authored carbon. |
-| `docs/screenshots/presentation_vector.png` | Presentation line committed beside the authored carbon. |
+| `docs/screenshots/smarts_result.png` | Tricaprylin opened through SDF with `[O]` returning all six oxygen matches. |
+| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed beside editable sucrose. |
+| `docs/screenshots/presentation_vector.png` | Adenine-thymine pair with two dashed, noncovalent Watson-Crick hydrogen-bond guides. |
 | `docs/screenshots/cdxml_open.png` | ChemDraw XML opened as an editable centered C-O-N-F chain with Wavy, Bold, and Dashed bonds. |
-| `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside a readable carbonyl. |
-| `docs/screenshots/command_palette_reaction.png` | Command Palette query showing registered reaction commands above a reaction arrow. |
+| `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside complete tricaprylin. |
+| `docs/screenshots/command_palette_reaction.png` | Command Palette query showing registered reaction commands above sucrose and a reaction arrow. |
 
 ## Current capture status
 
-The complete 13-scene set was regenerated transactionally at 1440 by 900 on
-2026-08-31 with `./capture_gui_screenshots.sh --backend qt`; the selected-atom
-scene retires its keyboard cursor after the completed edit. Every staged scene passed
-its semantic postcondition and full-window surface check; the harness also requires the
-fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
-complete visible title. The resulting PNGs include the top ribbon, document tabs,
-canvas, readable Properties title where relevant, and bottom status bar. The Command
-Palette frame retains those application surfaces while showing its live query and results.
+The complete 14-scene set was regenerated transactionally at 1440 by 900 on
+2026-08-31 with `./capture_gui_screenshots.sh --backend qt`. Nine frames now use a
+biological context: sucrose, the ANKLE pentapeptide, tricaprylin, an adenine-thymine
+pair, or the glucose template catalog. Every staged scene passed its semantic
+postcondition and full-window surface check; the harness also requires the fixed logical
+window, a 16:10 raster, and a Properties title bar wide enough for its complete visible
+title. The resulting PNGs include the ribbon, document tabs, canvas, relevant docks,
+and status bar.
 
-A native-resolution review accepted this current documentation capture. The repaired
-atom-label/bond spacing is visibly clear in the `workspace`, `atom_authoring`,
-`smarts_result`, and `view_controls` carbonyl scenes, and the `cdxml_open` wavy, bold,
-and dashed bonds remain clearly separated from their C, O, N, and F glyph ink. The
-review found no clipping, stale product branding, or image-to-caption mismatch. This
-documentation acceptance remains separate from final human native visual, accessibility,
-contrast, and focus acceptance.
+A native-resolution agent review found the sucrose stereobonds, complete pentapeptide,
+three tricaprylin ester regions, six-match SMARTS result, two base-pair hydrogen-bond
+lanes, and both nucleobase rings visible without clipping. The review also found no
+stale product branding or image-to-caption mismatch. This agent review remains separate
+from final human native visual,
+accessibility, contrast, and focus acceptance.
 
-The documentation framing uses Ferrum's document-root content bounds and visible
-status-bar zoom client so completed chemistry remains legible in the application frame.
-Imported CDXML is centered through the Rust page-geometry boundary; the File/Open
-scene deliberately exercises the bounded CDXML importer. Detached rings, arrows, and
-vectors are authored on the visible page; the presentation-vector workflow invokes its
-renderer preflight before committing the line; and the Properties dock reports facts
-that agree with the captured document. The Template Catalog scene shows the selected
-entry supplied by Ferrum's Rust-backed catalog boundary before placement. Command
-Palette entries are registered from the ribbon's YAML command definitions; that
-configuration ownership is documented here rather than inferred from image alt text.
+The biochemical scenes deliberately prove different boundaries. Sucrose is a fixed,
+editable stereochemical CDML drawing, not a claim that Ferrum semantically recognizes
+sucrose. ANKLE runs through the actual native peptide worker and yields one 40-atom,
+39-bond molecule. Tricaprylin runs through bounded SDF ingress, then the live SMARTS
+dock reports six `[O]` matches. The adenine and thymine rings are separate molecule
+roots; their two dashed presentation lanes remain outside the covalent molecule graph,
+so the Properties dock correctly reports only the 23 covalent bonds. Molecular identity
+was checked against [PubChem sucrose](https://pubchem.ncbi.nlm.nih.gov/compound/Sucrose),
+[PubChem tricaprylin](https://pubchem.ncbi.nlm.nih.gov/compound/Tricaprylin), and the
+[PubChem adenine-thymine pair](https://pubchem.ncbi.nlm.nih.gov/compound/Adenine-thymine).
+
+The remaining scenes preserve focused evidence for direct bonds, detached and attached
+rings, selected-atom editing, bounded CDXML, reaction arrows, visible view controls, and
+the live command registry. The Template Catalog still shows the selected Rust-backed
+glucose entry before placement. Command Palette entries come from the ribbon's YAML
+command definitions; that ownership is documented here rather than inferred from alt
+text.
 
 The CDXML scene makes the repaired atom-label contract visible: each structural element
 core is centered on its connected bond axis, while visible glyph ink retains clearance
@@ -124,12 +131,14 @@ application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete accepted 2026-08-31 documentation tour. Focused diagnostic
+These embeds are the complete current 2026-08-31 documentation tour. Focused diagnostic
 captures remain outside this section.
 
-![Editable carbonyl fragment in the Ferrum workspace](screenshots/workspace.png)
+![Editable stereochemical sucrose drawing in the Ferrum workspace](screenshots/workspace.png)
 
-![Carbonyl with an additional oxygen beneath it and Select Structure shown as the active mode](screenshots/atom_authoring.png)
+![Native ANKLE pentapeptide import with one 40-atom and 39-bond molecule](screenshots/pentapeptide_import.png)
+
+![Sucrose with an additional authored atom and Select Structure shown as the active mode](screenshots/atom_authoring.png)
 
 ![Committed C-O single bond selected in the Ferrum canvas](screenshots/direct_bond.png)
 
@@ -141,17 +150,17 @@ captures remain outside this section.
 
 ![Carbon changed to nitrogen through the selected-atom editing workflow](screenshots/selected_atom_edit.png)
 
-![SMARTS Query dock showing one carbon match](screenshots/smarts_result.png)
+![Tricaprylin opened through SDF with all six oxygen SMARTS matches reported](screenshots/smarts_result.png)
 
-![Committed reaction arrow beside an authored carbon](screenshots/reaction_arrow.png)
+![Committed reaction arrow beside editable sucrose](screenshots/reaction_arrow.png)
 
-![Committed presentation line beside an authored carbon](screenshots/presentation_vector.png)
+![Adenine-thymine pair with two dashed noncovalent Watson-Crick hydrogen-bond guides](screenshots/presentation_vector.png)
 
 ![Centered C-O-N-F document opened from ChemDraw XML with wavy, bold, and dashed bonds](screenshots/cdxml_open.png)
 
-![Visible status-bar zoom, Page, and Content controls beside a readable carbonyl](screenshots/view_controls.png)
+![Visible status-bar zoom, Page, and Content controls beside complete tricaprylin](screenshots/view_controls.png)
 
-![Command Palette search results for registered reaction commands above a reaction arrow](screenshots/command_palette_reaction.png)
+![Command Palette search results for registered reaction commands above sucrose and a reaction arrow](screenshots/command_palette_reaction.png)
 
 ## Publishing screenshots in documentation
 
