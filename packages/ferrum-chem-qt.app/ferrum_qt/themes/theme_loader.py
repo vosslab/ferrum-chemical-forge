@@ -5,18 +5,19 @@ by the sole shipped Ferrum frontend.
 """
 
 # PIP3 modules
+import PySide6.QtGui
 import yaml
 
 # local repo modules
 import ferrum_qt.themes.document_display_palette
 import ferrum_qt.resource_paths
+import ferrum_qt.ribbon_contract
 
 # Themes are package-owned so installed Qt wheels do not need the source tree.
 _THEMES_DIR = ferrum_qt.resource_paths.get_resource_path("themes")
 
 # cached theme data keyed by theme name
 _THEME_CACHE = {}
-
 
 #============================================
 def _load_theme(name: str) -> dict:
@@ -169,6 +170,23 @@ def get_gui_colors(theme_name: str) -> dict:
 	"""
 	data = _load_theme(theme_name)
 	return data.get("gui", {})
+
+
+#============================================
+def get_ribbon_colors(theme_name: str) -> dict:
+	"""Return the closed palette for Ferrum's primary command surface."""
+	data = _load_theme(theme_name)
+	ribbon = data["ribbon"]
+	if type(ribbon) is not dict or set(ribbon) != ferrum_qt.ribbon_contract.THEME_KEYS:
+		raise ValueError(
+			f"Theme '{theme_name}' ribbon must contain exactly: "
+			+ ", ".join(sorted(ferrum_qt.ribbon_contract.THEME_KEYS)) + ".",
+		)
+	for key, value in ribbon.items():
+		color = PySide6.QtGui.QColor(value)
+		if not color.isValid():
+			raise ValueError(f"Theme '{theme_name}' ribbon.{key} is not a valid color.")
+	return ribbon
 
 
 #============================================

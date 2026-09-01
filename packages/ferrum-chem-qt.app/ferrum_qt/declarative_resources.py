@@ -10,13 +10,12 @@ import PySide6.QtWidgets
 
 # local repo modules
 import ferrum_qt.declarative_resource_loader
+import ferrum_qt.ribbon_contract
 
 
 _MENU_RESOURCE = "menus.yaml"
 _RIBBON_RESOURCE = "ribbon_layout.yaml"
 _CONTEXT_MENU_ID = "selected_structure"
-
-
 #============================================
 DeclarativeResourceError = ferrum_qt.declarative_resource_loader.DeclarativeResourceError
 
@@ -256,10 +255,19 @@ def _menu_action_breadcrumbs(data: dict) -> dict[str, tuple[str, ...]]:
 #============================================
 def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> None:
 	"""Validate ribbon placements without resolving live Qt action clients."""
-	if type(data) is not dict or set(data) != {"tabs"}:
+	if type(data) is not dict or set(data) != {"global_actions", "quick_access", "tabs"}:
 		raise DeclarativeResourceError(
-			"ribbon_layout.yaml must contain exactly a 'tabs' mapping key.",
+			"ribbon_layout.yaml must contain exactly global_actions, quick_access, and tabs.",
 		)
+	seen_header_action_ids: set[str] = set()
+	_validate_ribbon_header_actions(
+		data["quick_access"], "ribbon_layout.yaml.quick_access",
+		action_ids, seen_header_action_ids,
+	)
+	_validate_ribbon_header_actions(
+		data["global_actions"], "ribbon_layout.yaml.global_actions",
+		action_ids, seen_header_action_ids,
+	)
 	tabs = data["tabs"]
 	if type(tabs) is not list or not tabs:
 		raise DeclarativeResourceError("ribbon_layout.yaml.tabs must be a nonempty list.")
@@ -281,13 +289,22 @@ def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> N
 		for group_index, group in enumerate(groups):
 			group_location = f"{tab_location}.groups[{group_index}]"
 			group = _require_mapping(group, group_location)
-			_require_keys(group, {"id", "label_key", "overflow_label_key", "entries"}, group_location)
+			_require_keys(
+				group, {"accent", "id", "label_key", "overflow_label_key", "entries"},
+				group_location,
+			)
 			group_id = _require_string(group["id"], f"{group_location}.id")
 			if group_id in seen_group_ids:
 				raise DeclarativeResourceError(f"Duplicate ribbon group ID: '{group_id}'.")
 			seen_group_ids.add(group_id)
 			_require_string(group["label_key"], f"{group_location}.label_key")
 			_require_string(group["overflow_label_key"], f"{group_location}.overflow_label_key")
+			accent = _require_string(group["accent"], f"{group_location}.accent")
+			if accent not in ferrum_qt.ribbon_contract.ACCENTS:
+				raise DeclarativeResourceError(
+					f"{group_location}.accent must be one of: "
+					+ ", ".join(ferrum_qt.ribbon_contract.ACCENTS) + ".",
+				)
 			entries = group["entries"]
 			if type(entries) is not list or not entries:
 				raise DeclarativeResourceError(f"{group_location}.entries must be a nonempty list.")
@@ -308,9 +325,31 @@ def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> N
 
 
 #============================================
+def _validate_ribbon_header_actions(values: object, location: str,
+		action_ids: frozenset[str], seen_action_ids: set[str]) -> None:
+	"""Require one ordered nonempty persistent-header action sequence."""
+	if type(values) is not list or not values:
+		raise DeclarativeResourceError(f"{location} must be a nonempty list.")
+	for index, value in enumerate(values):
+		action_location = f"{location}[{index}]"
+		action_id = _require_string(value, action_location)
+		if action_id in seen_action_ids:
+			raise DeclarativeResourceError(
+				f"Duplicate ribbon header action '{action_id}'.",
+			)
+		if action_id not in action_ids:
+			raise DeclarativeResourceError(
+				f"{action_location} references unresolved action '{action_id}'.",
+			)
+		seen_action_ids.add(action_id)
+
+
+#============================================
 def _ribbon_action_breadcrumbs(data: dict) -> dict[str, tuple[str, ...]]:
 	"""Return first-declared ribbon breadcrumbs for actions lacking menu placement."""
-	placements: dict[str, tuple[str, ...]] = {}
+	placements = {action_id: ("Quick access",) for action_id in data["quick_access"]}
+	for action_id in data["global_actions"]:
+		placements[action_id] = ("Ribbon commands",)
 	for tab in data["tabs"]:
 		for group in tab["groups"]:
 			breadcrumb = (tab["label_key"], group["label_key"])

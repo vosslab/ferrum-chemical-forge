@@ -106,8 +106,11 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		ferrum_qt.ferrum.window_shared_seams.install_shared_window_seams(
 			self, self._action_registry,
 		)
-		ferrum_qt.declarative_resource_preflight.preflight_window_resources(
+		self._window_resources = ferrum_qt.declarative_resource_preflight.preflight_window_resources(
 			self._action_registry,
+		)
+		self._window_resources.command_icons.apply(
+			self.style(), self._theme_manager.current_theme,
 		)
 		self._declared_menus = ferrum_qt.actions.menu_builder.build_declared_menus(
 			self, self._action_registry,
@@ -200,36 +203,12 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 			self,
 			) -> ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon:
 		"""Install the one responsive, action-reusing Ferrum authoring surface."""
-		standard = PySide6.QtWidgets.QStyle.StandardPixmap
 		self._open_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Open)
 		self._save_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Save)
 		self._undo_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Undo)
 		self._redo_action.setShortcut(PySide6.QtGui.QKeySequence.StandardKey.Redo)
-		cut_icon = PySide6.QtGui.QIcon.fromTheme("edit-cut")
-		if not cut_icon.isNull():
-			self._cut_action.setIcon(cut_icon)
-		for action, icon_source in (
-			(self._action_new, standard.SP_FileIcon),
-			(self._open_action, standard.SP_DialogOpenButton),
-			(self._save_action, standard.SP_DialogSaveButton),
-			(self._undo_action, standard.SP_ArrowBack),
-			(self._redo_action, standard.SP_ArrowForward),
-			(self._cut_action, standard.SP_TrashIcon),
-			(self._copy_action, standard.SP_FileDialogDetailedView),
-			(self._paste_action, standard.SP_FileDialogListView),
-			(self._zoom_out_action, standard.SP_ArrowDown),
-			(self._zoom_100_action, standard.SP_BrowserReload),
-			(self._zoom_in_action, standard.SP_ArrowUp),
-			(self._show_hex_grid_action, standard.SP_FileDialogContentsView),
-			(self._snap_hex_grid_action, standard.SP_DialogApplyButton),
-			(self._template_catalog_action, standard.SP_FileDialogNewFolder),
-			(self._create_reaction_action, standard.SP_FileDialogDetailedView),
-			(self._reaction_inspector_action, standard.SP_FileDialogContentsView),
-		):
-			if action.icon().isNull():
-				action.setIcon(self.style().standardIcon(icon_source))
 		ribbon = ferrum_qt.ferrum.authoring_ribbon.AuthoringRibbon(
-			self._action_registry, self._window_mode_sync, self._drawing_parameters,
+			self._window_resources.ribbon, self._window_mode_sync, self._drawing_parameters,
 			self._next_drawing_action,
 			self._cancel_tool_action, self,
 		)
@@ -258,6 +237,9 @@ class MainWindow(ferrum_qt.ferrum.main_window.FerrumNativeMainWindow):
 		if type(change.palette) is not ferrum_qt.themes.document_display_palette.DocumentDisplayPaletteV1:
 			raise TypeError("Ferrum main window requires a document display palette")
 		self._document_theme_change = change
+		window_resources = getattr(self, "_window_resources", None)
+		if window_resources is not None:
+			window_resources.command_icons.apply(self.style(), change.name)
 		for tab in self.findChildren(ferrum_qt.ferrum.document_tab.FerrumNativeDocumentTab):
 			tab.apply_theme_change(change)
 

@@ -723,6 +723,47 @@ descriptions with a defined tab order. Focused Qt tests prove this behavior;
 native keyboard dispatch and assistive-technology review remain human desktop
 acceptance work, not a claim made by this contract.
 
+## Authoring ribbon presentation
+
+The authoring ribbon is one projection of the existing `ActionRegistry`; it is
+not a command owner. Failure-atomic window preflight resolves menus, the
+complete ribbon layout, and the exact command-icon catalog before any visible
+client is constructed. Each quick-access, tab-group, overflow, menu, and
+Command Palette client therefore shares the same live `QAction` identity,
+label, help, enabled/checked state, shortcut, icon, and invocation.
+
+`ribbon_layout.yaml` owns persistent quick access, global discovery actions,
+task tabs, group and entry order, primary/supporting role, reduction priority,
+and semantic accent. The closed theme `ribbon` mapping owns every ribbon color.
+`actions/command_icons.py` is the exact theme-aware visual binding for every
+ribbon command; chemistry-authoring commands use packaged BKChem artwork while
+platform file and view commands use Qt standard icons. The widget tree may
+only project these resolved values.
+
+`ribbon_contract.py` owns one component geometry instead of allowing action
+text to create arbitrary rectangles. Every primary, singleton supporting, and
+popup tile occupies a 72-pixel frame. Supporting pairs form 34-pixel rows with
+one 4-pixel internal gap; adjacent components and groups use the declared
+8-pixel rhythm. Live text hints snap to bounded 32-pixel width increments.
+The closed theme owns one default fill, foreground, border, radius, disabled
+state, hover state, checked state, and focus state for every command tile.
+
+The fixed header contains brand, icon-only quick access, a keyboard-reachable
+`QTabBar`, and the labelled Command Palette route. A `QStackedWidget` exposes
+the selected task page. Each page measures its real width and reduces groups
+from expanded to compact to collapsed in reverse declared order. Supporting
+commands move to a labelled **More** menu, then all group commands move to one
+consistently shaped **More** popup under the still-visible group caption;
+neither transition duplicates or loses an action, its full accessible name and
+tooltip remain specific to the group, and focus follows a control that remains
+exposed.
+
+Every direct and popup control has a visible label or tooltip, accessible name
+and description, and strong keyboard focus. Text pairs meet 4.5:1 contrast;
+focus, checked-state boundaries, and semantic category rails meet 3:1 in both
+shipped themes. Native focus traversal and assistive-technology output remain
+human desktop acceptance work.
+
 ## Native Open lifecycle
 
 `LocalDocumentOpenCatalogV2` is the sole Rust discovery authority for local

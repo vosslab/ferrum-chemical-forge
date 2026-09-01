@@ -9,11 +9,19 @@ import PySide6.QtGui
 # local repo modules
 import ferrum_qt.declarative_resource_loader
 import ferrum_qt.declarative_resources
+import ferrum_qt.ribbon_contract
 
 
 _RESOURCE_NAME = "ribbon_layout.yaml"
 _ROLES = frozenset({"primary", "supporting"})
 _PRIORITIES = frozenset({"required", "normal"})
+#============================================
+@dataclasses.dataclass(frozen=True, slots=True)
+class RibbonActionClient:
+	"""One registry-owned action placed in the persistent ribbon header."""
+
+	action_id: str
+	action: PySide6.QtGui.QAction
 
 
 #============================================
@@ -35,6 +43,7 @@ class RibbonGroupLayout:
 	id: str
 	label_key: str
 	overflow_label_key: str
+	accent: str
 	entries: tuple[RibbonEntry, ...]
 
 
@@ -49,18 +58,37 @@ class RibbonTabLayout:
 
 
 #============================================
-def load_ribbon_layout(registry: object) -> tuple[RibbonTabLayout, ...]:
+@dataclasses.dataclass(frozen=True, slots=True)
+class RibbonLayout:
+	"""Complete persistent header and task-tab command placement."""
+
+	quick_access: tuple[RibbonActionClient, ...]
+	global_actions: tuple[RibbonActionClient, ...]
+	tabs: tuple[RibbonTabLayout, ...]
+
+	#============================================
+	def action_ids(self) -> frozenset[str]:
+		"""Return every command requiring a canonical ribbon icon."""
+		action_ids = {client.action_id for client in self.quick_access + self.global_actions}
+		for tab in self.tabs:
+			for group in tab.groups:
+				action_ids.update(entry.action_id for entry in group.entries)
+		return frozenset(action_ids)
+
+
+#============================================
+def load_ribbon_layout(registry: object) -> RibbonLayout:
 	"""Load, validate, and resolve every ribbon QAction before UI construction."""
 	data = ferrum_qt.declarative_resource_loader.load_packaged_yaml(_RESOURCE_NAME)
 	return _resolve_layout(data, registry)
 
 
 #============================================
-def _resolve_layout(data: object, registry: object) -> tuple[RibbonTabLayout, ...]:
+def _resolve_layout(data: object, registry: object) -> RibbonLayout:
 	"""Validate supplied YAML recursively and bind existing actions."""
-	if type(data) is not dict or set(data) != {"tabs"}:
+	if type(data) is not dict or set(data) != {"global_actions", "quick_access", "tabs"}:
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
-			"ribbon_layout.yaml must contain exactly a 'tabs' mapping key.",
+			"ribbon_layout.yaml must contain exactly global_actions, quick_access, and tabs.",
 		)
 	tabs = data["tabs"]
 	if type(tabs) is not list or not tabs:
@@ -72,9 +100,45 @@ def _resolve_layout(data: object, registry: object) -> tuple[RibbonTabLayout, ..
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			"Ribbon layout needs an action registry with get_qt_action().",
 		)
+	seen_header_action_ids: set[str] = set()
+	quick_access = _resolve_action_clients(
+		data["quick_access"], "ribbon_layout.yaml.quick_access",
+		seen_header_action_ids, get_qt_action,
+	)
+	global_actions = _resolve_action_clients(
+		data["global_actions"], "ribbon_layout.yaml.global_actions",
+		seen_header_action_ids, get_qt_action,
+	)
 	seen_tab_ids: set[str] = set()
-	return tuple(_resolve_tab(tab, index, seen_tab_ids, get_qt_action)
+	resolved_tabs = tuple(_resolve_tab(tab, index, seen_tab_ids, get_qt_action)
 		for index, tab in enumerate(tabs))
+	return RibbonLayout(quick_access, global_actions, resolved_tabs)
+
+
+#============================================
+def _resolve_action_clients(values: object, location: str,
+		seen_action_ids: set[str], get_qt_action: object) -> tuple[RibbonActionClient, ...]:
+	"""Resolve one nonempty ordered header action sequence."""
+	if type(values) is not list or not values:
+		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+			f"{location} must be a nonempty list.",
+		)
+	clients: list[RibbonActionClient] = []
+	for index, value in enumerate(values):
+		action_location = f"{location}[{index}]"
+		action_id = _string(value, action_location)
+		if action_id in seen_action_ids:
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"Duplicate ribbon header action '{action_id}'.",
+			)
+		seen_action_ids.add(action_id)
+		action = get_qt_action(action_id)
+		if not isinstance(action, PySide6.QtGui.QAction):
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"{action_location} references unbound QAction '{action_id}'.",
+			)
+		clients.append(RibbonActionClient(action_id, action))
+	return tuple(clients)
 
 
 #============================================
@@ -106,7 +170,9 @@ def _resolve_group(group: object, index: int, tab_location: str,
 		seen_group_ids: set[str], seen_action_ids: set[str], get_qt_action: object) -> RibbonGroupLayout:
 	"""Resolve one group and preserve its placement order for keyboard traversal."""
 	location = f"{tab_location}.groups[{index}]"
-	data = _mapping(group, location, {"id", "label_key", "overflow_label_key", "entries"})
+	data = _mapping(
+		group, location, {"accent", "id", "label_key", "overflow_label_key", "entries"},
+	)
 	group_id = _string(data["id"], f"{location}.id")
 	if group_id in seen_group_ids:
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
@@ -118,8 +184,13 @@ def _resolve_group(group: object, index: int, tab_location: str,
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			f"{location}.entries must be a nonempty list.",
 		)
+	accent = _string(data["accent"], f"{location}.accent")
+	if accent not in ferrum_qt.ribbon_contract.ACCENTS:
+		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+			f"{location}.accent must be one of: {', '.join(ferrum_qt.ribbon_contract.ACCENTS)}.",
+		)
 	return RibbonGroupLayout(group_id, _string(data["label_key"], f"{location}.label_key"),
-		_string(data["overflow_label_key"], f"{location}.overflow_label_key"),
+		_string(data["overflow_label_key"], f"{location}.overflow_label_key"), accent,
 		tuple(_resolve_entry(entry, entry_index, location, seen_action_ids, get_qt_action)
 			for entry_index, entry in enumerate(entries)))
 

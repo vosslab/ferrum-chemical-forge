@@ -96,9 +96,18 @@ it does not create a separate command implementation.
 
 ## Ribbon resource
 
-`ribbon_layout.yaml` is exactly a mapping with one nonempty `tabs` list:
+`ribbon_layout.yaml` is exactly a mapping with nonempty `quick_access`,
+`global_actions`, and `tabs` lists:
 
 ```yaml
+quick_access:
+  - file.new
+  - file.open
+  - file.save
+  - edit.undo
+  - edit.redo
+global_actions:
+  - view.command_palette
 tabs:
   - id: structure
     label_key: Structure
@@ -106,6 +115,7 @@ tabs:
       - id: atoms_bonds
         label_key: Atoms and bonds
         overflow_label_key: More atom and bond commands
+        accent: drawing
         entries:
           - action: draw.atom_at_point
             role: primary
@@ -115,14 +125,21 @@ tabs:
             priority: normal
 ```
 
+The two header lists contain ordered registered action IDs. Their IDs are
+unique across both lists. Quick access is the persistent icon-only route for
+universal file/history commands; global actions are persistent labelled
+discovery routes.
+
 A tab requires exactly `id`, `label_key`, and `groups`. A group requires exactly `id`,
-`label_key`, `overflow_label_key`, and `entries`. An entry requires exactly `action`, `role`, and
-`priority`.
+`label_key`, `overflow_label_key`, `accent`, and `entries`. An entry requires exactly `action`,
+`role`, and `priority`.
 
 - Tab IDs are unique across the resource; group IDs are unique within a tab; action IDs are unique
   within a tab.
 - `role` is either `primary` or `supporting`.
 - `priority` is either `required` or `normal`.
+- `accent` is one of `annotation`, `drawing`, `reaction`, `selection`, `structure`, `utility`, or
+  `view`. It is semantic grouping metadata, not a literal color.
 - Every action must resolve to an already bound QAction. The ribbon only projects that client; it
   cannot change its behavior or state.
 - Entry order controls the visual and keyboard traversal order. The responsive ribbon reduces
@@ -149,6 +166,7 @@ document_display:
   grid_dot_outline: "#77848e"
   grid_dot_fill: "#5b8f7c"
   elements: {}
+ribbon: {}
 gui: {}
 canvas: {}
 chemistry: {}
@@ -164,10 +182,17 @@ thin roles `document_foreground`, `atom_number`, `selection_outline`, `hover_out
 `grid_line`, `grid_dot_outline`, and `grid_dot_fill` require 3.0:1. Do not invent element colors:
 the V1 display palette intentionally has no element-role map.
 
+The closed `ribbon` mapping contains exactly `shell`, `header_bg`, `header_fg`, `header_muted`,
+`tab_hover`, `tab_active_bg`, `tab_active_fg`, `surface`, `group_bg`, `group_border`,
+`button_hover`, `button_checked`, `button_checked_border`, `caption_fg`, `context_bg`,
+`context_fg`, `focus`, and one `accent_*` color for each closed accent value above. Every value is
+a valid Qt color. Ribbon text pairs require 4.5:1 contrast; focus, checked-state borders, and
+accent rails require 3:1 against their painted surfaces.
+
 The `gui`, `canvas`, `chemistry`, `paper`, and `grid` mappings are shipped Qt appearance inputs for
-application chrome and older presentation adapters. Keep their existing keys consistent across the
-light and dark themes. The strict document-display contract, rather than these adapter mappings,
-is the source of colors for the Rust-backed document surface.
+the remaining application chrome and presentation adapters. Keep their existing keys consistent
+across the light and dark themes. The strict document-display contract, rather than these adapter
+mappings, is the source of colors for the Rust-backed document surface.
 
 ## Safe maintenance workflow
 

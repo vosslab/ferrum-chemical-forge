@@ -6,7 +6,6 @@ import argparse
 import collections.abc
 import pathlib
 import shutil
-import subprocess
 import sys
 import tempfile
 
@@ -33,8 +32,10 @@ from ferrum_qt.documentation_capture_models import (
 	EMPTY_CDML as _EMPTY_CDML, PAIR_CDML as _PAIR_CDML, Scene,
 )
 from ferrum_qt.documentation_capture_surfaces import (
-	CaptureError, capture_with_qt as _capture_with_qt,
+	CaptureError, capture_with_easy_screenshot as _capture_with_easy_screenshot,
+	capture_with_qt as _capture_with_qt,
 	save_dialog_over_window as _save_dialog_over_window,
+	verify_full_window_capture_surface as _verify_full_window_capture_surface,
 )
 
 
@@ -550,11 +551,11 @@ def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Draw and commit a completed reaction arrow beside sucrose."""
+	"""Draw and commit a completed reaction arrow below sucrose."""
 	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
 	tab = _active_tab(window)
 	_activate_command(window, application, "Draw Arrow")
-	_drag(_canvas(tab), _scene_point(tab, 560.0, 420.0), _scene_point(tab, 700.0, 420.0))
+	_drag(_canvas(tab), _scene_point(tab, 340.0, 570.0), _scene_point(tab, 460.0, 570.0))
 	application.processEvents()
 	if "<arrow" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Arrow did not create a durable reaction arrow")
@@ -769,88 +770,67 @@ def _capture_command_palette_with_qt(window: PySide6.QtWidgets.QMainWindow,
 
 SCENES = (
 	Scene("workspace", "Editable sucrose workspace", _workspace_scene),
-	Scene("pentapeptide_import", "Import ANKLE pentapeptide", _pentapeptide_scene),
+	Scene(
+		"pentapeptide_import", "Import ANKLE pentapeptide", _pentapeptide_scene,
+		ribbon_tab_id="structure",
+	),
 	Scene(
 		"atom_authoring", "Add atom beside sucrose", _atom_authoring_scene,
-		post_prepare=_rearm_atom_authoring,
+		post_prepare=_rearm_atom_authoring, ribbon_tab_id="structure",
 	),
-	Scene("direct_bond", "Draw direct bond", _direct_bond_scene),
-	Scene("inserted_cyclohexane", "Insert cyclohexane ring", _inserted_cyclohexane_scene),
-	Scene("attached_cyclohexane", "Attach cyclohexane ring", _attached_cyclohexane_scene),
+	Scene("direct_bond", "Draw direct bond", _direct_bond_scene, ribbon_tab_id="structure"),
+	Scene(
+		"inserted_cyclohexane", "Insert cyclohexane ring", _inserted_cyclohexane_scene,
+		ribbon_tab_id="structure",
+	),
+	Scene(
+		"attached_cyclohexane", "Attach cyclohexane ring", _attached_cyclohexane_scene,
+		ribbon_tab_id="structure",
+	),
 	Scene(
 		"template_catalog", "Browse Rust-owned template catalog", _template_catalog_scene,
-		overlay_capture=_capture_template_catalog_with_qt,
+		overlay_capture=_capture_template_catalog_with_qt, ribbon_tab_id="structure",
 	),
-	Scene("selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene),
+	Scene(
+		"selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene,
+		ribbon_tab_id="structure",
+	),
 	Scene("smarts_result", "Find triglyceride oxygen SMARTS matches", _smarts_result_scene),
 	Scene(
 		"reaction_arrow", "Draw reaction arrow beside sucrose", _reaction_arrow_scene,
-		post_prepare=_retire_presentation_selection,
+		post_prepare=_retire_presentation_selection, ribbon_tab_id="reactions",
 	),
 	Scene(
 		"presentation_vector", "Show Watson-Crick A-T hydrogen bonds", _dna_base_pair_scene,
-		post_prepare=_retire_presentation_selection,
+		post_prepare=_retire_presentation_selection, ribbon_tab_id="annotate",
 	),
 	Scene(
 		"cdxml_open", "Open Wavy, Bold, and Dashed ChemDraw bonds", _cdxml_open_scene,
-		post_prepare=_verify_cdxml_after_prepare,
+		post_prepare=_verify_cdxml_after_prepare, ribbon_tab_id="structure",
 	),
 	Scene(
 		"view_controls", "Fit tricaprylin with status-bar view controls", _tricaprylin_scene,
-		post_prepare=_view_controls_after_prepare,
+		post_prepare=_view_controls_after_prepare, ribbon_tab_id="view",
 	),
 	Scene(
 		"command_palette_reaction", "Discover reaction commands from the live palette",
 		_reaction_arrow_scene, post_prepare=_command_palette_after_prepare,
-		overlay_capture=_capture_command_palette_with_qt,
+		overlay_capture=_capture_command_palette_with_qt, ribbon_tab_id="reactions",
 	),
 )
 SCENE_NAMES = tuple(scene.name for scene in SCENES)
 
 #============================================
-def _capture_with_easy_screenshot(window: PySide6.QtWidgets.QMainWindow,
-		output: pathlib.Path) -> bool:
-	"""Attempt the optional macOS window backend for this exact titled Ferrum window."""
-	command = shutil.which("screenshot")
-	if command is None:
-		return False
-	result = subprocess.run(
-		[command, "-A", PySide6.QtWidgets.QApplication.applicationName(),
-			"-t", window.windowTitle(), "-f", str(output)],
-		capture_output=True, text=True, check=False,
-	)
-	return result.returncode == 0 and output.is_file() and output.stat().st_size > 0
-
-#============================================
-def _verify_full_window_capture_surface(
-		window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
-		) -> None:
-	"""Require the documented 16:10 window, ribbon, status bar, and PNG geometry."""
-	if window.size() != WINDOW_SIZE:
-		raise CaptureError(
-			f"Ferrum capture window is {window.width()}x{window.height()}, "
-			f"not the required full-window {WINDOW_SIZE.width()}x{WINDOW_SIZE.height()} surface"
-		)
-	ribbon = window.findChild(PySide6.QtWidgets.QToolBar, "ferrum-authoring-ribbon")
-	if ribbon is None or not ribbon.isVisible():
-		raise CaptureError("Ferrum capture requires the visible authoring ribbon")
-	status_bar = window.statusBar()
-	if not status_bar.isVisible():
-		raise CaptureError("Ferrum capture requires the visible status bar")
-	image = PySide6.QtGui.QImage(str(output))
-	if image.isNull() or image.width() < 200 or image.height() < 200:
-		raise CaptureError("capture output is not a usable window PNG")
-	if image.width() * WINDOW_SIZE.height() != image.height() * WINDOW_SIZE.width():
-		raise CaptureError(
-			f"capture backend produced {image.width()}x{image.height()}, not the required "
-			"16:10 full Ferrum window. The backend likely included window decoration or "
-			"cropped the application; use the Qt backend or configure the window capture "
-			"backend to capture only the Ferrum application surface."
-		)
+def _expose_ribbon_tab(window: PySide6.QtWidgets.QMainWindow, ribbon_tab_id: str) -> None:
+	"""Expose and verify one scene-owned task tab after queued Qt state changes."""
+	window._authoring_ribbon.select_tab(ribbon_tab_id)
+	PySide6.QtWidgets.QApplication.processEvents()
+	if window._authoring_ribbon.current_tab_id() != ribbon_tab_id:
+		raise CaptureError(f"Ferrum did not retain ribbon tab: {ribbon_tab_id}")
 
 #============================================
 def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
-		backend: str,
+		backend: str, ribbon_tab_id: str,
 		overlay_capture: collections.abc.Callable[
 			[PySide6.QtWidgets.QMainWindow, pathlib.Path], None
 		] | None = None,
@@ -862,6 +842,7 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 		_documentation_frame(tab)
 		_canvas(tab).centerOn(tab.document_content_bounds().center())
 		PySide6.QtWidgets.QApplication.processEvents()
+		_expose_ribbon_tab(window, ribbon_tab_id)
 	if overlay_capture is not None:
 		overlay_capture(window, output)
 		used = "qt"
@@ -877,7 +858,7 @@ def _capture(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
 	else:
 		_capture_with_qt(window, output)
 		used = "qt"
-	_verify_full_window_capture_surface(window, output)
+	_verify_full_window_capture_surface(window, output, WINDOW_SIZE)
 	return used
 
 #============================================
@@ -915,6 +896,14 @@ def _parse_args() -> argparse.Namespace:
 		"--scene", choices=SCENE_NAMES,
 		help="capture and publish one named scene without replacing the other tour PNGs",
 	)
+	parser.add_argument(
+		"--theme", choices=("dark", "light"), default="light",
+		help="transient application theme used for this capture; defaults to light",
+	)
+	parser.add_argument(
+		"--ribbon-tab",
+		help="stable ribbon tab ID overriding the task tab declared by each capture scene",
+	)
 	parser.add_argument("--list", action="store_true", help="print scene names without launching Ferrum")
 	return parser.parse_args()
 
@@ -933,7 +922,7 @@ def main() -> int:
 	# Keep documentation evidence deterministic without mutating the user's saved
 	# application preference. Explicit black presentation marks remain legible on
 	# the light document page.
-	theme_manager.apply_transient_theme("light")
+	theme_manager.apply_transient_theme(args.theme)
 	scenes = tuple(scene for scene in SCENES if args.scene is None or scene.name == args.scene)
 	backends: set[str] = set()
 	with tempfile.TemporaryDirectory(prefix="ferrum_gui_screenshots_") as temporary:
@@ -954,12 +943,17 @@ def main() -> int:
 			# the final documentation zoom.
 			PySide6.QtTest.QTest.qWait(75)
 			_set_documentation_zoom(window, application)
+			ribbon_tab_id = args.ribbon_tab if args.ribbon_tab is not None else scene.ribbon_tab_id
+			_expose_ribbon_tab(window, ribbon_tab_id)
 			if scene.post_prepare is not None:
 				scene.post_prepare(window, application)
+			_expose_ribbon_tab(window, ribbon_tab_id)
 			output = staged / f"{scene.name}.png"
 			print(f"=== Ferrum GUI scene: {scene.name} (capture) ===", flush=True)
 			try:
-				backends.add(_capture(window, output, args.backend, scene.overlay_capture))
+				backends.add(_capture(
+					window, output, args.backend, ribbon_tab_id, scene.overlay_capture,
+				))
 			finally:
 				_close_window(window, application)
 			print(f"=== Ferrum GUI scene: {scene.name} (staged) ===", flush=True)

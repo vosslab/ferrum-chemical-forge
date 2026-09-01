@@ -1,24 +1,20 @@
 # Ferrum's task-oriented desktop ribbon. QAction behavior remains ActionRegistry-owned.
+quick_access:
+  - file.new
+  - file.open
+  - file.save
+  - edit.undo
+  - edit.redo
+global_actions:
+  - view.command_palette
 tabs:
   - id: home
     label_key: Home
     groups:
-      - id: clipboard
-        label_key: Clipboard
-        overflow_label_key: More clipboard commands
-        entries:
-          - {action: edit.paste, role: supporting, priority: normal}
-          - {action: edit.copy, role: supporting, priority: normal}
-          - {action: edit.cut, role: supporting, priority: normal}
-      - id: history
-        label_key: History
-        overflow_label_key: More history commands
-        entries:
-          - {action: edit.undo, role: supporting, priority: normal}
-          - {action: edit.redo, role: supporting, priority: normal}
       - id: select_edit
         label_key: Select and edit
         overflow_label_key: More selection and editing commands
+        accent: selection
         entries:
           - {action: draw.selection.structure, role: primary, priority: required}
           - {action: draw.arrange.move_atom, role: supporting, priority: normal}
@@ -27,6 +23,7 @@ tabs:
       - id: draw
         label_key: Draw
         overflow_label_key: More drawing tools
+        accent: drawing
         entries:
           - {action: draw.atom_at_point, role: primary, priority: required}
           - {action: draw.bond, role: primary, priority: required}
@@ -36,6 +33,7 @@ tabs:
       - id: rings_templates
         label_key: Rings and templates
         overflow_label_key: More ring and template commands
+        accent: structure
         entries:
           - {action: draw.ring.cyclohexane.insert, role: primary, priority: required}
           - {action: draw.ring.cyclohexane.attach, role: supporting, priority: normal}
@@ -43,6 +41,7 @@ tabs:
       - id: reaction
         label_key: Reaction
         overflow_label_key: More reaction commands
+        accent: reaction
         entries:
           - {action: draw.arrow, role: primary, priority: required}
           - {action: draw.plus, role: supporting, priority: normal}
@@ -54,6 +53,7 @@ tabs:
       - id: atoms_bonds
         label_key: Atoms and bonds
         overflow_label_key: More atom and bond commands
+        accent: drawing
         entries:
           - {action: draw.atom_at_point, role: primary, priority: required}
           - {action: draw.bond, role: primary, priority: required}
@@ -64,6 +64,7 @@ tabs:
       - id: rings
         label_key: Rings
         overflow_label_key: More ring commands
+        accent: structure
         entries:
           - {action: draw.ring.regular.c6, role: primary, priority: required}
           - {action: draw.ring.cyclohexane.insert, role: supporting, priority: normal}
@@ -72,6 +73,7 @@ tabs:
       - id: groups_templates
         label_key: Groups and templates
         overflow_label_key: More group and template commands
+        accent: structure
         entries:
           - {action: chemistry.template.catalog, role: primary, priority: required}
           - {action: chemistry.compact_group.place, role: supporting, priority: normal}
@@ -80,6 +82,7 @@ tabs:
       - id: geometry
         label_key: Geometry
         overflow_label_key: More geometry commands
+        accent: selection
         entries:
           - {action: draw.arrange.move_atom, role: supporting, priority: normal}
           - {action: draw.arrange.rotate_selected_atoms, role: supporting, priority: normal}
@@ -88,6 +91,7 @@ tabs:
       - id: drawing_defaults
         label_key: Drawing defaults
         overflow_label_key: More drawing default commands
+        accent: utility
         entries:
           - {action: draw.next_drawing, role: supporting, priority: normal}
   - id: reactions
@@ -96,6 +100,7 @@ tabs:
       - id: reaction_notation
         label_key: Reaction notation
         overflow_label_key: More reaction notation tools
+        accent: reaction
         entries:
           - {action: draw.arrow, role: primary, priority: required}
           - {action: draw.plus, role: primary, priority: required}
@@ -107,12 +112,14 @@ tabs:
       - id: reaction_structure
         label_key: Reaction structure
         overflow_label_key: More reaction structure commands
+        accent: structure
         entries:
           - {action: chemistry.reaction.create, role: primary, priority: required}
           - {action: chemistry.reaction.inspect, role: supporting, priority: normal}
       - id: conditions
         label_key: Conditions
         overflow_label_key: More conditions commands
+        accent: annotation
         entries:
           - {action: draw.text, role: supporting, priority: normal}
   - id: annotate
@@ -121,11 +128,13 @@ tabs:
       - id: labels
         label_key: Labels
         overflow_label_key: More label tools
+        accent: annotation
         entries:
           - {action: draw.text, role: primary, priority: required}
       - id: brackets_lines
         label_key: Brackets and lines
         overflow_label_key: More bracket and line tools
+        accent: annotation
         entries:
           - {action: draw.bracket.rectangular, role: primary, priority: required}
           - {action: draw.bracket.round, role: supporting, priority: normal}
@@ -136,6 +145,7 @@ tabs:
       - id: shapes
         label_key: Shapes
         overflow_label_key: More shape tools
+        accent: annotation
         entries:
           - {action: draw.vector.rectangle, role: primary, priority: required}
           - {action: draw.vector.square, role: supporting, priority: normal}
@@ -147,6 +157,7 @@ tabs:
       - id: zoom
         label_key: Zoom
         overflow_label_key: More zoom commands
+        accent: view
         entries:
           - {action: view.zoom_100, role: primary, priority: required}
           - {action: view.zoom_in, role: supporting, priority: normal}
@@ -154,6 +165,7 @@ tabs:
       - id: grid
         label_key: Grid
         overflow_label_key: More grid commands
+        accent: view
         entries:
           - {action: view.grid.visible, role: primary, priority: required}
           - {action: view.grid.snap, role: supporting, priority: normal}

@@ -163,6 +163,29 @@ route; Command Palette remains the action-invoking client.
 **Owner.** `packages/ferrum-chem-qt.app/ferrum_qt/actions/command_catalog.py`
 and `packages/ferrum-chem-qt.app/ferrum_qt/actions/command_reference.py`.
 
+### One preflighted ribbon contract owns command presentation
+
+**Decision.** The closed ribbon YAML owns quick access, global actions, task
+placement, responsive role and priority, and semantic accent. One exact command
+icon catalog joins every declared command to packaged BKChem or Qt-standard
+artwork before the ribbon becomes visible; the shared `ActionRegistry` remains
+the only behavior and state owner.
+
+**Why.** Generic tabs, repeated universal commands, and ad hoc per-window icons
+created weak hierarchy and allowed menus, ribbon buttons, and theme changes to
+drift. A ribbon is a command projection, not another command system.
+
+**Consequence.** Ferrum presents a persistent quick-access row, task tabs,
+color-coded cards, labelled overflow, and theme-aware icons without duplicating
+actions. Malformed layout or incomplete icon/theme data refuses the window
+atomically. Responsive reduction preserves action identity, reachability, and
+keyboard focus.
+
+**Owner.** `packages/ferrum-chem-qt.app/ferrum_qt/ribbon_contract.py`,
+`packages/ferrum-chem-qt.app/ferrum_qt/resources/ribbon_layout.yaml`,
+`packages/ferrum-chem-qt.app/ferrum_qt/actions/command_icons.py`, and
+`packages/ferrum-chem-qt.app/ferrum_qt/ferrum/authoring_ribbon.py`.
+
 ### Complete rendering is an atomic authoring invariant
 
 **Decision.** Generic authoring compares the complete resolved candidate render

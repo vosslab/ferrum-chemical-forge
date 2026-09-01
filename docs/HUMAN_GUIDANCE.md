@@ -32,5 +32,7 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   they meet `PYTEST_STYLE.md`; remove a test when its durable value is uncertain.
 - Target a 16:10 desktop aspect for Ferrum screenshots. Measure the complete outer application
   window, including the ribbon/menu and status bar; the canvas is not the aspect-ratio boundary.
+- Make the Ferrum ribbon colorful and exciting instead of Windows 3.1-like. Use the current
+  LibreOffice ribbon and original BKChem icon language as visual direction.
 - I noticed the letters are poorly aligned with the bond lines, we spend significant time and make
   crazy tests for OASA to perfect this.

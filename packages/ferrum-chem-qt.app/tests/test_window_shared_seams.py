@@ -216,18 +216,18 @@ def test_shown_window_keeps_1440_by_900_across_all_authoring_tabs(
 		qapp.processEvents()
 		assert window.size() == PySide6.QtCore.QSize(1440, 900)
 		ribbon = window._authoring_ribbon
-		for index in range(ribbon._tabs.count()):
-			ribbon._tabs.setCurrentIndex(index)
+		for tab in ribbon._layout_data.tabs:
+			ribbon.select_tab(tab.id)
 			qapp.processEvents()
 			assert window.size() == PySide6.QtCore.QSize(1440, 900)
-			page = ribbon._tabs.currentWidget()
+			page = ribbon._pages.currentWidget()
 			assert page is not None and page.contentsRect().contains(
 				PySide6.QtCore.QRect(
 					page.contentsRect().topLeft(),
 					PySide6.QtCore.QSize(max(0, page.minimumSizeHint().width()), 1),
 				),
 			)
-			for group in ribbon.groups_for_tab(ribbon._layouts[index].id):
+			for group in ribbon.groups_for_tab(tab.id):
 				assert group.visible_actions()
 				assert group.focus_target_for(group.visible_actions()[0]).accessibleName()
 	finally:
@@ -246,11 +246,9 @@ def test_structure_ribbon_allocator_restores_expanded_groups_from_live_hints(
 		window.show()
 		qapp.processEvents()
 		ribbon = window._authoring_ribbon
-		structure_index = next(index for index, layout in enumerate(ribbon._layouts)
-			if layout.id == "structure")
-		ribbon._tabs.setCurrentIndex(structure_index)
+		ribbon.select_tab("structure")
 		qapp.processEvents()
-		page = ribbon._tabs.currentWidget()
+		page = ribbon._pages.currentWidget()
 		assert page is not None
 		states = tuple(group.display_state for group in ribbon.groups_for_tab("structure"))
 		assert any(state.value != "expanded" for state in states)

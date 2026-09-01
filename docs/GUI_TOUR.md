@@ -22,8 +22,9 @@ Each scene receives a fresh temporary workspace. The tour uses bounded authored 
 the real SDF and CDXML File/Open routes, and Ferrum's native peptide importer. It then
 uses Ferrum's visible command and canvas workflows, checks an observable
 completed result, retires transient pointer previews, preserves meaningful selection
-highlights, frames the durable content on a high-contrast documentation canvas, hides the optional hex grid through its
-visible action, and captures one fixed 1440 by 900 application window. The target is the full
+highlights, exposes the task-appropriate Home, Structure, Reactions, Annotate, or View ribbon
+tab, frames the durable content on a high-contrast documentation canvas, hides the optional hex
+grid through its visible action, and captures one fixed 1440 by 900 application window. The target is the full
 `QMainWindow` surface, including the visible ribbon and status bar; the canvas is framed within that
 surface and is not the aspect-ratio boundary. The harness requires a 1440 by 900 logical window and
 rejects a staged PNG whose raster aspect is not 16:10. This permits platform display scaling; human
@@ -41,6 +42,7 @@ Use the following optional commands during local diagnosis:
 ./capture_gui_screenshots.sh --backend qt
 ./capture_gui_screenshots.sh --backend easy-screenshot
 ./capture_gui_screenshots.sh --scene template_catalog
+./capture_gui_screenshots.sh --scene workspace --ribbon-tab reactions
 ```
 
 `--backend auto` is the default. It prefers the `easy-screenshot` `screenshot`
@@ -49,6 +51,8 @@ uses `QScreen.grabWindow` for the same real visible top-level Ferrum window, the
 uses Qt's top-level-widget snapshot when the platform declines that screen grab.
 The explicit `easy-screenshot` backend requires the capture process to have the
 platform permissions needed for whole-window screen capture.
+Each scene owns its task-appropriate ribbon tab. `--ribbon-tab` is a focused diagnostic
+override; it does not change the registered full-tour storyboard.
 
 ## Storyboard
 
@@ -59,14 +63,14 @@ may write one path, but it does not publish or validate the complete tour.
 | --- | --- |
 | `docs/screenshots/workspace.png` | Editable sucrose with two rings, a glycosidic oxygen, and stereochemical wedge/hash bonds. |
 | `docs/screenshots/pentapeptide_import.png` | Native ANKLE pentapeptide import: one 40-atom, 39-bond molecule moved wholly onto the visible page through Ferrum's typed root operation. |
-| `docs/screenshots/atom_authoring.png` | Sucrose with one additional authored atom; Select Structure is the visible active mode. |
+| `docs/screenshots/atom_authoring.png` | Sucrose with one additional authored atom; Add Atom at Point is visibly rearmed. |
 | `docs/screenshots/direct_bond.png` | A committed C-O single bond remains selected. |
 | `docs/screenshots/inserted_cyclohexane.png` | Detached six-carbon cyclohexane beside the original carbon. |
 | `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
 | `docs/screenshots/selected_atom_edit.png` | Carbon changed to nitrogen through the selected-atom editing workflow. |
 | `docs/screenshots/smarts_result.png` | Tricaprylin opened through SDF with `[O]` returning all six oxygen matches. |
-| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed beside editable sucrose. |
+| `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed below editable sucrose. |
 | `docs/screenshots/presentation_vector.png` | Adenine-thymine pair with two dashed, noncovalent Watson-Crick hydrogen-bond guides. |
 | `docs/screenshots/cdxml_open.png` | ChemDraw XML opened as an editable centered C-O-N-F chain with Wavy, Bold, and Dashed bonds. |
 | `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside complete tricaprylin. |
@@ -75,18 +79,21 @@ may write one path, but it does not publish or validate the complete tour.
 ## Current capture status
 
 The complete 14-scene set was regenerated transactionally at 1440 by 900 on
-2026-08-31 with `./capture_gui_screenshots.sh --backend qt`. Nine frames now use a
+2026-09-01 with `./capture_gui_screenshots.sh --backend qt`. Nine frames use a
 biological context: sucrose, the ANKLE pentapeptide, tricaprylin, an adenine-thymine
-pair, or the glucose template catalog. Every staged scene passed its semantic
+pair, or the glucose template catalog. Each frame exposes the ribbon tab that owns its
+visible task; Home remains visible for general workspace and query context. Every staged scene passed its semantic
 postcondition and full-window surface check; the harness also requires the fixed logical
 window, a 16:10 raster, and a Properties title bar wide enough for its complete visible
 title. The resulting PNGs include the ribbon, document tabs, canvas, relevant docks,
 and status bar.
 
-A native-resolution agent review found the sucrose stereobonds, complete pentapeptide,
+A native-resolution contact-sheet and individual-frame review found the task tabs and
+aligned ribbon-card edges consistent across all 14 images. It also found the sucrose stereobonds, complete pentapeptide,
 three tricaprylin ester regions, six-match SMARTS result, two base-pair hydrogen-bond
-lanes, and both nucleobase rings visible without clipping. The review also found no
-stale product branding or image-to-caption mismatch. This agent review remains separate
+lanes, both nucleobase rings, and the complete reaction-arrow head visible without clipping.
+The review found no legacy toolbar screenshot, stale product branding, or image-to-caption
+mismatch in the live documentation corpus. This agent review remains separate
 from final human native visual,
 accessibility, contrast, and focus acceptance.
 
@@ -131,14 +138,14 @@ application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete current 2026-08-31 documentation tour. Focused diagnostic
+These embeds are the complete current 2026-09-01 documentation tour. Focused diagnostic
 captures remain outside this section.
 
 ![Editable stereochemical sucrose drawing in the Ferrum workspace](screenshots/workspace.png)
 
 ![Native ANKLE pentapeptide import with one 40-atom and 39-bond molecule](screenshots/pentapeptide_import.png)
 
-![Sucrose with an additional authored atom and Select Structure shown as the active mode](screenshots/atom_authoring.png)
+![Sucrose with an additional authored atom and Add Atom at Point visibly rearmed](screenshots/atom_authoring.png)
 
 ![Committed C-O single bond selected in the Ferrum canvas](screenshots/direct_bond.png)
 
@@ -152,7 +159,7 @@ captures remain outside this section.
 
 ![Tricaprylin opened through SDF with all six oxygen SMARTS matches reported](screenshots/smarts_result.png)
 
-![Committed reaction arrow beside editable sucrose](screenshots/reaction_arrow.png)
+![Committed reaction arrow below editable sucrose](screenshots/reaction_arrow.png)
 
 ![Adenine-thymine pair with two dashed noncovalent Watson-Crick hydrogen-bond guides](screenshots/presentation_vector.png)
 

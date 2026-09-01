@@ -63,3 +63,4 @@ class Scene:
 	overlay_capture: collections.abc.Callable[
 		[PySide6.QtWidgets.QMainWindow, pathlib.Path], None
 	] | None = None
+	ribbon_tab_id: str = "home"

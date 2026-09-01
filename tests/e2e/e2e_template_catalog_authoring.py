@@ -135,16 +135,16 @@ def _open_template_catalog(window: PySide6.QtWidgets.QMainWindow,
 		on_open: collections.abc.Callable[[], None]) -> None:
 	"""Open the catalog through Structure's visible primary ribbon control."""
 	tabs = next(
-		widget for widget in window.findChildren(PySide6.QtWidgets.QTabWidget)
+		widget for widget in window.findChildren(PySide6.QtWidgets.QTabBar)
 		if widget.isVisible() and widget.accessibleName() == "Authoring tasks"
 	)
 	structure_index = next(
 		index for index in range(tabs.count()) if tabs.tabText(index) == "Structure"
 	)
 	PySide6.QtTest.QTest.mouseClick(
-		tabs.tabBar(), PySide6.QtCore.Qt.MouseButton.LeftButton,
+		tabs, PySide6.QtCore.Qt.MouseButton.LeftButton,
 		PySide6.QtCore.Qt.KeyboardModifier.NoModifier,
-		tabs.tabBar().tabRect(structure_index).center(),
+		tabs.tabRect(structure_index).center(),
 	)
 	app.processEvents()
 	group = next(

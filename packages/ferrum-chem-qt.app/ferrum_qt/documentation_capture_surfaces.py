@@ -2,6 +2,8 @@
 
 # Standard Library
 import pathlib
+import shutil
+import subprocess
 
 # PIP3 modules
 import PySide6.QtCore
@@ -25,6 +27,50 @@ def capture_with_qt(window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path)
 		pixmap = window.grab()
 	if pixmap.isNull() or not pixmap.save(str(output), "PNG"):
 		raise CaptureError("Qt could not capture the visible Ferrum window")
+
+
+#============================================
+def capture_with_easy_screenshot(window: PySide6.QtWidgets.QMainWindow,
+		output: pathlib.Path) -> bool:
+	"""Attempt the optional macOS backend for this exact titled Ferrum window."""
+	command = shutil.which("screenshot")
+	if command is None:
+		return False
+	result = subprocess.run(
+		[command, "-A", PySide6.QtWidgets.QApplication.applicationName(),
+			"-t", window.windowTitle(), "-f", str(output)],
+		capture_output=True, text=True, check=False,
+	)
+	return result.returncode == 0 and output.is_file() and output.stat().st_size > 0
+
+
+#============================================
+def verify_full_window_capture_surface(
+		window: PySide6.QtWidgets.QMainWindow, output: pathlib.Path,
+		expected_size: PySide6.QtCore.QSize,
+		) -> None:
+	"""Require the expected window, ribbon, status bar, and PNG geometry."""
+	if window.size() != expected_size:
+		raise CaptureError(
+			f"Ferrum capture window is {window.width()}x{window.height()}, "
+			f"not the required full-window {expected_size.width()}x"
+			f"{expected_size.height()} surface"
+		)
+	ribbon = window.findChild(PySide6.QtWidgets.QToolBar, "ferrum-authoring-ribbon")
+	if ribbon is None or not ribbon.isVisible():
+		raise CaptureError("Ferrum capture requires the visible authoring ribbon")
+	if not window.statusBar().isVisible():
+		raise CaptureError("Ferrum capture requires the visible status bar")
+	image = PySide6.QtGui.QImage(str(output))
+	if image.isNull() or image.width() < 200 or image.height() < 200:
+		raise CaptureError("capture output is not a usable window PNG")
+	if image.width() * expected_size.height() != image.height() * expected_size.width():
+		raise CaptureError(
+			f"capture backend produced {image.width()}x{image.height()}, not the required "
+			"full Ferrum window aspect ratio. The backend likely included window "
+			"decoration or cropped the application; use the Qt backend or configure "
+			"the window capture backend for only the Ferrum application surface."
+		)
 
 
 #============================================

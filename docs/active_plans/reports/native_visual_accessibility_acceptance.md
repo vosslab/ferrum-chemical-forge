@@ -20,7 +20,7 @@ Record a decision only after all of these are current and green:
 1. `./build.sh` publishes the local application.
 2. `./check_rust.sh` and `./all_test.sh` exit zero.
 3. Both strict glyph-bond measurement lanes report zero violations.
-4. `./capture_gui_screenshots.sh` transactionally publishes all 13 scenes from
+4. `./capture_gui_screenshots.sh` transactionally publishes all 14 scenes from
    an active desktop session.
 
 ## Required walkthrough

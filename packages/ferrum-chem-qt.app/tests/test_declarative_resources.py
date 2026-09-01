@@ -27,6 +27,16 @@ def _menu(items: list[dict]) -> dict:
 
 
 #============================================
+def _ribbon(tab: dict) -> dict:
+	"""Return the smallest complete persistent-header ribbon around one tab."""
+	return {
+		"quick_access": ["draw.bond"],
+		"global_actions": ["view.command_palette"],
+		"tabs": [tab],
+	}
+
+
+#============================================
 @pytest.mark.parametrize(("item", "message"), [
 	({"action": "draw.bond", "separator": True}, "node form"),
 	({"section": {"id": "bonds", "items": []}}, "items must be a nonempty list"),
@@ -158,18 +168,19 @@ def test_action_placement_projection_prefers_declared_menu_breadcrumb() -> None:
 		"id": "reactions", "label_key": "Reactions",
 		"items": [{"action": "chemistry.reaction.create"}],
 	}}])
-	ribbon_data = {"tabs": [{
+	ribbon_data = _ribbon({
 		"id": "reactions", "label_key": "Reactions",
 		"groups": [{
 			"id": "structure", "label_key": "Reaction structure",
-			"overflow_label_key": "More reaction commands",
+			"overflow_label_key": "More reaction commands", "accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
 			}],
 		}],
-	}]}
+	})
 	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
-		menu_data, ribbon_data, frozenset({"chemistry.reaction.create", "draw.bond"}),
+		menu_data, ribbon_data,
+		frozenset({"chemistry.reaction.create", "draw.bond", "view.command_palette"}),
 	)
 	assert projection["chemistry.reaction.create"] == ("Draw", "Reactions")
 
@@ -177,19 +188,21 @@ def test_action_placement_projection_prefers_declared_menu_breadcrumb() -> None:
 #============================================
 def test_action_placement_projection_uses_ribbon_fallback_and_omits_unplaced_actions() -> None:
 	"""Ribbon-only actions retain their declared path while absent actions stay absent."""
-	ribbon_data = {"tabs": [{
+	ribbon_data = _ribbon({
 		"id": "reactions", "label_key": "Reactions",
 		"groups": [{
 			"id": "structure", "label_key": "Reaction structure",
-			"overflow_label_key": "More reaction commands",
+			"overflow_label_key": "More reaction commands", "accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
 			}],
 		}],
-	}]}
+	})
 	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
 		_menu([{"action": "draw.bond"}]), ribbon_data,
-		frozenset({"chemistry.reaction.create", "draw.bond", "draw.unplaced"}),
+		frozenset({
+			"chemistry.reaction.create", "draw.bond", "draw.unplaced", "view.command_palette",
+		}),
 	)
 	assert projection["chemistry.reaction.create"] == ("Reactions", "Reaction structure")
 	assert projection.get("draw.unplaced", ()) == ()
@@ -198,19 +211,21 @@ def test_action_placement_projection_uses_ribbon_fallback_and_omits_unplaced_act
 #============================================
 def test_action_placement_projection_refuses_unresolved_ribbon_action() -> None:
 	"""A ribbon reference without an action declaration cannot become a breadcrumb."""
-	ribbon_data = {"tabs": [{
+	ribbon_data = _ribbon({
 		"id": "draw", "label_key": "Draw",
 		"groups": [{
 			"id": "tools", "label_key": "Tools", "overflow_label_key": "More tools",
+			"accent": "drawing",
 			"entries": [{
 				"action": "draw.unbound", "role": "primary", "priority": "required",
 			}],
 		}],
-	}]}
+	})
 	with pytest.raises(
 			ferrum_qt.declarative_resources.DeclarativeResourceError,
 			match=r"ribbon_layout\.yaml\.tabs\[0\]\.groups\[0\]\.entries\[0\]\.action references unresolved action 'draw\.unbound'\.",
 		):
 		ferrum_qt.declarative_resources._build_action_placement_projection(
-			_menu([{"action": "draw.bond"}]), ribbon_data, frozenset({"draw.bond"}),
+			_menu([{"action": "draw.bond"}]), ribbon_data,
+			frozenset({"draw.bond", "view.command_palette"}),
 		)

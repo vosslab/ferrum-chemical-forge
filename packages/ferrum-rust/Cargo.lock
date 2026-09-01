@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-api"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "base64 0.23.1",
  "clap",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-api-python"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-api",
  "pyo3",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-catalog-placement"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-document",
  "ferrum-domain",
@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-chemistry"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "libloading",
  "schemars",
@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-core"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "petgraph",
  "proptest",
@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-document"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-document-model"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "serde",
  "sha2",
@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-document-projection"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-core",
  "ferrum-document-model",
@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-document-render"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-catalog-placement",
  "ferrum-chemistry",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-domain"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-geometry"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "kurbo",
  "nalgebra",
@@ -528,7 +528,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-graph-lowering"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "ferrum-render"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-chemistry",
  "ferrum-core",
@@ -561,11 +561,11 @@ dependencies = [
 
 [[package]]
 name = "ferrum-render-contract"
-version = "26.8.0"
+version = "26.9.0"
 
 [[package]]
 name = "ferrum-template-catalog"
-version = "26.8.0"
+version = "26.9.0"
 dependencies = [
  "ferrum-catalog-placement",
  "ferrum-document",

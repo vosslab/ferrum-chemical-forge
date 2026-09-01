@@ -3,6 +3,20 @@
 Earlier history begins in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), whose
 archive navigation continues chronologically back through 2026-08-11.
 
+## 2026-09-01
+
+### Behavior or Interface Changes
+
+- Rebuilt the Qt authoring ribbon with persistent quick access, task tabs, BKChem icons, responsive
+  cards, disciplined command geometry, and consistent control edges. YAML, icon, palette, and
+  geometry contracts preflight atomically while every client retains its QAction identity. All 14
+  task-aware screenshots were regenerated; 11 unreferenced legacy toolbar captures were removed.
+
+### Developer Tests and Notes
+
+- `./all_test.sh` passed: 8,669 hygiene checks, every CLI/Qt E2E, 283 installed PyO3 tests, and
+  449 Qt tests.
+
 ## 2026-08-31
 
 ### Behavior or Interface Changes

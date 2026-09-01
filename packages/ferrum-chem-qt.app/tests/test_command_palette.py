@@ -46,18 +46,24 @@ def _reaction_placements() -> dict[str, tuple[str, ...]]:
 			}}],
 		}],
 	}
-	ribbon_data = {"tabs": [{
+	ribbon_data = {
+		"quick_access": ["file.new"],
+		"global_actions": ["view.command_palette"],
+		"tabs": [{
 		"id": "reactions", "label_key": "Reactions",
 		"groups": [{
 			"id": "structure", "label_key": "Reaction structure",
 			"overflow_label_key": "More reaction commands",
+			"accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
 			}],
 		}],
 	}]}
 	projection = ferrum_qt.declarative_resources._build_action_placement_projection(
-		menu_data, ribbon_data, frozenset({"chemistry.reaction.create"}),
+		menu_data, ribbon_data, frozenset({
+			"chemistry.reaction.create", "file.new", "view.command_palette",
+		}),
 	)
 	return dict(projection)
 

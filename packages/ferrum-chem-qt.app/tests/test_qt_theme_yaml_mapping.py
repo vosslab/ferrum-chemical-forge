@@ -24,6 +24,51 @@ _EXPECTED_GUI_KEYS = [
 
 
 #============================================
+def _relative_luminance(color: str) -> float:
+	"""Return WCAG relative luminance for one validated hex theme token."""
+	channels = tuple(int(color[index:index + 2], 16) / 255.0 for index in (1, 3, 5))
+	linear = tuple(channel / 12.92 if channel <= 0.04045
+		else ((channel + 0.055) / 1.055) ** 2.4 for channel in channels)
+	return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+#============================================
+def _contrast(first: str, second: str) -> float:
+	"""Return WCAG contrast ratio for two validated hex theme tokens."""
+	lighter, darker = sorted(
+		(_relative_luminance(first), _relative_luminance(second)), reverse=True,
+	)
+	return (lighter + 0.05) / (darker + 0.05)
+
+
+#============================================
+def test_ribbon_semantic_palette_meets_text_and_control_contrast() -> None:
+	"""Ribbon text, focus, state, and category rails meet their WCAG thresholds."""
+	for theme_name in ("dark", "light"):
+		ribbon = ferrum_qt.themes.theme_loader.get_ribbon_colors(theme_name)
+		text_pairs = (
+			("header_fg", "header_bg"),
+			("tab_active_fg", "tab_active_bg"),
+			("button_fg", "button_bg"),
+			("button_disabled_fg", "button_disabled_bg"),
+			("caption_fg", "group_bg"),
+			("context_fg", "context_bg"),
+		)
+		for foreground, background in text_pairs:
+			assert _contrast(ribbon[foreground], ribbon[background]) >= 4.5
+		control_pairs = [
+			("button_border", "button_bg"),
+			("button_checked_border", "button_checked"),
+			("focus", "group_bg"),
+			("focus", "header_bg"),
+		]
+		control_pairs.extend((key, "group_bg") for key in ribbon
+			if key.startswith("accent_"))
+		for foreground, background in control_pairs:
+			assert _contrast(ribbon[foreground], ribbon[background]) >= 3.0
+
+
+#============================================
 def test_dark_yaml_gui_keys_exist() -> None:
 	"""Verify all expected gui keys exist in dark.yaml via get_gui_colors."""
 	gui = ferrum_qt.themes.theme_loader.get_gui_colors('dark')
