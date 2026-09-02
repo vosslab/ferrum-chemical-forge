@@ -175,6 +175,7 @@ def test_action_placement_projection_prefers_declared_menu_breadcrumb() -> None:
 			"overflow_label_key": "More reaction commands", "accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+				"presentation": "standard",
 			}],
 		}],
 	})
@@ -195,6 +196,7 @@ def test_action_placement_projection_uses_ribbon_fallback_and_omits_unplaced_act
 			"overflow_label_key": "More reaction commands", "accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+				"presentation": "standard",
 			}],
 		}],
 	})
@@ -218,6 +220,7 @@ def test_action_placement_projection_refuses_unresolved_ribbon_action() -> None:
 			"accent": "drawing",
 			"entries": [{
 				"action": "draw.unbound", "role": "primary", "priority": "required",
+				"presentation": "compact",
 			}],
 		}],
 	})

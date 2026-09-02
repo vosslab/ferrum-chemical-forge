@@ -15,6 +15,7 @@ import ferrum_qt.ribbon_contract
 _RESOURCE_NAME = "ribbon_layout.yaml"
 _ROLES = frozenset({"primary", "supporting"})
 _PRIORITIES = frozenset({"required", "normal"})
+_PRESENTATIONS = frozenset({"compact", "standard", "large"})
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class RibbonActionClient:
@@ -32,6 +33,7 @@ class RibbonEntry:
 	action_id: str
 	role: str
 	priority: str
+	presentation: str
 	action: PySide6.QtGui.QAction
 
 
@@ -200,7 +202,7 @@ def _resolve_entry(entry: object, index: int, group_location: str,
 		seen_action_ids: set[str], get_qt_action: object) -> RibbonEntry:
 	"""Resolve one declared registry action without constructing a replacement."""
 	location = f"{group_location}.entries[{index}]"
-	data = _mapping(entry, location, {"action", "role", "priority"})
+	data = _mapping(entry, location, {"action", "role", "priority", "presentation"})
 	action_id = _string(data["action"], f"{location}.action")
 	if action_id in seen_action_ids:
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
@@ -217,12 +219,17 @@ def _resolve_entry(entry: object, index: int, group_location: str,
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			f"{location}.priority must be required or normal.",
 		)
+	presentation = _string(data["presentation"], f"{location}.presentation")
+	if presentation not in _PRESENTATIONS:
+		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+			f"{location}.presentation must be compact, standard, or large.",
+		)
 	action = get_qt_action(action_id)
 	if not isinstance(action, PySide6.QtGui.QAction):
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			f"{location}.action references unbound QAction '{action_id}'.",
 		)
-	return RibbonEntry(action_id, role, priority, action)
+	return RibbonEntry(action_id, role, priority, presentation, action)
 
 
 #============================================

@@ -18,16 +18,16 @@ import ferrum_qt.widgets.ribbon_group
 #============================================
 def test_authoring_ribbon_uses_named_task_groups_and_live_actions(
 		main_window: object, qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Home presents recognisable task groups backed by the existing registry actions."""
+	"""Reactions begins with icon-first notation tools backed by registry actions."""
 	main_window.show()
 	qapp.processEvents()
 	ribbon = main_window._authoring_ribbon
-	draw_group = _group(ribbon, "home", "draw")
-	assert draw_group.accessibleName()
-	assert draw_group.direct_button_for(main_window._draw_bond_action).defaultAction() is (
-		main_window._draw_bond_action
-	)
-	assert draw_group.direct_button_for(main_window._draw_bond_action).text()
+	group = _group(ribbon, "reactions", "reaction_notation")
+	action = main_window._action_registry.get_qt_action("draw.arrow")
+	button = group.direct_button_for(action)
+	assert button.defaultAction() is action
+	assert button.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
+	assert button.accessibleDescription()
 
 
 #============================================
@@ -50,7 +50,7 @@ def test_ribbon_header_reuses_accessible_icon_bearing_registry_actions(
 	assert save_button.focusPolicy() is PySide6.QtCore.Qt.FocusPolicy.StrongFocus
 	assert command_palette_button.property("ribbonHeaderRole") == "global"
 	assert command_palette_button.accessibleDescription()
-	assert ribbon.current_tab_id() == "home"
+	assert ribbon.current_tab_id() == "reactions"
 
 
 #============================================
@@ -81,13 +81,17 @@ def test_ribbon_layout_resolves_existing_action_identity(qapp: object) -> None:
 		"id": "home", "label_key": "Home", "groups": [{
 			"id": "draw", "label_key": "Draw", "overflow_label_key": "More drawing tools",
 			"accent": "drawing",
-			"entries": [{"action": "draw.bond", "role": "primary", "priority": "required"}],
+			"entries": [{
+				"action": "draw.bond", "role": "primary", "priority": "normal",
+				"presentation": "compact",
+			}],
 		}],
 	}]}, registry)
 	home_tab = next(tab for tab in layout.tabs if tab.id == "home")
 	draw_group = next(group for group in home_tab.groups if group.id == "draw")
 	entry = next(entry for entry in draw_group.entries if entry.action_id == "draw.bond")
 	assert entry.action is action
+	assert (entry.role, entry.priority, entry.presentation) == ("primary", "normal", "compact")
 
 
 #============================================
@@ -106,7 +110,10 @@ def test_ribbon_layout_rejects_unknown_required_action(qapp: object) -> None:
 			"id": "home", "label_key": "Home", "groups": [{
 				"id": "draw", "label_key": "Draw", "overflow_label_key": "More drawing tools",
 				"accent": "drawing",
-				"entries": [{"action": "draw.unknown", "role": "primary", "priority": "required"}],
+				"entries": [{
+					"action": "draw.unknown", "role": "primary", "priority": "required",
+					"presentation": "compact",
+				}],
 			}],
 		}]}, registry)
 
@@ -119,7 +126,7 @@ def test_group_local_more_reuses_disabled_checked_action(qapp: PySide6.QtWidgets
 	action.setToolTip("Use the supporting command")
 	action.setCheckable(True)
 	entry = ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-		"draw.supporting", "supporting", "normal", action,
+		"draw.supporting", "supporting", "normal", "compact", action,
 	)
 	layout = ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout(
 		"draw", "Draw", "More drawing tools", "drawing", (entry,),
@@ -134,6 +141,7 @@ def test_group_local_more_reuses_disabled_checked_action(qapp: PySide6.QtWidgets
 	button = group.direct_button_for(action)
 	assert button.defaultAction() is action
 	assert not button.isEnabled()
+	group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
 	assert action in group._more_button.menu().actions()
 
 
@@ -145,13 +153,13 @@ def test_group_states_keep_each_original_action_reachable_once(
 	actions = tuple(PySide6.QtGui.QAction(f"Command {index}", parent) for index in range(3))
 	entries = (
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.primary", "primary", "required", actions[0],
+			"draw.primary", "primary", "required", "standard", actions[0],
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.supporting_one", "supporting", "normal", actions[1],
+			"draw.supporting_one", "supporting", "normal", "compact", actions[1],
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.supporting_two", "supporting", "normal", actions[2],
+			"draw.supporting_two", "supporting", "normal", "compact", actions[2],
 		),
 	)
 	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(
@@ -176,46 +184,51 @@ def test_group_states_keep_each_original_action_reachable_once(
 
 
 #============================================
-def test_group_controls_follow_one_quantized_two_row_geometry(
+def test_group_controls_follow_declared_presentations_in_a_two_row_grid(
 		qapp: PySide6.QtWidgets.QApplication) -> None:
-	"""Primary, supporting, and overflow clients share the canonical ribbon rhythm."""
+	"""Presentation controls geometry independently from role and overflow priority."""
 	parent = PySide6.QtWidgets.QWidget()
 	actions = tuple(PySide6.QtGui.QAction(label, parent) for label in (
 		"Primary command", "Short", "A longer supporting command", "Last command",
 	))
-	entries = tuple(ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-		f"draw.command_{index}", "primary" if index == 0 else "supporting",
-		"required" if index == 0 else "normal", action,
-	) for index, action in enumerate(actions))
+	entries = (
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.command_0", "primary", "required", "compact", actions[0],
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.command_1", "supporting", "normal", "compact", actions[1],
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.command_2", "supporting", "normal", "standard", actions[2],
+		),
+		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
+			"draw.command_3", "supporting", "normal", "large", actions[3],
+		),
+	)
 	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout(
 			"draw", "Draw", "More drawing tools", "drawing", entries,
 		), parent,
 	)
-	metrics = ferrum_qt.ribbon_contract.METRICS
-	primary = group.direct_button_for(actions[0])
-	supporting = tuple(group.direct_button_for(action) for action in actions[1:])
-	assert primary is not None and all(button is not None for button in supporting)
-	assert primary.height() == metrics.action_height
-	assert metrics.primary_minimum_width <= primary.width() <= metrics.primary_maximum_width
-	assert primary.width() % metrics.width_step == 0
-	assert len(group._supporting_columns) == 2
-	assert tuple(button.height() for button in supporting) == (
-		metrics.supporting_row_height, metrics.supporting_row_height, metrics.action_height,
-	)
-	for column in group._supporting_columns:
-		assert column.height() == metrics.action_height
-		assert metrics.supporting_minimum_width <= column.width() <= metrics.supporting_maximum_width
-		assert column.width() % metrics.width_step == 0
-	assert supporting[0].width() == supporting[1].width() == group._supporting_columns[0].width()
-	assert supporting[2].width() == group._supporting_columns[1].width()
-	assert group._action_layout.spacing() == metrics.action_spacing
-	assert group._more_button.size() == PySide6.QtCore.QSize(
-		metrics.popup_width, metrics.action_height,
-	)
-	group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
-	assert group._group_button.text() == "More"
-	assert group._group_button.accessibleName() == "Draw commands"
+	parent.show()
+	group.show()
+	qapp.processEvents()
+	try:
+		compact = group.direct_button_for(actions[0])
+		standard = group.direct_button_for(actions[2])
+		large = group.direct_button_for(actions[3])
+		assert compact.size().width() == compact.size().height()
+		assert standard.width() > compact.width() and standard.height() < compact.height()
+		assert large.height() > compact.height()
+		assert compact.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
+		assert standard.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+		assert large.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+		assert group._action_layout.rowCount() == 2
+		group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
+		assert group._more_button.text() == ""
+		assert group._more_button.accessibleName() == "More drawing tools"
+	finally:
+		parent.close()
 
 
 #============================================
@@ -246,10 +259,10 @@ def test_group_focus_moves_to_exposed_popup_when_direct_client_hides(
 	supporting = PySide6.QtGui.QAction("Supporting", parent)
 	entries = (
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.primary", "primary", "required", primary,
+			"draw.primary", "primary", "required", "compact", primary,
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.supporting", "supporting", "normal", supporting,
+			"draw.supporting", "supporting", "normal", "compact", supporting,
 		),
 	)
 	group = ferrum_qt.widgets.ribbon_group.RibbonGroup(
@@ -271,7 +284,7 @@ def test_group_focus_moves_to_exposed_popup_when_direct_client_hides(
 		primary_button.setFocus()
 		qapp.processEvents()
 		group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
-		assert group._group_button.hasFocus()
+		assert group._more_button.hasFocus()
 	finally:
 		parent.close()
 
@@ -289,10 +302,10 @@ def test_ribbon_rejects_duplicate_same_tab_action_placement(qapp: object) -> Non
 		"global_actions": ["view.command_palette"],
 		"tabs": [{"id": "home", "label_key": "Home", "groups": [
 		{"id": "one", "label_key": "One", "overflow_label_key": "More one", "entries": [
-			{"action": "draw.bond", "role": "primary", "priority": "required"},
+			{"action": "draw.bond", "role": "primary", "priority": "required", "presentation": "compact"},
 		], "accent": "drawing"},
 		{"id": "two", "label_key": "Two", "overflow_label_key": "More two", "entries": [
-			{"action": "draw.bond", "role": "supporting", "priority": "normal"},
+			{"action": "draw.bond", "role": "supporting", "priority": "normal", "presentation": "compact"},
 		], "accent": "drawing"},
 	]}]}
 	with pytest.raises(ferrum_qt.declarative_resources.DeclarativeResourceError,

@@ -822,6 +822,9 @@ def _expose_ribbon_tab(window: PySide6.QtWidgets.QMainWindow, ribbon_tab_id: str
 	"""Expose and verify one scene-owned task tab after queued Qt state changes."""
 	window._authoring_ribbon.select_tab(ribbon_tab_id)
 	PySide6.QtWidgets.QApplication.processEvents()
+	window.repaint()
+	PySide6.QtTest.QTest.qWait(25)
+	PySide6.QtWidgets.QApplication.processEvents()
 	if window._authoring_ribbon.current_tab_id() != ribbon_tab_id:
 		raise CaptureError(f"Ferrum did not retain ribbon tab: {ribbon_tab_id}")
 

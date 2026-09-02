@@ -16,6 +16,7 @@ import ferrum_qt.ribbon_contract
 _MENU_RESOURCE = "menus.yaml"
 _RIBBON_RESOURCE = "ribbon_layout.yaml"
 _CONTEXT_MENU_ID = "selected_structure"
+_RIBBON_PRESENTATIONS = frozenset({"compact", "standard", "large"})
 #============================================
 DeclarativeResourceError = ferrum_qt.declarative_resource_loader.DeclarativeResourceError
 
@@ -311,13 +312,22 @@ def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> N
 			for entry_index, entry in enumerate(entries):
 				entry_location = f"{group_location}.entries[{entry_index}]"
 				entry = _require_mapping(entry, entry_location)
-				_require_keys(entry, {"action", "role", "priority"}, entry_location)
+				_require_keys(
+					entry,
+					{"action", "role", "priority", "presentation"},
+					entry_location,
+				)
 				action_id = _require_string(entry["action"], f"{entry_location}.action")
 				if action_id in seen_action_ids:
 					raise DeclarativeResourceError(
 						f"Duplicate ribbon action '{action_id}' in {group_location}.",
 					)
 				seen_action_ids.add(action_id)
+				presentation = _require_string(entry["presentation"], f"{entry_location}.presentation")
+				if presentation not in _RIBBON_PRESENTATIONS:
+					raise DeclarativeResourceError(
+						f"{entry_location}.presentation must be compact, standard, or large.",
+					)
 				if action_id not in action_ids:
 					raise DeclarativeResourceError(
 						f"{entry_location}.action references unresolved action '{action_id}'.",

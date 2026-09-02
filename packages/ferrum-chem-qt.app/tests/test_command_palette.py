@@ -57,6 +57,7 @@ def _reaction_placements() -> dict[str, tuple[str, ...]]:
 			"accent": "reaction",
 			"entries": [{
 				"action": "chemistry.reaction.create", "role": "primary", "priority": "required",
+				"presentation": "standard",
 			}],
 		}],
 	}]}

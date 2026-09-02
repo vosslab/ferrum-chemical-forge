@@ -120,9 +120,11 @@ tabs:
           - action: draw.atom_at_point
             role: primary
             priority: required
+            presentation: compact
           - action: draw.bond
             role: supporting
             priority: normal
+            presentation: compact
 ```
 
 The two header lists contain ordered registered action IDs. Their IDs are
@@ -132,18 +134,27 @@ discovery routes.
 
 A tab requires exactly `id`, `label_key`, and `groups`. A group requires exactly `id`,
 `label_key`, `overflow_label_key`, `accent`, and `entries`. An entry requires exactly `action`,
-`role`, and `priority`.
+`role`, `priority`, and `presentation`.
 
 - Tab IDs are unique across the resource; group IDs are unique within a tab; action IDs are unique
   within a tab.
-- `role` is either `primary` or `supporting`.
-- `priority` is either `required` or `normal`.
+- `role` is either `primary` or `supporting`; it describes task importance and subtle emphasis.
+- `priority` is either `required` or `normal`; it decides which commands remain direct as width
+  contracts.
+- `presentation` is `compact`, `standard`, or `large`; it selects the control envelope without
+  changing role or priority. Compact controls are icon-first and retain their QAction tooltip and
+  accessible name. Standard controls keep a text label, while large controls are reserved for the
+  rare dominant action in a group.
 - `accent` is one of `annotation`, `drawing`, `reaction`, `selection`, `structure`, `utility`, or
   `view`. It is semantic grouping metadata, not a literal color.
 - Every action must resolve to an already bound QAction. The ribbon only projects that client; it
   cannot change its behavior or state.
 - Entry order controls the visual and keyboard traversal order. The responsive ribbon reduces
   later declared groups first when space is constrained, so retain deliberate task order.
+- Each group uses a fixed two-row command area. At normal width every declared action is direct;
+  a compact state keeps `required` actions and replaces hidden actions with a small overflow
+  chevron, while a collapsed state uses only that chevron. Overflow menus reuse the same QAction
+  instances and are not permanent ribbon commands.
 
 ## Theme resource
 

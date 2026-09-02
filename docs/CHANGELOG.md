@@ -12,6 +12,11 @@ archive navigation continues chronologically back through 2026-08-11.
   geometry contracts preflight atomically while every client retains its QAction identity. The
   earlier ribbon capture refreshed all 14 task-aware screenshots; 11 unreferenced legacy toolbar
   captures were removed.
+- Increased ribbon command density with declarative compact, standard, and large presentations.
+  Reactions, Annotate, and Structure now expose chemistry primitives through fixed two-row,
+  icon-first groups; Home is curated last, with its selection mode as the only large control.
+  Responsive overflow is a corner chevron that reuses each registered QAction instead of a
+  permanent More card.
 
 ### Fixes and Maintenance
 
@@ -26,6 +31,14 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Developer Tests and Notes
 
+- Ran `./capture_gui_screenshots.sh --backend qt` to refresh all 14 named GUI-tour PNGs.
+  Each regenerated 1440-by-900 capture was inspected directly, covering Home, Structure,
+  Reactions, Annotate, View, Template Catalog, CDXML, and Command Palette states.
+- Ran `source source_me.sh && python3 -m pytest` for the authoring ribbon,
+  declarative resources, and command palette: 35 checks passed. Captured and inspected live
+  1440-by-900 Qt views of Home, Reactions, Annotate, and Structure; compact grids, readable
+  standard labels, selected-tool state, aligned group height, and the absence of desktop-width
+  More cards were confirmed. Native easy-screenshot capture could not locate the titled window.
 - Ran `./capture_gui_screenshots.sh --backend qt` after the direct-SMILES
   canonical-scale guard. It exited successfully and transactionally published all
   14 named 1440-by-900 tour images. Native-resolution review of all 14 frames,

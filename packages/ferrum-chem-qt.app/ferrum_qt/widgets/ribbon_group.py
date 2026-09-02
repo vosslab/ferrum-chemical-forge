@@ -1,6 +1,7 @@
 """Reusable labelled command group for Ferrum's task-oriented ribbon."""
 
 # Standard Library
+import dataclasses
 import enum
 
 # PIP3 modules
@@ -11,6 +12,19 @@ import PySide6.QtWidgets
 # local repo modules
 import ferrum_qt.ferrum.authoring_ribbon_layout
 import ferrum_qt.ribbon_contract
+
+
+#============================================
+@dataclasses.dataclass(frozen=True)
+class _Placement:
+	"""A single two-row compact-grid placement for one entry."""
+
+	entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry
+	row: int
+	column: int
+	row_span: int
+	column_span: int
+	presentation: str
 
 
 #============================================
@@ -25,6 +39,8 @@ class RibbonGroupDisplayState(enum.Enum):
 #============================================
 class RibbonGroup(PySide6.QtWidgets.QWidget):
 	"""Project registry actions as a labelled group in one explicit state."""
+
+	_ROW_COUNT = 2
 
 	#============================================
 	def __init__(self, layout: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonGroupLayout,
@@ -45,9 +61,11 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		self._root_layout.setContentsMargins(*metrics.group_margins)
 		self._root_layout.setSpacing(metrics.group_label_spacing)
 		self._actions = PySide6.QtWidgets.QWidget(self)
-		self._action_layout = PySide6.QtWidgets.QHBoxLayout(self._actions)
+		self._action_layout = PySide6.QtWidgets.QGridLayout(self._actions)
 		self._action_layout.setContentsMargins(0, 0, 0, 0)
-		self._action_layout.setSpacing(metrics.action_spacing)
+		self._action_layout.setHorizontalSpacing(metrics.action_spacing)
+		self._action_layout.setVerticalSpacing(metrics.action_spacing)
+		self._actions.setFixedHeight(metrics.compact_grid_height)
 		self._root_layout.addWidget(self._actions)
 		self._caption = PySide6.QtWidgets.QLabel(self.tr(layout.label_key), self)
 		self._caption.setObjectName(f"ribbon-group-caption-{layout.id}")
@@ -58,33 +76,19 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 			PySide6.QtWidgets.QToolButton,
 			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 		]] = []
+		self._button_by_entry: dict[ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
+			PySide6.QtWidgets.QToolButton] = {}
 		for entry in layout.entries:
 			button = self._button_for_entry(entry)
 			self._direct_buttons.append((button, entry))
-			if entry.role == "primary":
-				self._action_layout.addWidget(button)
-		self._supporting_columns = self._build_supporting_columns()
-		for column in self._supporting_columns:
-			self._action_layout.addWidget(column)
+			self._button_by_entry[entry] = button
 		self._more_button = self._popup_button(
-			f"ribbon-more-{layout.id}", self.tr("More"), self.tr(layout.overflow_label_key),
+			f"ribbon-overflow-{layout.id}", self.tr(layout.overflow_label_key),
 		)
 		self._more_menu = PySide6.QtWidgets.QMenu(self._more_button)
-		for _button, entry in self._supporting_entries():
-			self._more_menu.addAction(entry.action)
 		self._more_button.setMenu(self._more_menu)
-		self._action_layout.addWidget(self._more_button)
-		self._group_button = self._popup_button(
-			f"ribbon-group-popup-{layout.id}", self.tr("More"),
-			self.tr(f"{layout.label_key} commands"),
-		)
-		self._group_menu = PySide6.QtWidgets.QMenu(self._group_button)
-		for entry in layout.entries:
-			self._group_menu.addAction(entry.action)
-		self._group_button.setMenu(self._group_menu)
-		self._action_layout.addWidget(self._group_button)
-		self._display_state = RibbonGroupDisplayState.EXPANDED
-		self.set_display_state(self._display_state)
+		self._display_state = RibbonGroupDisplayState.COLLAPSED
+		self.set_display_state(RibbonGroupDisplayState.EXPANDED)
 
 	#============================================
 	@property
@@ -94,41 +98,65 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 
 	#============================================
 	def set_display_state(self, state: RibbonGroupDisplayState) -> None:
-		"""Expose exactly the clients belonging to one measured presentation state."""
+		"""Expose one known presentation state and reflow buttons for layout height."""
 		if state is self._display_state and self._visible_clients_match(state):
 			return
-		focused_action = self._focused_direct_action()
+		focused_widget = PySide6.QtWidgets.QApplication.focusWidget()
+		focused_direct_action = self._focused_direct_action()
+		focused_overflow = focused_widget is self._more_button
 		self._display_state = state
+		visible_entries = self._visible_entries(state)
+		visible_actions = {entry.action for entry in visible_entries}
 		for button, entry in self._direct_buttons:
-			button.setVisible(
-				state is RibbonGroupDisplayState.EXPANDED
-				or state is RibbonGroupDisplayState.COMPACT and entry.role == "primary",
-			)
-		for column in self._supporting_columns:
-			column.setVisible(state is RibbonGroupDisplayState.EXPANDED)
-		self._more_button.setVisible(
-			state is RibbonGroupDisplayState.COMPACT and bool(self._supporting_entries()),
-		)
-		self._group_button.setVisible(state is RibbonGroupDisplayState.COLLAPSED)
+			self._apply_entry_presentation(button, entry, state)
+			button.setVisible(entry.action in visible_actions)
+		self._rebuild_layout(visible_entries, bool(self._overflow_entries(state)))
+		self._rebuild_overflow_menu(self._overflow_entries(state))
+		self._more_button.setVisible(state is not RibbonGroupDisplayState.EXPANDED
+			and bool(self._overflow_entries(state)))
 		self.updateGeometry()
-		if focused_action is not None:
-			target = self.focus_target_for(focused_action)
-			if target is not None and target is not PySide6.QtWidgets.QApplication.focusWidget():
+		if focused_direct_action is not None:
+			target = self.focus_target_for(focused_direct_action)
+			if target is not None and target is not focused_widget:
 				target.setFocus(PySide6.QtCore.Qt.FocusReason.OtherFocusReason)
+			return
+		if focused_overflow:
+			if self._more_button.isVisible():
+				self._more_button.setFocus(PySide6.QtCore.Qt.FocusReason.OtherFocusReason)
+			elif visible_entries:
+				self.direct_button_for(visible_entries[0].action).setFocus(
+					PySide6.QtCore.Qt.FocusReason.OtherFocusReason,
+				)
 
 	#============================================
 	def width_for(self, state: RibbonGroupDisplayState) -> int:
-		"""Measure live control hints plus label and group margins for one state."""
-		components = self._components_for_state(state)
-		row_width = sum(component.width() for component in components)
-		if len(components) > 1:
-			row_width += self._action_layout.spacing() * (len(components) - 1)
+		"""Measure live grid hints plus label and group margins for one state."""
+		visible_entries = self._visible_entries(state)
+		overflow_entries = self._overflow_entries(state)
+		placements, columns = self._layout_plan(visible_entries, state)
+		column_widths: dict[int, int] = {}
+		for placement in placements:
+			column_widths[placement.column] = max(
+				column_widths.get(placement.column, 0),
+				self._presentation_size(placement.presentation).width(),
+			)
+		if state is not RibbonGroupDisplayState.EXPANDED and overflow_entries:
+			overflow_column = columns
+			column_widths[overflow_column] = max(
+				column_widths.get(overflow_column, 0),
+				self._presentation_size("compact").width(),
+			)
+		if column_widths:
+			row_width = sum(column_widths.values())
+			row_width += self._action_layout.horizontalSpacing() * max(0, len(column_widths) - 1)
+		else:
+			row_width = 0
 		margins = self._root_layout.contentsMargins()
 		return max(row_width, self._caption.sizeHint().width()) + margins.left() + margins.right()
 
 	#============================================
 	def minimum_width_for(self, state: RibbonGroupDisplayState) -> int:
-		"""Return a state floor derived from current live control minimum hints."""
+		"""Return a state floor derived from active presentation hints."""
 		return self.width_for(state)
 
 	#============================================
@@ -142,91 +170,122 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		button = self.direct_button_for(action)
 		if button is not None and not button.isHidden():
 			return button
-		if self._display_state is RibbonGroupDisplayState.COMPACT:
+		if self._display_state is not RibbonGroupDisplayState.EXPANDED and self._needs_overflow():
 			return self._more_button
-		if self._display_state is RibbonGroupDisplayState.COLLAPSED:
-			return self._group_button
 		return None
 
 	#============================================
 	def visible_actions(self) -> tuple[PySide6.QtGui.QAction, ...]:
-		"""Return every registry action reachable exactly once in the visible state."""
-		if self._display_state is RibbonGroupDisplayState.COLLAPSED:
-			return tuple(self._group_menu.actions())
-		direct = tuple(entry.action for button, entry in self._direct_buttons if not button.isHidden())
-		return direct + (
-			tuple(self._more_menu.actions())
-			if self._display_state is RibbonGroupDisplayState.COMPACT else ()
-		)
+		"""Return every ribbon action reachable exactly once in the visible state."""
+		direct = tuple(entry.action for entry in self._visible_entries(self._display_state))
+		overflow = tuple(entry.action for entry in self._overflow_entries(self._display_state))
+		return tuple(dict.fromkeys(direct + overflow).keys())
 
 	#============================================
-	def _button_for_entry(self, entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
+	def _button_for_entry(self,
+			entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 			) -> PySide6.QtWidgets.QToolButton:
-		"""Make one labelled client delegating all state to its existing action."""
+		"""Make one tool client delegating all state to its existing action."""
 		button = PySide6.QtWidgets.QToolButton(self._actions)
 		button.setDefaultAction(entry.action)
 		button.setProperty("ribbonRole", entry.role)
+		button.setProperty("ribbonPresentation", entry.presentation)
 		button.setProperty("ribbonAccent", self.layout_data.accent)
 		button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
 		button.setAccessibleName(entry.action.text())
 		button.setAccessibleDescription(entry.action.toolTip() or entry.action.text())
 		button.setToolTip(entry.action.toolTip() or entry.action.text())
-		if entry.role == "primary":
-			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-			button.setIconSize(PySide6.QtCore.QSize(36, 36))
-			metrics = ferrum_qt.ribbon_contract.METRICS
-			width = ferrum_qt.ribbon_contract.quantized_control_width(
-				button.sizeHint().width(), metrics.primary_minimum_width, metrics.primary_maximum_width,
-			)
-			button.setFixedSize(width, metrics.action_height)
-		else:
-			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-			button.setIconSize(PySide6.QtCore.QSize(20, 20))
+		self._apply_entry_presentation(button, entry, RibbonGroupDisplayState.EXPANDED)
 		return button
 
 	#============================================
-	def _build_supporting_columns(self) -> tuple[PySide6.QtWidgets.QWidget, ...]:
-		"""Pack supporting commands into aligned two-row components."""
-		metrics = ferrum_qt.ribbon_contract.METRICS
-		buttons = tuple(button for button, entry in self._direct_buttons if entry.role == "supporting")
-		columns: list[PySide6.QtWidgets.QWidget] = []
-		for offset in range(0, len(buttons), 2):
-			column_buttons = buttons[offset:offset + 2]
-			column = PySide6.QtWidgets.QWidget(self._actions)
-			column.setProperty("ribbonStack", "supporting")
-			column_layout = PySide6.QtWidgets.QVBoxLayout(column)
-			column_layout.setContentsMargins(0, 0, 0, 0)
-			column_layout.setSpacing(metrics.supporting_row_spacing)
-			width = ferrum_qt.ribbon_contract.quantized_control_width(
-				max(button.sizeHint().width() for button in column_buttons),
-				metrics.supporting_minimum_width, metrics.supporting_maximum_width,
-			)
-			row_height = (metrics.supporting_row_height if len(column_buttons) == 2
-				else metrics.action_height)
-			for button in column_buttons:
-				button.setFixedSize(width, row_height)
-				column_layout.addWidget(button)
-			column.setFixedSize(width, metrics.action_height)
-			columns.append(column)
-		return tuple(columns)
+	def _rebuild_overflow_menu(
+			self,
+			overflow_entries: tuple[ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry, ...],
+		) -> None:
+		"""Build one canonical overflow route for hidden actions."""
+		self._more_menu.clear()
+		for entry in overflow_entries:
+			self._more_menu.addAction(entry.action)
 
 	#============================================
-	def _popup_button(self, object_name: str, text: str,
-			accessible_name: str) -> PySide6.QtWidgets.QToolButton:
-		"""Create one labelled, keyboard-reachable popup trigger."""
+	def _rebuild_layout(self,
+			visible_entries: tuple[ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry, ...],
+			show_overflow: bool,
+			) -> None:
+		"""Reflow one deterministic two-row compact command grid."""
+		while self._action_layout.count():
+			item = self._action_layout.takeAt(0)
+			if item is not None and item.widget() is not None:
+				item.widget().setParent(self._actions)
+		placements, columns = self._layout_plan(visible_entries, self._display_state)
+		for placement in placements:
+			self._action_layout.addWidget(
+				self._button_by_entry[placement.entry], placement.row,
+				placement.column, placement.row_span, placement.column_span,
+			)
+		if show_overflow:
+			overflow_column = columns
+			self._action_layout.addWidget(
+				self._more_button,
+				1,
+				overflow_column,
+			)
+
+	#============================================
+	def _layout_plan(
+			self,
+			visible_entries: tuple[ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry, ...],
+			state: RibbonGroupDisplayState,
+		) -> tuple[tuple[_Placement, ...], int]:
+		"""Place all visible entries into a fixed two-row compact grid."""
+		placements: list[_Placement] = []
+		column = 0
+		row = 0
+		for entry in visible_entries:
+			presentation = self._presentation_for_state(entry, state)
+			if presentation == "large":
+				if row != 0:
+					column += 1
+					row = 0
+				placements.append(_Placement(entry, 0, column, 2, 1, presentation))
+				column += 1
+				row = 0
+				continue
+			placements.append(_Placement(entry, row, column, 1, 1, presentation))
+			row += 1
+			if row >= self._ROW_COUNT:
+				column += 1
+				row = 0
+		if not visible_entries:
+			columns = 0
+		else:
+			columns = column + (1 if row > 0 else 0)
+			if placements:
+				columns = max(columns, placements[-1].column + 1)
+		return tuple(placements), columns
+
+	#============================================
+	def _needs_overflow(self) -> bool:
+		"""Expose whether any action is not shown directly in current state."""
+		return bool(self._overflow_entries(self._display_state))
+
+	#============================================
+	def _popup_button(self, object_name: str, accessible_name: str) -> PySide6.QtWidgets.QToolButton:
+		"""Create one icon-only popup trigger for hidden commands."""
 		button = PySide6.QtWidgets.QToolButton(self._actions)
 		button.setObjectName(object_name)
 		button.setProperty("ribbonRole", "overflow")
 		button.setProperty("ribbonAccent", self.layout_data.accent)
-		button.setText(text)
+		button.setText("")
 		button.setIcon(self.style().standardIcon(
-			PySide6.QtWidgets.QStyle.StandardPixmap.SP_ToolBarHorizontalExtensionButton,
+			PySide6.QtWidgets.QStyle.StandardPixmap.SP_ToolBarVerticalExtensionButton,
 		))
-		button.setIconSize(PySide6.QtCore.QSize(28, 28))
-		button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+		button.setIconSize(PySide6.QtCore.QSize(12, 12))
+		button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly)
 		button.setPopupMode(PySide6.QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
 		metrics = ferrum_qt.ribbon_contract.METRICS
-		button.setFixedSize(metrics.popup_width, metrics.action_height)
+		button.setFixedSize(metrics.compact_control_size, metrics.compact_control_size)
 		button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
 		button.setAccessibleName(accessible_name)
 		button.setAccessibleDescription(accessible_name)
@@ -234,21 +293,68 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		return button
 
 	#============================================
-	def _components_for_state(self, state: RibbonGroupDisplayState) -> tuple[PySide6.QtWidgets.QWidget, ...]:
-		"""List fixed-grid components participating in one presentation state."""
-		if state is RibbonGroupDisplayState.COLLAPSED:
-			return (self._group_button,)
-		primary = tuple(button for button, entry in self._direct_buttons if entry.role == "primary")
+	def _visible_entries(self, state: RibbonGroupDisplayState) -> tuple[
+			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry, ...]:
+		"""Return entries directly exposed for a display state."""
 		if state is RibbonGroupDisplayState.EXPANDED:
-			return primary + self._supporting_columns
-		return primary + ((self._more_button,) if self._supporting_entries() else ())
+			return tuple(entry for _button, entry in self._direct_buttons)
+		if state is RibbonGroupDisplayState.COMPACT:
+			return tuple(entry for _button, entry in self._direct_buttons
+				if entry.priority == "required")
+		return tuple()
 
 	#============================================
-	def _supporting_entries(self) -> tuple[tuple[PySide6.QtWidgets.QToolButton,
-			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry], ...]:
-		"""Return declared supporting entries in their YAML order."""
-		return tuple((button, entry) for button, entry in self._direct_buttons
-			if entry.role == "supporting")
+	def _overflow_entries(self, state: RibbonGroupDisplayState) -> tuple[
+			ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry, ...]:
+		"""Return entries hidden from direct control space by state."""
+		if state is RibbonGroupDisplayState.EXPANDED:
+			return tuple()
+		if state is RibbonGroupDisplayState.COMPACT:
+			visible = {entry for entry in self._visible_entries(state)}
+			return tuple(entry for _button, entry in self._direct_buttons if entry not in visible)
+		return tuple(entry for _button, entry in self._direct_buttons)
+
+	#============================================
+	def _presentation_for_state(
+			self,
+			entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
+			state: RibbonGroupDisplayState,
+		) -> str:
+		"""Apply compact fallback outside expanded state; keep expanded presentation explicit."""
+		if state is RibbonGroupDisplayState.EXPANDED:
+			return entry.presentation
+		return "compact"
+
+	#============================================
+	def _apply_entry_presentation(self, button: PySide6.QtWidgets.QToolButton,
+			entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
+			state: RibbonGroupDisplayState) -> None:
+		"""Apply one concrete button geometry and text policy from presentation size."""
+		presentation = self._presentation_for_state(entry, state)
+		button.setProperty("ribbonPresentation", presentation)
+		metrics = ferrum_qt.ribbon_contract.METRICS
+		if presentation == "compact":
+			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly)
+			button.setIconSize(PySide6.QtCore.QSize(metrics.compact_icon_size, metrics.compact_icon_size))
+		elif presentation == "standard":
+			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+			button.setIconSize(PySide6.QtCore.QSize(
+				metrics.standard_icon_size, metrics.standard_icon_size,
+			))
+		else:
+			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+			button.setIconSize(PySide6.QtCore.QSize(metrics.large_icon_size, metrics.large_icon_size))
+		button.setFixedSize(self._presentation_size(presentation))
+
+	#============================================
+	def _presentation_size(self, presentation: str) -> PySide6.QtCore.QSize:
+		"""Return the fixed control envelope for one presentation size."""
+		metrics = ferrum_qt.ribbon_contract.METRICS
+		if presentation == "compact":
+			return PySide6.QtCore.QSize(metrics.compact_control_size, metrics.compact_control_size)
+		if presentation == "standard":
+			return PySide6.QtCore.QSize(metrics.standard_control_width, metrics.standard_control_height)
+		return PySide6.QtCore.QSize(metrics.large_control_width, metrics.large_control_height)
 
 	#============================================
 	def _focused_direct_action(self) -> PySide6.QtGui.QAction | None:
@@ -260,16 +366,11 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 
 	#============================================
 	def _visible_clients_match(self, state: RibbonGroupDisplayState) -> bool:
-		"""Avoid redundant visibility mutation during repeated page allocation."""
+		"""Avoid redundant visibility mutation during repeated allocation passes."""
+		visible_entries = set(self._visible_entries(state))
+		overflow_entries = self._overflow_entries(state)
 		return (
-			all((not button.isHidden()) == (
-				state is RibbonGroupDisplayState.EXPANDED
-				or state is RibbonGroupDisplayState.COMPACT and entry.role == "primary"
-			) for button, entry in self._direct_buttons)
-			and all((not column.isHidden()) == (state is RibbonGroupDisplayState.EXPANDED)
-				for column in self._supporting_columns)
-			and (not self._more_button.isHidden()) == (
-				state is RibbonGroupDisplayState.COMPACT and bool(self._supporting_entries())
-			)
-			and (not self._group_button.isHidden()) == (state is RibbonGroupDisplayState.COLLAPSED)
+			all((not button.isHidden()) == (entry in visible_entries)
+				for button, entry in self._direct_buttons)
+			and self._more_button.isVisible() == (state is not RibbonGroupDisplayState.EXPANDED and bool(overflow_entries))
 		)
