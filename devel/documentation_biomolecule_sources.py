@@ -3,10 +3,10 @@
 
 # These fixed sources contain no user-controlled path or serialized type choice.
 # Ferrum's ordinary CDML/SDF admission remains authoritative (ASVS 1.5.2,
-# 2.2.1-2.2.3). Sucrose and tricaprylin identity and starting coordinates derive
-# from PubChem CIDs 5988 and 10850; the authored A-T layout was checked against
-# CID 22045938. Open Babel 3.2.1 removed nonpolar hydrogens and regenerated the
-# compact tricaprylin layout used below.
+# 2.2.1-2.2.3). Sucrose and tricaprylin identity derive from PubChem CIDs 5988
+# and 10850; the authored A-T layout supplies only atom identity and topology.
+# The documentation capture invokes Ferrum's installed RDKit boundary to create
+# the tricaprylin SDF coordinates and clean, place, and orient the A-T geometry.
 
 SUCROSE_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 <molecule id='sucrose' name='Sucrose'>
@@ -61,83 +61,12 @@ SUCROSE_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 </cdml>"""
 
 
-TRICAPRYLIN_SDF = """Tricaprylin (PubChem CID 10850)
-OpenBabel3.2.1 2D
-
- 33 32  0  0  0  0  0  0  0  0999 V2000
-    0.0000    5.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-   -1.5000    4.8660    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-   -0.8660    2.5000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-    1.7321    5.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-   -3.0000    4.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-    0.0000    1.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-    2.5981    6.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    2.5981    5.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -4.5000    4.8660    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -0.8660   -0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -4.0000    4.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -0.8660   -1.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    1.7321    7.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    3.4641    5.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -4.0000    5.7321    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -1.7321    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -4.5000    3.1340    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -0.0000   -2.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.8660    6.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.0000    4.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -3.0000    5.7321    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -1.7321    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    4.3301    5.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -5.5000    3.1340    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.8660   -1.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -1.0000    4.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.0000    3.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.8660    5.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -2.5000    4.8660    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -0.8660    1.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    4.3301    6.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-   -6.0000    4.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    0.8660   -0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-  1 20  1  0  0  0  0
-  1 28  1  0  0  0  0
-  2 26  1  0  0  0  0
-  2 29  1  0  0  0  0
-  3 27  1  0  0  0  0
-  3 30  1  0  0  0  0
-  4 28  2  0  0  0  0
-  5 29  2  0  0  0  0
-  6 30  2  0  0  0  0
-  7  8  1  0  0  0  0
-  7 13  1  0  0  0  0
-  8 14  1  0  0  0  0
-  9 11  1  0  0  0  0
-  9 15  1  0  0  0  0
- 10 12  1  0  0  0  0
- 10 16  1  0  0  0  0
- 11 17  1  0  0  0  0
- 12 18  1  0  0  0  0
- 13 19  1  0  0  0  0
- 14 23  1  0  0  0  0
- 15 21  1  0  0  0  0
- 16 22  1  0  0  0  0
- 17 24  1  0  0  0  0
- 18 25  1  0  0  0  0
- 19 28  1  0  0  0  0
- 20 26  1  0  0  0  0
- 20 27  1  0  0  0  0
- 21 29  1  0  0  0  0
- 22 30  1  0  0  0  0
- 23 31  1  0  0  0  0
- 24 32  1  0  0  0  0
- 25 33  1  0  0  0  0
-M  END
-$$$$
-"""
+TRICAPRYLIN_SMILES = "CCCCCCCC(=O)OCC(COC(=O)CCCCCCC)OC(=O)CCCCCCC"
 
 
 DNA_BASE_PAIR_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 <text id='base-pair-label'>
-  <point x='370' y='265'/><font size='14' color='#374151'/>
+  <point x='370' y='205'/><font size='14' color='#374151'/>
   <ftext>Watson-Crick A-T base pair</ftext>
 </text>
 <molecule id='thymine' name='Thymine'>
@@ -189,28 +118,4 @@ DNA_BASE_PAIR_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
   <bond id='a-b12' start='a-c8' end='a-n9' type='n1'/>
   <bond id='a-b13' start='a-n9' end='a-c5' type='n1'/>
 </molecule>
-<polyline id='hbond-top-1' line_color='#5f6f8f' width='1.5'>
-  <point x='350' y='330'/><point x='365' y='330'/>
-</polyline>
-<polyline id='hbond-top-2' line_color='#5f6f8f' width='1.5'>
-  <point x='375' y='330'/><point x='390' y='330'/>
-</polyline>
-<polyline id='hbond-top-3' line_color='#5f6f8f' width='1.5'>
-  <point x='400' y='330'/><point x='415' y='330'/>
-</polyline>
-<polyline id='hbond-top-4' line_color='#5f6f8f' width='1.5'>
-  <point x='425' y='330'/><point x='440' y='330'/>
-</polyline>
-<polyline id='hbond-top-5' line_color='#5f6f8f' width='1.5'>
-  <point x='450' y='330'/><point x='455' y='330'/>
-</polyline>
-<polyline id='hbond-bottom-1' line_color='#5f6f8f' width='1.5'>
-  <point x='348' y='372'/><point x='358' y='374'/>
-</polyline>
-<polyline id='hbond-bottom-2' line_color='#5f6f8f' width='1.5'>
-  <point x='366' y='375'/><point x='376' y='377'/>
-</polyline>
-<polyline id='hbond-bottom-3' line_color='#5f6f8f' width='1.5'>
-  <point x='384' y='378'/><point x='388' y='380'/>
-</polyline>
 </cdml>"""

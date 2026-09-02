@@ -21,11 +21,10 @@ import ferrum_qt.ferrum.close_decision
 import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.themes.theme_manager
 
-from documentation_biomolecule_sources import (
-	DNA_BASE_PAIR_CDML as _DNA_BASE_PAIR_CDML,
-	SUCROSE_CDML as _SUCROSE_CDML,
-	TRICAPRYLIN_SDF as _TRICAPRYLIN_SDF,
+from documentation_biomolecule_geometry import (
+	assert_triglyceride_geometry, dna_base_pair_source, tricaprylin_sdf,
 )
+from documentation_biomolecule_sources import SUCROSE_CDML as _SUCROSE_CDML
 from ferrum_qt.documentation_capture_models import (
 	CATALOG_QUERY as _CATALOG_QUERY, CARBON_CDML as _CARBON_CDML,
 	CDXML as _CDXML, DOCUMENTATION_PROPERTY_DOCK_WIDTH as _DOCUMENTATION_PROPERTY_DOCK_WIDTH,
@@ -519,9 +518,14 @@ def _tricaprylin_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Open one PubChem-derived medium-chain triglyceride through SDF ingress."""
-	window = _window(application, theme_manager, workspace, _TRICAPRYLIN_SDF, "sdf")
-	if _atom_count(_active_tab(window)) != 33:
+	window = _window(application, theme_manager, workspace, tricaprylin_sdf(), "sdf")
+	tab = _active_tab(window)
+	if _atom_count(tab) != 33:
 		raise CaptureError("SDF ingress did not retain the complete tricaprylin graph")
+	molecules = tab.current_document_observation().projection.molecules
+	if len(molecules) != 1:
+		raise CaptureError("SDF ingress did not retain one tricaprylin molecule")
+	assert_triglyceride_geometry(molecules[0])
 	return window
 
 #============================================
@@ -566,7 +570,7 @@ def _dna_base_pair_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Show an A-T pair with two noncovalent presentation-line hydrogen bonds."""
-	window = _window(application, theme_manager, workspace, _DNA_BASE_PAIR_CDML)
+	window = _window(application, theme_manager, workspace, dna_base_pair_source())
 	tab = _active_tab(window)
 	molecules = tab.current_document_observation().projection.molecules
 	if (

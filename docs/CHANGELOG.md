@@ -14,7 +14,11 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Developer Tests and Notes
 
-- `./all_test.sh` passed: 8,669 hygiene checks, every CLI/Qt E2E, 283 installed PyO3 tests, and
+- `./capture_gui_screenshots.sh --backend qt` regenerated and verified the complete
+  14-scene, 1440-by-900 GUI tour through the repository's single transactional
+  screenshot entry point. Eight captures changed with the current rebuilt UI and
+  chemistry geometry; the other six reproduced byte-for-byte.
+- `./all_test.sh` passed: 8,680 hygiene checks, every CLI/Qt E2E, 283 installed PyO3 tests, and
   449 Qt tests.
 
 ## 2026-08-31
@@ -42,6 +46,13 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Fixes and Maintenance
 
+- Moved documentation-tour biomolecule depiction ownership to Ferrum's installed
+  RDKit boundary. Tricaprylin SDF ingress now begins with its fixed canonical
+  SMILES and fresh RDKit coordinates, while the A-T source is cleaned, oriented,
+  and placed through typed Ferrum geometry and render-root interactions before
+  its Watson-Crick guide dashes are derived. The capture audit now rejects the
+  former glycerol 90/90/180 layout, malformed thymine carbonyls, and distorted
+  purine five-ring geometry including N9.
 - Reframed nine of the 14 documentation screenshots around biological chemistry:
   editable stereochemical sucrose, a real native ANKLE pentapeptide import,
   tricaprylin SDF ingress with six oxygen SMARTS matches, an adenine-thymine
