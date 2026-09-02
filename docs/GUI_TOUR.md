@@ -69,29 +69,31 @@ may write one path, but it does not publish or validate the complete tour.
 | `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
 | `docs/screenshots/selected_atom_edit.png` | Carbon changed to nitrogen through the selected-atom editing workflow. |
-| `docs/screenshots/smarts_result.png` | Tricaprylin opened through SDF with `[O]` returning all six oxygen matches. |
+| `docs/screenshots/smarts_result.png` | Distearoylphosphatidylcholine prepared through RDKit-backed SDF insertion with `[O]` returning all eight oxygen matches. |
 | `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed below editable sucrose. |
 | `docs/screenshots/presentation_vector.png` | Adenine-thymine pair with two dashed, noncovalent Watson-Crick hydrogen-bond guides. |
 | `docs/screenshots/cdxml_open.png` | ChemDraw XML opened as an editable centered C-O-N-F chain with Wavy, Bold, and Dashed bonds. |
-| `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside complete tricaprylin. |
+| `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside complete distearoylphosphatidylcholine. |
 | `docs/screenshots/command_palette_reaction.png` | Command Palette query showing registered reaction commands above sucrose and a reaction arrow. |
 
 ## Current capture status
 
 The complete 14-scene set was regenerated transactionally at 1440 by 900 on
 2026-09-01 with `./capture_gui_screenshots.sh --backend qt`. Nine frames use a
-biological context: sucrose, the ANKLE pentapeptide, tricaprylin, an adenine-thymine
-pair, or the glucose template catalog. Each frame exposes the ribbon tab that owns its
-visible task; Home remains visible for general workspace and query context. Every staged scene passed its semantic
-postcondition and full-window surface check; the harness also requires the fixed logical
-window, a 16:10 raster, and a Properties title bar wide enough for its complete visible
-title. The resulting PNGs include the ribbon, document tabs, canvas, relevant docks,
-and status bar.
+biological context: sucrose, the ANKLE pentapeptide,
+distearoylphosphatidylcholine, an adenine-thymine pair, or the glucose template
+catalog. Each frame exposes the ribbon tab that owns its visible task; Home remains
+visible for general workspace and query context. Every staged scene passed its
+semantic postcondition and full-window surface check; the harness also requires the
+fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
+complete visible title. The resulting PNGs include the ribbon, document tabs, canvas,
+relevant docks, and status bar.
 
 A native-resolution contact-sheet and individual-frame review found the task tabs and
-aligned ribbon-card edges consistent across all 14 images. It also found the sucrose stereobonds, complete pentapeptide,
-three tricaprylin ester regions, six-match SMARTS result, two base-pair hydrogen-bond
-lanes, both nucleobase rings, and the complete reaction-arrow head visible without clipping.
+aligned ribbon-card edges consistent across all 14 images. It also found the sucrose
+stereobonds, complete pentapeptide, two DSPC C18 chains, zwitterionic phosphocholine
+headgroup, eight-match SMARTS result, two base-pair hydrogen-bond lanes, both
+nucleobase rings, and the complete reaction-arrow head visible without clipping.
 The review found no legacy toolbar screenshot, stale product branding, or image-to-caption
 mismatch in the live documentation corpus. This agent review remains separate
 from final human native visual,
@@ -100,12 +102,14 @@ accessibility, contrast, and focus acceptance.
 The biochemical scenes deliberately prove different boundaries. Sucrose is a fixed,
 editable stereochemical CDML drawing, not a claim that Ferrum semantically recognizes
 sucrose. ANKLE runs through the actual native peptide worker and yields one 40-atom,
-39-bond molecule. Tricaprylin runs through bounded SDF ingress, then the live SMARTS
-dock reports six `[O]` matches. The adenine and thymine rings are separate molecule
-roots; their two dashed presentation lanes remain outside the covalent molecule graph,
-so the Properties dock correctly reports only the 23 covalent bonds. Molecular identity
-was checked against [PubChem sucrose](https://pubchem.ncbi.nlm.nih.gov/compound/Sucrose),
-[PubChem tricaprylin](https://pubchem.ncbi.nlm.nih.gov/compound/Tricaprylin), and the
+39-bond molecule. Distearoylphosphatidylcholine runs through bounded SDF insertion,
+then the live SMARTS dock reports eight `[O]` matches. The adenine and thymine rings
+are separate molecule roots; their two dashed presentation lanes remain outside the
+covalent molecule graph, so the Properties dock correctly reports only the 23 covalent
+bonds. Molecular identity was checked against
+[PubChem sucrose](https://pubchem.ncbi.nlm.nih.gov/compound/Sucrose),
+[PubChem distearoylphosphatidylcholine](https://pubchem.ncbi.nlm.nih.gov/compound/65146),
+and the
 [PubChem adenine-thymine pair](https://pubchem.ncbi.nlm.nih.gov/compound/Adenine-thymine).
 
 The remaining scenes preserve focused evidence for direct bonds, detached and attached
@@ -157,7 +161,7 @@ captures remain outside this section.
 
 ![Carbon changed to nitrogen through the selected-atom editing workflow](screenshots/selected_atom_edit.png)
 
-![Tricaprylin opened through SDF with all six oxygen SMARTS matches reported](screenshots/smarts_result.png)
+![Distearoylphosphatidylcholine with all eight oxygen SMARTS matches reported](screenshots/smarts_result.png)
 
 ![Committed reaction arrow below editable sucrose](screenshots/reaction_arrow.png)
 
@@ -165,7 +169,7 @@ captures remain outside this section.
 
 ![Centered C-O-N-F document opened from ChemDraw XML with wavy, bold, and dashed bonds](screenshots/cdxml_open.png)
 
-![Visible status-bar zoom, Page, and Content controls beside complete tricaprylin](screenshots/view_controls.png)
+![Visible status-bar zoom, Page, and Content controls beside complete distearoylphosphatidylcholine](screenshots/view_controls.png)
 
 ![Command Palette search results for registered reaction commands above sucrose and a reaction arrow](screenshots/command_palette_reaction.png)
 

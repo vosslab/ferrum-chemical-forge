@@ -12,8 +12,27 @@ archive navigation continues chronologically back through 2026-08-11.
   geometry contracts preflight atomically while every client retains its QAction identity. All 14
   task-aware screenshots were regenerated; 11 unreferenced legacy toolbar captures were removed.
 
+### Fixes and Maintenance
+
+- Replaced the documentation-tour tricaprylin with distearoylphosphatidylcholine
+  (PubChem CID 65146). Ferrum now sends the fixed zwitterionic SMILES through its
+  installed RDKit SDF boundary, inserts the resulting 54-atom/53-bond graph at one
+  isotropic 22-point scale, and verifies every bond length, every two-bond angle,
+  every three-coordinate carbon angle, the glycerol center, and the charged
+  phosphocholine headgroup before capture. The SMARTS scene now reports all eight
+  oxygen matches and both lipid scenes retain the complete C18 chains.
+
 ### Developer Tests and Notes
 
+- `./capture_gui_screenshots.sh --backend qt` regenerated and verified all 14
+  1440-by-900 screenshots through the single transactional capture entry point.
+  The complete contact sheet and both DSPC frames were inspected at native
+  resolution; the two C18 chains, glycerol esters, phosphate, `[O-]`, `[N+]`,
+  eight-match SMARTS status, and status-bar controls remain visible without
+  clipping.
+- `./all_test.sh` passed: 8,683 repository hygiene checks, every CLI/Qt E2E,
+  283 installed PyO3 tests, and 449 Qt tests. The focused Python/style/link lane
+  also passed all 2,504 checks.
 - `./capture_gui_screenshots.sh --backend qt` regenerated and verified the complete
   14-scene, 1440-by-900 GUI tour through the repository's single transactional
   screenshot entry point. Eight captures changed with the current rebuilt UI and

@@ -8,8 +8,13 @@ import math
 import ferrum_chem
 
 # local repo modules
-from documentation_biomolecule_sources import DNA_BASE_PAIR_CDML, TRICAPRYLIN_SMILES
+from documentation_biomolecule_sources import (
+	DISTEAROYLPHOSPHATIDYLCHOLINE_SMILES, DNA_BASE_PAIR_CDML,
+)
 from ferrum_qt.documentation_capture_surfaces import CaptureError
+
+
+DSPC_DOCUMENT_BOND_LENGTH = 22.0
 
 
 #============================================
@@ -39,33 +44,81 @@ def _connected_atoms(molecule: object, atom: object) -> tuple[object, ...]:
 	return tuple(neighbors)
 
 #============================================
-def tricaprylin_sdf() -> str:
-	"""Generate the fixed triglyceride's V2000 depiction through Ferrum-owned RDKit."""
+def distearoylphosphatidylcholine_source() -> str:
+	"""Generate compact DSPC CDML through Ferrum-owned RDKit and SDF insertion."""
 	# ASVS 1.5.1, 1.5.2, and 2.2.1-2.2.3: this fixed topology enters only through
 	# Ferrum's typed local SMILES/SDF boundary; no user source or serializer is admitted.
-	molecule = ferrum_chem.parse_smiles(TRICAPRYLIN_SMILES)
-	record = ferrum_chem.prepare_sdf_record(molecule, "Tricaprylin (PubChem CID 10850)", ())
-	return ferrum_chem.records_to_sdf((record,), ferrum_chem.MolblockVersionV1.v2000)
+	molecule = ferrum_chem.parse_smiles(DISTEAROYLPHOSPHATIDYLCHOLINE_SMILES)
+	record = ferrum_chem.prepare_sdf_record(
+		molecule, "Distearoylphosphatidylcholine (PubChem CID 65146)", (),
+	)
+	sdf = ferrum_chem.records_to_sdf((record,), ferrum_chem.MolblockVersionV1.v2000)
+	# The two C18 chains exceed Ferrum's fixed landscape page at the ordinary
+	# 40-point insertion scale. Use the public isotropic placement boundary so the
+	# complete RDKit depiction fits without changing any relative length or angle.
+	placement = ferrum_chem.validate_insertion_placement_v1(
+		DSPC_DOCUMENT_BOND_LENGTH, 420.0, 300.0,
+	)
+	batch = ferrum_chem.prepare_sdf_molecules_v1(sdf, placement)
+	session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+	operation = ferrum_chem.DocumentOperationV1.insert_interchange_record_batch_v1(batch)
+	prepared = session.prepare_session_operation_transition_v1(
+		operation.transition_request_v1(0),
+	)
+	committed = session.commit_session_operation_transition_v1(prepared)
+	return committed.observation.snapshot.cdml
 
 #============================================
-def assert_triglyceride_geometry(molecule: object) -> None:
-	"""Require the glycerol center's three drawn bonds to use a trigonal layout."""
+def assert_dspc_geometry(molecule: object) -> None:
+	"""Require uniform bonds, readable glycerol geometry, and zwitterionic DSPC."""
+	atoms_by_id = {atom.document_object_id: atom for atom in molecule.atoms}
+	for bond in molecule.bonds:
+		start = atoms_by_id[bond.start.document_object_id]
+		end = atoms_by_id[bond.end.document_object_id]
+		length = math.hypot(
+			end.position.x - start.position.x,
+			end.position.y - start.position.y,
+		)
+		if abs(length - DSPC_DOCUMENT_BOND_LENGTH) > 0.1:
+			raise CaptureError(f"DSPC depiction has a nonuniform bond length: {length!r}")
+	charged_atoms = tuple(
+		sorted(
+			(atom.element, atom.formal_charge)
+			for atom in molecule.atoms
+			if atom.formal_charge not in (None, 0)
+		)
+	)
+	if charged_atoms != (("N", 1), ("O", -1)):
+		raise CaptureError(f"DSPC did not retain its zwitterionic headgroup: {charged_atoms!r}")
 	candidates = []
 	for atom in molecule.atoms:
 		neighbors = _connected_atoms(molecule, atom)
+		if len(neighbors) == 2:
+			angle = _angle_degrees(atom, neighbors[0], neighbors[1])
+			if angle < 105.0 or angle > 135.0:
+				raise CaptureError(
+				f"DSPC depiction has a distorted two-bond angle: {angle!r}",
+			)
 		if atom.element == "C" and tuple(sorted(neighbor.element for neighbor in neighbors)) == (
 			"C", "C", "O",
 		):
 			candidates.append((atom, neighbors))
+		if atom.element == "C" and len(neighbors) == 3:
+			angles = tuple(
+				_angle_degrees(atom, neighbors[first], neighbors[second])
+				for first, second in ((0, 1), (0, 2), (1, 2))
+			)
+			if any(angle < 105.0 or angle > 135.0 for angle in angles):
+				raise CaptureError(f"DSPC depiction has a distorted carbon angle: {angles!r}")
 	if len(candidates) != 1:
-		raise CaptureError("tricaprylin lacks its unique glycerol-center carbon")
+		raise CaptureError("DSPC lacks its unique glycerol-center carbon")
 	center, neighbors = candidates[0]
 	angles = tuple(
 		_angle_degrees(center, neighbors[first], neighbors[second])
 		for first, second in ((0, 1), (0, 2), (1, 2))
 	)
 	if any(angle < 105.0 or angle > 135.0 for angle in angles):
-		raise CaptureError(f"tricaprylin glycerol center is not trigonal: {angles!r}")
+		raise CaptureError(f"DSPC glycerol center is not trigonal: {angles!r}")
 
 #============================================
 def _molecule_centroid(molecule: object) -> tuple[float, float]:

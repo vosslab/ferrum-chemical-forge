@@ -48,7 +48,7 @@ capture workflow and all 14 scenes are in [docs/GUI_TOUR.md](docs/GUI_TOUR.md).
 <!-- screenshots:begin (managed by screenshot-docs) -->
 ![Editable stereochemical sucrose drawing in the Ferrum workspace](docs/screenshots/workspace.png)
 ![Native ANKLE pentapeptide import with one 40-atom molecular graph](docs/screenshots/pentapeptide_import.png)
-![Tricaprylin triglyceride with six oxygen SMARTS matches](docs/screenshots/smarts_result.png)
+![Distearoylphosphatidylcholine with eight oxygen SMARTS matches](docs/screenshots/smarts_result.png)
 ![Adenine-thymine base pair with two noncovalent Watson-Crick hydrogen-bond guides](docs/screenshots/presentation_vector.png)
 ![Template Catalog showing the selected alpha-D-glucofuranose before placement](docs/screenshots/template_catalog.png)
 <!-- screenshots:end -->

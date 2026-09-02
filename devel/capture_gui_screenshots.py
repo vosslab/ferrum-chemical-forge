@@ -22,7 +22,7 @@ import ferrum_qt.ferrum.engine as engine
 import ferrum_qt.themes.theme_manager
 
 from documentation_biomolecule_geometry import (
-	assert_triglyceride_geometry, dna_base_pair_source, tricaprylin_sdf,
+	assert_dspc_geometry, distearoylphosphatidylcholine_source, dna_base_pair_source,
 )
 from documentation_biomolecule_sources import SUCROSE_CDML as _SUCROSE_CDML
 from ferrum_qt.documentation_capture_models import (
@@ -514,26 +514,26 @@ def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
 	return window
 
 #============================================
-def _tricaprylin_scene(application: PySide6.QtWidgets.QApplication,
+def _dspc_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Open one PubChem-derived medium-chain triglyceride through SDF ingress."""
-	window = _window(application, theme_manager, workspace, tricaprylin_sdf(), "sdf")
+	"""Open PubChem-derived DSPC prepared through bounded SDF insertion."""
+	window = _window(application, theme_manager, workspace, distearoylphosphatidylcholine_source())
 	tab = _active_tab(window)
-	if _atom_count(tab) != 33:
-		raise CaptureError("SDF ingress did not retain the complete tricaprylin graph")
+	if _atom_count(tab) != 54:
+		raise CaptureError("SDF ingress did not retain the complete DSPC graph")
 	molecules = tab.current_document_observation().projection.molecules
 	if len(molecules) != 1:
-		raise CaptureError("SDF ingress did not retain one tricaprylin molecule")
-	assert_triglyceride_geometry(molecules[0])
+		raise CaptureError("SDF ingress did not retain one DSPC molecule")
+	assert_dspc_geometry(molecules[0])
 	return window
 
 #============================================
 def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Find all six oxygen atoms in an imported medium-chain triglyceride."""
-	window = _tricaprylin_scene(application, theme_manager, workspace)
+	"""Find all eight oxygen atoms in imported distearoylphosphatidylcholine."""
+	window = _dspc_scene(application, theme_manager, workspace)
 	_activate_command(window, application, "SMARTS Query...")
 	dock = window.findChild(PySide6.QtWidgets.QDockWidget, "smarts-query-dock")
 	if dock is None or not dock.isVisible():
@@ -547,7 +547,7 @@ def _smarts_result_scene(application: PySide6.QtWidgets.QApplication,
 	PySide6.QtTest.QTest.mouseClick(find, PySide6.QtCore.Qt.MouseButton.LeftButton)
 	application.processEvents()
 	application.processEvents()
-	if "Found 6 matches" not in status.text():
+	if "Found 8 matches" not in status.text():
 		raise CaptureError("SMARTS Query did not produce its completed match status")
 	return window
 
@@ -799,7 +799,7 @@ SCENES = (
 		"selected_atom_edit", "Change selected carbon to nitrogen", _selected_atom_edit_scene,
 		ribbon_tab_id="structure",
 	),
-	Scene("smarts_result", "Find triglyceride oxygen SMARTS matches", _smarts_result_scene),
+	Scene("smarts_result", "Find DSPC oxygen SMARTS matches", _smarts_result_scene),
 	Scene(
 		"reaction_arrow", "Draw reaction arrow beside sucrose", _reaction_arrow_scene,
 		post_prepare=_retire_presentation_selection, ribbon_tab_id="reactions",
@@ -813,7 +813,7 @@ SCENES = (
 		post_prepare=_verify_cdxml_after_prepare, ribbon_tab_id="structure",
 	),
 	Scene(
-		"view_controls", "Fit tricaprylin with status-bar view controls", _tricaprylin_scene,
+		"view_controls", "Fit DSPC with status-bar view controls", _dspc_scene,
 		post_prepare=_view_controls_after_prepare, ribbon_tab_id="view",
 	),
 	Scene(

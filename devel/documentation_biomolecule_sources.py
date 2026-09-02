@@ -3,10 +3,11 @@
 
 # These fixed sources contain no user-controlled path or serialized type choice.
 # Ferrum's ordinary CDML/SDF admission remains authoritative (ASVS 1.5.2,
-# 2.2.1-2.2.3). Sucrose and tricaprylin identity derive from PubChem CIDs 5988
-# and 10850; the authored A-T layout supplies only atom identity and topology.
+# 2.2.1-2.2.3). Sucrose and distearoylphosphatidylcholine identity derive from
+# PubChem CIDs 5988 and 65146; the authored A-T layout supplies only atom
+# identity and topology.
 # The documentation capture invokes Ferrum's installed RDKit boundary to create
-# the tricaprylin SDF coordinates and clean, place, and orient the A-T geometry.
+# the phospholipid SDF coordinates and clean, place, and orient the A-T geometry.
 
 SUCROSE_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 <molecule id='sucrose' name='Sucrose'>
@@ -61,7 +62,10 @@ SUCROSE_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
 </cdml>"""
 
 
-TRICAPRYLIN_SMILES = "CCCCCCCC(=O)OCC(COC(=O)CCCCCCC)OC(=O)CCCCCCC"
+DISTEAROYLPHOSPHATIDYLCHOLINE_SMILES = (
+	"CCCCCCCCCCCCCCCCCC(=O)OCC(COP(=O)([O-])OCC[N+](C)(C)C)"
+	"OC(=O)CCCCCCCCCCCCCCCCC"
+)
 
 
 DNA_BASE_PAIR_CDML = """<cdml xmlns='urn:ferrum:cdml' version='26.08'>
