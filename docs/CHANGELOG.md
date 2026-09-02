@@ -9,36 +9,35 @@ archive navigation continues chronologically back through 2026-08-11.
 
 - Rebuilt the Qt authoring ribbon with persistent quick access, task tabs, BKChem icons, responsive
   cards, disciplined command geometry, and consistent control edges. YAML, icon, palette, and
-  geometry contracts preflight atomically while every client retains its QAction identity. All 14
-  task-aware screenshots were regenerated; 11 unreferenced legacy toolbar captures were removed.
+  geometry contracts preflight atomically while every client retains its QAction identity. The
+  earlier ribbon capture refreshed all 14 task-aware screenshots; 11 unreferenced legacy toolbar
+  captures were removed.
 
 ### Fixes and Maintenance
 
 - Replaced the documentation-tour tricaprylin with distearoylphosphatidylcholine
-  (PubChem CID 65146). Ferrum now sends the fixed zwitterionic SMILES through its
-  installed RDKit SDF boundary, inserts the resulting 54-atom/53-bond graph at one
-  isotropic 22-point scale, and verifies every bond length, every two-bond angle,
-  every three-coordinate carbon angle, the glycerol center, and the charged
-  phosphocholine headgroup before capture. The SMARTS scene now reports all eight
-  oxygen matches and both lipid scenes retain the complete C18 chains.
+  (PubChem CID 65146) through Ferrum's direct SMILES insertion. Ordinary sucrose,
+  adenine, thymine, and DSPC screenshots now use the active 40-point UI bond scale;
+  an A2 landscape page and Content framing accommodate the complete lipid instead of
+  privately shrinking its graph. The native RDKit boundary now preserves aromatic
+  explicit hydrogens and derives wedge/hash directions from isomeric SMILES, while
+  the direct-SMILES capture source verifies the 54-atom/53-bond zwitterionic graph,
+  its canonical-scale bond lengths, and its charged phosphocholine headgroup.
 
 ### Developer Tests and Notes
 
-- `./capture_gui_screenshots.sh --backend qt` regenerated and verified all 14
-  1440-by-900 screenshots through the single transactional capture entry point.
-  The complete contact sheet and both DSPC frames were inspected at native
-  resolution; the two C18 chains, glycerol esters, phosphate, `[O-]`, `[N+]`,
-  eight-match SMARTS status, and status-bar controls remain visible without
-  clipping.
-- `./all_test.sh` passed: 8,683 repository hygiene checks, every CLI/Qt E2E,
-  283 installed PyO3 tests, and 449 Qt tests. The focused Python/style/link lane
-  also passed all 2,504 checks.
-- `./capture_gui_screenshots.sh --backend qt` regenerated and verified the complete
-  14-scene, 1440-by-900 GUI tour through the repository's single transactional
-  screenshot entry point. Eight captures changed with the current rebuilt UI and
-  chemistry geometry; the other six reproduced byte-for-byte.
-- `./all_test.sh` passed: 8,680 hygiene checks, every CLI/Qt E2E, 283 installed PyO3 tests, and
-  449 Qt tests.
+- Ran `./capture_gui_screenshots.sh --backend qt` after the direct-SMILES
+  canonical-scale guard. It exited successfully and transactionally published all
+  14 named 1440-by-900 tour images. Native-resolution review of all 14 frames,
+  plus a post-guard sucrose, DSPC, and adenine-thymine spot check, found no
+  chemistry, clipping, or crop issue.
+- The capture source now rejects every nonfinite, coincident, or individually
+  off-canonical bond, rather than accepting a correct mean with bad individual
+  lengths. Its 2% tolerance is derived from `DEFAULT_BOND_LENGTH_PT`.
+- Ran `source source_me.sh && ./all_test.sh`: 8,683 repository-hygiene tests,
+  every registered CLI/Qt E2E, 286 installed PyO3 tests, and 449 Qt tests passed.
+  Final human native-window, accessibility, contrast, and focus acceptance remains
+  open.
 
 ## 2026-08-31
 

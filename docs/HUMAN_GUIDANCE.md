@@ -36,3 +36,7 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   LibreOffice ribbon and original BKChem icon language as visual direction.
 - I noticed the letters are poorly aligned with the bond lines, we spend significant time and make
   crazy tests for OASA to perfect this.
+- Ordinary chemical structures in screenshots should come from SMILES. Do not hand-author sucrose
+  unless the screenshot deliberately teaches a Fischer or Haworth projection.
+- When the repository PubChem YAML supplies a molecule, use it as the real documentation and
+  fixture source rather than copying a separate structure into a capture script.

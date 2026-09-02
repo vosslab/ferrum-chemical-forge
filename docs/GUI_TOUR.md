@@ -18,9 +18,10 @@ The command uses `source_me.sh` and the promoted `build/current` program through
 stable `build/runtime/python` and `build/bin` links, then starts the PySide6 application.
 It applies the light document theme transiently
 for deterministic documentation contrast without changing the user's saved theme.
-Each scene receives a fresh temporary workspace. The tour uses bounded authored CDML,
-the real SDF and CDXML File/Open routes, and Ferrum's native peptide importer. It then
-uses Ferrum's visible command and canvas workflows, checks an observable
+Each scene receives a fresh temporary workspace. Ordinary chemistry begins as direct
+SMILES insertion; capability-specific scenes use the real CDXML File/Open route and
+Ferrum's native peptide importer. It then uses Ferrum's visible command and canvas
+workflows, checks an observable
 completed result, retires transient pointer previews, preserves meaningful selection
 highlights, exposes the task-appropriate Home, Structure, Reactions, Annotate, or View ribbon
 tab, frames the durable content on a high-contrast documentation canvas, hides the optional hex
@@ -69,48 +70,40 @@ may write one path, but it does not publish or validate the complete tour.
 | `docs/screenshots/attached_cyclohexane.png` | Cyclohexane with all six ring bonds plus the retained host C-O bond; the visible 7-atom/7-bond document proves attachment did not suppress host ink. |
 | `docs/screenshots/template_catalog.png` | Alpha-D-glucofuranose selected in the Template Catalog before placement. |
 | `docs/screenshots/selected_atom_edit.png` | Carbon changed to nitrogen through the selected-atom editing workflow. |
-| `docs/screenshots/smarts_result.png` | Distearoylphosphatidylcholine prepared through RDKit-backed SDF insertion with `[O]` returning all eight oxygen matches. |
+| `docs/screenshots/smarts_result.png` | Distearoylphosphatidylcholine prepared through direct SMILES insertion with `[O]` returning all eight oxygen matches. |
 | `docs/screenshots/reaction_arrow.png` | Straight reaction arrow committed below editable sucrose. |
 | `docs/screenshots/presentation_vector.png` | Adenine-thymine pair with two dashed, noncovalent Watson-Crick hydrogen-bond guides. |
 | `docs/screenshots/cdxml_open.png` | ChemDraw XML opened as an editable centered C-O-N-F chain with Wavy, Bold, and Dashed bonds. |
 | `docs/screenshots/view_controls.png` | Visible status-bar zoom, Page, and Content controls beside complete distearoylphosphatidylcholine. |
 | `docs/screenshots/command_palette_reaction.png` | Command Palette query showing registered reaction commands above sucrose and a reaction arrow. |
 
-## Current capture status
+## Capture architecture
 
-The complete 14-scene set was regenerated transactionally at 1440 by 900 on
-2026-09-01 with `./capture_gui_screenshots.sh --backend qt`. Nine frames use a
-biological context: sucrose, the ANKLE pentapeptide,
-distearoylphosphatidylcholine, an adenine-thymine pair, or the glucose template
-catalog. Each frame exposes the ribbon tab that owns its visible task; Home remains
-visible for general workspace and query context. Every staged scene passed its
-semantic postcondition and full-window surface check; the harness also requires the
+The registered 14-scene tour uses biological context for sucrose, the ANKLE
+pentapeptide, distearoylphosphatidylcholine (DSPC), an adenine-thymine pair, and the
+glucose template catalog. Each frame exposes the ribbon tab that owns its visible task;
+Home remains visible for general workspace and query context. The harness requires the
 fixed logical window, a 16:10 raster, and a Properties title bar wide enough for its
-complete visible title. The resulting PNGs include the ribbon, document tabs, canvas,
-relevant docks, and status bar.
+complete visible title. Re-run the transactional command after a source change, then
+inspect the staged complete set before treating these embeds as current evidence.
 
-A native-resolution contact-sheet and individual-frame review found the task tabs and
-aligned ribbon-card edges consistent across all 14 images. It also found the sucrose
-stereobonds, complete pentapeptide, two DSPC C18 chains, zwitterionic phosphocholine
-headgroup, eight-match SMARTS result, two base-pair hydrogen-bond lanes, both
-nucleobase rings, and the complete reaction-arrow head visible without clipping.
-The review found no legacy toolbar screenshot, stale product branding, or image-to-caption
-mismatch in the live documentation corpus. This agent review remains separate
-from final human native visual,
-accessibility, contrast, and focus acceptance.
+The biochemical scenes prove different boundaries. Sucrose, adenine, thymine, and their
+ordinary screenshots are direct SMILES insertions. The capture source reads sucrose and
+the two bases from `data/pubchem_molecules_data.yml`; its isomeric sucrose SMILES uses
+`@` and `@@`, so RDKit emits the corresponding wedge/hash stereobonds. An achiral SMILES
+has no such stereochemical bond directions. The CID 65146 DSPC scene uses the exact
+user-provided non-stereospecific SMILES: the YAML's CID 94190 entry is a distinct
+stereospecific compound. DSPC uses an A2 landscape page and Content framing while the
+molecular graph remains at the canonical 40-point UI bond scale.
+Before capture, the source rejects each nonfinite, coincident, or individually
+off-canonical bond using a 2% tolerance derived from `DEFAULT_BOND_LENGTH_PT`;
+a correct average cannot conceal an invalid individual bond.
 
-The biochemical scenes deliberately prove different boundaries. Sucrose is a fixed,
-editable stereochemical CDML drawing, not a claim that Ferrum semantically recognizes
-sucrose. ANKLE runs through the actual native peptide worker and yields one 40-atom,
-39-bond molecule. Distearoylphosphatidylcholine runs through bounded SDF insertion,
-then the live SMARTS dock reports eight `[O]` matches. The adenine and thymine rings
-are separate molecule roots; their two dashed presentation lanes remain outside the
-covalent molecule graph, so the Properties dock correctly reports only the 23 covalent
-bonds. Molecular identity was checked against
-[PubChem sucrose](https://pubchem.ncbi.nlm.nih.gov/compound/Sucrose),
-[PubChem distearoylphosphatidylcholine](https://pubchem.ncbi.nlm.nih.gov/compound/65146),
-and the
-[PubChem adenine-thymine pair](https://pubchem.ncbi.nlm.nih.gov/compound/Adenine-thymine).
+ANKLE runs through the actual native peptide worker and yields one 40-atom, 39-bond
+molecule. The adenine and thymine rings are separate molecule roots with 19 atoms and
+20 covalent bonds; their two dashed presentation lanes remain outside the covalent
+molecule graph. Molecular identity is supplied by the repository PubChem data for
+sucrose and the bases, and by the exact CID 65146 source SMILES for DSPC.
 
 The remaining scenes preserve focused evidence for direct bonds, detached and attached
 rings, selected-atom editing, bounded CDXML, reaction arrows, visible view controls, and
@@ -142,8 +135,8 @@ application caches, or test artifacts in the repository.
 
 ## Regenerated tour
 
-These embeds are the complete current 2026-09-01 documentation tour. Focused diagnostic
-captures remain outside this section.
+These embeds are the registered documentation tour. Focused diagnostic captures remain
+outside this section; refresh and inspect the full set after capture-source changes.
 
 ![Editable stereochemical sucrose drawing in the Ferrum workspace](screenshots/workspace.png)
 

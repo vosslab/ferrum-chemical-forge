@@ -23,8 +23,8 @@ import ferrum_qt.themes.theme_manager
 
 from documentation_biomolecule_geometry import (
 	assert_dspc_geometry, distearoylphosphatidylcholine_source, dna_base_pair_source,
+	sucrose_source,
 )
-from documentation_biomolecule_sources import SUCROSE_CDML as _SUCROSE_CDML
 from ferrum_qt.documentation_capture_models import (
 	CATALOG_QUERY as _CATALOG_QUERY, CARBON_CDML as _CARBON_CDML,
 	CDXML as _CDXML, DOCUMENTATION_PROPERTY_DOCK_WIDTH as _DOCUMENTATION_PROPERTY_DOCK_WIDTH,
@@ -93,9 +93,14 @@ def _documentation_frame(tab: object) -> None:
 	if not callable(content_bounds):
 		raise CaptureError("Ferrum tab does not expose document content bounds")
 	content = content_bounds()
-	if not isinstance(content, PySide6.QtCore.QRectF) or content.isNull() or content.isEmpty():
-		raise CaptureError("Ferrum document has no completed content to frame")
 	canvas = _canvas(tab)
+	if not isinstance(content, PySide6.QtCore.QRectF) or content.isNull() or content.isEmpty():
+		# The template browser deliberately opens on a blank document. Its public
+		# scene rectangle is the only meaningful background to frame in that case.
+		canvas.resetTransform()
+		if canvas.fit_display_bounds(canvas.scene().sceneRect()) is not True:
+			raise CaptureError("Ferrum drawing canvas could not frame the empty document")
+		return
 	# The public Content control uses these exact document-root bounds.  Add only a
 	# modest presentation margin, which keeps ordinary bonds and rings readable in
 	# the complete window instead of accidentally framing the paper or renderer aids.
@@ -112,20 +117,6 @@ def _documentation_frame(tab: object) -> None:
 	canvas.resetTransform()
 	if not callable(fit) or fit(frame) is not True:
 		raise CaptureError("Ferrum drawing canvas could not frame completed content")
-
-#============================================
-def _set_documentation_zoom(window: PySide6.QtWidgets.QMainWindow,
-		application: PySide6.QtWidgets.QApplication) -> None:
-	"""Use Ferrum's visible status-bar zoom client for readable full-window evidence."""
-	slider = _find_visible_widget(window, PySide6.QtWidgets.QSlider, "Zoom percentage slider")
-	if not isinstance(slider, PySide6.QtWidgets.QSlider) or not slider.isEnabled():
-		raise CaptureError("Ferrum documentation capture cannot reach the visible zoom client")
-	bounds = _active_tab(window).document_content_bounds()
-	target = 150 if bounds is not None and bounds.height() > 320.0 else 230
-	slider.setValue(target)
-	application.processEvents()
-	if slider.value() != target:
-		raise CaptureError("Ferrum documentation capture did not retain the requested zoom")
 
 #============================================
 def _prepare_documentation_capture(window: PySide6.QtWidgets.QMainWindow,
@@ -272,7 +263,7 @@ def _workspace_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Show an editable stereochemical sucrose drawing in the Ferrum workspace."""
-	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
+	window = _window(application, theme_manager, workspace, sucrose_source())
 	if _atom_count(_active_tab(window)) != 23:
 		raise CaptureError("workspace scene did not render the complete sucrose drawing")
 	return window
@@ -362,12 +353,13 @@ def _atom_authoring_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Create an atom beside sucrose through the command and visible canvas."""
-	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
+	window = _window(application, theme_manager, workspace, sucrose_source())
 	tab = _active_tab(window)
 	before = _document_revision(tab)
 	before_atoms = _atom_count(tab)
 	_activate_command(window, application, "Add Atom at Point")
-	_click(_canvas(tab), _scene_point(tab, 575.0, 520.0))
+	bounds = tab.document_content_bounds()
+	_click(_canvas(tab), _scene_point(tab, bounds.right() + 80.0, bounds.center().y()))
 	application.processEvents()
 	if _document_revision(tab) <= before or _atom_count(tab) != before_atoms + 1:
 		raise CaptureError("Add Atom at Point did not create a durable atom")
@@ -489,7 +481,7 @@ def _template_catalog_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Show one Rust-owned catalog selection before any template placement."""
-	window = _window(application, theme_manager, workspace, _PAIR_CDML)
+	window = _window(application, theme_manager, workspace, _EMPTY_CDML)
 	return window
 
 #============================================
@@ -517,14 +509,14 @@ def _selected_atom_edit_scene(application: PySide6.QtWidgets.QApplication,
 def _dspc_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
-	"""Open PubChem-derived DSPC prepared through bounded SDF insertion."""
+	"""Open user-specified DSPC prepared through direct SMILES insertion."""
 	window = _window(application, theme_manager, workspace, distearoylphosphatidylcholine_source())
 	tab = _active_tab(window)
 	if _atom_count(tab) != 54:
-		raise CaptureError("SDF ingress did not retain the complete DSPC graph")
+		raise CaptureError("SMILES ingress did not retain the complete DSPC graph")
 	molecules = tab.current_document_observation().projection.molecules
 	if len(molecules) != 1:
-		raise CaptureError("SDF ingress did not retain one DSPC molecule")
+		raise CaptureError("SMILES ingress did not retain one DSPC molecule")
 	assert_dspc_geometry(molecules[0])
 	return window
 
@@ -556,10 +548,13 @@ def _reaction_arrow_scene(application: PySide6.QtWidgets.QApplication,
 		theme_manager: ferrum_qt.themes.theme_manager.ThemeManager,
 		workspace: pathlib.Path) -> PySide6.QtWidgets.QMainWindow:
 	"""Draw and commit a completed reaction arrow below sucrose."""
-	window = _window(application, theme_manager, workspace, _SUCROSE_CDML)
+	window = _window(application, theme_manager, workspace, sucrose_source())
 	tab = _active_tab(window)
 	_activate_command(window, application, "Draw Arrow")
-	_drag(_canvas(tab), _scene_point(tab, 340.0, 570.0), _scene_point(tab, 460.0, 570.0))
+	bounds = tab.document_content_bounds()
+	start_x = bounds.center().x() - 60.0
+	arrow_y = bounds.bottom() + 80.0
+	_drag(_canvas(tab), _scene_point(tab, start_x, arrow_y), _scene_point(tab, start_x + 120.0, arrow_y))
 	application.processEvents()
 	if "<arrow" not in tab.current_snapshot.cdml:
 		raise CaptureError("Draw Arrow did not create a durable reaction arrow")
@@ -574,8 +569,7 @@ def _dna_base_pair_scene(application: PySide6.QtWidgets.QApplication,
 	tab = _active_tab(window)
 	molecules = tab.current_document_observation().projection.molecules
 	if (
-		tuple(molecule.name for molecule in molecules) != ("Thymine", "Adenine")
-		or tab.current_snapshot.cdml.count("<polyline") != 8
+		len(molecules) != 2 or tab.current_snapshot.cdml.count("<polyline") != 8
 		):
 		raise CaptureError("A-T base pair lacks its molecules or hydrogen-bond guides")
 	return window
@@ -733,7 +727,6 @@ def _view_controls_after_prepare(window: PySide6.QtWidgets.QMainWindow,
 	application.processEvents()
 	if not slider.isEnabled() or slider.value() == 100:
 		raise CaptureError("Zoom to Content did not update the visible status-bar zoom value")
-	_set_documentation_zoom(window, application)
 	tab = _active_tab(window)
 	_canvas(tab).centerOn(tab.document_content_bounds().center())
 	application.processEvents()
@@ -942,11 +935,9 @@ def main() -> int:
 				show_grid.trigger()
 			_prepare_documentation_capture(window, application)
 			_arrange_documentation_docks(window, application)
-			# Authoring can queue a last renderer-owned initial frame.  Let that
-			# ordinary visible lifecycle settle before the status-bar client chooses
-			# the final documentation zoom.
+			# Authoring can queue a last renderer-owned initial frame. Let that
+			# ordinary visible lifecycle settle before any scene-specific proof.
 			PySide6.QtTest.QTest.qWait(75)
-			_set_documentation_zoom(window, application)
 			ribbon_tab_id = args.ribbon_tab if args.ribbon_tab is not None else scene.ribbon_tab_id
 			_expose_ribbon_tab(window, ribbon_tab_id)
 			if scene.post_prepare is not None:

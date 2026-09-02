@@ -6,6 +6,7 @@
 #include <GraphMol/Atom.h>
 #include <GraphMol/Bond.h>
 #ifdef FERRUM_CHEM_ENABLE_DEPICTOR
+#include <GraphMol/Chirality.h>
 #include <GraphMol/Conformer.h>
 #include <GraphMol/Depictor/RDDepictor.h>
 #endif
@@ -289,16 +290,9 @@ WireMolecule kekulize(const WireMolecule &input) {
 	for (uint32_t index = 0; index < molecule.getNumAtoms(); ++index) {
 		const RDKit::Atom *atom = molecule.getAtomWithIdx(index);
 		const WireAtom &input_atom = input.atoms[index];
-		const unsigned int isotope = atom->getIsotope();
-		const unsigned int explicit_hydrogens = atom->getNumExplicitHs();
-		if (isotope > std::numeric_limits<uint16_t>::max() ||
-			explicit_hydrogens > std::numeric_limits<uint16_t>::max()) {
-			throw std::runtime_error("RDKit produced atom facts outside the Ferrum wire contract");
-		}
 		output.atoms.push_back({
-			static_cast<uint8_t>(atom->getAtomicNum()), atom->getIsAromatic(),
-			input_atom.presence_flags, atom->getFormalCharge(), static_cast<uint16_t>(isotope),
-			static_cast<uint16_t>(explicit_hydrogens),
+			input_atom.atomic_number, atom->getIsAromatic(), input_atom.presence_flags,
+			input_atom.formal_charge, input_atom.isotope, input_atom.explicit_hydrogens,
 		});
 	}
 	for (uint32_t index = 0; index < molecule.getNumBonds(); ++index) {
@@ -479,6 +473,7 @@ bool smiles_to_molecule(const uint8_t *request, uint64_t request_len, ferrum_che
 	if (!molecule) return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_INVALID_MOLECULE, "RDKit could not parse SMILES", nullptr, nullptr, response);
 	RDDepict::Compute2DCoordParameters parameters; parameters.canonOrient = true; parameters.clearConfs = true; parameters.forceRDKit = true; parameters.nFlipsPerSample = 0; parameters.nSamples = 0; parameters.useRingTemplates = false;
 	const unsigned int id = RDDepict::compute2DCoords(*molecule, parameters);
+	RDKit::Chirality::wedgeMolBonds(*molecule, &molecule->getConformer(id));
 	return ferrum_chem::emit_molecule_response(FERRUM_CHEM_RESULT_OK, "", molecule.get(), &molecule->getConformer(id), response);
 }
 

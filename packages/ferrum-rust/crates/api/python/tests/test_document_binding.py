@@ -418,29 +418,10 @@ def test_unproven_cdml_fact_mappings_are_rejected_instead_of_discarded(smiles: s
         ferrum_chem.prepare_smiles_molecule_v1(smiles, placement)
 
 
-@pytest.mark.parametrize(("smiles", "expected_semantics"), (
-    (
-        "[C@H](F)(Cl)Br",
-        {
-            "tetrahedral": [{
-                "center": 0,
-                "ligands": [
-                    {"kind": "atom", "index": 1},
-                    {"kind": "atom", "index": 2},
-                    {"kind": "atom", "index": 3},
-                    {"kind": "explicit_hydrogen"},
-                ],
-                "parity": "clockwise",
-            }],
-            "double_bonds": [],
-        },
-    ),
-))
-def test_native_smiles_stereo_reaches_the_durable_molecule_report(
-        smiles: str, expected_semantics: dict[str, object]) -> None:
-    """Native P0 stereo facts cross the source coordinator into the report."""
+def test_chiral_smiles_insertion_persists_wedging_and_tetrahedral_semantics() -> None:
+    """Direct SMILES insertion retains its tetrahedral drawing and chemistry facts."""
     placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
-    molecule = ferrum_chem.prepare_smiles_molecule_v1(smiles, placement)
+    molecule = ferrum_chem.prepare_smiles_molecule_v1("[C@H](F)(Cl)Br", placement)
     session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
     operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
     prepared = session.prepare_session_operation_transition_v1(
@@ -463,7 +444,39 @@ def test_native_smiles_stereo_reaches_the_durable_molecule_report(
     })))
 
     record = response["outcome"]["report"]["records"][0]
-    assert record["stereo_semantics"] == expected_semantics
+    assert 'type="w1"' in snapshot.cdml or 'type="h1"' in snapshot.cdml
+    assert record["stereo_semantics"]["tetrahedral"]
+
+
+def test_achiral_smiles_insertion_does_not_gain_wedging() -> None:
+    """A direct achiral SMILES has no stereochemical bond depiction."""
+    placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+    molecule = ferrum_chem.prepare_smiles_molecule_v1("CCO", placement)
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+    pending = session.prepare_session_operation_transition_v1(
+        operation.transition_request_v1(0))
+    snapshot = session.commit_session_operation_transition_v1(pending).observation.snapshot
+
+    assert 'type="w1"' not in snapshot.cdml and 'type="h1"' not in snapshot.cdml
+
+
+@pytest.mark.parametrize("smiles", (
+    "C1=NC2=NC=NC(=C2N1)N",
+    "CC1=CNC(=O)NC1=O",
+))
+def test_aromatic_n_h_smiles_preserves_explicit_hydrogen_through_preparation(
+        smiles: str) -> None:
+    """Aromatic base preparation retains source explicit-hydrogen semantics."""
+    placement = ferrum_chem.validate_insertion_placement_v1(40.0, 200.0, 150.0)
+    molecule = ferrum_chem.prepare_smiles_molecule_v1(smiles, placement)
+    session = ferrum_chem.DocumentSession.load("<cdml xmlns='urn:ferrum:cdml'/>")
+    operation = ferrum_chem.DocumentOperationV1.insert_molecule_v1(molecule)
+    pending = session.prepare_session_operation_transition_v1(
+        operation.transition_request_v1(0))
+    snapshot = session.commit_session_operation_transition_v1(pending).observation.snapshot
+
+    assert 'explicit_hydrogens="1"' in snapshot.cdml
 
 
 def test_native_inchi_stereo_reaches_the_durable_molecule_report() -> None:

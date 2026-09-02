@@ -232,27 +232,39 @@ through planning, metadata, validation, history, and save/reopen.
 
 ### Native chemistry proportions use one point-space scale
 
-**Decision.** Ferrum's built-in chemistry presentation uses the same
-40-point bond and 12-point atom-label scale as the local BKChem/OASA Qt
-reference. Built-in double- and triple-bond lane separation is four times the
-resolved line width; an explicit CDML `bond width` remains authoritative.
-Documentation chemistry fixtures use the same 40-point bond length.
+**Decision.** Ferrum's built-in chemistry presentation uses the same 40-point
+bond and 12-point atom-label scale as the local BKChem/OASA Qt reference.
+Built-in double- and triple-bond lane separation is four times the resolved
+line width; an explicit CDML `bond width` remains authoritative. Ordinary
+documentation structures begin as exact SMILES and use the active UI's
+40-point canonical bond scale. An oversized depiction receives a typed paper
+or view change, not a private molecular scale change.
 
 **Why.** The OASA default lane spacing is 6 px with a 1.5 px stroke, a
 four-stroke proportion. Carrying 6 into Ferrum beside its 1-point stroke made
 parallel lanes six stroke widths apart. Documentation fixtures separately used
 200- and 220-point bonds, which made ordinary atom labels look implausibly
-small even though native Ferrum authoring already used 40-point spacing.
+small even though native Ferrum authoring already used 40-point spacing. A
+second documentation-only 22-point scale would similarly decouple glyph
+spacing from the UI drawing standard rather than solve page framing.
 
 **Consequence.** Default multiple bonds remain legible without a wide empty
 channel, native and captured chemistry share one bond-to-label scale, and
-authored imported widths remain unchanged. Qt continues to replay Rust-issued
-geometry without a visual correction.
+authored imported widths remain unchanged. The PubChem YAML is the source for
+ordinary documented molecules when it contains the requested CID; the exact
+user-provided CID 65146 SMILES remains its source because the YAML's CID 94190
+record is a different stereospecific compound. RDKit deterministically derives
+coordinates and wedges from isomeric SMILES, Rust uniformly places the graph
+and owns document semantics, and Qt replays that issued geometry without a
+visual correction. Explicit placement scales remain legitimate for editor and
+import behavior; this decision fixes the documentation depiction profile, not
+every Ferrum placement globally.
 
-**Owner.**
-`packages/ferrum-rust/crates/render/src/document/depiction_profile_resolution.rs`,
-`packages/ferrum-rust/crates/domain/src/linear_form/types.rs`, and
-`packages/ferrum-chem-qt.app/ferrum_qt/documentation_capture_models.py`.
+**Owner.** `devel/documentation_biomolecule_sources.py`,
+`devel/documentation_biomolecule_geometry.py`,
+`packages/ferrum-chem-qt.app/ferrum_qt/config/geometry_units.py`,
+`packages/ferrum-rust/crates/chemistry/native/ferrum_chem_adapter.cpp`, and
+`packages/ferrum-rust/crates/geometry/src/molecule_placement.rs`.
 
 ### Rust owns the local File/Open catalog
 
