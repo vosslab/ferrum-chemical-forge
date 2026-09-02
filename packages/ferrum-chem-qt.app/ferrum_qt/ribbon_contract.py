@@ -29,23 +29,25 @@ THEME_KEYS = frozenset({
 class RibbonMetrics:
 	"""Own the small spacing and sizing vocabulary for every ribbon component."""
 
-	page_margins: tuple[int, int, int, int] = (8, 6, 8, 6)
-	group_spacing: int = 8
-	group_margins: tuple[int, int, int, int] = (8, 8, 8, 4)
-	group_label_spacing: int = 4
+	page_margins: tuple[int, int, int, int] = (8, 5, 8, 5)
+	group_spacing: int = 7
+	group_margins: tuple[int, int, int, int] = (6, 6, 6, 3)
+	group_label_spacing: int = 3
 	action_spacing: int = 4
 	compact_icon_size: int = 18
-	standard_icon_size: int = 16
+	compact_caption_icon_size: int = 15
+	compact_caption_font_size: int = 7
+	standard_icon_size: int = 14
 	large_icon_size: int = 20
 	compact_control_size: int = 32
 	compact_grid_height: int = 68
-	standard_control_width: int = 128
-	standard_control_height: int = 30
-	large_control_width: int = 96
-	large_control_height: int = 58
+	standard_control_width: int = 68
+	standard_control_height: int = 32
+	large_control_width: int = 68
+	large_control_height: int = 68
 	width_step: int = 32
-	control_radius: int = 6
-	group_radius: int = 8
+	control_radius: int = 4
+	group_radius: int = 3
 	header_control_height: int = 30
 
 

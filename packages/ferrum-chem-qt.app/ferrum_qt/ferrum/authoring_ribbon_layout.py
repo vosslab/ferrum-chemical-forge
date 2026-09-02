@@ -16,6 +16,10 @@ _RESOURCE_NAME = "ribbon_layout.yaml"
 _ROLES = frozenset({"primary", "supporting"})
 _PRIORITIES = frozenset({"required", "normal"})
 _PRESENTATIONS = frozenset({"compact", "standard", "large"})
+_ENTRY_KEYS = frozenset({"action", "role", "priority", "presentation"})
+_OPTIONAL_ENTRY_KEYS = frozenset({"compact_label", "presentation_label"})
+_COMPACT_LABEL_MAXIMUM = 7
+_PRESENTATION_LABEL_MAXIMUM = 9
 #============================================
 @dataclasses.dataclass(frozen=True, slots=True)
 class RibbonActionClient:
@@ -35,6 +39,8 @@ class RibbonEntry:
 	priority: str
 	presentation: str
 	action: PySide6.QtGui.QAction
+	compact_label: str | None = None
+	presentation_label: str | None = None
 
 
 #============================================
@@ -202,7 +208,7 @@ def _resolve_entry(entry: object, index: int, group_location: str,
 		seen_action_ids: set[str], get_qt_action: object) -> RibbonEntry:
 	"""Resolve one declared registry action without constructing a replacement."""
 	location = f"{group_location}.entries[{index}]"
-	data = _mapping(entry, location, {"action", "role", "priority", "presentation"})
+	data = _entry_mapping(entry, location)
 	action_id = _string(data["action"], f"{location}.action")
 	if action_id in seen_action_ids:
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
@@ -224,12 +230,51 @@ def _resolve_entry(entry: object, index: int, group_location: str,
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			f"{location}.presentation must be compact, standard, or large.",
 		)
+	compact_label = None
+	if "compact_label" in data:
+		compact_label = _string(data["compact_label"], f"{location}.compact_label")
+		if presentation != "compact":
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"{location}.compact_label requires compact presentation.",
+			)
+		if len(compact_label) > _COMPACT_LABEL_MAXIMUM:
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"{location}.compact_label must contain at most {_COMPACT_LABEL_MAXIMUM} characters.",
+			)
+	presentation_label = None
+	if "presentation_label" in data:
+		presentation_label = _string(data["presentation_label"], f"{location}.presentation_label")
+		if presentation == "compact":
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"{location}.presentation_label requires standard or large presentation.",
+			)
+		if len(presentation_label) > _PRESENTATION_LABEL_MAXIMUM:
+			raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+				f"{location}.presentation_label must contain at most {_PRESENTATION_LABEL_MAXIMUM} characters.",
+			)
 	action = get_qt_action(action_id)
 	if not isinstance(action, PySide6.QtGui.QAction):
 		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
 			f"{location}.action references unbound QAction '{action_id}'.",
 		)
-	return RibbonEntry(action_id, role, priority, presentation, action)
+	return RibbonEntry(
+		action_id, role, priority, presentation, action, compact_label, presentation_label,
+	)
+
+
+#============================================
+def _entry_mapping(value: object, location: str) -> dict:
+	"""Require a ribbon entry with its one optional compact caption."""
+	if type(value) is not dict:
+		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+			f"{location} must contain action, role, priority, and presentation.",
+		)
+	keys = set(value)
+	if not _ENTRY_KEYS <= keys or not keys <= _ENTRY_KEYS | _OPTIONAL_ENTRY_KEYS:
+		raise ferrum_qt.declarative_resources.DeclarativeResourceError(
+			f"{location} must contain action, role, priority, and presentation, with optional labels.",
+		)
+	return value
 
 
 #============================================

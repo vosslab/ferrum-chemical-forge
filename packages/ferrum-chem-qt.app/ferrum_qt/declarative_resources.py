@@ -17,6 +17,10 @@ _MENU_RESOURCE = "menus.yaml"
 _RIBBON_RESOURCE = "ribbon_layout.yaml"
 _CONTEXT_MENU_ID = "selected_structure"
 _RIBBON_PRESENTATIONS = frozenset({"compact", "standard", "large"})
+_RIBBON_ENTRY_KEYS = frozenset({"action", "role", "priority", "presentation"})
+_RIBBON_OPTIONAL_ENTRY_KEYS = frozenset({"compact_label", "presentation_label"})
+_RIBBON_COMPACT_LABEL_MAXIMUM = 7
+_RIBBON_PRESENTATION_LABEL_MAXIMUM = 9
 #============================================
 DeclarativeResourceError = ferrum_qt.declarative_resource_loader.DeclarativeResourceError
 
@@ -312,11 +316,13 @@ def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> N
 			for entry_index, entry in enumerate(entries):
 				entry_location = f"{group_location}.entries[{entry_index}]"
 				entry = _require_mapping(entry, entry_location)
-				_require_keys(
-					entry,
-					{"action", "role", "priority", "presentation"},
-					entry_location,
-				)
+				entry_keys = set(entry)
+				if (not _RIBBON_ENTRY_KEYS <= entry_keys
+						or not entry_keys <= _RIBBON_ENTRY_KEYS | _RIBBON_OPTIONAL_ENTRY_KEYS):
+					raise DeclarativeResourceError(
+						f"{entry_location} must contain action, role, priority, and presentation, "
+						"with optional compact_label and presentation_label.",
+					)
 				action_id = _require_string(entry["action"], f"{entry_location}.action")
 				if action_id in seen_action_ids:
 					raise DeclarativeResourceError(
@@ -328,6 +334,32 @@ def _validate_ribbon_declarations(data: object, action_ids: frozenset[str]) -> N
 					raise DeclarativeResourceError(
 						f"{entry_location}.presentation must be compact, standard, or large.",
 					)
+				if "compact_label" in entry:
+					compact_label = _require_string(
+						entry["compact_label"], f"{entry_location}.compact_label",
+					)
+					if presentation != "compact":
+						raise DeclarativeResourceError(
+							f"{entry_location}.compact_label requires compact presentation.",
+						)
+					if len(compact_label) > _RIBBON_COMPACT_LABEL_MAXIMUM:
+						raise DeclarativeResourceError(
+							f"{entry_location}.compact_label must contain at most "
+							f"{_RIBBON_COMPACT_LABEL_MAXIMUM} characters.",
+						)
+				if "presentation_label" in entry:
+					presentation_label = _require_string(
+						entry["presentation_label"], f"{entry_location}.presentation_label",
+					)
+					if presentation == "compact":
+						raise DeclarativeResourceError(
+							f"{entry_location}.presentation_label requires standard or large presentation.",
+						)
+					if len(presentation_label) > _RIBBON_PRESENTATION_LABEL_MAXIMUM:
+						raise DeclarativeResourceError(
+							f"{entry_location}.presentation_label must contain at most "
+							f"{_RIBBON_PRESENTATION_LABEL_MAXIMUM} characters.",
+						)
 				if action_id not in action_ids:
 					raise DeclarativeResourceError(
 						f"{entry_location}.action references unresolved action '{action_id}'.",

@@ -50,7 +50,7 @@ def test_ribbon_header_reuses_accessible_icon_bearing_registry_actions(
 	assert save_button.focusPolicy() is PySide6.QtCore.Qt.FocusPolicy.StrongFocus
 	assert command_palette_button.property("ribbonHeaderRole") == "global"
 	assert command_palette_button.accessibleDescription()
-	assert ribbon.current_tab_id() == "reactions"
+	assert ribbon.current_tab_id() == "home"
 
 
 #============================================
@@ -83,7 +83,7 @@ def test_ribbon_layout_resolves_existing_action_identity(qapp: object) -> None:
 			"accent": "drawing",
 			"entries": [{
 				"action": "draw.bond", "role": "primary", "priority": "normal",
-				"presentation": "compact",
+				"presentation": "compact", "compact_label": "Bond",
 			}],
 		}],
 	}]}, registry)
@@ -92,6 +92,7 @@ def test_ribbon_layout_resolves_existing_action_identity(qapp: object) -> None:
 	entry = next(entry for entry in draw_group.entries if entry.action_id == "draw.bond")
 	assert entry.action is action
 	assert (entry.role, entry.priority, entry.presentation) == ("primary", "normal", "compact")
+	assert entry.compact_label == "Bond"
 
 
 #============================================
@@ -176,7 +177,7 @@ def test_group_states_keep_each_original_action_reachable_once(
 			qapp.processEvents()
 			assert group.visible_actions() == actions
 			assert len(set(group.visible_actions())) == len(actions)
-		assert group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.EXPANDED) > (
+		assert group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.EXPANDED) >= (
 			group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COMPACT)
 		) > group.width_for(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)
 	finally:
@@ -193,13 +194,14 @@ def test_group_controls_follow_declared_presentations_in_a_two_row_grid(
 	))
 	entries = (
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
-			"draw.command_0", "primary", "required", "compact", actions[0],
+			"draw.command_0", "primary", "required", "compact", actions[0], "Bond",
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
 			"draw.command_1", "supporting", "normal", "compact", actions[1],
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
 			"draw.command_2", "supporting", "normal", "standard", actions[2],
+			presentation_label="Support",
 		),
 		ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry(
 			"draw.command_3", "supporting", "normal", "large", actions[3],
@@ -215,13 +217,18 @@ def test_group_controls_follow_declared_presentations_in_a_two_row_grid(
 	qapp.processEvents()
 	try:
 		compact = group.direct_button_for(actions[0])
+		unlabelled_compact = group.direct_button_for(actions[1])
 		standard = group.direct_button_for(actions[2])
 		large = group.direct_button_for(actions[3])
 		assert compact.size().width() == compact.size().height()
-		assert standard.width() > compact.width() and standard.height() < compact.height()
-		assert large.height() > compact.height()
+		assert standard.width() == compact.width() * 2 + group._action_layout.horizontalSpacing()
+		assert standard.height() == compact.height()
+		assert large.width() == standard.width() and large.height() > standard.height()
 		assert compact.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
-		assert standard.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+		assert compact.property("ribbonControlCaptionVisible") == "true"
+		assert standard.property("ribbonControlCaptionVisible") == "true"
+		assert unlabelled_compact.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
+		assert standard.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
 		assert large.toolButtonStyle() is PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
 		assert group._action_layout.rowCount() == 2
 		group.set_display_state(ferrum_qt.widgets.ribbon_group.RibbonGroupDisplayState.COLLAPSED)

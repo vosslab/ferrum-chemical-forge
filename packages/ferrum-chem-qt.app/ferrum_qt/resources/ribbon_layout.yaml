@@ -8,6 +8,90 @@ quick_access:
 global_actions:
   - view.command_palette
 tabs:
+  - id: home
+    label_key: Home
+    groups:
+      - id: select_edit
+        label_key: Select and edit
+        overflow_label_key: More selection and editing commands
+        accent: selection
+        entries:
+          - {action: draw.selection.structure, role: primary, priority: required, presentation: large, presentation_label: Select}
+          - {action: draw.arrange.move_atom, role: supporting, priority: normal, presentation: compact, compact_label: Move}
+          - {action: draw.arrange.rotate_selected_atoms, role: supporting, priority: normal, presentation: compact, compact_label: Rotate}
+          - {action: draw.transform.roots.scale, role: supporting, priority: normal, presentation: compact, compact_label: Scale}
+      - id: draw
+        label_key: Draw
+        overflow_label_key: More drawing tools
+        accent: drawing
+        entries:
+          - {action: draw.atom_at_point, role: primary, priority: required, presentation: compact, compact_label: Atom}
+          - {action: draw.bond, role: primary, priority: required, presentation: compact, compact_label: Bond}
+          - {action: draw.next_drawing, role: supporting, priority: normal, presentation: compact, compact_label: Next}
+      - id: insert
+        label_key: Insert
+        overflow_label_key: More insert commands
+        accent: structure
+        entries:
+          - {action: draw.ring.regular.c6, role: primary, priority: required, presentation: compact, compact_label: C6}
+          - {action: chemistry.template.catalog, role: supporting, priority: normal, presentation: standard, presentation_label: Templates}
+      - id: reaction
+        label_key: Reaction
+        overflow_label_key: More reaction commands
+        accent: reaction
+        entries:
+          - {action: draw.arrow, role: primary, priority: required, presentation: compact}
+          - {action: draw.plus, role: supporting, priority: normal, presentation: compact}
+  - id: structure
+    label_key: Structure
+    groups:
+      - id: atoms_bonds
+        label_key: Atoms and bonds
+        overflow_label_key: More atom and bond commands
+        accent: drawing
+        entries:
+          - {action: draw.atom_at_point, role: primary, priority: required, presentation: compact, compact_label: Atom}
+          - {action: draw.bond, role: primary, priority: required, presentation: compact, compact_label: Bond}
+          - {action: draw.bond.solid_wedge, role: supporting, priority: normal, presentation: compact, compact_label: Wedge}
+          - {action: draw.bond.hashed_wedge, role: supporting, priority: normal, presentation: compact, compact_label: Hash}
+          - {action: draw.bond.connect_selected, role: supporting, priority: normal, presentation: compact, compact_label: Join}
+          - {action: edit.bond.change_order, role: supporting, priority: normal, presentation: compact, compact_label: Order}
+      - id: rings
+        label_key: Rings
+        overflow_label_key: More ring commands
+        accent: structure
+        entries:
+          - {action: draw.ring.regular.c6, role: primary, priority: required, presentation: compact, compact_label: C6}
+          - {action: draw.ring.regular.c3, role: supporting, priority: normal, presentation: compact, compact_label: C3}
+          - {action: draw.ring.regular.c4, role: supporting, priority: normal, presentation: compact, compact_label: C4}
+          - {action: draw.ring.regular.c5, role: supporting, priority: normal, presentation: compact, compact_label: C5}
+          - {action: draw.ring.cyclohexane.insert, role: supporting, priority: normal, presentation: compact, compact_label: Insert}
+          - {action: draw.ring.cyclohexane.attach, role: supporting, priority: normal, presentation: compact, compact_label: Attach}
+          - {action: draw.ring.haworth.insert, role: supporting, priority: normal, presentation: compact, compact_label: Haworth}
+      - id: groups_templates
+        label_key: Groups and templates
+        overflow_label_key: More group and template commands
+        accent: structure
+        entries:
+          - {action: chemistry.template.catalog, role: primary, priority: required, presentation: standard, presentation_label: Templates}
+          - {action: chemistry.compact_group.place, role: supporting, priority: normal, presentation: compact, compact_label: Place}
+          - {action: chemistry.compact_group.materialize, role: supporting, priority: normal, presentation: compact, compact_label: Expand}
+          - {action: chemistry.compact_group.attach, role: supporting, priority: normal, presentation: compact, compact_label: Attach}
+      - id: geometry
+        label_key: Geometry
+        overflow_label_key: More geometry commands
+        accent: selection
+        entries:
+          - {action: draw.arrange.move_atom, role: supporting, priority: normal, presentation: compact, compact_label: Move}
+          - {action: draw.arrange.rotate_selected_atoms, role: supporting, priority: normal, presentation: compact, compact_label: Rotate}
+          - {action: draw.arrange.move_complete_roots, role: supporting, priority: normal, presentation: compact, compact_label: Roots}
+          - {action: edit.bond.reverse_wedge, role: supporting, priority: normal, presentation: compact, compact_label: Flip}
+      - id: drawing_defaults
+        label_key: Drawing defaults
+        overflow_label_key: More drawing default commands
+        accent: utility
+        entries:
+          - {action: draw.next_drawing, role: supporting, priority: normal, presentation: compact, compact_label: Next}
   - id: reactions
     label_key: Reactions
     groups:
@@ -28,14 +112,14 @@ tabs:
         overflow_label_key: More reaction structure commands
         accent: structure
         entries:
-          - {action: chemistry.reaction.create, role: primary, priority: required, presentation: standard}
-          - {action: chemistry.reaction.inspect, role: supporting, priority: normal, presentation: standard}
+          - {action: chemistry.reaction.create, role: primary, priority: required, presentation: standard, presentation_label: Create}
+          - {action: chemistry.reaction.inspect, role: supporting, priority: normal, presentation: standard, presentation_label: Inspect}
       - id: conditions
         label_key: Conditions
         overflow_label_key: More conditions commands
         accent: annotation
         entries:
-          - {action: draw.text, role: supporting, priority: normal, presentation: standard}
+          - {action: draw.text, role: supporting, priority: normal, presentation: standard, presentation_label: Text}
   - id: annotate
     label_key: Annotate
     groups:
@@ -44,77 +128,27 @@ tabs:
         overflow_label_key: More label tools
         accent: annotation
         entries:
-          - {action: draw.text, role: primary, priority: required, presentation: standard}
+          - {action: draw.text, role: primary, priority: required, presentation: standard, presentation_label: Text}
       - id: brackets_lines
         label_key: Brackets and lines
         overflow_label_key: More bracket and line tools
         accent: annotation
         entries:
-          - {action: draw.bracket.rectangular, role: primary, priority: required, presentation: compact}
-          - {action: draw.bracket.round, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.wavy, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.vector.line, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.path.polyline, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.path.polygon, role: supporting, priority: normal, presentation: compact}
+          - {action: draw.bracket.rectangular, role: primary, priority: required, presentation: compact, compact_label: Box}
+          - {action: draw.bracket.round, role: supporting, priority: normal, presentation: compact, compact_label: Round}
+          - {action: draw.wavy, role: supporting, priority: normal, presentation: compact, compact_label: Wavy}
+          - {action: draw.vector.line, role: supporting, priority: normal, presentation: compact, compact_label: Line}
+          - {action: draw.path.polyline, role: supporting, priority: normal, presentation: compact, compact_label: Path}
+          - {action: draw.path.polygon, role: supporting, priority: normal, presentation: compact, compact_label: Poly}
       - id: shapes
         label_key: Shapes
         overflow_label_key: More shape tools
         accent: annotation
         entries:
-          - {action: draw.vector.rectangle, role: primary, priority: required, presentation: compact}
-          - {action: draw.vector.square, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.vector.oval, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.vector.circle, role: supporting, priority: normal, presentation: compact}
-  - id: structure
-    label_key: Structure
-    groups:
-      - id: atoms_bonds
-        label_key: Atoms and bonds
-        overflow_label_key: More atom and bond commands
-        accent: drawing
-        entries:
-          - {action: draw.atom_at_point, role: primary, priority: required, presentation: compact}
-          - {action: draw.bond, role: primary, priority: required, presentation: compact}
-          - {action: draw.bond.solid_wedge, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.bond.hashed_wedge, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.bond.connect_selected, role: supporting, priority: normal, presentation: compact}
-          - {action: edit.bond.change_order, role: supporting, priority: normal, presentation: compact}
-      - id: rings
-        label_key: Rings
-        overflow_label_key: More ring commands
-        accent: structure
-        entries:
-          - {action: draw.ring.regular.c6, role: primary, priority: required, presentation: compact}
-          - {action: draw.ring.regular.c3, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.ring.regular.c4, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.ring.regular.c5, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.ring.cyclohexane.insert, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.ring.cyclohexane.attach, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.ring.haworth.insert, role: supporting, priority: normal, presentation: compact}
-      - id: groups_templates
-        label_key: Groups and templates
-        overflow_label_key: More group and template commands
-        accent: structure
-        entries:
-          - {action: chemistry.template.catalog, role: primary, priority: required, presentation: standard}
-          - {action: chemistry.compact_group.place, role: supporting, priority: normal, presentation: compact}
-          - {action: chemistry.compact_group.materialize, role: supporting, priority: normal, presentation: compact}
-          - {action: chemistry.compact_group.attach, role: supporting, priority: normal, presentation: compact}
-      - id: geometry
-        label_key: Geometry
-        overflow_label_key: More geometry commands
-        accent: selection
-        entries:
-          - {action: draw.arrange.move_atom, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.arrange.rotate_selected_atoms, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.arrange.move_complete_roots, role: supporting, priority: normal, presentation: compact}
-          - {action: edit.bond.reverse_wedge, role: supporting, priority: normal, presentation: compact}
-      - id: drawing_defaults
-        label_key: Drawing defaults
-        overflow_label_key: More drawing default commands
-        accent: utility
-        entries:
-          - {action: draw.next_drawing, role: supporting, priority: normal, presentation: compact}
+          - {action: draw.vector.rectangle, role: primary, priority: required, presentation: compact, compact_label: Rect}
+          - {action: draw.vector.square, role: supporting, priority: normal, presentation: compact, compact_label: Square}
+          - {action: draw.vector.oval, role: supporting, priority: normal, presentation: compact, compact_label: Oval}
+          - {action: draw.vector.circle, role: supporting, priority: normal, presentation: compact, compact_label: Circle}
   - id: view
     label_key: View
     groups:
@@ -123,52 +157,13 @@ tabs:
         overflow_label_key: More zoom commands
         accent: view
         entries:
-          - {action: view.zoom_100, role: primary, priority: required, presentation: standard}
-          - {action: view.zoom_in, role: supporting, priority: normal, presentation: compact}
-          - {action: view.zoom_out, role: supporting, priority: normal, presentation: compact}
+          - {action: view.zoom_100, role: primary, priority: required, presentation: standard, presentation_label: 100%}
+          - {action: view.zoom_in, role: supporting, priority: normal, presentation: compact, compact_label: In}
+          - {action: view.zoom_out, role: supporting, priority: normal, presentation: compact, compact_label: Out}
       - id: grid
         label_key: Grid
         overflow_label_key: More grid commands
         accent: view
         entries:
-          - {action: view.grid.visible, role: primary, priority: required, presentation: compact}
-          - {action: view.grid.snap, role: supporting, priority: normal, presentation: compact}
-  - id: home
-    label_key: Home
-    groups:
-      - id: select_edit
-        label_key: Select and edit
-        overflow_label_key: More selection and editing commands
-        accent: selection
-        entries:
-          - {action: draw.selection.structure, role: primary, priority: required, presentation: large}
-          - {action: draw.arrange.move_atom, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.arrange.rotate_selected_atoms, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.transform.roots.scale, role: supporting, priority: normal, presentation: compact}
-      - id: draw
-        label_key: Draw
-        overflow_label_key: More drawing tools
-        accent: drawing
-        entries:
-          - {action: draw.atom_at_point, role: primary, priority: required, presentation: compact}
-          - {action: draw.bond, role: primary, priority: required, presentation: compact}
-          - {action: draw.bond.solid_wedge, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.bond.hashed_wedge, role: supporting, priority: normal, presentation: compact}
-          - {action: draw.next_drawing, role: supporting, priority: normal, presentation: compact}
-      - id: rings_templates
-        label_key: Rings and templates
-        overflow_label_key: More ring and template commands
-        accent: structure
-        entries:
-          - {action: draw.ring.cyclohexane.insert, role: primary, priority: required, presentation: compact}
-          - {action: draw.ring.cyclohexane.attach, role: supporting, priority: normal, presentation: compact}
-          - {action: chemistry.template.catalog, role: supporting, priority: normal, presentation: standard}
-      - id: reaction
-        label_key: Reaction
-        overflow_label_key: More reaction commands
-        accent: reaction
-        entries:
-          - {action: draw.arrow, role: primary, priority: required, presentation: compact}
-          - {action: draw.plus, role: supporting, priority: normal, presentation: compact}
-          - {action: chemistry.reaction.create, role: supporting, priority: normal, presentation: standard}
-          - {action: chemistry.reaction.inspect, role: supporting, priority: normal, presentation: standard}
+          - {action: view.grid.visible, role: primary, priority: required, presentation: compact, compact_label: Grid}
+          - {action: view.grid.snap, role: supporting, priority: normal, presentation: compact, compact_label: Snap}

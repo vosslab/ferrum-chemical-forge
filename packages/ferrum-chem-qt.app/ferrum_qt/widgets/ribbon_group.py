@@ -37,6 +37,39 @@ class RibbonGroupDisplayState(enum.Enum):
 
 
 #============================================
+class _RibbonActionButton(PySide6.QtWidgets.QToolButton):
+	"""Keep a declarative display caption separate from a registry QAction label."""
+
+	#============================================
+	def __init__(self, parent: PySide6.QtWidgets.QWidget) -> None:
+		"""Create one action client with a click-through compact caption layer."""
+		super().__init__(parent)
+		self._caption = PySide6.QtWidgets.QLabel(self)
+		self._caption.setProperty("ribbonControlCaption", "true")
+		self._caption.setAlignment(
+			PySide6.QtCore.Qt.AlignmentFlag.AlignHCenter
+			| PySide6.QtCore.Qt.AlignmentFlag.AlignVCenter,
+		)
+		self._caption.setAttribute(
+			PySide6.QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+		)
+		self._caption.hide()
+
+	#============================================
+	def set_ribbon_caption(self, caption: str | None) -> None:
+		"""Expose a short YAML-owned caption without changing the QAction label."""
+		self.setProperty("ribbonControlCaptionVisible", "true" if caption is not None else "false")
+		self._caption.setText(caption or "")
+		self._caption.setVisible(caption is not None)
+
+	#============================================
+	def resizeEvent(self, event: PySide6.QtGui.QResizeEvent) -> None:
+		"""Reserve the lower edge for the caption at every fixed control size."""
+		super().resizeEvent(event)
+		self._caption.setGeometry(1, self.height() - 10, max(0, self.width() - 2), 9)
+
+
+#============================================
 class RibbonGroup(PySide6.QtWidgets.QWidget):
 	"""Project registry actions as a labelled group in one explicit state."""
 
@@ -133,24 +166,12 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		"""Measure live grid hints plus label and group margins for one state."""
 		visible_entries = self._visible_entries(state)
 		overflow_entries = self._overflow_entries(state)
-		placements, columns = self._layout_plan(visible_entries, state)
-		column_widths: dict[int, int] = {}
-		for placement in placements:
-			column_widths[placement.column] = max(
-				column_widths.get(placement.column, 0),
-				self._presentation_size(placement.presentation).width(),
-			)
+		_unused_placements, columns = self._layout_plan(visible_entries, state)
 		if state is not RibbonGroupDisplayState.EXPANDED and overflow_entries:
-			overflow_column = columns
-			column_widths[overflow_column] = max(
-				column_widths.get(overflow_column, 0),
-				self._presentation_size("compact").width(),
-			)
-		if column_widths:
-			row_width = sum(column_widths.values())
-			row_width += self._action_layout.horizontalSpacing() * max(0, len(column_widths) - 1)
-		else:
-			row_width = 0
+			columns += 1
+		metrics = ferrum_qt.ribbon_contract.METRICS
+		row_width = columns * metrics.compact_control_size
+		row_width += self._action_layout.horizontalSpacing() * max(0, columns - 1)
 		margins = self._root_layout.contentsMargins()
 		return max(row_width, self._caption.sizeHint().width()) + margins.left() + margins.right()
 
@@ -186,10 +207,11 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 			entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 			) -> PySide6.QtWidgets.QToolButton:
 		"""Make one tool client delegating all state to its existing action."""
-		button = PySide6.QtWidgets.QToolButton(self._actions)
+		button = _RibbonActionButton(self._actions)
 		button.setDefaultAction(entry.action)
 		button.setProperty("ribbonRole", entry.role)
 		button.setProperty("ribbonPresentation", entry.presentation)
+		button.setProperty("ribbonCompactLabel", "true" if entry.compact_label is not None else "false")
 		button.setProperty("ribbonAccent", self.layout_data.accent)
 		button.setFocusPolicy(PySide6.QtCore.Qt.FocusPolicy.StrongFocus)
 		button.setAccessibleName(entry.action.text())
@@ -220,10 +242,17 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 				item.widget().setParent(self._actions)
 		placements, columns = self._layout_plan(visible_entries, self._display_state)
 		for placement in placements:
-			self._action_layout.addWidget(
-				self._button_by_entry[placement.entry], placement.row,
-				placement.column, placement.row_span, placement.column_span,
-			)
+			button = self._button_by_entry[placement.entry]
+			if placement.row_span == self._ROW_COUNT and placement.presentation != "large":
+				self._action_layout.addWidget(
+					button, placement.row, placement.column, placement.row_span,
+					placement.column_span, PySide6.QtCore.Qt.AlignmentFlag.AlignVCenter,
+				)
+			else:
+				self._action_layout.addWidget(
+					button, placement.row, placement.column, placement.row_span,
+					placement.column_span,
+				)
 		if show_overflow:
 			overflow_column = columns
 			self._action_layout.addWidget(
@@ -239,31 +268,46 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 			state: RibbonGroupDisplayState,
 		) -> tuple[tuple[_Placement, ...], int]:
 		"""Place all visible entries into a fixed two-row compact grid."""
+		if len(visible_entries) == 1:
+			entry = visible_entries[0]
+			presentation = self._presentation_for_state(entry, state)
+			_unused_row_span, column_span = self._placement_spans(presentation)
+			return (_Placement(entry, 0, 0, self._ROW_COUNT, column_span, presentation),), column_span
 		placements: list[_Placement] = []
-		column = 0
-		row = 0
+		occupied: set[tuple[int, int]] = set()
 		for entry in visible_entries:
 			presentation = self._presentation_for_state(entry, state)
-			if presentation == "large":
-				if row != 0:
+			row_span, column_span = self._placement_spans(presentation)
+			column = 0
+			while True:
+				for row in range(self._ROW_COUNT):
+					cells = tuple(
+						(row + row_offset, column + column_offset)
+						for row_offset in range(row_span)
+						for column_offset in range(column_span)
+					)
+					if row + row_span <= self._ROW_COUNT and not occupied.intersection(cells):
+						placements.append(_Placement(
+							entry, row, column, row_span, column_span, presentation,
+						))
+						occupied.update(cells)
+						break
+				else:
 					column += 1
-					row = 0
-				placements.append(_Placement(entry, 0, column, 2, 1, presentation))
-				column += 1
-				row = 0
-				continue
-			placements.append(_Placement(entry, row, column, 1, 1, presentation))
-			row += 1
-			if row >= self._ROW_COUNT:
-				column += 1
-				row = 0
-		if not visible_entries:
-			columns = 0
-		else:
-			columns = column + (1 if row > 0 else 0)
-			if placements:
-				columns = max(columns, placements[-1].column + 1)
+					continue
+				break
+		columns = max((placement.column + placement.column_span for placement in placements), default=0)
 		return tuple(placements), columns
+
+
+	#============================================
+	def _placement_spans(self, presentation: str) -> tuple[int, int]:
+		"""Return grid spans for Ferrum's three fixed control envelopes."""
+		if presentation == "compact":
+			return 1, 1
+		if presentation == "standard":
+			return 1, 2
+		return self._ROW_COUNT, 2
 
 	#============================================
 	def _needs_overflow(self) -> bool:
@@ -326,23 +370,32 @@ class RibbonGroup(PySide6.QtWidgets.QWidget):
 		return "compact"
 
 	#============================================
-	def _apply_entry_presentation(self, button: PySide6.QtWidgets.QToolButton,
+	def _apply_entry_presentation(self, button: _RibbonActionButton,
 			entry: ferrum_qt.ferrum.authoring_ribbon_layout.RibbonEntry,
 			state: RibbonGroupDisplayState) -> None:
 		"""Apply one concrete button geometry and text policy from presentation size."""
 		presentation = self._presentation_for_state(entry, state)
 		button.setProperty("ribbonPresentation", presentation)
 		metrics = ferrum_qt.ribbon_contract.METRICS
+		caption = entry.compact_label if presentation == "compact" else entry.presentation_label
+		button.set_ribbon_caption(caption)
 		if presentation == "compact":
 			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly)
-			button.setIconSize(PySide6.QtCore.QSize(metrics.compact_icon_size, metrics.compact_icon_size))
+			icon_size = metrics.compact_caption_icon_size if caption is not None else metrics.compact_icon_size
+			button.setIconSize(PySide6.QtCore.QSize(icon_size, icon_size))
 		elif presentation == "standard":
-			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+			button.setToolButtonStyle(
+				PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
+				if caption is not None else PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon,
+			)
 			button.setIconSize(PySide6.QtCore.QSize(
 				metrics.standard_icon_size, metrics.standard_icon_size,
 			))
 		else:
-			button.setToolButtonStyle(PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+			button.setToolButtonStyle(
+				PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonIconOnly
+				if caption is not None else PySide6.QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon,
+			)
 			button.setIconSize(PySide6.QtCore.QSize(metrics.large_icon_size, metrics.large_icon_size))
 		button.setFixedSize(self._presentation_size(presentation))
 

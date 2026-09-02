@@ -121,6 +121,7 @@ tabs:
             role: primary
             priority: required
             presentation: compact
+            compact_label: Atom
           - action: draw.bond
             role: supporting
             priority: normal
@@ -134,7 +135,7 @@ discovery routes.
 
 A tab requires exactly `id`, `label_key`, and `groups`. A group requires exactly `id`,
 `label_key`, `overflow_label_key`, `accent`, and `entries`. An entry requires exactly `action`,
-`role`, `priority`, and `presentation`.
+`role`, `priority`, and `presentation`, with optional `compact_label` or `presentation_label`.
 
 - Tab IDs are unique across the resource; group IDs are unique within a tab; action IDs are unique
   within a tab.
@@ -145,6 +146,11 @@ A tab requires exactly `id`, `label_key`, and `groups`. A group requires exactly
   changing role or priority. Compact controls are icon-first and retain their QAction tooltip and
   accessible name. Standard controls keep a text label, while large controls are reserved for the
   rare dominant action in a group.
+- `compact_label` is an optional one-to-seven-character caption placed beneath a compact icon.
+  Declare it only where the icon benefits from a concise word or abbreviation; it does not replace
+  the QAction text used by tooltips, accessible names, menus, or the command palette.
+- `presentation_label` is an optional one-to-nine-character caption for standard or large controls.
+  It keeps those controls readable without changing the QAction text used elsewhere.
 - `accent` is one of `annotation`, `drawing`, `reaction`, `selection`, `structure`, `utility`, or
   `view`. It is semantic grouping metadata, not a literal color.
 - Every action must resolve to an already bound QAction. The ribbon only projects that client; it

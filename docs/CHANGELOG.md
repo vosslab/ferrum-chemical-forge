@@ -14,9 +14,15 @@ archive navigation continues chronologically back through 2026-08-11.
   captures were removed.
 - Increased ribbon command density with declarative compact, standard, and large presentations.
   Reactions, Annotate, and Structure now expose chemistry primitives through fixed two-row,
-  icon-first groups; Home is curated last, with its selection mode as the only large control.
+  icon-first groups; Home uses its selection mode as the only large control.
   Responsive overflow is a corner chevron that reuses each registered QAction instead of a
   permanent More card.
+- Polished the YAML-driven ribbon into a shared 32 px compact grid: standard controls span two
+  compact columns, the rare large controls span both rows, and sparse groups center their lone
+  control. Optional YAML captions now clarify ambiguous chemistry tools without changing their
+  QAction name, tooltip, active state, keyboard route, menu client, or command palette route.
+  Home now leads the task sequence and is curated to frequent selection, drawing, insertion, and
+  reaction-start actions; group cards use subtle separators and retain colored rails.
 
 ### Fixes and Maintenance
 
@@ -31,6 +37,11 @@ archive navigation continues chronologically back through 2026-08-11.
 
 ### Developer Tests and Notes
 
+- Ran `source source_me.sh && python3 -m pytest` for the authoring ribbon,
+  declarative resources, and command palette: 35 checks passed. Captured and directly inspected
+  live 1440-by-900 Qt views of Home, Structure, Reactions, Annotate, and View, then refreshed all
+  14 documented tour screenshots. The final catalog, selected-edit, CDXML, and command-palette
+  spot check confirmed concise presentation labels never replace canonical QAction labels.
 - Ran `./capture_gui_screenshots.sh --backend qt` to refresh all 14 named GUI-tour PNGs.
   Each regenerated 1440-by-900 capture was inspected directly, covering Home, Structure,
   Reactions, Annotate, View, Template Catalog, CDXML, and Command Palette states.
