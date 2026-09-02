@@ -3,6 +3,12 @@
 Earlier history begins in [CHANGELOG-2026-08k.md](CHANGELOG-2026-08k.md), whose
 archive navigation continues chronologically back through 2026-08-11.
 
+## 2026-09-02
+
+### Fixes and Maintenance
+
+- Synchronized shared style guides, tests, and repository support files from the starter template.
+
 ## 2026-09-01
 
 ### Behavior or Interface Changes

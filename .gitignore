@@ -11,9 +11,6 @@ _temp*.?*
 /OTHER_REPOS/
 /LOCAL_ONLY/
 
-# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]
-# Propagation preserves this section.
-# Template-only ignores.
 # === PYTHON === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
 build/
 dist/
@@ -27,3 +24,9 @@ site/
 **/target/
 **/*.rs.bk
 .rust_analyzer/
+
+# -------------------- LOCAL REPOSITORY RULES --------------------
+# ADD YOUR CUSTOM IGNORES BELOW
+# Propagation preserves this section.
+# ------------------ END LOCAL REPOSITORY RULES ------------------
+# Template-only ignores.
